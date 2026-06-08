@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.mapNotNull
 import moe.tlaster.precompose.molecule.producePresenter
+import dev.dimension.flare.data.model.tab.isSystemHomeMixedTimeline
+import kotlinx.coroutines.flow.filter
 
 @Immutable
 public interface TimelineWithLazyListState : TimelineItemPresenter.State {
@@ -44,13 +46,18 @@ public fun rememberTimelineItemPresenterWithLazyListState(
     val baseState by producePresenter("timeline_${item.id}") {
         remember { TimelineItemPresenter(item) }.invoke()
     }
-    return rememberTimelineWithLazyListState(baseState, lazyStaggeredGridState)
+    return rememberTimelineWithLazyListState(
+        baseState,
+        lazyStaggeredGridState,
+        isSystemHomeMixedTimeline = item.isSystemHomeMixedTimeline,
+    )
 }
 
 @Composable
 private fun rememberTimelineWithLazyListState(
     baseState: TimelineItemPresenter.State,
     lazyListState: LazyStaggeredGridState,
+    isSystemHomeMixedTimeline: Boolean = false,
 ): TimelineWithLazyListState {
     var showNewToots by remember { mutableStateOf(false) }
     var lastRefreshIndex by remember { mutableStateOf(0) }
@@ -85,6 +92,15 @@ private fun rememberTimelineWithLazyListState(
                         }
                 }
             }
+    }
+    // Nur gemeinsame Timeline: Das "neue Beiträge"-Banner verschwindet, sobald der
+    // Nutzer zu scrollen beginnt – statt erst, wenn die Liste wieder ganz oben ist.
+    if (isSystemHomeMixedTimeline) {
+        LaunchedEffect(lazyListState) {
+            snapshotFlow { lazyListState.isScrollInProgress }
+                .filter { it }
+                .collect { showNewToots = false }
+        }
     }
     val isAtTheTop by remember(lazyListState) {
         derivedStateOf {
