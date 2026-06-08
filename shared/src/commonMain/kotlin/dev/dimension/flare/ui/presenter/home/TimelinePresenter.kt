@@ -88,6 +88,15 @@ public abstract class TimelinePresenter :
         )
     }
 
+    // Überschreibbarer Pro-Post-Filter. Default: wendet die eigene Filter-Config dieser
+    // Timeline auf jeden Post an – identisch zum bisherigen Verhalten. Unterklassen (die
+    // gemeinsame Timeline) können das überschreiben, um pro Post unterschiedlich zu filtern.
+    protected open val timelineFilterPredicateFlow: Flow<(UiTimelineV2) -> Boolean> by lazy {
+        timelineFilterConfigFlow.map { config ->
+            { item: UiTimelineV2 -> item.matchesTimelineFilter(config) }
+        }
+    }
+
     private val translationSettingsFlow: Flow<TranslationDisplayOptions> by lazy {
         TranslationSettingsSupport.displayOptionsFlow(appDataStore)
     }
@@ -128,10 +137,10 @@ public abstract class TimelinePresenter :
                         ).cachedIn(scope)
                     }
                 }.flatMapLatest { pager ->
-                    combine(filterFlow, timelineFilterConfigFlow) { filterList, timelineFilterConfig ->
+                    combine(filterFlow, timelineFilterPredicateFlow) { filterList, timelineFilterPredicate ->
                         pager
                             .filter { item ->
-                                item.matchesKeywordFilters(filterList) && item.matchesTimelineFilter(timelineFilterConfig)
+                                item.matchesKeywordFilters(filterList) && timelineFilterPredicate(item)
                             }.map {
                                 transform(it)
                             }
