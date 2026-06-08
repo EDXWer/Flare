@@ -110,6 +110,13 @@ import dev.dimension.flare.ui.theme.isLightTheme
 import dev.dimension.flare.ui.theme.screenHorizontalPadding
 import kotlinx.coroutines.launch
 import moe.tlaster.precompose.molecule.producePresenter
+import androidx.compose.runtime.snapshotFlow
+import dev.dimension.flare.common.isSuccess
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
 
 import dev.dimension.flare.data.model.tab.isSystemHomeMixedTimeline
 // Merkt sich, ob die gemeinsame Timeline in diesem App-Start schon einmal
@@ -460,6 +467,50 @@ internal fun TimelineItemContent(
                 mixedTimelineAutoRefreshed = true
                 state.refreshSuspend()
             }
+        }
+    }
+    // Nur gemeinsame Timeline: Scroll-Position über einen Refresh hinweg halten.
+    if (item.isSystemHomeMixedTimeline) {
+        // Schlüssel des obersten sichtbaren Eintrags fortlaufend merken.
+        val anchorKey = remember { mutableStateOf<Any?>(null) }
+        LaunchedEffect(state.lazyListState) {
+            snapshotFlow {
+                state.lazyListState.layoutInfo.visibleItemsInfo
+                    .firstOrNull()
+                    ?.key
+            }.collect { key ->
+                if (key != null) {
+                    anchorKey.value = key
+                }
+            }
+        }
+        // Wenn ein Refresh fertig wird, zum gemerkten Eintrag zurückscrollen.
+        LaunchedEffect(state.lazyListState) {
+            snapshotFlow { state.isRefreshing }
+                .distinctUntilChanged()
+                .drop(1)
+                .filter { !it }
+                .collect {
+                    val targetKey = anchorKey.value ?: return@collect
+                    val listState = state.listState
+                    if (listState.isSuccess()) {
+                        val count = listState.itemCount
+                        var foundIndex = -1
+                        var i = 0
+                        while (i < count) {
+                            val peeked = listState.peek(i)
+                            val key = peeked?.itemKey ?: peeked?.hashCode()
+                            if (key == targetKey) {
+                                foundIndex = i
+                                break
+                            }
+                            i++
+                        }
+                        if (foundIndex > 0) {
+                            state.lazyListState.scrollToItem(foundIndex)
+                        }
+                    }
+                }
         }
     }
     if (isCurrentlyVisible) {
