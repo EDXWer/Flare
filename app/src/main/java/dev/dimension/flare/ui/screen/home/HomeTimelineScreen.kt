@@ -111,6 +111,11 @@ import dev.dimension.flare.ui.theme.screenHorizontalPadding
 import kotlinx.coroutines.launch
 import moe.tlaster.precompose.molecule.producePresenter
 
+import dev.dimension.flare.data.model.tab.isSystemHomeMixedTimeline
+// Merkt sich, ob die gemeinsame Timeline in diesem App-Start schon einmal
+// automatisch aktualisiert wurde. Bewusst auf Datei-/Prozessebene, damit der
+// Refresh genau einmal pro App-Start passiert – nicht bei jeder Recomposition.
+private var mixedTimelineAutoRefreshed = false
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 internal fun HomeTimelineScreen(
@@ -448,6 +453,15 @@ internal fun TimelineItemContent(
             item = item,
             lazyStaggeredGridState = lazyStaggeredGridState,
         )
+    // Nur gemeinsame Timeline: einmal pro App-Start automatisch aktualisieren.
+    if (item.isSystemHomeMixedTimeline) {
+        LaunchedEffect(Unit) {
+            if (!mixedTimelineAutoRefreshed) {
+                mixedTimelineAutoRefreshed = true
+                state.refreshSuspend()
+            }
+        }
+    }
     if (isCurrentlyVisible) {
         RegisterTabCallback(
             lazyListState = state.lazyListState,
