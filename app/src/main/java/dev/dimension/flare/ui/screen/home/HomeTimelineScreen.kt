@@ -117,12 +117,17 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 
 import dev.dimension.flare.data.model.tab.isSystemHomeMixedTimeline
-// Merkt sich, ob die gemeinsame Timeline in diesem App-Start schon einmal
-// automatisch aktualisiert wurde. Bewusst auf Datei-/Prozessebene, damit der
-// Refresh genau einmal pro App-Start passiert – nicht bei jeder Recomposition.
-private var mixedTimelineAutoRefreshed = false
+// Zeitpunkt des letzten Auto-Refreshs der gemeinsamen Timeline (prozessweit).
+// Verhindert Refresh-Spam bei schnellen App-Wechseln, erlaubt aber einen
+// frischen Refresh, wenn die App nach einer Pause wieder geöffnet wird.
+private var lastMixedTimelineAutoRefreshMillis = 0L
+
+private const val MIXED_AUTO_REFRESH_MIN_INTERVAL = 5 * 60 * 1000L // 5 Minuten
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 internal fun HomeTimelineScreen(
@@ -460,12 +465,20 @@ internal fun TimelineItemContent(
             item = item,
             lazyStaggeredGridState = lazyStaggeredGridState,
         )
-    // Nur gemeinsame Timeline: einmal pro App-Start automatisch aktualisieren.
+    // Nur gemeinsame Timeline: automatisch aktualisieren, wenn die App in den
+    // Vordergrund kommt (auch beim Kaltstart) – höchstens alle 5 Minuten, und
+    // erst, wenn die Liste bereit ist (vorher wäre refreshSuspend() wirkungslos).
     if (item.isSystemHomeMixedTimeline) {
-        LaunchedEffect(Unit) {
-            if (!mixedTimelineAutoRefreshed) {
-                mixedTimelineAutoRefreshed = true
-                state.refreshSuspend()
+        val isListReady = state.listState.isSuccess()
+        val lifecycleOwner = LocalLifecycleOwner.current
+        LaunchedEffect(lifecycleOwner, isListReady) {
+            if (!isListReady) return@LaunchedEffect
+            lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                val now = System.currentTimeMillis()
+                if (now - lastMixedTimelineAutoRefreshMillis > MIXED_AUTO_REFRESH_MIN_INTERVAL) {
+                    lastMixedTimelineAutoRefreshMillis = now
+                    state.refreshSuspend()
+                }
             }
         }
     }
@@ -484,30 +497,36 @@ internal fun TimelineItemContent(
                 }
             }
         }
-        // Wenn ein Refresh fertig wird, zum gemerkten Eintrag zurückscrollen.
+// Beim Refresh-START den Anker einfrieren, beim Refresh-ENDE dorthin
+        // zurückscrollen. Das laufende Anker-Tracking würde sonst während des
+        // Refreshs den Anker mit der schon neu sortierten Liste überschreiben.
         LaunchedEffect(state.lazyListState) {
+            var frozenKey: Any? = null
             snapshotFlow { state.isRefreshing }
                 .distinctUntilChanged()
-                .drop(1)
-                .filter { !it }
-                .collect {
-                    val targetKey = anchorKey.value ?: return@collect
-                    val listState = state.listState
-                    if (listState.isSuccess()) {
-                        val count = listState.itemCount
-                        var foundIndex = -1
-                        var i = 0
-                        while (i < count) {
-                            val peeked = listState.peek(i)
-                            val key = peeked?.itemKey ?: peeked?.hashCode()
-                            if (key == targetKey) {
-                                foundIndex = i
-                                break
+                .collect { refreshing ->
+                    if (refreshing) {
+                        frozenKey = anchorKey.value
+                    } else {
+                        val targetKey = frozenKey ?: return@collect
+                        frozenKey = null
+                        val listState = state.listState
+                        if (listState.isSuccess()) {
+                            val count = listState.itemCount
+                            var foundIndex = -1
+                            var i = 0
+                            while (i < count) {
+                                val peeked = listState.peek(i)
+                                val key = peeked?.itemKey ?: peeked?.hashCode()
+                                if (key == targetKey) {
+                                    foundIndex = i
+                                    break
+                                }
+                                i++
                             }
-                            i++
-                        }
-                        if (foundIndex > 0) {
-                            state.lazyListState.scrollToItem(foundIndex)
+                            if (foundIndex > 0) {
+                                state.lazyListState.scrollToItem(foundIndex)
+                            }
                         }
                     }
                 }
