@@ -43,30 +43,6 @@ public class MixedTimelinePresenter(
 
     private val database: CacheDatabase by inject()
     private val settingsRepository: SettingsRepository by inject()
-    private val timelineResolver: TimelineResolver by inject()
-
-    // Gemeinsame Timeline: statt eines globalen Filters wird für jeden Post der Filter
-    // seiner Quell-Timeline angewendet (zugeordnet über den Account des Posts).
-    override val timelineFilterPredicateFlow: Flow<(UiTimelineV2) -> Boolean> by lazy {
-        settingsRepository.homeTimelineTabs
-            .map { tabs ->
-                tabs
-                    .filterNot { it.isSystemHomeMixedTimeline }
-                    .mapNotNull { tab ->
-                        val key =
-                            runCatching { timelineResolver.resolveAccountKey(tab) }
-                                .getOrNull() ?: return@mapNotNull null
-                        key to tab.filterConfig
-                    }.toMap()
-            }.distinctUntilChanged()
-            .map { configByAccount ->
-                { item: UiTimelineV2 ->
-                    val accountKey = (item.accountType as? AccountType.Specific)?.accountKey
-                    val config = accountKey?.let { configByAccount[it] } ?: TimelineFilterConfig()
-                    item.matchesTimelineFilter(config)
-                }
-            }
-    }
 
     init {
         bindTimelineTabItemId(id)
@@ -126,6 +102,30 @@ public class SystemHomeMixedTimelinePresenter(
 
     private val database: CacheDatabase by inject()
     private val settingsRepository: SettingsRepository by inject()
+    private val timelineResolver: TimelineResolver by inject()
+
+    // Gemeinsame Timeline: statt eines globalen Filters wird für jeden Post der Filter
+    // seiner Quell-Timeline angewendet (zugeordnet über den Account des Posts).
+    override val timelineFilterPredicateFlow: Flow<(UiTimelineV2) -> Boolean> by lazy {
+        settingsRepository.homeTimelineTabs
+            .map { tabs ->
+                tabs
+                    .filterNot { it.isSystemHomeMixedTimeline }
+                    .mapNotNull { tab ->
+                        val key =
+                            runCatching { timelineResolver.resolveAccountKey(tab) }
+                                .getOrNull() ?: return@mapNotNull null
+                        key to tab.filterConfig
+                    }.toMap()
+            }.distinctUntilChanged()
+            .map { configByAccount ->
+                { item: UiTimelineV2 ->
+                    val accountKey = (item.accountType as? AccountType.Specific)?.accountKey
+                    val config = accountKey?.let { configByAccount[it] } ?: TimelineFilterConfig()
+                    item.matchesTimelineFilter(config)
+                }
+            }
+    }
 
     init {
         bindTimelineTabItemId(id)
