@@ -1252,6 +1252,9 @@ private fun findMedias(postView: PostView): SerializableImmutableList<UiMedia> =
                 is RecordWithMediaViewMediaUnion.Unknown -> {
                     persistentListOf()
                 }
+                else -> {
+                    persistentListOf()
+                }
             }
         }
 
