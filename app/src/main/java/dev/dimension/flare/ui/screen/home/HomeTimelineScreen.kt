@@ -482,60 +482,6 @@ internal fun TimelineItemContent(
             }
         }
     }
-    // Nur gemeinsame Timeline: Scroll-Position über einen Refresh hinweg halten.
-    if (item.isSystemHomeMixedTimeline) {
-        // Alle sichtbaren Schlüssel (oben nach unten) fortlaufend merken. So haben wir
-        // mehrere Anker-Kandidaten: Fällt der oberste beim Refresh durch den Filter raus,
-        // greift der nächste noch sichtbare als Fixpunkt.
-        val anchorKeys = remember { mutableStateOf<List<Any>>(emptyList()) }
-        LaunchedEffect(state.lazyListState) {
-            snapshotFlow {
-                state.lazyListState.layoutInfo.visibleItemsInfo.map { it.key }
-            }.collect { keys ->
-                if (keys.isNotEmpty()) {
-                    anchorKeys.value = keys
-                }
-            }
-        }
-        // Beim Refresh-START die sichtbaren Anker einfrieren, beim Refresh-ENDE zum
-        // ersten davon zurückscrollen, der in der neuen Liste noch existiert.
-        LaunchedEffect(state.lazyListState) {
-            var frozenKeys: List<Any> = emptyList()
-            snapshotFlow { state.isRefreshing }
-                .distinctUntilChanged()
-                .collect { refreshing ->
-                    if (refreshing) {
-                        frozenKeys = anchorKeys.value
-                    } else {
-                        val targets = frozenKeys
-                        frozenKeys = emptyList()
-                        if (targets.isEmpty()) return@collect
-                        val listState = state.listState
-                        if (listState.isSuccess()) {
-                            val count = listState.itemCount
-                            // Neue Liste einmal in eine Key->Index-Map übersetzen
-                            // (schneller als pro Anker erneut durchsuchen).
-                            val keyToIndex = HashMap<Any, Int>(count)
-                            var i = 0
-                            while (i < count) {
-                                val peeked = listState.peek(i)
-                                val key = peeked?.itemKey ?: peeked?.hashCode()
-                                if (key != null && key !in keyToIndex) {
-                                    keyToIndex[key] = i
-                                }
-                                i++
-                            }
-                            // Ersten noch existierenden Anker von oben nehmen.
-                            val foundIndex =
-                                targets.firstNotNullOfOrNull { keyToIndex[it] } ?: -1
-                            if (foundIndex > 0) {
-                                state.lazyListState.scrollToItem(foundIndex)
-                            }
-                        }
-                    }
-                }
-        }
-    }
     if (isCurrentlyVisible) {
         RegisterTabCallback(
             lazyListState = state.lazyListState,
