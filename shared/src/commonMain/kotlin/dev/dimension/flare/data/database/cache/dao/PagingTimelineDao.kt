@@ -12,6 +12,7 @@ import androidx.room3.Transaction
 import androidx.room3.paging.PagingSourceDaoReturnTypeConverter
 import dev.dimension.flare.data.database.cache.model.DbPagingKey
 import dev.dimension.flare.data.database.cache.model.DbPagingTimeline
+import dev.dimension.flare.data.database.cache.model.DbPagingTimelineWithStatus
 import dev.dimension.flare.data.database.cache.model.DbStatusWithReference
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.DbAccountType
@@ -65,6 +66,18 @@ internal interface PagingTimelineDao {
     fun searchHistoryPagingSource(query: String): PagingSource<Int, DbStatusWithReference>
 
     @Transaction
+    @RewriteQueriesToDropUnusedColumns
+    @Query(
+        "SELECT * FROM DbStatus " +
+            "WHERE DbStatus.text LIKE :query ESCAPE '\\' " +
+            "LIMIT :limit",
+    )
+    suspend fun searchCachedStatuses(
+        query: String,
+        limit: Int,
+    ): List<DbStatusWithReference>
+
+    @Transaction
     @Query(
         "SELECT DbStatus.* FROM DbStatus " +
             "WHERE DbStatus.accountType = :accountType " +
@@ -89,6 +102,19 @@ internal interface PagingTimelineDao {
     )
     fun getStatusHistoryPagingSource(pagingKey: String): PagingSource<Int, DbStatusWithReference>
 
+    @Transaction
+    @Query(
+        "SELECT DbStatus.* FROM DbStatus " +
+            "INNER JOIN DbPagingTimeline ON DbStatus.id = DbPagingTimeline.statusId " +
+            "WHERE DbPagingTimeline.pagingKey = :pagingKey " +
+            "ORDER BY DbPagingTimeline.sortId DESC " +
+            "LIMIT :limit",
+    )
+    suspend fun getStatusHistoryPage(
+        pagingKey: String,
+        limit: Int,
+    ): List<DbStatusWithReference>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(timeline: List<DbPagingTimeline>)
 
@@ -106,6 +132,14 @@ internal interface PagingTimelineDao {
             "WHERE pagingKey = :pagingKey ORDER BY sortId",
     )
     suspend fun getByPagingKey(pagingKey: String): List<DbPagingTimeline>
+
+    @Transaction
+    @Query(
+        "SELECT DbPagingTimeline.* FROM DbPagingTimeline " +
+            "INNER JOIN DbStatus ON DbStatus.id = DbPagingTimeline.statusId " +
+            "WHERE DbStatus.accountType = :accountType",
+    )
+    suspend fun getByAccountTypeWithStatus(accountType: DbAccountType): List<DbPagingTimelineWithStatus>
 
     @Delete
     suspend fun delete(timeline: List<DbPagingTimeline>)

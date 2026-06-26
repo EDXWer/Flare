@@ -1,6 +1,8 @@
 package dev.dimension.flare.di
 
+import dev.dimension.flare.data.platform.AllRssTimelineLoaderFactory
 import dev.dimension.flare.data.platform.BlueskyPlatformSpec
+import dev.dimension.flare.data.platform.FanboxPlatformSpec
 import dev.dimension.flare.data.platform.MastodonPlatformSpec
 import dev.dimension.flare.data.platform.MisskeyPlatformSpec
 import dev.dimension.flare.data.platform.NostrPlatformSpec
@@ -24,7 +26,7 @@ internal class AndroidKoinApplication
 internal class AndroidKoinModule
 
 @Single
-internal fun runtimeData(): PlatformRuntimeData =
+internal fun runtimeData(allRssTimelineLoaderFactory: AllRssTimelineLoaderFactory): PlatformRuntimeData =
     PlatformRuntimeData(
         platformSpecs =
             listOf(
@@ -32,9 +34,10 @@ internal fun runtimeData(): PlatformRuntimeData =
                 MastodonPlatformSpec,
                 MisskeyPlatformSpec,
                 BlueskyPlatformSpec,
+                FanboxPlatformSpec,
                 PixivPlatformSpec,
                 XqtPlatformSpec,
                 VvoPlatformSpec,
             ),
-        extraTimelineSpecs = RssTimelineSpecs.timelineSpecs,
+        extraTimelineSpecs = RssTimelineSpecs.timelineSpecs(allRssTimelineLoaderFactory),
     )

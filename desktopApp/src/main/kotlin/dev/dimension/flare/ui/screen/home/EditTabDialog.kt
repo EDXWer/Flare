@@ -27,12 +27,14 @@ import dev.dimension.flare.data.model.appearance.AppearancePatch
 import dev.dimension.flare.data.model.appearance.TimelineAppearance
 import dev.dimension.flare.data.model.appearance.withPatch
 import dev.dimension.flare.data.model.tab.TimelineFilterConfig
-import dev.dimension.flare.data.model.tab.TimelineTabItemV2
+import dev.dimension.flare.data.model.tab.UiTimelineTabItem
 import dev.dimension.flare.data.model.tab.isSystemHomeMixedTimeline
 import dev.dimension.flare.dm_list_title
 import dev.dimension.flare.edit_tab_name
 import dev.dimension.flare.edit_tab_name_placeholder
 import dev.dimension.flare.edit_tab_title
+import dev.dimension.flare.fanbox_recommended_creators_title
+import dev.dimension.flare.fanbox_supported_title
 import dev.dimension.flare.home_tab_bookmarks_title
 import dev.dimension.flare.home_tab_discover_title
 import dev.dimension.flare.home_tab_favorite_title
@@ -81,9 +83,9 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 internal fun EditTabDialog(
     visible: Boolean,
-    tabItem: TimelineTabItemV2,
+    tabItem: UiTimelineTabItem,
     onDismissRequest: () -> Unit,
-    onConfirm: (TimelineTabItemV2) -> Unit,
+    onConfirm: (UiTimelineTabItem) -> Unit,
     titleAndIconOnly: Boolean = false,
 ) {
     val appearance = LocalTimelineAppearance.current
@@ -159,7 +161,7 @@ internal fun EditTabDialog(
 
 @Composable
 private fun presenter(
-    tabItem: TimelineTabItemV2,
+    tabItem: UiTimelineTabItem,
     appearance: TimelineAppearance,
 ) = run {
     val text = rememberTextFieldState()
@@ -263,4 +265,6 @@ private val UiStrings.desktopStringResource: StringResource
             UiStrings.PixivRankingDayManga -> Res.string.pixiv_ranking_day_manga_title
             UiStrings.Illustrations -> Res.string.illustrations_title
             UiStrings.Manga -> Res.string.manga_title
+            UiStrings.FanboxSupported -> Res.string.fanbox_supported_title
+            UiStrings.FanboxRecommendedCreators -> Res.string.fanbox_recommended_creators_title
         }

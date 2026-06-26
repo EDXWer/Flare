@@ -3,15 +3,14 @@ package dev.dimension.flare.ui.presenter
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import dev.dimension.flare.data.model.tab.TimelineResolver
-import dev.dimension.flare.data.model.tab.TimelineTabItemV2
+import dev.dimension.flare.data.model.tab.UiTimelineTabItem
 import dev.dimension.flare.data.repository.SettingsRepository
 import dev.dimension.flare.ui.model.UiState
 import dev.dimension.flare.ui.model.collectAsUiState
 import dev.dimension.flare.ui.model.map
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
+import dev.dimension.flare.di.koinInject
 
 public class PinTabs<T> internal constructor(
     private val pinnedIds: Set<String>,
@@ -21,11 +20,10 @@ public class PinTabs<T> internal constructor(
 }
 
 public abstract class PinTabsPresenter<T> :
-    PresenterBase<PinTabsPresenter.State<T>>(),
-    KoinComponent {
-    private val settingsRepository by inject<SettingsRepository>()
-    private val timelineResolver by inject<TimelineResolver>()
-    private val appScope: CoroutineScope by inject()
+    PresenterBase<PinTabsPresenter.State<T>>() {
+    private val settingsRepository by koinInject<SettingsRepository>()
+    private val timelineResolver by koinInject<TimelineResolver>()
+    private val appScope: CoroutineScope by koinInject()
 
     public interface State<T> {
         public val pins: UiState<PinTabs<T>>
@@ -34,7 +32,7 @@ public abstract class PinTabsPresenter<T> :
 
         public fun unpinTab(item: T)
 
-        public fun timelineTabItem(item: T): TimelineTabItemV2
+        public fun timelineTabItem(item: T): UiTimelineTabItem
     }
 
     @Composable
@@ -77,11 +75,11 @@ public abstract class PinTabsPresenter<T> :
                 }
             }
 
-            override fun timelineTabItem(item: T): TimelineTabItemV2 = getTimelineTabItem(item)
+            override fun timelineTabItem(item: T): UiTimelineTabItem = getTimelineTabItem(item)
         }
     }
 
-    protected abstract fun getTimelineTabItem(item: T): TimelineTabItemV2
+    protected abstract fun getTimelineTabItem(item: T): UiTimelineTabItem
 
     protected open fun getTimelineTabItemId(item: T): String = getTimelineTabItem(item).id
 }

@@ -11,12 +11,13 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.koin.compiler)
     alias(libs.plugins.nucleus)
-    id("com.github.gmazzo.buildconfig") version "6.0.9"
+    id("com.github.gmazzo.buildconfig") version "6.0.10"
 }
 
 dependencies {
     implementation(projects.shared)
     implementation(projects.social.bluesky)
+    implementation(projects.social.fanbox)
     implementation(projects.social.mastodon)
     implementation(projects.social.misskey)
     implementation(projects.social.nostr)
@@ -67,6 +68,7 @@ dependencies {
     implementation(libs.systemColor)
     implementation(libs.sentry)
     implementation(libs.richtext.ui)
+    implementation(libs.richtext.commonmark)
 }
 
 val fdroid = rootProject.file("fdroid.properties")
@@ -202,7 +204,7 @@ $localizationsXml
             }
 
             iconFile.set(project.file("resources/ic_launcher.icns"))
-            layeredIconDir.set(rootProject.file("iosApp/flare/AppIcon.icon"))
+            layeredIconDir.set(rootProject.file("appleApp/ios/AppIcon.icon"))
         }
         windows {
             iconFile.set(project.file("resources/ic_launcher.ico"))

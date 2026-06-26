@@ -19,6 +19,7 @@ public enum class PlatformType {
 
     VVo,
     Nostr,
+    Fanbox,
 }
 
 @Immutable
@@ -36,6 +37,7 @@ public val xqtOldHost: String =
         append(Base64.decode("LmNvbQ==").decodeToString())
     }
 
+@HiddenFromObjC
 public val xqtHost: String =
     buildString {
         append("x")
@@ -49,6 +51,7 @@ public val vvo: String =
         append(Base64.decode("Ym8=").decodeToString())
     }
 
+@HiddenFromObjC
 public val vvoHost: String =
     buildString {
         append(Base64.decode("bS53").decodeToString())

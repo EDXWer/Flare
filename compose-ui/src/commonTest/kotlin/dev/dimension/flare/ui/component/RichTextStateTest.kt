@@ -3,6 +3,9 @@ package dev.dimension.flare.ui.component
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import com.fleeksoft.ksoup.Ksoup
 import dev.dimension.flare.ui.render.UiRichText
 import dev.dimension.flare.ui.render.toUi
@@ -17,11 +20,31 @@ class RichTextStateTest {
         StyleData(
             style = TextStyle(),
             linkStyle = TextStyle(),
-            h1 = TextStyle(),
-            h2 = TextStyle(),
-            h3 = TextStyle(),
-            h4 = TextStyle(),
-            h5 = TextStyle(),
+            h1 =
+                TextStyle(
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+            h2 =
+                TextStyle(
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+            h3 =
+                TextStyle(
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontStyle = FontStyle.Italic,
+                ),
+            h4 =
+                TextStyle(
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+            h5 =
+                TextStyle(
+                    fontWeight = FontWeight.Bold,
+                ),
             h6 = TextStyle(),
             contentColor = Color.Black,
         )
@@ -32,12 +55,14 @@ class RichTextStateTest {
     }
 
     @Test
-    fun annotatedString_contains_paragraph_text_and_newlines() {
+    fun paragraphs_render_as_separate_text_contents() {
         val ui = htmlToUiRichText("<p>Hello</p><p>World</p>")
         val state = RichTextState(ui, defaultStyleData())
 
-        val textContent = state.contents.single() as RichTextContent.Text
-        assertEquals("Hello\n\nWorld", textContent.content.text)
+        val textContents = state.contents.filterIsInstance<RichTextContent.Text>()
+        assertEquals(2, textContents.size)
+        assertEquals("Hello", textContents[0].content.text)
+        assertEquals("World", textContents[1].content.text)
     }
 
     @Test
@@ -180,23 +205,62 @@ class RichTextStateTest {
         val ui = htmlToUiRichText("<ul><li>Item 1</li><li>Item 2</li></ul>")
         val state = RichTextState(ui, defaultStyleData())
 
-        val textContent = state.contents.single() as RichTextContent.Text
-        val text = textContent.content.text
-        assertTrue(text.contains("• Item 1"))
-        assertTrue(text.contains("• Item 2"))
+        val textContents = state.contents.filterIsInstance<RichTextContent.Text>()
+        assertEquals(2, textContents.size)
+        assertEquals("• Item 1", textContents[0].content.text)
+        assertEquals("• Item 2", textContents[1].content.text)
     }
 
     @Test
     fun headers_apply_correct_styles() {
-        val ui = htmlToUiRichText("<h1>Header 1</h1><h2>Header 2</h2>")
+        val ui =
+            htmlToUiRichText(
+                "<h1>Header 1</h1><h2>Header 2</h2><h3>Header 3</h3><h5>Header 5</h5>",
+            )
         val state = RichTextState(ui, defaultStyleData())
 
-        val textContent = state.contents.single() as RichTextContent.Text
-        val text = textContent.content.text
-        assertTrue(text.contains("Header 1"))
-        assertTrue(text.contains("Header 2"))
+        val textContents = state.contents.filterIsInstance<RichTextContent.Text>()
+        assertEquals(4, textContents.size)
+        assertEquals("Header 1", textContents[0].content.text)
+        assertEquals("Header 2", textContents[1].content.text)
 
-        assertTrue(text.contains("\n"))
+        val h1Style =
+            textContents[0]
+                .content
+                .spanStyles
+                .first()
+                .item
+        assertEquals(26.sp, h1Style.fontSize)
+        assertEquals(FontWeight.Bold, h1Style.fontWeight)
+
+        val h2Style =
+            textContents[1]
+                .content
+                .spanStyles
+                .first()
+                .item
+        assertEquals(22.sp, h2Style.fontSize)
+        assertEquals(FontWeight.Bold, h2Style.fontWeight)
+        assertEquals(Color.Black.copy(alpha = 0.7f), h2Style.color)
+
+        val h3Style =
+            textContents[2]
+                .content
+                .spanStyles
+                .first()
+                .item
+        assertEquals(20.sp, h3Style.fontSize)
+        assertEquals(FontWeight.Bold, h3Style.fontWeight)
+        assertEquals(FontStyle.Italic, h3Style.fontStyle)
+
+        val h5Style =
+            textContents[3]
+                .content
+                .spanStyles
+                .first()
+                .item
+        assertEquals(FontWeight.Bold, h5Style.fontWeight)
+        assertEquals(Color.Black.copy(alpha = 0.5f), h5Style.color)
     }
 
     @Test

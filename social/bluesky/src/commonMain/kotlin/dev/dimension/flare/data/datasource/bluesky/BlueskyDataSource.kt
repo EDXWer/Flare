@@ -61,13 +61,15 @@ import dev.dimension.flare.data.datasource.microblog.paging.notSupported
 import dev.dimension.flare.data.datasource.microblog.pagingConfig
 import dev.dimension.flare.data.model.IconType
 import dev.dimension.flare.data.model.tab.ShortcutSpec
+import dev.dimension.flare.data.model.tab.TimelineFilterConfig
+import dev.dimension.flare.data.model.tab.TimelinePostKind
 import dev.dimension.flare.data.model.tab.TimelineSpec
 import dev.dimension.flare.data.network.bluesky.BlueskyService
 import dev.dimension.flare.data.network.bluesky.model.DidDoc
 import dev.dimension.flare.data.platform.BlueskyCredential
 import dev.dimension.flare.data.platform.BlueskyPlatformSpec
 import dev.dimension.flare.data.platform.CommonTimelineSpecs
-import dev.dimension.flare.data.platform.toTimelineTabItemV2
+import dev.dimension.flare.data.platform.toTimelineCandidate
 import dev.dimension.flare.data.repository.tryRun
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.MicroBlogKey
@@ -97,8 +99,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
+import dev.dimension.flare.di.koinInject
 import sh.christian.ozone.api.AtUri
 import sh.christian.ozone.api.Cid
 import sh.christian.ozone.api.Did
@@ -123,15 +124,14 @@ internal class BlueskyDataSource(
     NotificationDataSource,
     UserDataSource,
     PostDataSource,
-    KoinComponent,
     ListDataSource,
     PinnableTimelineTabDataSource,
     TimelineTabConfigurationDataSource,
     RelationDataSource,
     DirectMessageDataSource,
     PostEventHandler.Handler {
-    private val coroutineScope: CoroutineScope by inject()
-    private val imageCompressor: ImageCompressor by inject()
+    private val coroutineScope: CoroutineScope by koinInject()
+    private val imageCompressor: ImageCompressor by koinInject()
     private var cachedPdsService: BlueskyService? = null
 
     private val mutex = Mutex(locked = false)
@@ -759,14 +759,14 @@ internal class BlueskyDataSource(
                 title = UiStrings.Feeds,
                 data =
                     feedHandler.data.map { paging ->
-                        paging.map { it.toTimelineTabItemV2(accountKey) }
+                        paging.map { it.toTimelineCandidate(accountKey) }
                     },
             ),
             PinnableTimelineTabSection(
                 title = UiStrings.List,
                 data =
                     listHandler.data.map { paging ->
-                        paging.map { it.toTimelineTabItemV2(accountKey) }
+                        paging.map { it.toTimelineCandidate(accountKey) }
                     },
             ),
         )
@@ -775,21 +775,23 @@ internal class BlueskyDataSource(
     override val defaultTabs by lazy {
         persistentListOf(
             CommonTimelineSpecs.home
-                .tabItem(
+                .candidate(
                     data = TimelineSpec.AccountBasedData(accountKey),
                     icon = IconType.FavIcon(accountKey.host),
                     title = UiText.Raw("Bluesky"),
+                    filterConfig = TimelineFilterConfig(excludedKinds = listOf(TimelinePostKind.Reply)),
                 ),
         )
     }
 
     override val builtInTimelineTabs by lazy {
         persistentListOf(
-            CommonTimelineSpecs.home.tabItem(
+            CommonTimelineSpecs.home.candidate(
                 data = TimelineSpec.AccountBasedData(accountKey),
                 icon = IconType.FavIcon(accountKey.host),
+                filterConfig = TimelineFilterConfig(excludedKinds = listOf(TimelinePostKind.Reply)),
             ),
-            BlueskyPlatformSpec.bookmarkTimelineSpec.tabItem(TimelineSpec.AccountBasedData(accountKey)),
+            BlueskyPlatformSpec.bookmarkTimelineSpec.candidate(TimelineSpec.AccountBasedData(accountKey)),
         )
     }
 
@@ -816,7 +818,7 @@ internal class BlueskyDataSource(
                 icon = UiIcon.Bookmark,
                 target =
                     ShortcutSpec.Target.Timeline(
-                        BlueskyPlatformSpec.bookmarkTimelineSpec.tabItem(TimelineSpec.AccountBasedData(accountKey)),
+                        BlueskyPlatformSpec.bookmarkTimelineSpec.candidate(TimelineSpec.AccountBasedData(accountKey)),
                     ),
             ),
             ShortcutSpec(

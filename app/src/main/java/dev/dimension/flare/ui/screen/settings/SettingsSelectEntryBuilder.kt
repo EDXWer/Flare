@@ -95,6 +95,19 @@ internal fun EntryProviderScope<NavKey>.settingsSelectEntryBuilder(
         )
     ) {
         AppearanceLayoutScreen(
+            onBack = onBack,
+            toPostActionLayout = {
+                navigate(Route.Settings.PostActionLayout)
+            }
+        )
+    }
+
+    entry<Route.Settings.PostActionLayout>(
+        metadata = ListDetailSceneStrategy.detailPane(
+            sceneKey = "Settings"
+        )
+    ) {
+        PostActionLayoutScreen(
             onBack = onBack
         )
     }
@@ -164,7 +177,16 @@ internal fun EntryProviderScope<NavKey>.settingsSelectEntryBuilder(
         )
     ) {
         LocalCacheSearchScreen(
-            onBack = onBack
+            onBack = onBack,
+            onAskAiClick = { query, target ->
+                navigate(
+                    Route.LocalHistoryAgent(
+                        conversationId = "local-history:${Clock.System.now().toEpochMilliseconds()}",
+                        query = query,
+                        target = target,
+                    ),
+                )
+            },
         )
     }
 

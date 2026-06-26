@@ -1,14 +1,14 @@
 package dev.dimension.flare.data.database.cache
 
+import androidx.room3.ColumnTypeConverters
 import androidx.room3.ConstructedBy
 import androidx.room3.Database
 import androidx.room3.RoomDatabase
 import androidx.room3.RoomDatabaseConstructor
-import androidx.room3.TypeConverters
 import androidx.room3.immediateTransaction
 import androidx.room3.useWriterConnection
 
-internal const val CACHE_DATABASE_VERSION = 39
+internal const val CACHE_DATABASE_VERSION = 41
 
 @Database(
     entities = [
@@ -33,7 +33,7 @@ internal const val CACHE_DATABASE_VERSION = 39
     version = CACHE_DATABASE_VERSION,
     exportSchema = false,
 )
-@TypeConverters(
+@ColumnTypeConverters(
     dev.dimension.flare.data.database.adapter.MicroBlogKeyConverter::class,
     dev.dimension.flare.data.database.adapter.PlatformTypeConverter::class,
     dev.dimension.flare.data.database.adapter.AccountTypeConverter::class,

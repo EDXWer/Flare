@@ -17,16 +17,14 @@ import dev.dimension.flare.ui.model.UiAccount
 import dev.dimension.flare.ui.presenter.PresenterBase
 import io.ktor.http.Url
 import kotlinx.coroutines.launch
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
+import dev.dimension.flare.di.koinInject
 import sh.christian.ozone.api.response.AtpException
 import sh.christian.ozone.api.response.AtpResponse
 
 internal class BlueskyLoginPresenter(
     private val toHome: () -> Unit,
-) : PresenterBase<BlueskyLoginState>(),
-    KoinComponent {
-    private val accountService: AccountService by inject()
+) : PresenterBase<BlueskyLoginState>() {
+    private val accountService: AccountService by koinInject()
 
     @Composable
     override fun body(): BlueskyLoginState {
@@ -107,9 +105,12 @@ internal class BlueskyLoginPresenter(
             } else {
                 val server = service.describeServer()
                 val actualUserName =
-                    server.maybeResponse()?.availableUserDomains?.firstOrNull()?.let {
-                        "$username$it"
-                    } ?: username
+                    server
+                        .maybeResponse()
+                        ?.availableUserDomains
+                        ?.firstOrNull()
+                        ?.let { username.withBlueskyUserDomain(it) }
+                        ?: username
                 service.createSession(
                     CreateSessionRequest(
                         identifier = actualUserName,

@@ -16,6 +16,7 @@ import dev.dimension.flare.data.datasource.microblog.NotificationFilter
 import dev.dimension.flare.data.datasource.microblog.NotificationTimelineDataSource
 import dev.dimension.flare.data.datasource.microblog.PostEvent
 import dev.dimension.flare.data.datasource.microblog.ProfileTab
+import dev.dimension.flare.data.datasource.microblog.datasource.ArticleDataSource
 import dev.dimension.flare.data.datasource.microblog.datasource.ListDataSource
 import dev.dimension.flare.data.datasource.microblog.datasource.NotificationDataSource
 import dev.dimension.flare.data.datasource.microblog.datasource.PinnableTimelineTabDataSource
@@ -60,11 +61,12 @@ import dev.dimension.flare.data.network.xqt.model.TweetUnion
 import dev.dimension.flare.data.platform.CommonTimelineSpecs
 import dev.dimension.flare.data.platform.XQTCredential
 import dev.dimension.flare.data.platform.XqtPlatformSpec
-import dev.dimension.flare.data.platform.toTimelineTabItemV2
+import dev.dimension.flare.data.platform.toTimelineCandidate
 import dev.dimension.flare.data.repository.tryRun
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.shared.image.ImageCompressor
+import dev.dimension.flare.ui.model.UiArticle
 import dev.dimension.flare.ui.model.UiIcon
 import dev.dimension.flare.ui.model.UiList
 import dev.dimension.flare.ui.model.UiPodcast
@@ -72,6 +74,7 @@ import dev.dimension.flare.ui.model.UiStrings
 import dev.dimension.flare.ui.model.UiText
 import dev.dimension.flare.ui.model.UiTimelineV2
 import dev.dimension.flare.ui.model.mapper.render
+import dev.dimension.flare.ui.model.mapper.renderArticle
 import dev.dimension.flare.ui.presenter.compose.ComposeStatus
 import dev.dimension.flare.ui.route.DeeplinkRoute
 import kotlinx.collections.immutable.ImmutableList
@@ -86,8 +89,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
+import dev.dimension.flare.di.koinInject
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.time.Duration.Companion.seconds
@@ -105,15 +107,15 @@ internal class XQTDataSource(
     NotificationDataSource,
     UserDataSource,
     PostDataSource,
-    KoinComponent,
+    ArticleDataSource,
     ListDataSource,
     PinnableTimelineTabDataSource,
     TimelineTabConfigurationDataSource,
     DirectMessageDataSource,
     RelationDataSource,
     PostEventHandler.Handler {
-    private val coroutineScope: CoroutineScope by inject()
-    private val imageCompressor: ImageCompressor by inject()
+    private val coroutineScope: CoroutineScope by koinInject()
+    private val imageCompressor: ImageCompressor by koinInject()
     private val credentialFlow by lazy {
         sourceCredentialFlow.distinctUntilChanged()
     }
@@ -171,6 +173,11 @@ internal class XQTDataSource(
             ?.data
             ?.tweetResult
             ?.result
+
+    override suspend fun article(articleKey: MicroBlogKey): UiArticle =
+        getTweetResultByRestId(articleKey.id)
+            ?.renderArticle(accountKey = accountKey)
+            ?: error("Twitter article not found")
 
     override val notificationHandler by lazy {
         NotificationHandler(
@@ -297,7 +304,7 @@ internal class XQTDataSource(
                 title = UiStrings.List,
                 data =
                     listHandler.data.map { paging ->
-                        paging.map { it.toTimelineTabItemV2(accountKey) }
+                        paging.map { it.toTimelineCandidate(accountKey) }
                     },
             ),
         )
@@ -306,13 +313,13 @@ internal class XQTDataSource(
     override val defaultTabs by lazy {
         persistentListOf(
             CommonTimelineSpecs.home
-                .tabItem(
+                .candidate(
                     data = TimelineSpec.AccountBasedData(accountKey),
                     icon = IconType.FavIcon(accountKey.host),
                     title = UiText.Raw("X"),
                 ),
             XqtPlatformSpec.featuredTimelineSpec
-                .tabItem(
+                .candidate(
                     data = TimelineSpec.AccountBasedData(accountKey),
                     icon = IconType.FavIcon(accountKey.host),
                 ),
@@ -321,16 +328,16 @@ internal class XQTDataSource(
 
     override val builtInTimelineTabs by lazy {
         persistentListOf(
-            CommonTimelineSpecs.home.tabItem(
+            CommonTimelineSpecs.home.candidate(
                 data = TimelineSpec.AccountBasedData(accountKey),
                 icon = IconType.FavIcon(accountKey.host),
             ),
-            XqtPlatformSpec.featuredTimelineSpec.tabItem(
+            XqtPlatformSpec.featuredTimelineSpec.candidate(
                 data = TimelineSpec.AccountBasedData(accountKey),
                 icon = IconType.FavIcon(accountKey.host),
             ),
-            XqtPlatformSpec.bookmarkTimelineSpec.tabItem(TimelineSpec.AccountBasedData(accountKey)),
-            XqtPlatformSpec.deviceFollowTimelineSpec.tabItem(TimelineSpec.AccountBasedData(accountKey)),
+            XqtPlatformSpec.bookmarkTimelineSpec.candidate(TimelineSpec.AccountBasedData(accountKey)),
+            XqtPlatformSpec.deviceFollowTimelineSpec.candidate(TimelineSpec.AccountBasedData(accountKey)),
         )
     }
 
@@ -341,7 +348,7 @@ internal class XQTDataSource(
                 icon = UiIcon.Featured,
                 target =
                     ShortcutSpec.Target.Timeline(
-                        XqtPlatformSpec.featuredTimelineSpec.tabItem(TimelineSpec.AccountBasedData(accountKey)),
+                        XqtPlatformSpec.featuredTimelineSpec.candidate(TimelineSpec.AccountBasedData(accountKey)),
                     ),
             ),
             ShortcutSpec(
@@ -349,7 +356,7 @@ internal class XQTDataSource(
                 icon = UiIcon.Bookmark,
                 target =
                     ShortcutSpec.Target.Timeline(
-                        XqtPlatformSpec.bookmarkTimelineSpec.tabItem(TimelineSpec.AccountBasedData(accountKey)),
+                        XqtPlatformSpec.bookmarkTimelineSpec.candidate(TimelineSpec.AccountBasedData(accountKey)),
                     ),
             ),
             ShortcutSpec(

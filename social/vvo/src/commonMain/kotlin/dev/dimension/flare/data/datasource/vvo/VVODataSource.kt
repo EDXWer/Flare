@@ -57,8 +57,7 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
+import dev.dimension.flare.di.koinInject
 
 @OptIn(ExperimentalPagingApi::class)
 internal class VVODataSource(
@@ -67,14 +66,13 @@ internal class VVODataSource(
 ) : AuthenticatedMicroblogDataSource,
     NotificationTimelineDataSource,
     ComposeDataSource,
-    KoinComponent,
     NotificationDataSource,
     UserDataSource,
     RelationDataSource,
     TimelineTabConfigurationDataSource,
     PostDataSource,
     PostEventHandler.Handler {
-    private val imageCompressor: ImageCompressor by inject()
+    private val imageCompressor: ImageCompressor by koinInject()
     private val service by lazy {
         VVOService(
             chocolateFlow = credentialFlow.map { it.chocolate },
@@ -97,7 +95,7 @@ internal class VVODataSource(
     override val defaultTabs by lazy {
         persistentListOf(
             CommonTimelineSpecs.home
-                .tabItem(
+                .candidate(
                     data = TimelineSpec.AccountBasedData(accountKey),
                     icon = IconType.Material(UiIcon.Weibo),
                     title = UiText.Raw("Weibo"),
@@ -107,16 +105,16 @@ internal class VVODataSource(
 
     override val builtInTimelineTabs by lazy {
         persistentListOf(
-            CommonTimelineSpecs.home.tabItem(
+            CommonTimelineSpecs.home.candidate(
                 data = TimelineSpec.AccountBasedData(accountKey),
                 icon = IconType.Material(UiIcon.Weibo),
             ),
-            CommonTimelineSpecs.discover.tabItem(
+            CommonTimelineSpecs.discover.candidate(
                 data = TimelineSpec.AccountBasedData(accountKey),
                 icon = IconType.Material(UiIcon.Weibo),
             ),
-            VvoPlatformSpec.favoriteTimelineSpec.tabItem(TimelineSpec.AccountBasedData(accountKey)),
-            VvoPlatformSpec.likedTimelineSpec.tabItem(TimelineSpec.AccountBasedData(accountKey)),
+            VvoPlatformSpec.favoriteTimelineSpec.candidate(TimelineSpec.AccountBasedData(accountKey)),
+            VvoPlatformSpec.likedTimelineSpec.candidate(TimelineSpec.AccountBasedData(accountKey)),
         )
     }
 
@@ -127,7 +125,7 @@ internal class VVODataSource(
                 icon = UiIcon.Featured,
                 target =
                     ShortcutSpec.Target.Timeline(
-                        CommonTimelineSpecs.discover.tabItem(TimelineSpec.AccountBasedData(accountKey)),
+                        CommonTimelineSpecs.discover.candidate(TimelineSpec.AccountBasedData(accountKey)),
                     ),
             ),
             ShortcutSpec(
@@ -135,7 +133,7 @@ internal class VVODataSource(
                 icon = UiIcon.Bookmark,
                 target =
                     ShortcutSpec.Target.Timeline(
-                        VvoPlatformSpec.favoriteTimelineSpec.tabItem(TimelineSpec.AccountBasedData(accountKey)),
+                        VvoPlatformSpec.favoriteTimelineSpec.candidate(TimelineSpec.AccountBasedData(accountKey)),
                     ),
             ),
             ShortcutSpec(
@@ -143,7 +141,7 @@ internal class VVODataSource(
                 icon = UiIcon.Heart,
                 target =
                     ShortcutSpec.Target.Timeline(
-                        VvoPlatformSpec.likedTimelineSpec.tabItem(TimelineSpec.AccountBasedData(accountKey)),
+                        VvoPlatformSpec.likedTimelineSpec.candidate(TimelineSpec.AccountBasedData(accountKey)),
                     ),
             ),
         )

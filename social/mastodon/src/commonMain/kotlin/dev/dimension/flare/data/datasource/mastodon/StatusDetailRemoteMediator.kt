@@ -8,7 +8,7 @@ import dev.dimension.flare.data.network.mastodon.MastodonService
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.model.UiTimelineV2
 import dev.dimension.flare.ui.model.mapper.render
-import org.koin.core.component.KoinComponent
+import dev.dimension.flare.ui.model.mapper.renderStatusContext
 
 @OptIn(ExperimentalPagingApi::class)
 internal class StatusDetailRemoteMediator(
@@ -16,8 +16,9 @@ internal class StatusDetailRemoteMediator(
     private val service: MastodonService,
     private val accountKey: MicroBlogKey,
     private val statusOnly: Boolean,
-) : CacheableRemoteLoader<UiTimelineV2>,
-    KoinComponent {
+) : CacheableRemoteLoader<UiTimelineV2> {
+    override val collapseReplyChains: Boolean = false
+
     override val pagingKey: String =
         buildString {
             append("status_detail_")
@@ -49,7 +50,12 @@ internal class StatusDetailRemoteMediator(
                             service.lookupStatus(
                                 statusKey.id,
                             )
-                        context.ancestors.orEmpty() + listOf(current) + context.descendants.orEmpty()
+                        renderStatusContext(
+                            ancestors = context.ancestors.orEmpty(),
+                            current = current,
+                            descendants = context.descendants.orEmpty(),
+                            accountKey = accountKey,
+                        )
                     }
                 }
 
@@ -64,14 +70,14 @@ internal class StatusDetailRemoteMediator(
                         service.lookupStatus(
                             statusKey.id,
                         )
-                    listOf(current)
+                    listOf(current).render(accountKey)
                 }
             }
         val shouldLoadMore = !(request is PagingRequest.Append || statusOnly)
 
         return PagingResult(
             endOfPaginationReached = !shouldLoadMore,
-            data = result.render(accountKey),
+            data = result,
             nextKey = if (shouldLoadMore) pagingKey else null,
         )
     }

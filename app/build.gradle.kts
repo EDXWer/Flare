@@ -127,6 +127,7 @@ dependencies {
     implementation(libs.compose.webview)
     implementation(projects.shared)
     implementation(projects.social.bluesky)
+    implementation(projects.social.fanbox)
     implementation(projects.social.mastodon)
     implementation(projects.social.misskey)
     implementation(projects.social.nostr)
@@ -147,6 +148,7 @@ dependencies {
     implementation(libs.webkit)
     implementation(libs.bundles.navigation3)
     implementation(libs.richtext.ui.material3)
+    implementation(libs.richtext.commonmark)
     implementation(libs.androidx.browser)
     implementation("net.java.dev.jna:jna:${libs.versions.jna.get()}@aar")
 

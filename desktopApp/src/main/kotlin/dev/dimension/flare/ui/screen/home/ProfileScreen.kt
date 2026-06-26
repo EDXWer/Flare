@@ -24,6 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,16 +35,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.unit.dp
+import compose.icons.FontAwesomeIcons
+import compose.icons.fontawesomeicons.Solid
+import compose.icons.fontawesomeicons.solid.Robot
 import dev.dimension.flare.LocalWindowPadding
 import dev.dimension.flare.RegisterTabCallback
+import dev.dimension.flare.Res
 import dev.dimension.flare.common.PagingState
 import dev.dimension.flare.common.isRefreshing
 import dev.dimension.flare.common.refreshSuspend
 import dev.dimension.flare.data.model.VideoAutoplay
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.MicroBlogKey
+import dev.dimension.flare.profile_blocked_gate_description
+import dev.dimension.flare.profile_blocked_gate_show
+import dev.dimension.flare.profile_blocked_gate_title
+import dev.dimension.flare.profile_insight_title
 import dev.dimension.flare.ui.common.items
 import dev.dimension.flare.ui.common.plus
+import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.FlareScrollBar
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
 import dev.dimension.flare.ui.component.ProfileHeader
@@ -56,6 +66,7 @@ import dev.dimension.flare.ui.component.status.MediaItem
 import dev.dimension.flare.ui.component.status.StatusPlaceholder
 import dev.dimension.flare.ui.component.status.status
 import dev.dimension.flare.ui.model.UiMedia
+import dev.dimension.flare.ui.model.UiRelation
 import dev.dimension.flare.ui.model.UiStrings
 import dev.dimension.flare.ui.model.UiTimelineV2
 import dev.dimension.flare.ui.model.asText
@@ -63,6 +74,7 @@ import dev.dimension.flare.ui.model.map
 import dev.dimension.flare.ui.model.onError
 import dev.dimension.flare.ui.model.onLoading
 import dev.dimension.flare.ui.model.onSuccess
+import dev.dimension.flare.ui.model.takeSuccessOr
 import dev.dimension.flare.ui.presenter.invoke
 import dev.dimension.flare.ui.presenter.profile.ProfileMedia
 import dev.dimension.flare.ui.presenter.profile.ProfilePresenter
@@ -70,13 +82,16 @@ import dev.dimension.flare.ui.presenter.profile.ProfileState
 import dev.dimension.flare.ui.presenter.profile.ProfileWithUserNameAndHostPresenter
 import dev.dimension.flare.ui.theme.screenHorizontalPadding
 import io.github.composefluent.FluentTheme
+import io.github.composefluent.component.AccentButton
 import io.github.composefluent.component.LiteFilter
 import io.github.composefluent.component.PillButton
 import io.github.composefluent.component.ProgressBar
+import io.github.composefluent.component.SubtleButton
 import io.github.composefluent.component.Text
 import io.github.composefluent.surface.Card
 import kotlinx.coroutines.launch
 import moe.tlaster.precompose.molecule.producePresenter
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 internal fun ProfileWithUserNameAndHostDeeplinkRoute(
@@ -87,6 +102,7 @@ internal fun ProfileWithUserNameAndHostDeeplinkRoute(
     onFansListClick: (userKey: MicroBlogKey) -> Unit,
     onMediaClick: (statusKey: MicroBlogKey, index: Int, preview: String?) -> Unit,
     onRawMediaClick: (media: UiMedia.Image) -> Unit,
+    onProfileInsightClick: (userKey: MicroBlogKey) -> Unit,
     onBack: () -> Unit = {},
 ) {
     val state by producePresenter(key = "acct_${accountType}_$userName@$host") {
@@ -104,6 +120,7 @@ internal fun ProfileWithUserNameAndHostDeeplinkRoute(
                 onFansListClick = onFansListClick,
                 onMediaClick = onMediaClick,
                 onRawMediaClick = onRawMediaClick,
+                onProfileInsightClick = onProfileInsightClick,
                 userKey = it.key,
             )
         }.onLoading {
@@ -176,6 +193,7 @@ internal fun ProfileScreen(
     onFansListClick: (userKey: MicroBlogKey) -> Unit = {},
     onMediaClick: (statusKey: MicroBlogKey, index: Int, preview: String?) -> Unit = { _, _, _ -> },
     onRawMediaClick: (media: UiMedia.Image) -> Unit = {},
+    onProfileInsightClick: (userKey: MicroBlogKey) -> Unit = {},
 ) {
     val state by producePresenter(
         key = "profile_${accountType}_$userKey",
@@ -186,6 +204,18 @@ internal fun ProfileScreen(
     val profileHeaderScrollState = rememberScrollState()
     RegisterTabCallback(listState, state::refresh)
     val isBigScreen = isBigScreen()
+    var showBlockedProfileContent by remember(accountType, userKey) { mutableStateOf(false) }
+    val isBlockedProfile =
+        state.state
+            .relationState
+            .takeSuccessOr(UiRelation())
+            .blocking
+    LaunchedEffect(isBlockedProfile) {
+        if (!isBlockedProfile) {
+            showBlockedProfileContent = false
+        }
+    }
+    val shouldGateBlockedProfile = isBlockedProfile && !showBlockedProfileContent
     Box {
         Row {
             if (isBigScreen) {
@@ -207,6 +237,10 @@ internal fun ProfileScreen(
                             ProfileHeader(
                                 state = state.state,
                                 menu = {
+                                    ProfileInsightAction(
+                                        profileState = state.state,
+                                        onClick = onProfileInsightClick,
+                                    )
                                     ProfileMenu(
                                         profileState = state.state,
                                         modifier = Modifier.padding(horizontal = 8.dp),
@@ -258,6 +292,10 @@ internal fun ProfileScreen(
                                 ProfileHeader(
                                     state = state.state,
                                     menu = {
+                                        ProfileInsightAction(
+                                            profileState = state.state,
+                                            onClick = onProfileInsightClick,
+                                        )
                                         ProfileMenu(
                                             profileState = state.state,
                                             modifier = Modifier.padding(horizontal = 8.dp),
@@ -281,12 +319,68 @@ internal fun ProfileScreen(
                                     onFollowListClick = onFollowListClick,
                                     onFansListClick = onFansListClick,
                                 )
-                                state.state.tabs.onSuccess { tabs ->
-                                    LiteFilter(
+                                if (shouldGateBlockedProfile) {
+                                    BlockedProfileGate(
+                                        onShow = {
+                                            showBlockedProfileContent = true
+                                        },
                                         modifier =
-                                            Modifier
-                                                .padding(horizontal = screenHorizontalPadding),
-                                    ) {
+                                            Modifier.padding(
+                                                horizontal = screenHorizontalPadding,
+                                                vertical = 24.dp,
+                                            ),
+                                    )
+                                } else {
+                                    state.state.tabs.onSuccess { tabs ->
+                                        LiteFilter(
+                                            modifier =
+                                                Modifier
+                                                    .padding(horizontal = screenHorizontalPadding),
+                                        ) {
+                                            repeat(tabs.size) { index ->
+                                                val tab = tabs.get(index)
+                                                PillButton(
+                                                    selected = state.selectedTabIndex == index,
+                                                    onSelectedChanged = {
+                                                        state.setSelectedTab(index)
+                                                    },
+                                                ) {
+                                                    dev.dimension.flare.ui.component.Text(
+                                                        text = tab.name.asText(),
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (shouldGateBlockedProfile) {
+                        if (isBigScreen) {
+                            item(
+                                span = StaggeredGridItemSpan.FullLine,
+                            ) {
+                                BlockedProfileGate(
+                                    onShow = {
+                                        showBlockedProfileContent = true
+                                    },
+                                    modifier =
+                                        Modifier.padding(
+                                            horizontal = screenHorizontalPadding,
+                                            vertical = 24.dp,
+                                        ),
+                                )
+                            }
+                        }
+                    } else {
+                        state.state.tabs.onSuccess { tabs ->
+                            if (tabs.size > 1 && isBigScreen) {
+                                item(
+                                    span = StaggeredGridItemSpan.FullLine,
+                                ) {
+                                    LiteFilter {
                                         repeat(tabs.size) { index ->
                                             val tab = tabs.get(index)
                                             PillButton(
@@ -301,84 +395,60 @@ internal fun ProfileScreen(
                                             }
                                         }
                                     }
-                                    Spacer(modifier = Modifier.height(8.dp))
                                 }
                             }
                         }
-                    }
-                    state.state.tabs.onSuccess { tabs ->
-                        if (tabs.size > 1 && isBigScreen) {
-                            item(
-                                span = StaggeredGridItemSpan.FullLine,
-                            ) {
-                                LiteFilter {
-                                    repeat(tabs.size) { index ->
-                                        val tab = tabs.get(index)
-                                        PillButton(
-                                            selected = state.selectedTabIndex == index,
-                                            onSelectedChanged = {
-                                                state.setSelectedTab(index)
-                                            },
+                        state.selectedTabItem.onSuccess { tab ->
+                            when (tab) {
+                                is ProfileTabItem.Media -> {
+                                    items(
+                                        tab.data,
+                                        loadingContent = {
+                                            Card(
+                                                modifier = Modifier,
+                                            ) {
+                                                Box(modifier = Modifier.size(120.dp).placeholder(true))
+                                            }
+                                        },
+                                    ) { item ->
+                                        CompositionLocalProvider(
+                                            LocalTimelineAppearance provides
+                                                LocalTimelineAppearance.current.copy(
+                                                    videoAutoplay = VideoAutoplay.NEVER,
+                                                ),
                                         ) {
-                                            dev.dimension.flare.ui.component.Text(
-                                                text = tab.name.asText(),
+                                            val media = item.media
+                                            MediaItem(
+                                                media = media,
+                                                showCountdown = false,
+                                                modifier =
+                                                    Modifier
+                                                        .clip(FluentTheme.shapes.control)
+                                                        .padding(
+                                                            vertical = 4.dp,
+                                                        ).clipToBounds()
+                                                        .clickable {
+                                                            if (item.status is UiTimelineV2.Post) {
+                                                                onMediaClick(
+                                                                    item.statusKey,
+                                                                    item.index,
+                                                                    when (media) {
+                                                                        is UiMedia.Image -> media.previewUrl
+                                                                        is UiMedia.Video -> media.thumbnailUrl
+                                                                        is UiMedia.Gif -> media.previewUrl
+                                                                        else -> null
+                                                                    },
+                                                                )
+                                                            }
+                                                        },
                                             )
                                         }
                                     }
                                 }
-                            }
-                        }
-                    }
-                    state.selectedTabItem.onSuccess { tab ->
-                        when (tab) {
-                            is ProfileTabItem.Media -> {
-                                items(
-                                    tab.data,
-                                    loadingContent = {
-                                        Card(
-                                            modifier = Modifier,
-                                        ) {
-                                            Box(modifier = Modifier.size(120.dp).placeholder(true))
-                                        }
-                                    },
-                                ) { item ->
-                                    CompositionLocalProvider(
-                                        LocalTimelineAppearance provides
-                                            LocalTimelineAppearance.current.copy(
-                                                videoAutoplay = VideoAutoplay.NEVER,
-                                            ),
-                                    ) {
-                                        val media = item.media
-                                        MediaItem(
-                                            media = media,
-                                            showCountdown = false,
-                                            modifier =
-                                                Modifier
-                                                    .clip(FluentTheme.shapes.control)
-                                                    .padding(
-                                                        vertical = 4.dp,
-                                                    ).clipToBounds()
-                                                    .clickable {
-                                                        if (item.status is UiTimelineV2.Post) {
-                                                            onMediaClick(
-                                                                item.statusKey,
-                                                                item.index,
-                                                                when (media) {
-                                                                    is UiMedia.Image -> media.previewUrl
-                                                                    is UiMedia.Video -> media.thumbnailUrl
-                                                                    is UiMedia.Gif -> media.previewUrl
-                                                                    else -> null
-                                                                },
-                                                            )
-                                                        }
-                                                    },
-                                        )
-                                    }
-                                }
-                            }
 
-                            is ProfileTabItem.Timeline -> {
-                                status(tab.data)
+                                is ProfileTabItem.Timeline -> {
+                                    status(tab.data)
+                                }
                             }
                         }
                     }
@@ -386,24 +456,81 @@ internal fun ProfileScreen(
             }
         }
 
-        state.selectedTabItem.onSuccess {
-            val isRefreshing =
-                when (it) {
-                    is ProfileTabItem.Media -> it.data.isRefreshing
-                    is ProfileTabItem.Timeline -> it.data.isRefreshing
+        if (!shouldGateBlockedProfile) {
+            state.selectedTabItem.onSuccess {
+                val isRefreshing =
+                    when (it) {
+                        is ProfileTabItem.Media -> it.data.isRefreshing
+                        is ProfileTabItem.Timeline -> it.data.isRefreshing
+                    }
+                AnimatedVisibility(
+                    isRefreshing,
+                    enter = slideInVertically { -it },
+                    exit = slideOutVertically { -it },
+                ) {
+                    ProgressBar(
+                        modifier =
+                            Modifier
+                                .align(Alignment.TopCenter)
+                                .fillMaxWidth(),
+                    )
                 }
-            AnimatedVisibility(
-                isRefreshing,
-                enter = slideInVertically { -it },
-                exit = slideOutVertically { -it },
-            ) {
-                ProgressBar(
-                    modifier =
-                        Modifier
-                            .align(Alignment.TopCenter)
-                            .fillMaxWidth(),
-                )
             }
+        }
+    }
+}
+
+@Composable
+private fun BlockedProfileGate(
+    onShow: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier =
+            modifier
+                .fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = stringResource(Res.string.profile_blocked_gate_title),
+            style = FluentTheme.typography.subtitle,
+        )
+        Text(
+            text = stringResource(Res.string.profile_blocked_gate_description),
+            style = FluentTheme.typography.body,
+            color = FluentTheme.colors.text.text.secondary,
+        )
+        Row {
+            AccentButton(
+                onClick = onShow,
+            ) {
+                Text(text = stringResource(Res.string.profile_blocked_gate_show))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileInsightAction(
+    profileState: ProfileState,
+    onClick: (MicroBlogKey) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (!LocalTimelineAppearance.current.aiConfig.agent) {
+        return
+    }
+    profileState.userState.onSuccess { profile ->
+        SubtleButton(
+            onClick = {
+                onClick(profile.key)
+            },
+            iconOnly = true,
+            modifier = modifier,
+        ) {
+            FAIcon(
+                imageVector = FontAwesomeIcons.Solid.Robot,
+                contentDescription = stringResource(Res.string.profile_insight_title),
+            )
         }
     }
 }

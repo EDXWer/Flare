@@ -27,8 +27,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
+import dev.dimension.flare.di.koinInject
 import sh.christian.ozone.api.response.AtpException
 import sh.christian.ozone.api.response.AtpResponse
 import sh.christian.ozone.oauth.OAuthApi
@@ -98,9 +97,8 @@ public data object BlueskyLoginProvider : LoginPlatformProvider {
 
 private class BlueskyPasswordLoginHandler(
     private val context: LoginContext,
-) : LoginMethodHandler,
-    KoinComponent {
-    private val accountService: AccountService by inject()
+) : LoginMethodHandler {
+    private val accountService: AccountService by koinInject()
     private val values = mutableMapOf<String, String>()
     private var requireOtp = false
     private val _state = MutableStateFlow(passwordState())
@@ -222,9 +220,12 @@ private class BlueskyPasswordLoginHandler(
             } else {
                 val server = service.describeServer()
                 val actualUserName =
-                    server.maybeResponse()?.availableUserDomains?.firstOrNull()?.let {
-                        "$username$it"
-                    } ?: username
+                    server
+                        .maybeResponse()
+                        ?.availableUserDomains
+                        ?.firstOrNull()
+                        ?.let { username.withBlueskyUserDomain(it) }
+                        ?: username
                 service.createSession(
                     CreateSessionRequest(
                         identifier = actualUserName,
@@ -271,10 +272,9 @@ private class BlueskyPasswordLoginHandler(
 
 private class BlueskyOAuthLoginHandler(
     private val context: LoginContext,
-) : LoginMethodHandler,
-    KoinComponent {
-    private val accountService: AccountService by inject()
-    private val pendingRepository: PlatformOAuthPendingRepository by inject()
+) : LoginMethodHandler {
+    private val accountService: AccountService by koinInject()
+    private val pendingRepository: PlatformOAuthPendingRepository by koinInject()
     private val values = mutableMapOf<String, String>()
     private var request: OAuthAuthorizationRequest? = null
 
@@ -449,6 +449,13 @@ private fun createOAuthApi(host: String): OAuthApi =
         },
         { OAuthCodeChallengeMethodS256 },
     )
+
+internal fun String.withBlueskyUserDomain(domain: String): String =
+    when {
+        domain.isBlank() -> this
+        domain.startsWith(".") -> "$this$domain"
+        else -> "$this.$domain"
+    }
 
 private fun OAuthAuthorizationRequest.toPlatformOAuthPending(
     host: String,

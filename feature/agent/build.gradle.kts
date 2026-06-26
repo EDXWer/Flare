@@ -20,6 +20,7 @@ kotlin {
             FlarePlatform.JVM,
             FlarePlatform.IOS,
             FlarePlatform.WEB,
+            FlarePlatform.MACOS,
         )
         ksp(
             libs.room.compiler,
@@ -30,6 +31,7 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 api(projects.shared)
+                implementation(projects.feature.subscription)
                 implementation(dependencies.platform(libs.compose.bom))
                 implementation(libs.compose.runtime)
                 implementation(libs.koog.agents)

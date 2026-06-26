@@ -3,7 +3,7 @@ package dev.dimension.flare.ui.presenter.home
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import dev.dimension.flare.data.model.tab.TimelineTabItemV2
+import dev.dimension.flare.data.model.tab.UiTimelineTabItem
 import dev.dimension.flare.data.repository.SettingsRepository
 import dev.dimension.flare.ui.model.UiState
 import dev.dimension.flare.ui.model.flattenUiState
@@ -11,17 +11,15 @@ import dev.dimension.flare.ui.presenter.PresenterBase
 import dev.dimension.flare.ui.presenter.guestMastodonHomeTimelineTab
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
+import dev.dimension.flare.di.koinInject
 
 public class HomeTabItemPresenter(
     private val id: String,
-) : PresenterBase<HomeTabItemPresenter.State>(),
-    KoinComponent {
-    private val settingsRepository: SettingsRepository by inject()
+) : PresenterBase<HomeTabItemPresenter.State>() {
+    private val settingsRepository: SettingsRepository by koinInject()
 
     public interface State {
-        public val tabItem: UiState<TimelineTabItemV2>
+        public val tabItem: UiState<UiTimelineTabItem>
     }
 
     @Composable
@@ -33,7 +31,7 @@ public class HomeTabItemPresenter(
                 } else {
                     settingsRepository.homeTimelineTab(id).map {
                         if (it == null) {
-                            UiState.Error<TimelineTabItemV2>(Exception("Tab not found"))
+                            UiState.Error<UiTimelineTabItem>(Exception("Tab not found"))
                         } else {
                             UiState.Success(it)
                         }

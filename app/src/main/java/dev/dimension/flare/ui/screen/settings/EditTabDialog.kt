@@ -26,7 +26,7 @@ import dev.dimension.flare.data.model.appearance.AppearancePatch
 import dev.dimension.flare.data.model.appearance.TimelineAppearance
 import dev.dimension.flare.data.model.appearance.withPatch
 import dev.dimension.flare.data.model.tab.TimelineFilterConfig
-import dev.dimension.flare.data.model.tab.TimelineTabItemV2
+import dev.dimension.flare.data.model.tab.UiTimelineTabItem
 import dev.dimension.flare.data.model.tab.isSystemHomeMixedTimeline
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
 import dev.dimension.flare.ui.component.platform.LocalWindowSizeClass
@@ -38,9 +38,9 @@ import moe.tlaster.precompose.molecule.producePresenter
 
 @Composable
 internal fun EditTabDialog(
-    tabItem: TimelineTabItemV2,
+    tabItem: UiTimelineTabItem,
     onDismissRequest: () -> Unit,
-    onConfirm: (TimelineTabItemV2) -> Unit,
+    onConfirm: (UiTimelineTabItem) -> Unit,
     titleAndIconOnly: Boolean = false,
 ) {
     val appearance = LocalTimelineAppearance.current
@@ -112,7 +112,7 @@ internal fun EditTabDialog(
 
 @Composable
 private fun presenter(
-    tabItem: TimelineTabItemV2,
+    tabItem: UiTimelineTabItem,
     appearance: TimelineAppearance,
     context: Context,
 ) = run {
@@ -217,4 +217,6 @@ private val UiStrings.androidStringRes: Int
             UiStrings.PixivRankingDayManga -> R.string.pixiv_ranking_day_manga_title
             UiStrings.Illustrations -> R.string.illustrations_title
             UiStrings.Manga -> R.string.manga_title
+            UiStrings.FanboxSupported -> R.string.fanbox_supported_title
+            UiStrings.FanboxRecommendedCreators -> R.string.fanbox_recommended_creators_title
         }

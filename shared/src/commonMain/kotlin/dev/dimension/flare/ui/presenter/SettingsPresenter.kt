@@ -3,6 +3,7 @@ package dev.dimension.flare.ui.presenter
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import dev.dimension.flare.data.datasource.microblog.PostActionLayoutConfig
 import dev.dimension.flare.data.datastore.model.AppSettings
 import dev.dimension.flare.data.model.AvatarShape
 import dev.dimension.flare.data.model.PostActionStyle
@@ -20,14 +21,12 @@ import dev.dimension.flare.web.shared.WebPresenter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
+import dev.dimension.flare.di.koinInject
 
 @WebPresenter("settings")
 public class SettingsPresenter :
-    PresenterBase<SettingsPresenter.State>(),
-    KoinComponent {
-    private val repository: SettingsRepository by inject()
+    PresenterBase<SettingsPresenter.State>() {
+    private val repository: SettingsRepository by koinInject()
 
     @Composable
     override fun body(): State {
@@ -102,6 +101,8 @@ public class SettingsPresenter :
 
             override fun updatePostActionStyle(value: PostActionStyle) = update(AppearanceKeys.PostActionStyle, value)
 
+            override fun updatePostActionLayout(value: PostActionLayoutConfig) = update(AppearanceKeys.PostActionLayout, value)
+
             override fun updateShowNumbers(value: Boolean) = update(AppearanceKeys.ShowNumbers, value)
 
             override fun updateAppSettings(block: AppSettings.() -> AppSettings) {
@@ -165,6 +166,8 @@ public class SettingsPresenter :
         public fun updateFullWidthPost(value: Boolean)
 
         public fun updatePostActionStyle(value: PostActionStyle)
+
+        public fun updatePostActionLayout(value: PostActionLayoutConfig)
 
         public fun updateShowNumbers(value: Boolean)
 

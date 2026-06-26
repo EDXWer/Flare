@@ -53,7 +53,7 @@ import dev.dimension.flare.data.network.misskey.api.model.NotesReactionsCreateRe
 import dev.dimension.flare.data.platform.CommonTimelineSpecs
 import dev.dimension.flare.data.platform.MisskeyCredential
 import dev.dimension.flare.data.platform.MisskeyPlatformSpec
-import dev.dimension.flare.data.platform.toTimelineTabItemV2
+import dev.dimension.flare.data.platform.toTimelineCandidate
 import dev.dimension.flare.data.repository.tryRun
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.MicroBlogKey
@@ -79,8 +79,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
+import dev.dimension.flare.di.koinInject
 
 @OptIn(ExperimentalPagingApi::class)
 internal class MisskeyDataSource(
@@ -92,14 +91,13 @@ internal class MisskeyDataSource(
     ComposeDataSource,
     UserDataSource,
     PostDataSource,
-    KoinComponent,
     ListDataSource,
     PinnableTimelineTabDataSource,
     TimelineTabConfigurationDataSource,
     ReactionDataSource,
     RelationDataSource,
     PostEventHandler.Handler {
-    private val imageCompressor: ImageCompressor by inject()
+    private val imageCompressor: ImageCompressor by koinInject()
     private val service by lazy {
         dev.dimension.flare.data.network.misskey.MisskeyService(
             baseUrl = "https://$host/api/",
@@ -695,21 +693,21 @@ internal class MisskeyDataSource(
                 title = UiStrings.List,
                 data =
                     listHandler.data.map { paging ->
-                        paging.map { it.toTimelineTabItemV2(accountKey) }
+                        paging.map { it.toTimelineCandidate(accountKey) }
                     },
             ),
             PinnableTimelineTabSection(
                 title = UiStrings.Antenna,
                 data =
                     antennasList().map { paging ->
-                        paging.map { it.toTimelineTabItemV2(accountKey) }
+                        paging.map { it.toTimelineCandidate(accountKey) }
                     },
             ),
             PinnableTimelineTabSection(
                 title = UiStrings.Channel,
                 data =
                     channelHandler.data.map { paging ->
-                        paging.map { it.toTimelineTabItemV2(accountKey) }
+                        paging.map { it.toTimelineCandidate(accountKey) }
                     },
             ),
         )
@@ -718,7 +716,7 @@ internal class MisskeyDataSource(
     override val defaultTabs by lazy {
         persistentListOf(
             CommonTimelineSpecs.home
-                .tabItem(
+                .candidate(
                     data = TimelineSpec.AccountBasedData(accountKey),
                     icon = IconType.FavIcon(accountKey.host),
                     title = UiText.Raw("Misskey"),
@@ -728,18 +726,18 @@ internal class MisskeyDataSource(
 
     override val builtInTimelineTabs by lazy {
         persistentListOf(
-            CommonTimelineSpecs.home.tabItem(
+            CommonTimelineSpecs.home.candidate(
                 data = TimelineSpec.AccountBasedData(accountKey),
                 icon = IconType.FavIcon(accountKey.host),
             ),
-            CommonTimelineSpecs.discover.tabItem(
+            CommonTimelineSpecs.discover.candidate(
                 data = TimelineSpec.AccountBasedData(accountKey),
                 icon = IconType.FavIcon(accountKey.host),
             ),
-            MisskeyPlatformSpec.favouriteTimelineSpec.tabItem(TimelineSpec.AccountBasedData(accountKey)),
-            MisskeyPlatformSpec.hybridTimelineSpec.tabItem(TimelineSpec.AccountBasedData(accountKey)),
-            MisskeyPlatformSpec.localTimelineSpec.tabItem(TimelineSpec.AccountBasedData(accountKey)),
-            MisskeyPlatformSpec.globalTimelineSpec.tabItem(TimelineSpec.AccountBasedData(accountKey)),
+            MisskeyPlatformSpec.favouriteTimelineSpec.candidate(TimelineSpec.AccountBasedData(accountKey)),
+            MisskeyPlatformSpec.hybridTimelineSpec.candidate(TimelineSpec.AccountBasedData(accountKey)),
+            MisskeyPlatformSpec.localTimelineSpec.candidate(TimelineSpec.AccountBasedData(accountKey)),
+            MisskeyPlatformSpec.globalTimelineSpec.candidate(TimelineSpec.AccountBasedData(accountKey)),
         )
     }
 
@@ -750,7 +748,7 @@ internal class MisskeyDataSource(
                 icon = UiIcon.Favourite,
                 target =
                     ShortcutSpec.Target.Timeline(
-                        MisskeyPlatformSpec.favouriteTimelineSpec.tabItem(TimelineSpec.AccountBasedData(accountKey)),
+                        MisskeyPlatformSpec.favouriteTimelineSpec.candidate(TimelineSpec.AccountBasedData(accountKey)),
                     ),
             ),
             ShortcutSpec(
@@ -766,7 +764,7 @@ internal class MisskeyDataSource(
                 icon = UiIcon.Featured,
                 target =
                     ShortcutSpec.Target.Timeline(
-                        MisskeyPlatformSpec.hybridTimelineSpec.tabItem(TimelineSpec.AccountBasedData(accountKey)),
+                        MisskeyPlatformSpec.hybridTimelineSpec.candidate(TimelineSpec.AccountBasedData(accountKey)),
                     ),
             ),
             ShortcutSpec(
@@ -774,7 +772,7 @@ internal class MisskeyDataSource(
                 icon = UiIcon.Local,
                 target =
                     ShortcutSpec.Target.Timeline(
-                        MisskeyPlatformSpec.localTimelineSpec.tabItem(TimelineSpec.AccountBasedData(accountKey)),
+                        MisskeyPlatformSpec.localTimelineSpec.candidate(TimelineSpec.AccountBasedData(accountKey)),
                     ),
             ),
             ShortcutSpec(
@@ -782,7 +780,7 @@ internal class MisskeyDataSource(
                 icon = UiIcon.World,
                 target =
                     ShortcutSpec.Target.Timeline(
-                        MisskeyPlatformSpec.globalTimelineSpec.tabItem(TimelineSpec.AccountBasedData(accountKey)),
+                        MisskeyPlatformSpec.globalTimelineSpec.candidate(TimelineSpec.AccountBasedData(accountKey)),
                     ),
             ),
             ShortcutSpec(

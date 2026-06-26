@@ -1,5 +1,7 @@
 package dev.dimension.flare.data.model.appearance
 
+import dev.dimension.flare.data.datasource.microblog.PostActionFamily
+import dev.dimension.flare.data.datasource.microblog.PostActionLayoutConfig
 import dev.dimension.flare.data.model.AppearanceSettings
 import dev.dimension.flare.data.model.AvatarShape
 import dev.dimension.flare.data.model.BottomBarBehavior
@@ -9,8 +11,11 @@ import dev.dimension.flare.data.model.PostActionStyle
 import dev.dimension.flare.data.model.Theme
 import dev.dimension.flare.data.model.TimelineDisplayMode
 import dev.dimension.flare.data.model.VideoAutoplay
-import dev.dimension.flare.data.model.tab.SourceTimelineTabItemV2
+import dev.dimension.flare.data.model.tab.TimelineSpec
 import dev.dimension.flare.data.model.tab.resolveTimelineAppearance
+import dev.dimension.flare.data.model.tab.toUiTimelineTabItem
+import dev.dimension.flare.data.platform.CommonTimelineSpecs
+import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.model.UiIcon
 import dev.dimension.flare.ui.model.UiText
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -125,17 +130,18 @@ class AppearancePatchTest {
     @Test
     fun timelineTabItemV2ResolvesTimelineAppearanceFromItemPatch() {
         val item =
-            SourceTimelineTabItemV2.runtime(
-                id = "test",
-                title = UiText.Raw("Test"),
-                icon = IconType.Material(UiIcon.List),
-                appearancePatch =
-                    AppearancePatch.EMPTY
-                        .set(AppearanceKeys.ShowNumbers, false)
-                        .set(AppearanceKeys.ExpandContentWarning, true)
-                        .set(AppearanceKeys.AbsoluteTimestamp, true),
-                createPresenter = { error("unused in test") },
-            )
+            CommonTimelineSpecs.home
+                .candidate(
+                    data = TimelineSpec.AccountBasedData(MicroBlogKey("test", "example.test")),
+                    title = UiText.Raw("Test"),
+                    icon = IconType.Material(UiIcon.List),
+                ).copy(
+                    appearancePatch =
+                        AppearancePatch.EMPTY
+                            .set(AppearanceKeys.ShowNumbers, false)
+                            .set(AppearanceKeys.ExpandContentWarning, true)
+                            .set(AppearanceKeys.AbsoluteTimestamp, true),
+                ).toUiTimelineTabItem()
         val base =
             TimelineAppearance(
                 showNumbers = true,
@@ -165,6 +171,7 @@ class AppearancePatchTest {
                 AppearanceKeys.ShowBottomBarLabels,
                 AppearanceKeys.DeckMode,
                 AppearanceKeys.ExpandContentWarning,
+                AppearanceKeys.PostActionLayout,
             )
         val activeFields =
             AppearanceSettings
@@ -222,6 +229,15 @@ class AppearancePatchTest {
                 .set(AppearanceKeys.ExpandContentWarning, true)
                 .set(AppearanceKeys.VideoAutoplay, VideoAutoplay.ALWAYS)
                 .set(AppearanceKeys.PostActionStyle, PostActionStyle.Stretch)
+                .set(
+                    AppearanceKeys.PostActionLayout,
+                    PostActionLayoutConfig(
+                        enabled = true,
+                        primary = kotlinx.collections.immutable.persistentListOf(PostActionFamily.Like),
+                        overflow = kotlinx.collections.immutable.persistentListOf(PostActionFamily.Share),
+                        hidden = kotlinx.collections.immutable.persistentListOf(PostActionFamily.Report),
+                    ),
+                )
 
         assertEquals(patch, patch.toBag().toPatch())
     }

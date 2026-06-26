@@ -2,11 +2,14 @@ package dev.dimension.flare.ui.route
 
 import androidx.compose.runtime.Immutable
 import androidx.navigation3.runtime.NavKey
-import dev.dimension.flare.data.model.tab.SourceTimelineTabItemV2
-import dev.dimension.flare.data.model.tab.TimelineTabItemV2
+import dev.dimension.flare.common.SerializableImmutableList
+import dev.dimension.flare.data.model.tab.UiSourceTimelineTabItem
+import dev.dimension.flare.data.model.tab.UiTimelineTabItem
 import dev.dimension.flare.data.model.tab.xqtDeviceFollow
+import dev.dimension.flare.feature.agent.localhistory.LocalHistoryAgentTarget
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.MicroBlogKey
+import dev.dimension.flare.ui.model.UiMedia
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.serialization.Serializable
@@ -101,6 +104,9 @@ internal sealed interface Route : NavKey {
         data object AppearanceLayout : Settings
 
         @Serializable
+        data object PostActionLayout : Settings
+
+        @Serializable
         data object AppearanceDisplay : Settings
 
         @Serializable
@@ -185,7 +191,7 @@ internal sealed interface Route : NavKey {
     data object Home : Route
 
     data class Timeline(
-        val tabItem: TimelineTabItemV2,
+        val tabItem: UiTimelineTabItem,
     ) : Route
 
     @Serializable
@@ -223,6 +229,13 @@ internal sealed interface Route : NavKey {
     ) : Route
 
     @Serializable
+    data class LocalHistoryAgent(
+        val conversationId: String,
+        val query: String? = null,
+        val target: LocalHistoryAgentTarget = LocalHistoryAgentTarget.All,
+    ) : Route
+
+    @Serializable
     sealed interface Profile : Route {
         @Serializable
         data class User(
@@ -250,6 +263,12 @@ internal sealed interface Route : NavKey {
         ) : Profile
 
         @Serializable
+        data class Insight(
+            val accountType: AccountType,
+            val userKey: MicroBlogKey,
+        ) : Profile
+
+        @Serializable
         data class Me(
             val accountType: AccountType,
         ) : Profile
@@ -263,6 +282,21 @@ internal sealed interface Route : NavKey {
         val accountType: AccountType,
         val query: String,
     ) : Route
+
+    @Serializable
+    sealed interface Gallery : Route {
+        @Serializable
+        data class Detail(
+            val statusKey: MicroBlogKey,
+            val accountType: AccountType,
+        ) : Gallery
+
+        @Serializable
+        data class Comments(
+            val statusKey: MicroBlogKey,
+            val accountType: AccountType,
+        ) : Gallery
+    }
 
     @Serializable
     sealed interface Lists : Route {
@@ -410,6 +444,13 @@ internal sealed interface Route : NavKey {
         ) : Media
 
         @Serializable
+        data class RawMedia(
+            val medias: SerializableImmutableList<UiMedia>,
+            val index: Int = 0,
+            val preview: String? = null,
+        ) : Media
+
+        @Serializable
         data class StatusMedia(
             val statusKey: MicroBlogKey,
             val accountType: AccountType,
@@ -434,10 +475,9 @@ internal sealed interface Route : NavKey {
     ) : Route
 
     @Serializable
-    data class TwitterArticle(
+    data class Article(
         val accountType: AccountType,
-        val tweetId: String,
-        val articleId: String? = null,
+        val articleKey: MicroBlogKey,
     ) : Route
 
     @Serializable
@@ -483,7 +523,7 @@ internal sealed interface Route : NavKey {
                         (deeplinkRoute.accountType as? AccountType.Specific)?.accountKey
                             ?: return null
                     Route.Timeline(
-                        tabItem = SourceTimelineTabItemV2.xqtDeviceFollow(accountKey),
+                        tabItem = UiSourceTimelineTabItem.xqtDeviceFollow(accountKey),
                     )
                 }
 
@@ -581,11 +621,10 @@ internal sealed interface Route : NavKey {
                     )
                 }
 
-                is DeeplinkRoute.TwitterArticle -> {
-                    TwitterArticle(
+                is DeeplinkRoute.Article -> {
+                    Article(
                         accountType = deeplinkRoute.accountType,
-                        tweetId = deeplinkRoute.tweetId,
-                        articleId = deeplinkRoute.articleId,
+                        articleKey = deeplinkRoute.articleKey,
                     )
                 }
 
@@ -598,6 +637,13 @@ internal sealed interface Route : NavKey {
 
                 is DeeplinkRoute.Status.AddReaction -> {
                     Status.AddReaction(
+                        statusKey = deeplinkRoute.statusKey,
+                        accountType = deeplinkRoute.accountType,
+                    )
+                }
+
+                is DeeplinkRoute.Gallery.Detail -> {
+                    Gallery.Detail(
                         statusKey = deeplinkRoute.statusKey,
                         accountType = deeplinkRoute.accountType,
                     )

@@ -1,9 +1,10 @@
 package dev.dimension.flare.ui.route
 
 import androidx.navigation3.runtime.NavKey
-import dev.dimension.flare.data.model.tab.SourceTimelineTabItemV2
-import dev.dimension.flare.data.model.tab.TimelineTabItemV2
+import dev.dimension.flare.data.model.tab.UiSourceTimelineTabItem
+import dev.dimension.flare.data.model.tab.UiTimelineTabItem
 import dev.dimension.flare.data.model.tab.xqtDeviceFollow
+import dev.dimension.flare.feature.agent.localhistory.LocalHistoryAgentTarget
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.model.UiRssSource
@@ -28,7 +29,7 @@ internal sealed interface Route : NavKey {
     }
 
     data class Timeline(
-        val tabItem: TimelineTabItemV2,
+        val tabItem: UiTimelineTabItem,
     ) : ScreenRoute
 
     data class DeckTimeline(
@@ -44,6 +45,8 @@ internal sealed interface Route : NavKey {
     data object Notification : ScreenRoute
 
     data object Settings : ScreenRoute
+
+    data object PostActionLayout : ScreenRoute
 
     data object DraftBox : ScreenRoute
 
@@ -135,10 +138,27 @@ internal sealed interface Route : NavKey {
         val statusKey: MicroBlogKey,
     ) : FloatingRoute
 
+    data class ProfileInsight(
+        val accountType: AccountType,
+        val userKey: MicroBlogKey,
+    ) : FloatingRoute
+
     data class Search(
         val accountType: AccountType,
         val keyword: String,
     ) : ScreenRoute
+
+    data object Gallery {
+        data class Detail(
+            val accountType: AccountType,
+            val statusKey: MicroBlogKey,
+        ) : ScreenRoute
+
+        data class Comments(
+            val accountType: AccountType,
+            val statusKey: MicroBlogKey,
+        ) : ScreenRoute
+    }
 
     data class StatusMedia(
         val accountType: AccountType,
@@ -198,10 +218,9 @@ internal sealed interface Route : NavKey {
         val title: String? = null,
     ) : ScreenRoute
 
-    data class TwitterArticle(
+    data class Article(
         val accountType: AccountType,
-        val tweetId: String,
-        val articleId: String? = null,
+        val articleKey: MicroBlogKey,
     ) : ScreenRoute
 
     data class DmList(
@@ -245,6 +264,12 @@ internal sealed interface Route : NavKey {
     data class AgentChat(
         val conversationId: String = "generic-chat",
         val initialMessage: String? = null,
+    ) : ScreenRoute
+
+    data class LocalHistoryAgent(
+        val conversationId: String,
+        val query: String? = null,
+        val target: LocalHistoryAgentTarget = LocalHistoryAgentTarget.All,
     ) : ScreenRoute
 
     data class NostrRelays(
@@ -312,7 +337,7 @@ internal sealed interface Route : NavKey {
                 is DeeplinkRoute.Timeline.XQTDeviceFollow -> {
                     val accountKey = (deeplinkRoute.accountType as? AccountType.Specific)?.accountKey ?: return null
                     Route.Timeline(
-                        tabItem = SourceTimelineTabItemV2.xqtDeviceFollow(accountKey),
+                        tabItem = UiSourceTimelineTabItem.xqtDeviceFollow(accountKey),
                     )
                 }
 
@@ -399,11 +424,10 @@ internal sealed interface Route : NavKey {
                     RssDetail(url = deeplinkRoute.url, descriptionHtml = deeplinkRoute.descriptionHtml, title = deeplinkRoute.title)
                 }
 
-                is DeeplinkRoute.TwitterArticle -> {
-                    TwitterArticle(
+                is DeeplinkRoute.Article -> {
+                    Article(
                         accountType = deeplinkRoute.accountType,
-                        tweetId = deeplinkRoute.tweetId,
-                        articleId = deeplinkRoute.articleId,
+                        articleKey = deeplinkRoute.articleKey,
                     )
                 }
 
@@ -416,6 +440,13 @@ internal sealed interface Route : NavKey {
 
                 is DeeplinkRoute.Status.AddReaction -> {
                     AddReaction(
+                        accountType = deeplinkRoute.accountType,
+                        statusKey = deeplinkRoute.statusKey,
+                    )
+                }
+
+                is DeeplinkRoute.Gallery.Detail -> {
+                    Gallery.Detail(
                         accountType = deeplinkRoute.accountType,
                         statusKey = deeplinkRoute.statusKey,
                     )

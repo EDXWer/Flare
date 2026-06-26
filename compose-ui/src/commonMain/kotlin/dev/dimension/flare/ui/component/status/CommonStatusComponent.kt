@@ -45,6 +45,7 @@ import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
+import androidx.compose.ui.util.fastForEachIndexed
 import compose.icons.FontAwesomeIcons
 import compose.icons.fontawesomeicons.Solid
 import compose.icons.fontawesomeicons.solid.At
@@ -104,6 +105,7 @@ import dev.dimension.flare.compose.ui.user_unblock
 import dev.dimension.flare.compose.ui.user_unmute
 import dev.dimension.flare.compose.ui.vote
 import dev.dimension.flare.data.datasource.microblog.ActionMenu
+import dev.dimension.flare.data.datasource.microblog.applyPostActionLayout
 import dev.dimension.flare.data.model.PostActionStyle
 import dev.dimension.flare.ui.component.AdaptiveGrid
 import dev.dimension.flare.ui.component.AvatarComponent
@@ -363,21 +365,10 @@ public fun CommonStatusComponent(
                     item,
                     isQuote = isQuote,
                     onMediaClick = { media ->
-                        val index = item.images.indexOf(media)
-                        val link =
-                            DeeplinkRoute.Media.StatusMedia(
-                                statusKey = item.statusKey,
-                                accountType = item.accountType,
-                                index = index,
-                                preview =
-                                    when (media) {
-                                        is UiMedia.Image -> media.previewUrl
-                                        is UiMedia.Video -> media.thumbnailUrl
-                                        is UiMedia.Gif -> media.previewUrl
-                                        is UiMedia.Audio -> null
-                                    },
-                            )
-                        uriHandler.openUri(link.toUri())
+                        item.openMedia(
+                            media = media,
+                            launcher = uriHandler::openUri,
+                        )
                     },
                 )
             }
@@ -566,7 +557,7 @@ private fun StatusQuoteComponent(
                         postActionStyle = PostActionStyle.Hidden,
                     ),
             ) {
-                quotes.forEachIndexed { index, quote ->
+                quotes.fastForEachIndexed { index, quote ->
                     CommonStatusComponent(
                         quote,
                         isQuote = true,
@@ -638,7 +629,7 @@ private fun StatusReactionComponent(
                         )
                     },
             ) {
-                data.emojiReactions.forEach { reaction ->
+                data.emojiReactions.fastForEach { reaction ->
                     val color =
                         if (reaction.me) {
                             PlatformTheme.colorScheme.primaryContainer
@@ -909,6 +900,10 @@ internal fun StatusActions(
     modifier: Modifier = Modifier,
 ) {
     val appearanceSettings = LocalTimelineAppearance.current
+    val displayItems =
+        remember(items, appearanceSettings.postActionLayout) {
+            items.applyPostActionLayout(appearanceSettings.postActionLayout)
+        }
     val haptics = LocalHapticFeedback.current
     val launcher = LocalUriHandler.current
     Row(
@@ -923,8 +918,8 @@ internal fun StatusActions(
             },
 //        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        items.forEachIndexed { index, action ->
-            if (index == items.lastIndex && appearanceSettings.postActionStyle == PostActionStyle.LeftAligned) {
+        displayItems.fastForEachIndexed { index, action ->
+            if (index == displayItems.lastIndex && appearanceSettings.postActionStyle == PostActionStyle.LeftAligned) {
                 Spacer(modifier = Modifier.weight(1f))
             }
             when (action) {
@@ -937,7 +932,7 @@ internal fun StatusActions(
                         color =
                             action.displayItem.color?.toComposeColor()
                                 ?: PlatformContentColor.current,
-                        withTextMinWidth = index != items.lastIndex,
+                        withTextMinWidth = action.displayItem.count != null && index != displayItems.lastIndex,
                     ) { closeMenu, isMenuShown ->
                         action.actions.fastForEach { subActions ->
                             when (subActions) {
@@ -966,7 +961,7 @@ internal fun StatusActions(
                         // Fallback or handle null
                         number = action.count,
                         color = action.color?.toComposeColor() ?: PlatformContentColor.current,
-                        withTextMinWidth = index != items.lastIndex,
+                        withTextMinWidth = action.count != null && index != displayItems.lastIndex,
                         onClicked = {
                             action.onClicked.let { onClick ->
                                 haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
@@ -1217,7 +1212,7 @@ private fun StatusPollComponent(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        poll.options.forEachIndexed { index, option ->
+        poll.options.fastForEachIndexed { index, option ->
             PollOption(
                 option = option,
                 modifier = Modifier.fillMaxWidth(),
