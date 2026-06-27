@@ -63,11 +63,11 @@ private fun getPostFingerprint(item: Any?): String {
 }
 
 // Die Stealth-Datenklasse für Ruckelfreiheit
-// UPDATE: Speichert jetzt eine kleine Historie (Liste) der obersten Posts als Fallback!
 private class ScrollTracker {
     var fingerprints: List<String> = emptyList()
     var offset: Int = 0
     var previousCount: Int = 0
+    var topListFingerprint: String? = null // NEU: Speichert, wer GANZ OBEN an Index 0 ist
 }
 
 @Composable
@@ -85,7 +85,7 @@ private fun rememberTimelineWithLazyListState(
     baseState.listState.onSuccess {
         val currentCount = itemCount
 
-        // 1. Inhalts-Tracking MIT SCHUTZSCHILD UND FALLBACK-HISTORIE
+        // 1. Inhalts-Tracking MIT SCHUTZSCHILD UND ERWEITERTER FALLBACK-HISTORIE
         LaunchedEffect(lazyListState) {
             snapshotFlow {
                 Triple(
@@ -96,12 +96,13 @@ private fun rememberTimelineWithLazyListState(
             }.collect { (index, offset, isScrolling) ->
                 if (index in 0 until itemCount) {
                     if (isScrolling || tracker.fingerprints.isEmpty()) {
-                        // Wir speichern nicht nur den obersten Post, sondern die 3 obersten!
+                        // Auf 5 erhöht, um selbst bei extremen Thread-Löschungen immun zu sein
                         val history = mutableListOf<String>()
-                        for (i in 0 until 3) {
+                        for (i in 0 until 5) {
                             val pos = index + i
                             if (pos < itemCount) {
-                                history.add(getPostFingerprint(peek(pos)))
+                                val item = peek(pos)
+                                if (item != null) history.add(getPostFingerprint(item))
                             }
                         }
                         tracker.fingerprints = history
@@ -111,37 +112,50 @@ private fun rememberTimelineWithLazyListState(
             }
         }
 
-        // 2. Sicherer Restorer (Immun gegen gelöschte Posts und Pull-to-Refresh-Löschungen)
+        // 2. Sicherer Restorer (JETZT MIT PREPEND-FILTER GEGEN BOTTOM-LOAD SPRÜNGE)
         LaunchedEffect(currentCount) {
             if (currentCount > 0) {
-                if (tracker.previousCount > 0 && currentCount > tracker.previousCount) {
-                    val targetFingerprints = tracker.fingerprints
-                    if (targetFingerprints.isNotEmpty()) {
-                        var newIndex = -1
-                        val limit = minOf(currentCount, 250)
+                val topItem = peek(0)
+                if (topItem != null) {
+                    val currentTopFingerprint = getPostFingerprint(topItem)
 
-                        // Versuche nacheinander, einen der gemerkten Posts zu finden.
-                        // Ist Post 1 gelöscht? Finde Post 2! Ist Post 2 weg? Nimm Post 3!
-                        for (targetFingerprint in targetFingerprints) {
-                            for (i in 0 until limit) {
-                                if (getPostFingerprint(peek(i)) == targetFingerprint) {
-                                    newIndex = i
-                                    break
+                    // PREPEND-FILTER: Wir greifen NUR ein, wenn neue Posts von OBEN dazukamen!
+                    // Wenn der User nach unten scrollt und ältere Posts lädt, bleibt currentTopFingerprint gleich,
+                    // isPrepend ist false und das Raster wird komplett in Ruhe gelassen.
+                    val isPrepend = tracker.previousCount > 0 &&
+                            currentCount > tracker.previousCount &&
+                            tracker.topListFingerprint != null &&
+                            currentTopFingerprint != tracker.topListFingerprint
+
+                    if (isPrepend) {
+                        val targetFingerprints = tracker.fingerprints
+                        if (targetFingerprints.isNotEmpty()) {
+                            var newIndex = -1
+                            val limit = minOf(currentCount, 250)
+
+                            for (targetFingerprint in targetFingerprints) {
+                                for (i in 0 until limit) {
+                                    val item = peek(i)
+                                    if (item != null && getPostFingerprint(item) == targetFingerprint) {
+                                        newIndex = i
+                                        break
+                                    }
                                 }
+                                if (newIndex != -1) break
                             }
-                            if (newIndex != -1) break // Einen treuen Post gefunden, abbrechen!
-                        }
 
-                        // Falls wirklich alles weg ist, nutze Mathematik
-                        if (newIndex == -1 && lazyListState.firstVisibleItemIndex == 0) {
-                            newIndex = currentCount - tracker.previousCount
-                        }
+                            if (newIndex == -1 && lazyListState.firstVisibleItemIndex == 0) {
+                                newIndex = currentCount - tracker.previousCount
+                            }
 
-                        // Wenn gefunden, springe sicher an die Position!
-                        if (newIndex != -1 && newIndex != lazyListState.firstVisibleItemIndex) {
-                            lazyListState.scrollToItem(newIndex, tracker.offset)
+                            if (newIndex != -1 && newIndex != lazyListState.firstVisibleItemIndex) {
+                                lazyListState.scrollToItem(newIndex, tracker.offset)
+                            }
                         }
                     }
+
+                    // Merken uns den allerersten Post für den nächsten Check
+                    tracker.topListFingerprint = currentTopFingerprint
                 }
                 tracker.previousCount = currentCount
             }
@@ -150,7 +164,7 @@ private fun rememberTimelineWithLazyListState(
         // 3. Trigger für den blauen Balken
         LaunchedEffect(lazyListState) {
             snapshotFlow {
-                if (itemCount > 0) getPostFingerprint(peek(0)) else null
+                if (itemCount > 0) peek(0) else null
             }.mapNotNull { it }
                 .distinctUntilChanged()
                 .drop(1)
