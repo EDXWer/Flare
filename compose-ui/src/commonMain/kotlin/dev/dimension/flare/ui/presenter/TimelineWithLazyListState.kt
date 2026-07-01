@@ -15,6 +15,7 @@ import dev.dimension.flare.common.onSuccess
 import dev.dimension.flare.data.model.tab.TimelineTabItemV2
 import dev.dimension.flare.data.model.tab.isSystemHomeMixedTimeline
 import dev.dimension.flare.ui.model.UiTimelineV2
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
@@ -45,8 +46,7 @@ public fun rememberTimelineItemPresenterWithLazyListState(
     )
 }
 
-// DIE GENIALE IDEE DES USERS (Crash-Safe)
-// Nutzt nur Autor und Zeit, um absolut sicher auf Hintergrund-Threads zu sein!
+// Nutzt Autor und Zeit, um absolut sicher auf Hintergrund-Threads zu sein
 private fun getPostFingerprint(item: Any?): String {
     return runCatching {
         val timelineItem = item as? UiTimelineV2 ?: return@runCatching "unknown_${item?.hashCode()}"
@@ -62,12 +62,12 @@ private fun getPostFingerprint(item: Any?): String {
     }.getOrDefault("error_${item?.hashCode()}")
 }
 
-// Die Stealth-Datenklasse für Ruckelfreiheit
-private class ScrollTracker {
-    var fingerprints: List<String> = emptyList()
-    var offset: Int = 0
-    var previousCount: Int = 0
-    var topListFingerprint: String? = null // NEU: Speichert, wer GANZ OBEN an Index 0 ist
+// Unser Speicher für die Position
+private class ScrollContext {
+    var anchorFingerprints: List<String> = emptyList()
+    var anchorOffset: Int = 0
+    var isAnchored: Boolean = false
+    var knownTopFingerprint: String? = null
 }
 
 @Composable
@@ -80,12 +80,90 @@ private fun rememberTimelineWithLazyListState(
     var lastRefreshIndex by remember { mutableStateOf(0) }
     var newPostCount by remember { mutableStateOf(0) }
 
-    val tracker = remember { ScrollTracker() }
+    val tracker = remember { ScrollContext() }
+
+    // NEU: Der State, der unsere "Jagd" (Polling-Schleife) kontrolliert
+    var isHunting by remember { mutableStateOf(false) }
 
     baseState.listState.onSuccess {
         val currentCount = itemCount
+        val currentTopItem = if (currentCount > 0) runCatching { peek(0) }.getOrNull() else null
+        val currentTopFp = if (currentTopItem != null) getPostFingerprint(currentTopItem) else null
 
-        // 1. Inhalts-Tracking MIT SCHUTZSCHILD UND ERWEITERTER FALLBACK-HISTORIE
+        // 1. DATA REFRESH DETECTOR (Erkennt das Update und gibt den Startschuss)
+        LaunchedEffect(currentCount, currentTopFp) {
+            if (currentCount > 0 && currentTopFp != null) {
+                val isTopChanged = tracker.knownTopFingerprint != null && currentTopFp != tracker.knownTopFingerprint
+
+                // Wenn neue Daten da sind und wir einen Anker haben, starte die Jagd!
+                if (isTopChanged && tracker.isAnchored) {
+                    isHunting = true
+                }
+
+                tracker.knownTopFingerprint = currentTopFp
+            }
+        }
+
+        // 2. DIE AKTIVE JAGD (Gräbt sich durch Paging3-Placeholder)
+        LaunchedEffect(isHunting) {
+            if (isHunting) {
+                var huntAttempts = 0
+                var lastLoadedCount = 0
+
+                // Wir suchen maximal 15 Zyklen lang (ca. 1,5 Sekunden), um Endlosschleifen zu vermeiden
+                while (isHunting && huntAttempts <= 15) {
+                    var targetIndex = -1
+                    var contiguousLoadedCount = 0
+
+                    // Wir scannen alles, was Paging3 aktuell im RAM hat
+                    for (i in 0 until itemCount) {
+                        val item = runCatching { peek(i) }.getOrNull()
+                        if (item != null) {
+                            contiguousLoadedCount = i + 1
+
+                            if (targetIndex == -1 && tracker.anchorFingerprints.isNotEmpty()) {
+                                val fpItem = getPostFingerprint(item)
+                                if (tracker.anchorFingerprints.contains(fpItem)) {
+                                    targetIndex = i
+                                }
+                            }
+                        } else {
+                            // Stop beim ersten "null" Platzhalter!
+                            break
+                        }
+                    }
+
+                    if (targetIndex != -1) {
+                        // ANKER GEFUNDEN! Festnageln und Jagd beenden!
+                        lazyListState.scrollToItem(targetIndex, tracker.anchorOffset)
+                        isHunting = false
+                        break
+                    } else {
+                        // ANKER NICHT GEFUNDEN (Er liegt noch in den Placeholdern)
+                        if (contiguousLoadedCount > lastLoadedCount) {
+                            lastLoadedCount = contiguousLoadedCount
+                            huntAttempts++
+
+                            // Springe an die Grenze, um Paging3 zum Laden der nächsten Seite zu zwingen!
+                            val boundaryIndex = maxOf(0, contiguousLoadedCount - 1)
+                            lazyListState.scrollToItem(boundaryIndex, 0)
+                        } else if (contiguousLoadedCount == itemCount) {
+                            // Die komplette Datenbank ist geladen und er ist nicht da. Aufgeben.
+                            isHunting = false
+                            break
+                        }
+
+                        // Der wichtigste Teil: Warte kurz, bis Paging3 die neuen Daten geliefert hat, dann wiederhole!
+                        delay(100)
+                    }
+                }
+
+                // Sicherheitsnetz, falls die Schleife abbricht
+                isHunting = false
+            }
+        }
+
+        // 3. DAS HINTERGRUND-TRACKING (Sammelt geräuschlos deine Position)
         LaunchedEffect(lazyListState) {
             snapshotFlow {
                 Triple(
@@ -94,77 +172,38 @@ private fun rememberTimelineWithLazyListState(
                     lazyListState.isScrollInProgress
                 )
             }.collect { (index, offset, isScrolling) ->
-                if (index in 0 until itemCount) {
-                    if (isScrolling || tracker.fingerprints.isEmpty()) {
-                        // Auf 5 erhöht, um selbst bei extremen Thread-Löschungen immun zu sein
+                if (itemCount > 0) {
+
+                    // Wenn der User aktiv scrollt, übernehmen wir NICHT die Kontrolle!
+                    if (isScrolling && isHunting) {
+                        isHunting = false // Jagd sofort abbrechen
+                    }
+
+                    if (isScrolling || !tracker.isAnchored) {
+                        tracker.anchorOffset = offset
+
                         val history = mutableListOf<String>()
-                        for (i in 0 until 5) {
+                        for (i in 0 until 3) {
                             val pos = index + i
                             if (pos < itemCount) {
-                                val item = peek(pos)
+                                val item = runCatching { peek(pos) }.getOrNull()
                                 if (item != null) history.add(getPostFingerprint(item))
                             }
                         }
-                        tracker.fingerprints = history
-                        tracker.offset = offset
-                    }
-                }
-            }
-        }
-
-        // 2. Sicherer Restorer (JETZT MIT PREPEND-FILTER GEGEN BOTTOM-LOAD SPRÜNGE)
-        LaunchedEffect(currentCount) {
-            if (currentCount > 0) {
-                val topItem = peek(0)
-                if (topItem != null) {
-                    val currentTopFingerprint = getPostFingerprint(topItem)
-
-                    // PREPEND-FILTER: Wir greifen NUR ein, wenn neue Posts von OBEN dazukamen!
-                    // Wenn der User nach unten scrollt und ältere Posts lädt, bleibt currentTopFingerprint gleich,
-                    // isPrepend ist false und das Raster wird komplett in Ruhe gelassen.
-                    val isPrepend = tracker.previousCount > 0 &&
-                            currentCount > tracker.previousCount &&
-                            tracker.topListFingerprint != null &&
-                            currentTopFingerprint != tracker.topListFingerprint
-
-                    if (isPrepend) {
-                        val targetFingerprints = tracker.fingerprints
-                        if (targetFingerprints.isNotEmpty()) {
-                            var newIndex = -1
-                            val limit = minOf(currentCount, 250)
-
-                            for (targetFingerprint in targetFingerprints) {
-                                for (i in 0 until limit) {
-                                    val item = peek(i)
-                                    if (item != null && getPostFingerprint(item) == targetFingerprint) {
-                                        newIndex = i
-                                        break
-                                    }
-                                }
-                                if (newIndex != -1) break
-                            }
-
-                            if (newIndex == -1 && lazyListState.firstVisibleItemIndex == 0) {
-                                newIndex = currentCount - tracker.previousCount
-                            }
-
-                            if (newIndex != -1 && newIndex != lazyListState.firstVisibleItemIndex) {
-                                lazyListState.scrollToItem(newIndex, tracker.offset)
-                            }
+                        if (history.isNotEmpty()) {
+                            tracker.anchorFingerprints = history
+                            tracker.isAnchored = true
                         }
                     }
-
-                    // Merken uns den allerersten Post für den nächsten Check
-                    tracker.topListFingerprint = currentTopFingerprint
                 }
-                tracker.previousCount = currentCount
             }
         }
 
-        // 3. Trigger für den blauen Balken
+        // 4. Trigger für den blauen Balken
         LaunchedEffect(lazyListState) {
             snapshotFlow {
-                if (itemCount > 0) peek(0) else null
+                val item = runCatching { peek(0) }.getOrNull()
+                if (item != null) getPostFingerprint(item) else null
             }.mapNotNull { it }
                 .distinctUntilChanged()
                 .drop(1)
@@ -205,7 +244,7 @@ private fun rememberTimelineWithLazyListState(
         }
     }
 
-    // 4. Balken-Schutz: Verschwindet nur bei manuellem Scrollen ganz oben
+    // 5. Balken-Schutz: Verschwindet nur bei manuellem Scrollen ganz oben
     LaunchedEffect(isAtTheTop, lazyListState.isScrollInProgress) {
         if (isAtTheTop && lazyListState.isScrollInProgress) {
             showNewToots = false
