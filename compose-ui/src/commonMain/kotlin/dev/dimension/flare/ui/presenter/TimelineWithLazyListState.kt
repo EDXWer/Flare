@@ -82,7 +82,7 @@ private fun rememberTimelineWithLazyListState(
 
     val tracker = remember { ScrollContext() }
 
-    // NEU: Der State, der unsere "Jagd" (Polling-Schleife) kontrolliert
+    // Der State, der unsere "Jagd" (Polling-Schleife) kontrolliert
     var isHunting by remember { mutableStateOf(false) }
 
     baseState.listState.onSuccess {
@@ -214,19 +214,28 @@ private fun rememberTimelineWithLazyListState(
         }
     }
 
+    // 5. UPDATE: Smarter Counter, der die Jagd ignoriert und nur das finale Ergebnis zählt!
     LaunchedEffect(lazyListState) {
-        snapshotFlow { lazyListState.firstVisibleItemIndex }
-            .distinctUntilChanged()
-            .collect {
-                if (it > lastRefreshIndex && showNewToots) {
-                    newPostCount =
-                        if (newPostCount > 0) {
-                            minOf(newPostCount, it - lastRefreshIndex)
+        snapshotFlow {
+            Triple(lazyListState.firstVisibleItemIndex, isHunting, showNewToots)
+        }.collect { (currentIndex, hunting, showing) ->
+            if (showing) {
+                if (hunting) {
+                    // Während der Tracker noch sucht und springt, blockieren wir falsche Zwischenzählungen
+                    newPostCount = 0
+                } else {
+                    // Jagd ist beendet! Jetzt können wir die echten neuen Posts zählen.
+                    if (currentIndex > lastRefreshIndex) {
+                        val count = currentIndex - lastRefreshIndex
+                        newPostCount = if (newPostCount > 0) {
+                            minOf(newPostCount, count) // Zählt beim Hochscrollen sauber runter
                         } else {
-                            it - lastRefreshIndex
+                            count // Setzt die initiale, korrekte Startanzahl
                         }
+                    }
                 }
             }
+        }
     }
 
     if (isSystemHomeMixedTimeline) {
@@ -244,7 +253,7 @@ private fun rememberTimelineWithLazyListState(
         }
     }
 
-    // 5. Balken-Schutz: Verschwindet nur bei manuellem Scrollen ganz oben
+    // 6. Balken-Schutz: Verschwindet nur bei manuellem Scrollen ganz oben
     LaunchedEffect(isAtTheTop, lazyListState.isScrollInProgress) {
         if (isAtTheTop && lazyListState.isScrollInProgress) {
             showNewToots = false
