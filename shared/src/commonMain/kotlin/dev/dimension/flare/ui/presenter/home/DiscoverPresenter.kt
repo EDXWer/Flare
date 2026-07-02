@@ -9,9 +9,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.paging.Pager
 import androidx.paging.PagingData
+import androidx.paging.cachedIn
 import androidx.paging.compose.collectAsLazyPagingItems
 import dev.dimension.flare.common.PagingState
-import dev.dimension.flare.common.cachePagingState
 import dev.dimension.flare.common.combineLatestFlowLists
 import dev.dimension.flare.common.emptyFlow
 import dev.dimension.flare.common.refreshSuspend
@@ -23,6 +23,7 @@ import dev.dimension.flare.data.datasource.microblog.pagingConfig
 import dev.dimension.flare.data.repository.AccountRepository
 import dev.dimension.flare.data.repository.accountServiceFlow
 import dev.dimension.flare.data.repository.allAccountServicesFlow
+import dev.dimension.flare.di.koinInject
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.model.UiHashtag
@@ -44,12 +45,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
-import dev.dimension.flare.di.koinInject
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @WebPresenter("discover")
-public class DiscoverPresenter :
-    PresenterBase<DiscoverState>() {
+public class DiscoverPresenter : PresenterBase<DiscoverState>() {
     private val accountRepository: AccountRepository by koinInject()
 
     private val accountsFlow by lazy {
@@ -123,8 +122,16 @@ public class DiscoverPresenter :
         val accounts by accountsFlow.collectAsUiState()
         val selectedAccount by selectedAccountFlow.collectAsState()
         val selectedAccountType by selectedAccountTypeFlow.collectAsState(AccountType.Guest)
-        val users = usersFlow.cachePagingState()
-        val hashtags = hashtagsFlow.cachePagingState()
+        val users =
+            remember(usersFlow, scope) {
+                usersFlow.cachedIn(scope)
+            }.collectAsLazyPagingItems()
+                .toPagingState()
+        val hashtags =
+            remember(hashtagsFlow, scope) {
+                hashtagsFlow.cachedIn(scope)
+            }.collectAsLazyPagingItems()
+                .toPagingState()
         val status =
             remember {
                 statusFlow(scope)

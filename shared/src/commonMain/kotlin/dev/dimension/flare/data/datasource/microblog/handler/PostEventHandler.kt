@@ -8,6 +8,7 @@ import dev.dimension.flare.data.datasource.microblog.DatabaseUpdater
 import dev.dimension.flare.data.datasource.microblog.PostEvent
 import dev.dimension.flare.data.datasource.microblog.UpdatePostActionMenuEvent
 import dev.dimension.flare.data.repository.tryRun
+import dev.dimension.flare.di.koinInject
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.DbAccountType
 import dev.dimension.flare.model.MicroBlogKey
@@ -17,7 +18,6 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
-import dev.dimension.flare.di.koinInject
 import kotlin.native.HiddenFromObjC
 
 @HiddenFromObjC
@@ -59,6 +59,8 @@ public class PostEventHandler(
                     statusKey = event.postKey,
                     accountType = dbAccountType,
                     content = updatedData,
+                    renderHash = updatedData.renderHash,
+                    text = updatedData.searchText,
                 )
             }
             if (event is PostEvent.PollEvent && originalData is UiTimelineV2.Post) {
@@ -87,6 +89,8 @@ public class PostEventHandler(
                     statusKey = event.postKey,
                     accountType = dbAccountType,
                     content = updatedData,
+                    renderHash = updatedData.renderHash,
+                    text = updatedData.searchText,
                 )
             }
             tryRun {
@@ -101,6 +105,8 @@ public class PostEventHandler(
                         statusKey = event.postKey,
                         accountType = dbAccountType,
                         content = originalData,
+                        renderHash = originalData.renderHash,
+                        text = originalData.searchText,
                     )
                 }
             }
@@ -139,6 +145,8 @@ public class PostEventHandler(
                     statusKey = postKey,
                     accountType = dbAccountType,
                     content = updatedData,
+                    renderHash = updatedData.renderHash,
+                    text = updatedData.searchText,
                 )
             }
         }
@@ -170,6 +178,8 @@ public class PostEventHandler(
                     statusKey = postKey,
                     accountType = dbAccountType,
                     content = updatedData,
+                    renderHash = updatedData.renderHash,
+                    text = updatedData.searchText,
                 )
             }
         }

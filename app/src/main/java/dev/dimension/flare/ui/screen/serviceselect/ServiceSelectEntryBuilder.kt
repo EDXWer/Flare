@@ -22,6 +22,21 @@ internal fun EntryProviderScope<NavKey>.serviceSelectEntryBuilder(
         )
     }
 
+    entry<Route.ServiceSelect.Relogin> { args ->
+        ReloginScreen(
+            target = args.target,
+            onWebViewLogin = { url, callback ->
+                navigate(
+                    Route.ServiceSelect.WebCookieLogin(
+                        url = url,
+                        callback = callback,
+                    ),
+                )
+            },
+            onBack = onBack,
+        )
+    }
+
     entry<Route.ServiceSelect.WebCookieLogin> { args ->
         WebCookieLoginScreen(
             url = args.url,

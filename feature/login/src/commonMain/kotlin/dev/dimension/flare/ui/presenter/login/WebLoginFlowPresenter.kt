@@ -8,12 +8,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import dev.dimension.flare.di.koinInject
 import dev.dimension.flare.model.PlatformType
 import dev.dimension.flare.ui.model.UiStrings
 import dev.dimension.flare.ui.presenter.PresenterBase
 import dev.dimension.flare.web.shared.WebPresenter
 import kotlinx.coroutines.launch
-import dev.dimension.flare.di.koinInject
 
 @WebPresenter("loginFlow")
 public class WebLoginFlowPresenter(
@@ -160,5 +160,6 @@ private fun UiStrings.webLabel(): String =
         UiStrings.CredentialImport -> "Import key"
         UiStrings.ExternalSigner -> "External signer"
         UiStrings.WebCookieLogin -> "Cookie login"
+        UiStrings.BlueskyFixDelegationScopes -> "Fix Tranquil permissions"
         else -> name
     }

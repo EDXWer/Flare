@@ -167,14 +167,17 @@ struct ServiceSelectionScreen: View {
                         .foregroundStyle(.secondary)
                 }
 
-                let handler = state.createLoginHandler(
-                    platformType: node.platformType,
-                    host: node.host,
-                    methodType: selectedMethod.wrappedValue,
-                    redirectUri: nil,
+                LoginFlowView(
+                    handler: {
+                        state.createLoginHandler(
+                            platformType: node.platformType,
+                            host: node.host,
+                            methodType: selectedMethod.wrappedValue,
+                            redirectUri: nil,
+                        )
+                    },
+                    authenticateURL: authenticate(url:)
                 )
-
-                LoginFlowView(handler: handler, authenticateURL: authenticate(url:))
                     .id("\(key)-\(selectedMethod.wrappedValue)")
 
                 LoginAgreementView(
@@ -305,6 +308,117 @@ struct ServiceSelectionScreen: View {
     }
 }
 
+struct ReloginScreen: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.webAuthenticationSession) private var webAuthenticationSession
+
+    let target: ReloginTarget
+    let toHome: () -> Void
+
+    @StateObject private var presenter: KotlinPresenter<ReloginState>
+    @State private var selectedMethod: LoginMethodType?
+
+    init(target: ReloginTarget, toHome: @escaping () -> Void) {
+        self.target = target
+        self.toHome = toHome
+        self._presenter = .init(wrappedValue: .init(presenter: ReloginPresenter(target: target, onSuccess: toHome)))
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                header
+            }
+            Section {
+                loginContent(state: presenter.state)
+                    .id("\(target.accountKey)-\(selectedMethod.map { String(describing: $0) } ?? "default")")
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle(ServiceSelectCopy.loginExpired)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button {
+                    dismiss()
+                } label: {
+                    Label {
+                        Text("Cancel")
+                    } icon: {
+                        Image(fontAwesome: .xmark)
+                    }
+                }
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            Image(fontAwesome: presenter.state.platformIcon().fontAwesomeIcon)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 28, height: 28)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(ServiceSelectCopy.loginExpired)
+                    .font(.title3.weight(.semibold))
+                Text("\(target.accountKey.id)@\(target.accountKey.host)")
+                    .font(.headline)
+                Text(ServiceSelectCopy.loginExpiredMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+    }
+
+    @ViewBuilder
+    private func loginContent(state: ReloginState) -> some View {
+        let methods = state.methods
+        if let firstMethod = methods.first {
+            let selectedMethod = Binding<LoginMethodType>(
+                get: { self.selectedMethod ?? firstMethod.type },
+                set: { method in
+                    withAnimation(MacOSServiceSelectionAnimation.standard) {
+                        self.selectedMethod = method
+                    }
+                }
+            )
+            VStack(alignment: .leading, spacing: 12) {
+                if methods.count > 1 {
+                    Picker("", selection: selectedMethod) {
+                        ForEach(methods.indices, id: \.self) { index in
+                            Text(methods[index].title.text).tag(methods[index].type)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                }
+
+                LoginFlowView(
+                    handler: {
+                        state.createLoginHandler(methodType: selectedMethod.wrappedValue)
+                    },
+                    authenticateURL: authenticate(url:)
+                )
+                .id("\(target.accountKey)-\(selectedMethod.wrappedValue)")
+
+                LoginAgreementView(urlString: state.agreementUrl())
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func authenticate(url: String) async -> String? {
+        guard let authURL = URL(string: url) else {
+            return nil
+        }
+        let response = try? await webAuthenticationSession.authenticate(
+            using: authURL,
+            callbackURLScheme: authURL.isPixivOAuthUrl ? "pixiv" : APPSCHEMA
+        )
+        return response?.absoluteString
+    }
+}
+
 private struct LoginFlowView: View {
     let authenticateURL: (String) async -> String?
 
@@ -313,11 +427,11 @@ private struct LoginFlowView: View {
     @State private var webCookieUrl: String?
 
     init(
-        handler: LoginMethodHandler,
+        handler: @escaping () -> LoginMethodHandler,
         authenticateURL: @escaping (String) async -> String?
     ) {
         self.authenticateURL = authenticateURL
-        self._presenter = .init(wrappedValue: .init(presenter: LoginFlowPresenter(handler: handler)))
+        self._presenter = .init(wrappedValue: .init(presenter: LoginFlowPresenter(handler: handler())))
     }
 
     var body: some View {
@@ -629,7 +743,10 @@ private struct MacOSWebLoginScreen: View {
     @StateObject private var viewModel: MacOSWebLoginViewModel
     private let url: String
 
-    init(onCookie: @escaping (String) -> Void, url: String) {
+    init(
+        onCookie: @escaping (String) -> Void,
+        url: String
+    ) {
         self._viewModel = .init(wrappedValue: .init(onCookie: onCookie, url: url))
         self.url = url
     }
@@ -683,7 +800,10 @@ private final class MacOSWebLoginViewModel: ObservableObject {
 
     let delegate: MacOSCookieNavigationDelegate
 
-    init(onCookie: @escaping (String) -> Void, url: String) {
+    init(
+        onCookie: @escaping (String) -> Void,
+        url: String
+    ) {
         self.delegate = MacOSCookieNavigationDelegate {
             WKWebsiteDataStore.default().httpCookieStore.getAllCookies { cookies in
                 let cookieString = MacOSWebLoginViewModel.cookieHeaderString(from: cookies, for: URL(string: url))
@@ -745,6 +865,8 @@ private enum ServiceSelectCopy {
     static let nostrQRLinkLabel = String(localized: "nostr_login_qr_link_label", defaultValue: "Nostr Connect link")
     static let eulaPrivacyPolicy = String(localized: "eula_privacy_policy", defaultValue: "EULA and Privacy Policy")
     static let loginAgreementPrefix = String(localized: "login_agreement_prefix", defaultValue: "By logging in, you agree to the ")
+    static let loginExpired = String(localized: "login_expired", defaultValue: "Login session expired")
+    static let loginExpiredMessage = String(localized: "login_expired_message", defaultValue: "Log in again to continue using this account.")
     static let search = String(localized: "search")
     static let clear = String(localized: "Clear")
 

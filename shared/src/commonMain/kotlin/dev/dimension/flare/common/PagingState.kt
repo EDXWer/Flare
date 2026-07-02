@@ -4,21 +4,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.paging.LoadState
 import androidx.paging.LoadStates
-import androidx.paging.PagingData
-import androidx.paging.cachedIn
 import androidx.paging.compose.LazyPagingItems
-import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemContentType
 import androidx.paging.compose.itemKey
 import dev.dimension.flare.ui.model.UiState
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.contract
 import kotlin.native.HiddenFromObjC
@@ -82,9 +77,11 @@ public sealed class PagingState<T> {
                 onRetry.invoke()
             }
 
-            override fun itemContentType(contentType: ((item: T) -> Any?)?): (index: Int) -> Any? = { null }
+            override fun itemContentType(contentType: ((item: T) -> Any?)?): (index: Int) -> Any? =
+                { index -> contentType?.let { data.getOrNull(index)?.let(it) } }
 
-            override fun itemKey(key: ((item: T) -> Any)?): (index: Int) -> Any = { it }
+            override fun itemKey(key: ((item: T) -> Any)?): (index: Int) -> Any =
+                { index -> key?.let { data.getOrNull(index)?.let(it) } ?: index }
         }
 
         @Immutable
@@ -255,10 +252,6 @@ public fun <T : Any> LazyPagingItems<T>.toPagingState(): PagingState<T> {
     }
 }
 
-@Composable
-internal fun <T : Any> Flow<PagingData<T>>.cachePagingState(scope: CoroutineScope = rememberCoroutineScope()) =
-    remember(this) { this.cachedIn(scope) }.collectAsLazyPagingItems().toPagingState()
-
 @Immutable
 internal data class PagingSnapshot(
     val itemCount: Int,
@@ -313,9 +306,12 @@ internal fun <T : Any> UiState<PagingState<T>>.flatten(): PagingState<T> =
     }
 
 @Composable
-internal fun <T : Any> Flow<List<T>>.collectPagingState(): State<PagingState<T>> =
+@HiddenFromObjC
+public fun <T : Any> Flow<List<T>>.collectPagingState(): State<PagingState<T>> =
     produceState<PagingState<T>>(initialValue = PagingState.Loading<T>()) {
-        collect {
+        catch {
+            value = PagingState.Error(it, onRetry = {})
+        }.collect {
             value =
                 if (it.isEmpty()) {
                     PagingState.Empty { }

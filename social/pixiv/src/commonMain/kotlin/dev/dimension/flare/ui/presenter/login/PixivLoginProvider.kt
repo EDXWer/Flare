@@ -17,6 +17,7 @@ import dev.dimension.flare.data.platform.PIXIV_HOST
 import dev.dimension.flare.data.platform.PixivCredential
 import dev.dimension.flare.data.platform.PixivPlatformSpec
 import dev.dimension.flare.data.repository.AccountService
+import dev.dimension.flare.di.koinInject
 import dev.dimension.flare.model.PlatformType
 import dev.dimension.flare.model.PlatformTypeMetadata
 import dev.dimension.flare.model.RecommendedInstance
@@ -30,7 +31,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import dev.dimension.flare.di.koinInject
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
 
@@ -138,10 +138,12 @@ private class PixivOAuthLoginHandler(
                         redirectUri = request.redirectUri,
                     )
                 val credential = response.toCredential()
+                val accountKey = credential.accountKey()
+                context.requireReloginAccount(accountKey)
                 accountService.addAccount(
                     account =
                         UiAccount(
-                            accountKey = credential.accountKey(),
+                            accountKey = accountKey,
                             platformType = PlatformType.Pixiv,
                         ),
                     credential = credential,

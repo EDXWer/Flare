@@ -88,6 +88,10 @@
     <string name="status_sensitive_media">Sensitive media</string>
     <string name="show_media">Show media</string>
     <string name="hide_media">Hide media</string>
+    <string name="media_menu_download">Download</string>
+    <string name="media_menu_download_all">Download all</string>
+    <string name="media_menu_share_image">Share image</string>
+    <string name="media_menu_copy_link">Copy link</string>
     <string name="login_expired">Login session expired</string>
     <string name="login_expired_message">Tap to log in again</string>
     <string name="login_expired_relogin">Log in again</string>
@@ -469,6 +473,7 @@
     <string name="bluesky_login_password_hint">Password</string>
     <string name="bluesky_login_auth_factor_token_hint">2FA token</string>
     <string name="bluesky_login_oauth_button">Log in with OAuth</string>
+    <string name="bluesky_login_fix_delegation_scopes_button">Fix Tranquil permissions</string>
     <string name="bluesky_login_use_password_button">Use password</string>
     <string name="bluesky_login_oauth_hint">Bluesky OAuth may still be unstable. If you run into issues, use password login instead.</string>
     <string name="login_button">Log in</string>
@@ -527,6 +532,8 @@
     <string name="pixiv_ranking_week_original_title">Original Ranking</string>
     <string name="pixiv_ranking_week_rookie_title">Rookie Ranking</string>
     <string name="pixiv_ranking_day_manga_title">Manga Ranking</string>
+    <string name="pixiv_private_following_title">Private Following</string>
+    <string name="pixiv_private_bookmarks_title">Private Bookmarks</string>
     <string name="illustrations_title">Illustrations</string>
     <string name="manga_title">Manga</string>
     <string name="fanbox_supported_title">Supported posts</string>

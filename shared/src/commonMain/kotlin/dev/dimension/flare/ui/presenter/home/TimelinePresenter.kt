@@ -8,17 +8,18 @@ import androidx.paging.ExperimentalPagingApi
 import androidx.paging.Pager
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
+import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.filter
 import androidx.paging.map
 import dev.dimension.flare.common.InAppNotification
 import dev.dimension.flare.common.Message
 import dev.dimension.flare.common.PagingState
 import dev.dimension.flare.common.PlatformDispatchers
-import dev.dimension.flare.common.cachePagingState
 import dev.dimension.flare.common.emptyFlow
 import dev.dimension.flare.common.onEmpty
 import dev.dimension.flare.common.onError
 import dev.dimension.flare.common.onSuccess
+import dev.dimension.flare.common.toPagingState
 import dev.dimension.flare.data.database.cache.CacheDatabase
 import dev.dimension.flare.data.database.cache.model.DbStatusWithReference
 import dev.dimension.flare.data.database.cache.model.TranslationDisplayOptions
@@ -27,6 +28,7 @@ import dev.dimension.flare.data.datasource.microblog.paging.CacheableRemoteLoade
 import dev.dimension.flare.data.datasource.microblog.paging.NotSupportRemoteLoader
 import dev.dimension.flare.data.datasource.microblog.paging.OffsetFromStartPagingSource
 import dev.dimension.flare.data.datasource.microblog.paging.RemoteLoader
+import dev.dimension.flare.data.datasource.microblog.paging.TimelineDbPageCache
 import dev.dimension.flare.data.datasource.microblog.paging.TimelineDbPageLoader
 import dev.dimension.flare.data.datasource.microblog.paging.TimelinePagingMapper
 import dev.dimension.flare.data.datasource.microblog.paging.TimelineRemoteMediator
@@ -43,6 +45,7 @@ import dev.dimension.flare.data.repository.LoginExpiredException
 import dev.dimension.flare.data.repository.SettingsRepository
 import dev.dimension.flare.data.translation.PreTranslationService
 import dev.dimension.flare.data.translation.TranslationSettingsSupport
+import dev.dimension.flare.di.koinInject
 import dev.dimension.flare.ui.model.UiMedia
 import dev.dimension.flare.ui.model.UiTimelineV2
 import dev.dimension.flare.ui.presenter.PresenterBase
@@ -59,7 +62,6 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import dev.dimension.flare.di.koinInject
 
 public class TimelinePresenterOptions(
     public val allowLongTextTranslationDisplay: (RemoteLoader<UiTimelineV2>) -> Boolean = { false },
@@ -68,8 +70,7 @@ public class TimelinePresenterOptions(
 
 @OptIn(ExperimentalPagingApi::class)
 @WebPresenter(name = "timeline", creatable = false)
-public open class TimelinePresenter :
-    PresenterBase<TimelineState> {
+public open class TimelinePresenter : PresenterBase<TimelineState> {
     private val baseLoader: Flow<RemoteLoader<UiTimelineV2>>
     public open val loader: Flow<RemoteLoader<UiTimelineV2>>
         get() = baseLoader
@@ -172,6 +173,7 @@ public open class TimelinePresenter :
     private fun cachePager(loader: CacheableRemoteLoader<UiTimelineV2>): Flow<PagingData<DbStatusWithReference>> =
         run {
             val allowLongText = allowLongTextTranslationDisplay(loader)
+            val pageCache = TimelineDbPageCache()
             Pager(
                 config = offsetPagingConfig,
                 remoteMediator =
@@ -191,6 +193,7 @@ public open class TimelinePresenter :
                         TimelineDbPageLoader(
                             database = database,
                             pagingKey = loader.pagingKey,
+                            pageCache = pageCache,
                         ),
                     )
                 },
@@ -213,7 +216,8 @@ public open class TimelinePresenter :
         val listState =
             remember {
                 createPager(scope)
-            }.cachePagingState()
+            }.collectAsLazyPagingItems()
+                .toPagingState()
         return object : TimelineState {
             override val listState = listState
 

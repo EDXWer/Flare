@@ -14,6 +14,7 @@ import dev.dimension.flare.data.platform.MisskeyPlatformSpec
 import dev.dimension.flare.data.repository.AccountService
 import dev.dimension.flare.data.repository.addAccount
 import dev.dimension.flare.data.repository.tryRun
+import dev.dimension.flare.di.koinInject
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.model.PlatformType
 import dev.dimension.flare.model.PlatformTypeMetadata
@@ -29,7 +30,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import dev.dimension.flare.di.koinInject
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
@@ -168,13 +168,15 @@ private class MisskeyOAuthLoginHandler(
         val id = response.user?.id
         requireNotNull(id) { "No user id" }
         val nodeInfo = NodeInfoService.fetchNodeInfo(host)
+        val accountKey =
+            MicroBlogKey(
+                id = id,
+                host = host,
+            )
+        context.requireReloginAccount(accountKey)
         accountService.addAccount(
             UiAccount(
-                accountKey =
-                    MicroBlogKey(
-                        id = id,
-                        host = host,
-                    ),
+                accountKey = accountKey,
                 platformType = PlatformType.Misskey,
             ),
             credential =

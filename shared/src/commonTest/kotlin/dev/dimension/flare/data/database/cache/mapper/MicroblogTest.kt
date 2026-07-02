@@ -24,6 +24,7 @@ import dev.dimension.flare.data.database.cache.model.translationEntityKey
 import dev.dimension.flare.data.database.cache.model.translationPayload
 import dev.dimension.flare.data.database.createDatabaseDriver
 import dev.dimension.flare.data.datasource.microblog.ActionMenu
+import dev.dimension.flare.data.datasource.microblog.paging.TimelineDbPageCache
 import dev.dimension.flare.data.datasource.microblog.paging.TimelineDbPageLoader
 import dev.dimension.flare.data.datasource.microblog.paging.TimelinePagingMapper
 import dev.dimension.flare.data.datastore.model.AppSettings
@@ -473,7 +474,7 @@ class MicroblogTest : RobolectricTest() {
                 ),
             )
 
-            val loader = TimelineDbPageLoader(db, "home")
+            val loader = TimelineDbPageLoader(db, "home", TimelineDbPageCache())
 
             assertEquals(
                 listOf(first.timeline.statusId),
@@ -573,10 +574,45 @@ class MicroblogTest : RobolectricTest() {
 
             val saved =
                 db.statusDao().get(withParents.statusKey, AccountType.Specific(accountKey)).first()
-            val savedPost = assertIs<UiTimelineV2.Post>(assertNotNull(saved).content)
+            val savedStatus = assertNotNull(saved)
+            val savedPost = assertIs<UiTimelineV2.Post>(savedStatus.content)
             assertTrue(savedPost.parents.isEmpty())
             assertEquals(1, savedPost.references.size)
             assertEquals(refPost.statusKey, savedPost.references.first().statusKey)
+            assertEquals(savedPost.renderHash, savedStatus.renderHash)
+        }
+
+    @Test
+    fun toDbStoresRenderHashForSanitizedContent() =
+        runTest {
+            val accountKey = MicroBlogKey(id = "account-render-hash", host = "test.com")
+            val user = createUser(MicroBlogKey(id = "user-render-hash", host = "test.com"), "User")
+            val parent =
+                createPost(
+                    accountKey = accountKey,
+                    user = user,
+                    statusKey = MicroBlogKey(id = "parent-render-hash", host = "test.com"),
+                    text = "parent",
+                )
+            val post =
+                createPost(
+                    accountKey = accountKey,
+                    user = user,
+                    statusKey = MicroBlogKey(id = "root-render-hash", host = "test.com"),
+                    text = "root",
+                    parents = listOf(parent),
+                )
+
+            val savedStatus =
+                TimelinePagingMapper
+                    .toDb(post, pagingKey = "home")
+                    .status.status.data
+            val savedPost = assertIs<UiTimelineV2.Post>(savedStatus.content)
+
+            assertTrue(savedPost.parents.isEmpty())
+            assertEquals(1, savedPost.references.size)
+            assertEquals(savedPost.renderHash, savedStatus.renderHash)
+            assertNotEquals(post.renderHash, savedStatus.renderHash)
         }
 
     @Test
@@ -1535,58 +1571,15 @@ class MicroblogTest : RobolectricTest() {
         }
 
     @Test
-    fun toUiMarksPendingTranslationAsTranslating() =
+    fun toUiMarksPendingTranslationAsTranslatingAndKeepsNoopTranslateAction() =
         runTest {
-            val accountKey = MicroBlogKey(id = "account-pending", host = "test.com")
-            val postUser =
-                createUser(MicroBlogKey(id = "post-user-pending", host = "test.com"), "Post User")
-            val post =
-                createPost(
-                    accountKey = accountKey,
-                    user = postUser,
-                    statusKey = MicroBlogKey(id = "post-status-pending", host = "test.com"),
-                    text = "pending source",
-                )
+            assertInFlightTranslationKeepsNoopTranslateAction(TranslationStatus.Pending)
+        }
 
-            val mapped = TimelinePagingMapper.toDb(post, pagingKey = "home")
-            saveToDatabase(db, listOf(mapped))
-            db.translationDao().insert(
-                DbTranslation(
-                    entityType = TranslationEntityType.Status,
-                    entityKey =
-                        mapped.status.status.data
-                            .translationEntityKey(),
-                    targetLanguage = Locale.language,
-                    sourceHash =
-                        post
-                            .translationPayload()!!
-                            .sourceHash(googleTranslationProviderCacheKey),
-                    status = TranslationStatus.Pending,
-                    payload = null,
-                    updatedAt = Clock.System.now().toEpochMilliseconds(),
-                ),
-            )
-
-            val paging = db.pagingTimelineDao().getPagingSource("home")
-            val pager = TestPager(config = PagingConfig(pageSize = 20), paging)
-            val refreshResult = pager.refresh()
-            val page =
-                assertIs<PagingSource.LoadResult.Page<Int, DbStatusWithReference>>(
-                    refreshResult,
-                )
-            val dbItem = assertNotNull(page.data.firstOrNull())
-
-            val timelineUi =
-                assertIs<UiTimelineV2.Post>(
-                    TimelinePagingMapper.toUi(
-                        item = dbItem,
-                        pagingKey = "home",
-                        translationDisplayOptions = translationDisplayOptions(),
-                    ),
-                )
-
-            assertEquals("pending source", timelineUi.content.raw)
-            assertEquals(TranslationDisplayState.Translating, timelineUi.translationDisplayState)
+    @Test
+    fun toUiMarksTranslatingTranslationAsTranslatingAndKeepsNoopTranslateAction() =
+        runTest {
+            assertInFlightTranslationKeepsNoopTranslateAction(TranslationStatus.Translating)
         }
 
     @Test
@@ -2227,6 +2220,78 @@ class MicroblogTest : RobolectricTest() {
                 resolved.parents.map { it.statusKey.id },
             )
         }
+
+    private suspend fun assertInFlightTranslationKeepsNoopTranslateAction(translationStatus: TranslationStatus) {
+        val id = translationStatus.name.lowercase()
+        val accountKey = MicroBlogKey(id = "account-$id", host = "test.com")
+        val postUser =
+            createUser(MicroBlogKey(id = "post-user-$id", host = "test.com"), "Post User")
+        val post =
+            createPost(
+                accountKey = accountKey,
+                user = postUser,
+                statusKey = MicroBlogKey(id = "post-status-$id", host = "test.com"),
+                text = "$id source",
+            ).copy(
+                actions = persistentListOf(moreMenu()),
+            )
+
+        val mapped = TimelinePagingMapper.toDb(post, pagingKey = "home")
+        saveToDatabase(db, listOf(mapped))
+        db.translationDao().insert(
+            DbTranslation(
+                entityType = TranslationEntityType.Status,
+                entityKey =
+                    mapped.status.status.data
+                        .translationEntityKey(),
+                targetLanguage = Locale.language,
+                sourceHash =
+                    post
+                        .translationPayload()!!
+                        .sourceHash(googleTranslationProviderCacheKey),
+                status = translationStatus,
+                payload = null,
+                updatedAt = Clock.System.now().toEpochMilliseconds(),
+            ),
+        )
+
+        val paging = db.pagingTimelineDao().getPagingSource("home")
+        val pager = TestPager(config = PagingConfig(pageSize = 20), paging)
+        val refreshResult = pager.refresh()
+        val page =
+            assertIs<PagingSource.LoadResult.Page<Int, DbStatusWithReference>>(
+                refreshResult,
+            )
+        val dbItem = assertNotNull(page.data.firstOrNull())
+
+        val timelineUi =
+            assertIs<UiTimelineV2.Post>(
+                TimelinePagingMapper.toUi(
+                    item = dbItem,
+                    pagingKey = "home",
+                    translationDisplayOptions = translationDisplayOptions(),
+                ),
+            )
+
+        assertEquals("$id source", timelineUi.content.raw)
+        assertEquals(TranslationDisplayState.Translating, timelineUi.translationDisplayState)
+        val moreAction = assertIs<ActionMenu.Group>(timelineUi.actions.first())
+        val translateAction = assertIs<ActionMenu.Item>(moreAction.actions.first())
+        val translateText = assertIs<ActionMenu.Item.Text.Localized>(translateAction.text)
+        assertEquals(ActionMenu.Item.Text.Localized.Type.Translate, translateText.type)
+        assertEquals(ClickEvent.Noop, translateAction.clickEvent)
+        assertEquals(UiIcon.Translate, translateAction.icon)
+    }
+
+    private fun moreMenu(actions: List<ActionMenu> = emptyList()): ActionMenu.Group =
+        ActionMenu.Group(
+            displayItem =
+                ActionMenu.Item(
+                    text = ActionMenu.Item.Text.Localized(ActionMenu.Item.Text.Localized.Type.More),
+                    clickEvent = ClickEvent.Noop,
+                ),
+            actions = actions.toPersistentList(),
+        )
 
     private fun createUser(
         key: MicroBlogKey,

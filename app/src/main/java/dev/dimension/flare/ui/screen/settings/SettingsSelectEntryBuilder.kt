@@ -4,7 +4,7 @@ import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
-import androidx.navigation3.scene.DialogSceneStrategy
+import dev.dimension.flare.ui.component.DialogSceneStrategy2
 import dev.dimension.flare.ui.route.Route
 import dev.dimension.flare.ui.screen.agent.AgentChatHistoryScreen
 import kotlin.time.Clock
@@ -38,6 +38,9 @@ internal fun EntryProviderScope<NavKey>.settingsSelectEntryBuilder(
             toAppearanceMedia = {
                 navigate(Route.Settings.AppearanceMedia)
             },
+            toBehavior = {
+                navigate(Route.Settings.Behavior)
+            },
             toStorage = {
                 navigate(Route.Settings.Storage)
             },
@@ -69,6 +72,9 @@ internal fun EntryProviderScope<NavKey>.settingsSelectEntryBuilder(
             onBack = onBack,
             toLogin = {
                 navigate(Route.ServiceSelect.Selection)
+            },
+            toRelogin = {
+                navigate(Route.ServiceSelect.Relogin(it))
             },
             toNostrRelays = {
                 navigate(Route.Settings.NostrRelays(it))
@@ -129,6 +135,29 @@ internal fun EntryProviderScope<NavKey>.settingsSelectEntryBuilder(
     ) {
         AppearanceMediaScreen(
             onBack = onBack
+        )
+    }
+
+    entry<Route.Settings.Behavior>(
+        metadata = ListDetailSceneStrategy.detailPane(
+            sceneKey = "Settings"
+        )
+    ) {
+        BehaviorScreen(
+            toLinkOpenDefaults = {
+                navigate(Route.Settings.LinkOpenDefaults)
+            },
+            onBack = onBack,
+        )
+    }
+
+    entry<Route.Settings.LinkOpenDefaults>(
+        metadata = ListDetailSceneStrategy.detailPane(
+            sceneKey = "Settings"
+        )
+    ) {
+        LinkOpenDefaultsScreen(
+            onBack = onBack,
         )
     }
 
@@ -231,7 +260,7 @@ internal fun EntryProviderScope<NavKey>.settingsSelectEntryBuilder(
     }
 
     entry<Route.Settings.ColorPicker>(
-        metadata = DialogSceneStrategy.dialog()
+        metadata = DialogSceneStrategy2.dialog()
     ) {
         ColorPickerDialog(
             onBack = onBack

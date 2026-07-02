@@ -2,6 +2,7 @@ package dev.dimension.flare.ui.presenter.login
 
 import dev.dimension.flare.data.network.nodeinfo.NodeData
 import dev.dimension.flare.data.network.nodeinfo.PlatformDetector
+import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.model.PlatformRuntimeData
 import dev.dimension.flare.model.PlatformType
 import dev.dimension.flare.model.PlatformTypeMetadata
@@ -60,6 +61,11 @@ public data class LoginFlowState(
     val error: String? = null,
 )
 
+public data class ReloginTarget(
+    val accountKey: MicroBlogKey,
+    val platformType: PlatformType,
+)
+
 public sealed interface LoginEffect {
     public data class OpenUrl(
         val url: String,
@@ -94,7 +100,25 @@ public data class LoginContext(
     val methodType: LoginMethodType,
     val onSuccess: suspend () -> Unit,
     val redirectUri: String? = null,
+    val reloginTarget: ReloginTarget? = null,
 )
+
+public fun LoginContext.requireReloginAccount(accountKey: MicroBlogKey) {
+    val target = reloginTarget ?: return
+    if (accountKey != target.accountKey) {
+        throw ReloginAccountMismatchException(
+            expected = target.accountKey,
+            actual = accountKey,
+        )
+    }
+}
+
+public class ReloginAccountMismatchException(
+    public val expected: MicroBlogKey,
+    public val actual: MicroBlogKey,
+) : IllegalArgumentException(
+        "Relogin account mismatch: expected $expected, got $actual",
+    )
 
 public interface LoginMethodHandler : AutoCloseable {
     public val state: StateFlow<LoginFlowState>

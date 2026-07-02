@@ -7,15 +7,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.paging.Pager
 import androidx.paging.PagingData
+import androidx.paging.cachedIn
+import androidx.paging.compose.collectAsLazyPagingItems
 import dev.dimension.flare.common.PagingState
-import dev.dimension.flare.common.cachePagingState
 import dev.dimension.flare.common.emptyFlow
+import dev.dimension.flare.common.toPagingState
 import dev.dimension.flare.data.datasource.microblog.datasource.GalleryDataSource
 import dev.dimension.flare.data.datasource.microblog.datasource.GalleryDetail
 import dev.dimension.flare.data.datasource.microblog.paging.toPagingSource
 import dev.dimension.flare.data.datasource.microblog.pagingConfig
 import dev.dimension.flare.data.repository.AccountRepository
 import dev.dimension.flare.data.repository.accountServiceFlow
+import dev.dimension.flare.di.koinInject
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.model.UiState
@@ -26,7 +29,6 @@ import dev.dimension.flare.ui.presenter.PresenterBase
 import dev.dimension.flare.ui.presenter.status.LogStatusHistoryPresenter
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flatMapLatest
-import dev.dimension.flare.di.koinInject
 
 @OptIn(ExperimentalCoroutinesApi::class)
 public class GalleryDetailPresenter(
@@ -92,8 +94,16 @@ public class GalleryDetailPresenter(
     override fun body(): State {
         val scope = rememberCoroutineScope()
         val detail by detailCacheFlow.flattenUiState()
-        val comments = commentsFlow.cachePagingState(scope)
-        val recommendations = recommendationsFlow.cachePagingState(scope)
+        val comments =
+            remember(commentsFlow, scope) {
+                commentsFlow.cachedIn(scope)
+            }.collectAsLazyPagingItems()
+                .toPagingState()
+        val recommendations =
+            remember(recommendationsFlow, scope) {
+                recommendationsFlow.cachedIn(scope)
+            }.collectAsLazyPagingItems()
+                .toPagingState()
 
         remember { LogStatusHistoryPresenter(accountType = accountType, statusKey = statusKey) }.body()
 

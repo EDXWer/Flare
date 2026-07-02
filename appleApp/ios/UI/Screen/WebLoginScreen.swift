@@ -1,5 +1,4 @@
 import SwiftUI
-import KotlinSharedUI
 import WebKit
 import Combine
 
@@ -8,7 +7,10 @@ struct WebLoginScreen: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var viewModel: WebLoginViewModel
     let url: String
-    init(onCookie: @escaping (String) -> Void, url: String) {
+    init(
+        onCookie: @escaping (String) -> Void,
+        url: String
+    ) {
         self._viewModel = .init(wrappedValue: .init(onCookie: onCookie, url: url))
         self.url = url
     }
@@ -75,7 +77,7 @@ class WebLoginViewModel: ObservableObject {
     let onCookie: (String) -> Void
     init(
         onCookie: @escaping (String) -> Void,
-        url: String,
+        url: String
     ) {
         var conf = WebPage.Configuration()
         conf.defaultNavigationPreferences.allowsContentJavaScript = true

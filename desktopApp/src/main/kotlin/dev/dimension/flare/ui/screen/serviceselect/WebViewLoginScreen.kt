@@ -3,9 +3,11 @@ package dev.dimension.flare.ui.screen.serviceselect
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import io.github.kdroidfilter.webview.web.WebContent
 import io.github.kdroidfilter.webview.web.WebView
-import io.github.kdroidfilter.webview.web.rememberWebViewState
+import io.github.kdroidfilter.webview.web.WebViewState
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.seconds
 
@@ -16,9 +18,19 @@ internal fun WebViewLoginScreen(
     onBack: () -> Unit,
 ) {
     val state =
-        rememberWebViewState(url) {
-            desktopWebSettings.incognito = true
+        remember(url) {
+            WebViewState(WebContent.Url("about:blank")).apply {
+                webSettings.desktopWebSettings.incognito = true
+            }
         }
+    LaunchedEffect(state.webView, url) {
+        val nativeWebView = state.webView?.nativeWebView ?: return@LaunchedEffect
+        while (!nativeWebView.isReady()) {
+            delay(50)
+        }
+        nativeWebView.clearAllCookies()
+        nativeWebView.loadUrl(url)
+    }
     LaunchedEffect(Unit) {
         while (true) {
             delay(2.seconds)

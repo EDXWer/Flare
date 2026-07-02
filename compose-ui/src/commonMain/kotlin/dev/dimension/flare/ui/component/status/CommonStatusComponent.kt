@@ -494,6 +494,7 @@ internal fun StatusMediasComponent(
             }
         }
         StatusMediaComponent(
+            post = item,
             data = item.images,
             onMediaClick = onMediaClick,
             sensitive = item.sensitive,
@@ -706,9 +707,7 @@ internal fun TranslationDisplayBadge(
                     )
                 }
 
-                TranslationDisplayState.Translated -> {
-                    Unit
-                }
+                TranslationDisplayState.Translated -> {}
 
                 TranslationDisplayState.Failed -> {
                     FAIcon(
@@ -719,9 +718,7 @@ internal fun TranslationDisplayBadge(
                     )
                 }
 
-                TranslationDisplayState.Hidden -> {
-                    Unit
-                }
+                TranslationDisplayState.Hidden -> {}
             }
         }
     }
@@ -941,9 +938,7 @@ internal fun StatusActions(
                                 }
 
                                 // nested group is not supported
-                                is ActionMenu.Group -> {
-                                    Unit
-                                }
+                                is ActionMenu.Group -> {}
 
                                 ActionMenu.Divider -> {
                                     PlatformDropdownMenuDivider()
@@ -978,9 +973,7 @@ internal fun StatusActions(
                 }
 
                 // divider is only supported in group
-                ActionMenu.Divider -> {
-                    Unit
-                }
+                ActionMenu.Divider -> {}
             }
         }
     }

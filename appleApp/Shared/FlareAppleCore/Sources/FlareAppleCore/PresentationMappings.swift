@@ -84,6 +84,11 @@ public extension UiStrings {
             localizedPresentationString("bluesky_login_auth_factor_token_hint", fallback: "One-time Password")
         case .oauthLogin:
             localizedPresentationString("bluesky_login_oauth_button", fallback: "OAuth Login")
+        case .blueskyFixDelegationScopes:
+            localizedPresentationString(
+                "bluesky_login_fix_delegation_scopes_button",
+                fallback: "Fix Tranquil permissions"
+            )
         case .passwordLogin:
             localizedPresentationString("bluesky_login_use_password_button", fallback: "Password Login")
         case .qrConnect:
@@ -110,6 +115,10 @@ public extension UiStrings {
             localizedPresentationString("pixiv_ranking_week_rookie_title", fallback: "Rookie Ranking")
         case .pixivRankingDayManga:
             localizedPresentationString("pixiv_ranking_day_manga_title", fallback: "Manga Ranking")
+        case .pixivPrivateFollowing:
+            localizedPresentationString("pixiv_private_following_title", fallback: "Private Following")
+        case .pixivPrivateBookmarks:
+            localizedPresentationString("pixiv_private_bookmarks_title", fallback: "Private Bookmarks")
         case .illustrations:
             localizedPresentationString("illustrations_title", fallback: "Illustrations")
         case .manga:

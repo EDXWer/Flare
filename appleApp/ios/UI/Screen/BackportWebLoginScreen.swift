@@ -6,7 +6,10 @@ struct BackportWebLoginScreen: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var viewModel: BackportWebLoginViewModel
     let url: String
-    init(onCookie: @escaping (String) -> Void, url: String) {
+    init(
+        onCookie: @escaping (String) -> Void,
+        url: String
+    ) {
         self._viewModel = .init(wrappedValue: .init(onCookie: onCookie, url: url))
         self.url = url
     }
@@ -56,7 +59,10 @@ class BackportWebLoginViewModel: ObservableObject {
     let onCookie: (String) -> Void
     let delegate: WKDelegate
     private var observers = [NSKeyValueObservation]()
-    init(onCookie: @escaping (String) -> Void, url: String) {
+    init(
+        onCookie: @escaping (String) -> Void,
+        url: String
+    ) {
         self.onCookie = onCookie
         self.url = url
         self.delegate = WKDelegate {

@@ -9,8 +9,10 @@ enum Route: Hashable, Identifiable {
     case accountNotification(MicroBlogKey)
     case discover
     case serviceSelect
+    case relogin(MicroBlogKey, PlatformType)
     case localHistory
     case agentHistory
+    case directMessages
     case agentChat(String, String?)
     case localHistoryAgent(String, String?, String)
     case timeline(UiTimelineTabItem)
@@ -49,6 +51,9 @@ enum Route: Hashable, Identifiable {
     case unmuteUser(AccountType?, MicroBlogKey)
     case reportUser(AccountType?, MicroBlogKey)
     case editUserList(AccountType, MicroBlogKey)
+    case dmConversation(AccountType, MicroBlogKey, String)
+    case userDirectMessages(AccountType, MicroBlogKey)
+    case allDirectMessages(AccountType)
     case allLists(AccountType)
     case allFeeds(AccountType)
     case allAntennas(AccountType)
@@ -67,6 +72,10 @@ enum Route: Hashable, Identifiable {
             return lhsIndex == rhsIndex &&
                 lhsPreview == rhsPreview &&
                 lhsMedias.map { $0.url } == rhsMedias.map { $0.url }
+        case (.relogin(let lhsAccountKey, let lhsPlatformType), .relogin(let rhsAccountKey, let rhsPlatformType)):
+            return lhsAccountKey.id == rhsAccountKey.id &&
+                lhsAccountKey.host == rhsAccountKey.host &&
+                lhsPlatformType == rhsPlatformType
         default:
             return lhs.hashValue == rhs.hashValue
         }
@@ -81,6 +90,11 @@ enum Route: Hashable, Identifiable {
         case .timeline(let item):
             hasher.combine("timeline")
             hasher.combine(item.id)
+        case .relogin(let accountKey, let platformType):
+            hasher.combine("relogin")
+            hasher.combine(accountKey.id)
+            hasher.combine(accountKey.host)
+            hasher.combine(platformType)
         case .mediaRaw(let medias, let selectedIndex, let preview):
             hasher.combine("mediaRaw")
             hasher.combine(medias.map { $0.url })
@@ -110,6 +124,11 @@ enum Route: Hashable, Identifiable {
             }
         case .serviceSelect:
             ServiceSelectionScreen(toHome: goBack)
+        case .relogin(let accountKey, let platformType):
+            ReloginScreen(
+                target: ReloginTarget(accountKey: accountKey, platformType: platformType),
+                toHome: goBack
+            )
         case .localHistory:
             LocalHistoryContentScreen(
                 onAskAi: { query, target in
@@ -120,6 +139,11 @@ enum Route: Hashable, Identifiable {
             }
         case .agentHistory:
             AgentChatHistoryScreen(onNavigate: onNavigate)
+        case .directMessages,
+                .dmConversation,
+                .userDirectMessages,
+                .allDirectMessages:
+            EmptyView()
         case .agentChat(let conversationId, let initialMessage):
             AgentChatScreen(
                 conversationId: conversationId,
@@ -298,6 +322,18 @@ enum Route: Hashable, Identifiable {
             nil
         }
     }
+
+    var isDirectMessageWindowRoute: Bool {
+        switch self {
+        case .directMessages,
+                .dmConversation,
+                .userDirectMessages,
+                .allDirectMessages:
+            true
+        default:
+            false
+        }
+    }
 }
 
 private struct MacArticleScreen: View {
@@ -336,7 +372,11 @@ private struct MacArticleScreen: View {
             do {
                 _ = try await MacMediaFileExporter.saveRemoteFile(
                     url: block.url,
-                    fileName: block.downloadFileName,
+                    fileName: MediaFileNamePolicy.shared.articleFileName(
+                        name: block.name,
+                        url: block.url,
+                        extensionName: block.extension
+                    ),
                     customHeaders: block.customHeaders
                 )
             } catch {
@@ -362,6 +402,8 @@ extension Route {
 
     static func fromDeepLinkRoute(deeplinkRoute: DeeplinkRoute) -> Route? {
         switch onEnum(of: deeplinkRoute) {
+        case .relogin(let data):
+            .relogin(data.accountKey, data.platformType)
         case .login:
             .serviceSelect
         case .timeline(let data):
@@ -418,6 +460,10 @@ extension Route {
             } else {
                 .reportUser(nil, data.userKey)
             }
+        case .directMessage(let data):
+            .userDirectMessages(.Specific(accountKey: data.accountKey), data.userKey)
+        case .allDirectMessages(let data):
+            .allDirectMessages(.Specific(accountKey: data.accountKey))
         case .allLists(let data):
             .allLists(.Specific(accountKey: data.accountKey))
         case .allFeeds(let data):

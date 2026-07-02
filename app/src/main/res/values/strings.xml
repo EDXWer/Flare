@@ -117,7 +117,9 @@
     <string name="settings_appearance_layout_group_title">Layout</string>
     <string name="settings_appearance_layout_group_subtitle">Timeline layout, navigation, and post actions</string>
     <string name="settings_appearance_display_group_title">Display</string>
-    <string name="settings_appearance_display_group_subtitle">Timestamps, source badges, links, and browser behavior</string>
+    <string name="settings_appearance_display_group_subtitle">Timestamps, source badges, and link previews</string>
+    <string name="settings_behavior_title">Behavior</string>
+    <string name="settings_behavior_description">Browser and link handling preferences</string>
     <string name="settings_appearance_media_group_title">Media</string>
     <string name="settings_appearance_media_group_subtitle">Media visibility, playback, and sensitive content</string>
     <string name="settings_storage_title">Storage</string>
@@ -244,6 +246,7 @@
     <string name="bluesky_login_password_hint">Password</string>
     <string name="bluesky_login_auth_factor_token_hint">2FA token</string>
     <string name="bluesky_login_oauth_button">Log in with OAuth</string>
+    <string name="bluesky_login_fix_delegation_scopes_button">Fix Tranquil permissions</string>
     <string name="bluesky_login_use_password_button">Use password</string>
     <string name="bluesky_login_oauth_hint">Bluesky OAuth may still be unstable. If you run into issues, use password login instead.</string>
 
@@ -402,6 +405,13 @@
     <string name="settings_storage_clear_database_description">Remove %1$s cached users and %2$s cached posts</string>
     <string name="settings_storage_app_log">App logs</string>
     <string name="settings_storage_app_log_description">View, save, or clear app logs</string>
+    <string name="settings_media_save_location">Media save location</string>
+    <string name="settings_media_save_location_description">Choose where downloaded media is saved on this device.</string>
+    <string name="settings_media_save_location_downloads">Downloads</string>
+    <string name="settings_media_save_location_custom_folder">Custom folder</string>
+    <string name="settings_media_save_location_choose_folder">Choose Folder</string>
+    <string name="settings_media_save_location_reset_downloads">Reset to Downloads</string>
+    <string name="settings_media_save_location_ask_every_time">Ask Every Time</string>
 
     <string name="service_select_instance_input_placeholder">Instance URL</string>
     <string name="service_select_next_button">Next</string>
@@ -413,14 +423,16 @@
     <string name="settings_accounts_remove_confirm">Are you sure you want to remove account %1$s from this device?</string>
 
     <string name="media_menu_save">Save image</string>
+    <string name="media_menu_download_all">Download all</string>
     <string name="media_menu_share_image">Share image</string>
     <string name="media_menu_copy_link">Copy link</string>
     <string name="media_menu_media_link">Media link</string>
     <string name="status_menu_share_via_fxembed">Share via FxEmbed</string>
     <string name="status_menu_share_via_fixvx">Share via Fixvx</string>
-    <string name="media_save_success">Saved to Downloads</string>
+    <string name="media_save_success">Saved</string>
     <string name="media_save_fail">Failed to save</string>
-    <string name="media_download_started">Cache is not ready. Download started.</string>
+    <string name="media_download_started">Download started.</string>
+    <string name="media_prepare_started">Preparing media...</string>
     <string name="media_alt_text">Alt text</string>
     <string name="media_is_downloading">Media is still downloading. Try again in a moment.</string>
 
@@ -516,6 +528,8 @@
     <string name="pixiv_ranking_week_original_title">Original Ranking</string>
     <string name="pixiv_ranking_week_rookie_title">Rookie Ranking</string>
     <string name="pixiv_ranking_day_manga_title">Manga Ranking</string>
+    <string name="pixiv_private_following_title">Private Following</string>
+    <string name="pixiv_private_bookmarks_title">Private Bookmarks</string>
 
     <string name="tab_settings_title">Tab settings</string>
 
@@ -611,6 +625,12 @@
     <string name="deeplink_account_selection_title">Select account</string>
     <string name="deeplink_account_selection_message">Select an account to open this link</string>
     <string name="deeplink_account_selection_browser">Open in browser</string>
+    <string name="deeplink_account_selection_save_default">Always open this way</string>
+    <string name="settings_link_open_defaults_title">Link opening</string>
+    <string name="settings_link_open_defaults_description">Choose defaults for supported links by host</string>
+    <string name="settings_link_open_default_title">Default for %1$s links</string>
+    <string name="settings_link_open_default_description">Choose how supported links open when Flare can handle them</string>
+    <string name="settings_link_open_default_ask_every_time">Ask every time</string>
 
     <string name="block_user_title">Block user</string>
     <string name="block_user_description">Are you sure you want to block this user?</string>

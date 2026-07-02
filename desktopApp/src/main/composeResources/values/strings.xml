@@ -52,6 +52,8 @@
     <string name="pixiv_ranking_week_original_title">Original Ranking</string>
     <string name="pixiv_ranking_week_rookie_title">Rookie Ranking</string>
     <string name="pixiv_ranking_day_manga_title">Manga Ranking</string>
+    <string name="pixiv_private_following_title">Private Following</string>
+    <string name="pixiv_private_bookmarks_title">Private Bookmarks</string>
 
     <string name="report_title">Report</string>
     <string name="report_description">What's wrong with this post?</string>
@@ -193,6 +195,7 @@
     <string name="bluesky_login_password">Password</string>
     <string name="bluesky_login_2fa">2FA token</string>
     <string name="bluesky_login_oauth_button">Log in with OAuth</string>
+    <string name="bluesky_login_fix_delegation_scopes_button">Fix Tranquil permissions</string>
     <string name="bluesky_login_use_password_button">Use password</string>
     <string name="bluesky_login_oauth_hint">Bluesky OAuth may still be unstable. If you run into issues, use password login instead.</string>
 
@@ -215,7 +218,9 @@
     <string name="settings_appearance_layout_group_title">Layout</string>
     <string name="settings_appearance_layout_group_subtitle">Timeline layout, navigation, and post actions</string>
     <string name="settings_appearance_display_group_title">Display</string>
-    <string name="settings_appearance_display_group_subtitle">Timestamps, source badges, links, and browser behavior</string>
+    <string name="settings_appearance_display_group_subtitle">Timestamps, source badges, and link previews</string>
+    <string name="settings_behavior_title">Behavior</string>
+    <string name="settings_behavior_description">Browser and link handling preferences</string>
     <string name="settings_appearance_media_group_title">Media</string>
     <string name="settings_appearance_media_group_subtitle">Media visibility, playback, and sensitive content</string>
     <string name="settings_storage_title">Storage</string>
@@ -555,6 +560,12 @@
     <string name="deeplink_account_selection_title">Select account</string>
     <string name="deeplink_account_selection_message">Select an account to open this link</string>
     <string name="deeplink_account_selection_browser">Open in browser</string>
+    <string name="deeplink_account_selection_save_default">Always open this way</string>
+    <string name="settings_link_open_defaults_title">Link opening</string>
+    <string name="settings_link_open_defaults_description">Choose defaults for supported links by host</string>
+    <string name="settings_link_open_default_title">Default for %1$s links</string>
+    <string name="settings_link_open_default_description">Choose how supported links open when Flare can handle them</string>
+    <string name="settings_link_open_default_ask_every_time">Ask every time</string>
 
     <string name="block_user_title">Block user</string>
     <string name="block_user_description">Are you sure you want to block this user?</string>
@@ -591,6 +602,7 @@
 
     <string name="media_save_success">Saved to Downloads</string>
     <string name="media_save_fail">Failed to save</string>
+    <string name="media_download_started">Download started</string>
     <string name="agent_compose_confirmation_prompt">Send this post?</string>
     <string name="agent_ui_cancel">Cancel</string>
     <string name="agent_ui_confirm_execute">Confirm</string>

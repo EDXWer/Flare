@@ -16,17 +16,21 @@ struct RootView: View {
     @StateObject private var allNotificationBadgePresenter = KotlinPresenter(presenter: AllNotificationBadgePresenter())
     @StateObject private var loggedInPresenter = KotlinPresenter(presenter: LoggedInPresenter())
     @StateObject private var aiAgentEnabledPresenter = KotlinPresenter(presenter: AiAgentEnabledPresenter())
+    @StateObject private var directMessageAvailabilityPresenter = KotlinPresenter(presenter: DirectMessageAvailabilityPresenter())
+    @ObservedObject private var mainWindowCoordinator = MacMainWindowCoordinator.shared
     @ObservedObject private var inAppNotification = SwiftInAppNotification.shared
     @State private var selectedTab: Route?
+    @State private var mainNavigationRequest: MacMainWindowNavigationRequest?
     @State private var homeExpanded: Bool = true
     @State private var showDraftBoxPopover = false
     @State private var showLogin = false
+    @State private var reloginRoute: Route?
     @State private var homeSidebarTabEditor: HomeSidebarTabEditor?
 
     var body: some View {
         NavigationSplitView {
-            VStack(spacing: 0) {
-                List(selection: $selectedTab) {
+//            VStack(spacing: 0) {
+                List(selection: sidebarSelection) {
                     StateView(state: homeTabsPresenter.state.tabs) { tabs in
                         let homeTabs: [HomeTabsPresenterStateHomeTabs] = tabs.cast(HomeTabsPresenterStateHomeTabs.self)
                         ForEach(homeTabs, id: \.name) { tab in
@@ -78,6 +82,22 @@ struct RootView: View {
                     }
                     .tag(Route.localHistory)
 
+                    if directMessageAvailabilityPresenter.state.hasAvailableAccount {
+                        Button {
+                            MacDirectMessageWindowCoordinator.shared.open(
+                                route: .directMessages,
+                                openWindow: openWindow
+                            )
+                        } label: {
+                            Label {
+                                Text("direct_messages_title")
+                            } icon: {
+                                Image(fontAwesome: .commentDots)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     if case .success(let data) = onEnum(of: secondaryTabPresenter.state.items) {
                         let items: [SecondaryTabsPresenter.Item] = data.data.cast(SecondaryTabsPresenter.Item.self)
                         if !items.isEmpty {
@@ -117,34 +137,42 @@ struct RootView: View {
                         }
                     }
                 }
+                .safeAreaInset(edge: .bottom) {
+                    MacSidebarPinnedActions(
+                        showDraftBoxPopover: $showDraftBoxPopover,
+                        showsAgentHistory: aiAgentEnabledPresenter.state.enabled,
+                        openDraft: { groupId in
+                            MacComposeWindowCoordinator.shared.openDraft(
+                                groupId: groupId,
+                                openWindow: openWindow
+                            )
+                        },
+                        openRssManagement: {
+                            openWindow(id: MacWindowID.rssManagement)
+                        },
+                        openAgentChat: {
+                            MacAgentWindowCoordinator.shared.open(
+                                route: .agentChat(Route.newGenericChatConversationId(), nil),
+                                openWindow: openWindow
+                            )
+                        },
+                        openAppSettings: {
+                            openSettings()
+                        }
+                    )
+                }
                 .listStyle(.sidebar)
 
-                MacSidebarPinnedActions(
-                    showDraftBoxPopover: $showDraftBoxPopover,
-                    showsAgentHistory: aiAgentEnabledPresenter.state.enabled,
-                    openDraft: { groupId in
-                        MacComposeWindowCoordinator.shared.openDraft(
-                            groupId: groupId,
-                            openWindow: openWindow
-                        )
-                    },
-                    openRssManagement: {
-                        openWindow(id: MacWindowID.rssManagement)
-                    },
-                    openAgentHistory: {
-                        MacAgentWindowCoordinator.shared.open(route: .agentHistory, openWindow: openWindow)
-                    },
-                    openAppSettings: {
-                        openSettings()
-                    }
-                )
-            }
+//            }
             .toolbar(removing: .sidebarToggle)
             .frame(minWidth: 100, maxWidth: 280)
             .navigationSplitViewColumnWidth(min: 100, ideal: 200, max: 280)
         } detail: {
             if let selectedTab {
-                Router(initialRoute: selectedTab)
+                Router(
+                    initialRoute: selectedTab,
+                    externalNavigationRequest: mainNavigationRequest
+                )
                     .navigationSplitViewColumnWidth(ideal: 380, max: 480)
                     .id(selectedTab)
                     .toolbar {
@@ -161,6 +189,10 @@ struct RootView: View {
                     .overlay(alignment: .top) {
                         LoginExpiredToastOverlay(
                             toast: inAppNotification.loginExpiredToast,
+                            onRelogin: { toast in
+                                reloginRoute = .relogin(toast.accountKey, toast.platformType)
+                                inAppNotification.dismissLoginExpiredToast(id: toast.id)
+                            },
                             onDismiss: { id in
                                 inAppNotification.dismissLoginExpiredToast(id: id)
                             }
@@ -180,6 +212,14 @@ struct RootView: View {
                 ServiceSelectionScreen(toHome: { showLogin = false })
             }
         }
+        .sheet(item: $reloginRoute) { route in
+            NavigationStack {
+                route.view(
+                    onNavigate: { reloginRoute = $0 },
+                    goBack: { reloginRoute = nil }
+                )
+            }
+        }
         .sheet(item: $homeSidebarTabEditor) { editor in
             HomeSidebarTabEditSheet(
                 tab: editor.tab,
@@ -193,6 +233,40 @@ struct RootView: View {
             )
             .frame(minWidth: 820, idealWidth: 860, minHeight: 600, idealHeight: 660)
         }
+        .onAppear {
+            handleMainWindowNavigationRequest(mainWindowCoordinator.navigationRequest)
+        }
+        .onChange(of: mainWindowCoordinator.navigationRequest?.id) { _, _ in
+            handleMainWindowNavigationRequest(mainWindowCoordinator.navigationRequest)
+        }
+    }
+
+    private var sidebarSelection: Binding<Route?> {
+        Binding {
+            selectedTab
+        } set: { route in
+            guard let route else {
+                return
+            }
+            if route.isDirectMessageWindowRoute {
+                MacDirectMessageWindowCoordinator.shared.open(route: route, openWindow: openWindow)
+            } else {
+                selectedTab = route
+            }
+        }
+    }
+
+    private func handleMainWindowNavigationRequest(_ request: MacMainWindowNavigationRequest?) {
+        guard let request else {
+            return
+        }
+
+        if selectedTab == nil {
+            selectedTab = request.route
+            mainNavigationRequest = nil
+        } else {
+            mainNavigationRequest = request
+        }
     }
 }
 
@@ -204,6 +278,7 @@ private struct HomeSidebarTabEditor: Identifiable {
 
 private struct LoginExpiredToastOverlay: View {
     let toast: LoginExpiredToast?
+    let onRelogin: (LoginExpiredToast) -> Void
     let onDismiss: (UUID) -> Void
 
     @State private var showNotification = false
@@ -211,11 +286,16 @@ private struct LoginExpiredToastOverlay: View {
     var body: some View {
         Group {
             if let toast, showNotification {
-                LoginExpiredToastView(accountKey: toast.accountKey)
+                LoginExpiredToastView(
+                    toast: toast,
+                    onRelogin: {
+                        onRelogin(toast)
+                    },
+                    onDismiss: {
+                        dismiss(toast)
+                    }
+                )
                 .transition(.move(edge: .top).combined(with: .opacity))
-                .onTapGesture {
-                    dismiss(toast)
-                }
             }
         }
         .padding(.top, 14)
@@ -250,18 +330,9 @@ private struct LoginExpiredToastOverlay: View {
 }
 
 private struct LoginExpiredToastView: View {
-    let accountKey: String?
-
-    private var message: String {
-        guard let accountKey, !accountKey.isEmpty else {
-            return NSLocalizedString("notification_login_expired", comment: "")
-        }
-
-        return String.localizedStringWithFormat(
-            NSLocalizedString("error_login_expired %@", comment: ""),
-            accountKey
-        )
-    }
+    let toast: LoginExpiredToast
+    let onRelogin: () -> Void
+    let onDismiss: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -270,15 +341,31 @@ private struct LoginExpiredToastView: View {
                 .foregroundStyle(.red)
                 .frame(width: 20, height: 20)
 
-            Text(message)
-                .font(.callout)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(String(localized: "login_expired", defaultValue: "Login session expired"))
+                    .font(.callout.weight(.semibold))
+                Text("\(toast.accountKey)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            Button {
+                onRelogin()
+            } label: {
+                Text(String(localized: "login_expired_relogin", defaultValue: "Log in again"))
+            }
+            Button {
+                onDismiss()
+            } label: {
+                Image(fontAwesome: .xmark)
+            }
+            .buttonStyle(.plain)
         }
         .padding(12)
-        .frame(maxWidth: 420, alignment: .leading)
-        .background(.background, in: Capsule())
-        .contentShape(Capsule())
+        .frame(maxWidth: 520, alignment: .leading)
+        .background(.background, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
     }
 }
@@ -288,7 +375,7 @@ private struct MacSidebarPinnedActions: View {
     let showsAgentHistory: Bool
     let openDraft: (String) -> Void
     let openRssManagement: () -> Void
-    let openAgentHistory: () -> Void
+    let openAgentChat: () -> Void
     let openAppSettings: () -> Void
 
     var body: some View {
@@ -315,9 +402,9 @@ private struct MacSidebarPinnedActions: View {
 
             if showsAgentHistory {
                 MacSidebarPinnedIconButton(
-                    title: "agent_history_title",
+                    title: "agent_chat_title",
                     icon: .robot,
-                    action: openAgentHistory
+                    action: openAgentChat
                 )
 
                 Divider()
@@ -380,7 +467,12 @@ private struct MacSidebarPinnedIconButton: View {
 private func route(for tab: SecondaryTabsPresenter.Tab) -> Route? {
     switch onEnum(of: tab.destination) {
     case .route(let destination):
-        return Route.fromDeepLinkRoute(deeplinkRoute: destination.route)
+        guard let route = Route.fromDeepLinkRoute(deeplinkRoute: destination.route),
+              !route.isDirectMessageWindowRoute
+        else {
+            return nil
+        }
+        return route
     case .timeline(let destination):
         return .timeline(destination.tabItem)
     }

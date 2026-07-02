@@ -56,6 +56,9 @@ public enum class UiStrings {
     Media,
     FanboxSupported,
     FanboxRecommendedCreators,
+    PixivPrivateFollowing,
+    PixivPrivateBookmarks,
+    BlueskyFixDelegationScopes,
 }
 
 public fun UiStrings.asText(): UiText = UiText.Localized(this)

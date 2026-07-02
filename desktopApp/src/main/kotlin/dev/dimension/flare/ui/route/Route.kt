@@ -8,6 +8,7 @@ import dev.dimension.flare.feature.agent.localhistory.LocalHistoryAgentTarget
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.model.UiRssSource
+import dev.dimension.flare.ui.presenter.login.ReloginTarget
 import dev.dimension.flare.ui.route.Route.Compose.New
 import dev.dimension.flare.ui.route.Route.Compose.Quote
 import dev.dimension.flare.ui.route.Route.Compose.Reply
@@ -66,6 +67,10 @@ internal sealed interface Route : NavKey {
     ) : ScreenRoute
 
     data object ServiceSelect : ScreenRoute
+
+    data class Relogin(
+        val target: ReloginTarget,
+    ) : ScreenRoute
 
     data object AppLogging : ScreenRoute
 
@@ -360,6 +365,15 @@ internal sealed interface Route : NavKey {
 
                 is DeeplinkRoute.Login -> {
                     ServiceSelect
+                }
+
+                is DeeplinkRoute.Relogin -> {
+                    Relogin(
+                        ReloginTarget(
+                            accountKey = deeplinkRoute.accountKey,
+                            platformType = deeplinkRoute.platformType,
+                        ),
+                    )
                 }
 
                 DeeplinkRoute.Compose.New -> {

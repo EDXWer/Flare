@@ -7,6 +7,7 @@ import dev.dimension.flare.data.platform.VVoCredential
 import dev.dimension.flare.data.platform.VvoPlatformSpec
 import dev.dimension.flare.data.repository.AccountService
 import dev.dimension.flare.data.repository.addAccount
+import dev.dimension.flare.di.koinInject
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.model.PlatformType
 import dev.dimension.flare.model.PlatformTypeMetadata
@@ -19,8 +20,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.flowOf
-import dev.dimension.flare.di.koinInject
 
 private const val LOGIN_ACTION = "login"
 
@@ -69,7 +68,11 @@ private class VVOWebCookieLoginHandler(
 
     override suspend fun perform(actionId: String) {
         if (actionId != LOGIN_ACTION) return
-        _effects.emit(LoginEffect.OpenWebCookieLogin("https://$vvoHost/login?backURL=https://$vvoHost/"))
+        _effects.emit(
+            LoginEffect.OpenWebCookieLogin(
+                url = "https://$vvoHost/message",
+            ),
+        )
     }
 
     override suspend fun resume(value: String) {
@@ -91,7 +94,14 @@ private class VVOWebCookieLoginHandler(
     }
 
     private suspend fun vvoLoginUseCase(chocolate: String) {
-        val service = VVOService(flowOf(chocolate))
+        val credentialState = MutableStateFlow(VVoCredential(chocolate = chocolate))
+        val service =
+            VVOService(
+                credentialFlow = credentialState,
+                onCredentialRefreshed = { credential ->
+                    credentialState.value = credential
+                },
+            )
         val config = service.config()
         val uid = config.data?.uid
         requireNotNull(uid) { "uid is null" }
@@ -99,19 +109,19 @@ private class VVOWebCookieLoginHandler(
         requireNotNull(st) { "st is null" }
         val profile = service.profileInfo(uid, st)
         requireNotNull(profile.data) { "profile is null" }
+        val accountKey =
+            MicroBlogKey(
+                id = uid,
+                host = vvoHost,
+            )
+        context.requireReloginAccount(accountKey)
         accountService.addAccount(
             UiAccount(
-                accountKey =
-                    MicroBlogKey(
-                        id = uid,
-                        host = vvoHost,
-                    ),
+                accountKey = accountKey,
                 platformType = PlatformType.VVo,
             ),
             credential =
-                VVoCredential(
-                    chocolate = chocolate,
-                ),
+                credentialState.value,
         )
     }
 

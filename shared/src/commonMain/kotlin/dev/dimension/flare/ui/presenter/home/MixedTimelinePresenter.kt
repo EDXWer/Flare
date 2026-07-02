@@ -5,11 +5,15 @@ import dev.dimension.flare.data.datasource.microblog.MixedRemoteMediator
 import dev.dimension.flare.data.datasource.microblog.paging.CacheableRemoteLoader
 import dev.dimension.flare.data.datasource.microblog.paging.RemoteLoader
 import dev.dimension.flare.data.datasource.microblog.paging.notSupported
-import dev.dimension.flare.data.model.tab.GroupTimelineTabItemV2
+import dev.dimension.flare.data.model.tab.TimelineFilterConfig
 import dev.dimension.flare.data.model.tab.TimelineMergePolicy
-import dev.dimension.flare.data.model.tab.TimelineTabItemV2
+import dev.dimension.flare.data.model.tab.TimelinePresenterFactory
+import dev.dimension.flare.data.model.tab.TimelineResolver
+import dev.dimension.flare.data.model.tab.UiGroupTimelineTabItem
+import dev.dimension.flare.data.model.tab.UiTimelineTabItem
 import dev.dimension.flare.data.model.tab.isSystemHomeMixedTimeline
 import dev.dimension.flare.data.repository.SettingsRepository
+import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.ui.model.UiTimelineV2
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -20,9 +24,6 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import dev.dimension.flare.data.model.tab.TimelineFilterConfig
-import dev.dimension.flare.data.model.tab.TimelineResolver
-import dev.dimension.flare.model.AccountType
 
 public class MixedTimelinePresenter(
     id: String,
@@ -43,15 +44,16 @@ public class MixedTimelinePresenter(
 
     private val database: CacheDatabase by inject()
     private val settingsRepository: SettingsRepository by inject()
+    private val presenterFactory: TimelinePresenterFactory by inject()
 
     init {
-        bindTimelineTabItemId(id)
+        // bindTimelineTabItemId(id)
     }
 
-    private val groupTabFlow: Flow<GroupTimelineTabItemV2?> by lazy {
+    private val groupTabFlow: Flow<UiGroupTimelineTabItem?> by lazy {
         settingsRepository
             .homeTimelineTab(groupId)
-            .map { it as? GroupTimelineTabItemV2 }
+            .map { it as? UiGroupTimelineTabItem }
     }
 
     private val mergePolicyFlow: Flow<TimelineMergePolicy> by lazy {
@@ -70,7 +72,7 @@ public class MixedTimelinePresenter(
             }.distinctUntilChanged { old, new ->
                 old.orEmpty().map { it.id } == new.orEmpty().map { it.id }
             }.flatMapLatest { tabs ->
-                val presenters = tabs?.map { it.createPresenter() } ?: fallbackSubTimelinePresenter
+                val presenters = tabs?.map { presenterFactory.create(it) } ?: fallbackSubTimelinePresenter
                 if (presenters.isEmpty()) {
                     flowOf(emptyList())
                 } else {
@@ -103,6 +105,7 @@ public class SystemHomeMixedTimelinePresenter(
     private val database: CacheDatabase by inject()
     private val settingsRepository: SettingsRepository by inject()
     private val timelineResolver: TimelineResolver by inject()
+    private val presenterFactory: TimelinePresenterFactory by inject()
 
     // Gemeinsame Timeline: statt eines globalen Filters wird für jeden Post der Filter
     // seiner Quell-Timeline angewendet (zugeordnet über den Account des Posts).
@@ -128,13 +131,13 @@ public class SystemHomeMixedTimelinePresenter(
     }
 
     init {
-        bindTimelineTabItemId(id)
+        // bindTimelineTabItemId(id)
     }
 
-    private val groupTabFlow: Flow<GroupTimelineTabItemV2?> by lazy {
+    private val groupTabFlow: Flow<UiGroupTimelineTabItem?> by lazy {
         settingsRepository
             .homeTimelineTab(groupId)
-            .map { it as? GroupTimelineTabItemV2 }
+            .map { it as? UiGroupTimelineTabItem }
     }
 
     private val mergePolicyFlow: Flow<TimelineMergePolicy> by lazy {
@@ -152,7 +155,7 @@ public class SystemHomeMixedTimelinePresenter(
                     .filter { it.enabled }
             }.distinctUntilChangedByTabIds()
             .flatMapLatest { tabs ->
-                val presenters = tabs.map { it.createPresenter() }
+                val presenters = tabs.map { presenterFactory.create(it) }
                 if (presenters.isEmpty()) {
                     flowOf(emptyList())
                 } else {
@@ -176,7 +179,7 @@ public class SystemHomeMixedTimelinePresenter(
             }
 }
 
-private fun Flow<List<TimelineTabItemV2>>.distinctUntilChangedByTabIds(): Flow<List<TimelineTabItemV2>> =
+private fun Flow<List<UiTimelineTabItem>>.distinctUntilChangedByTabIds(): Flow<List<UiTimelineTabItem>> =
     distinctUntilChanged { old, new ->
         old.map { it.id } == new.map { it.id }
     }

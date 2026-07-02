@@ -39,6 +39,7 @@ import dev.dimension.flare.data.platform.CommonTimelineSpecs
 import dev.dimension.flare.data.platform.VVoCredential
 import dev.dimension.flare.data.platform.VvoPlatformSpec
 import dev.dimension.flare.data.repository.LoginExpiredException
+import dev.dimension.flare.di.koinInject
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.model.PlatformType
@@ -57,12 +58,12 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import dev.dimension.flare.di.koinInject
 
 @OptIn(ExperimentalPagingApi::class)
 internal class VVODataSource(
     override val accountKey: MicroBlogKey,
     credentialFlow: Flow<VVoCredential>,
+    private val updateCredential: suspend (VVoCredential) -> Unit = {},
 ) : AuthenticatedMicroblogDataSource,
     NotificationTimelineDataSource,
     ComposeDataSource,
@@ -75,7 +76,11 @@ internal class VVODataSource(
     private val imageCompressor: ImageCompressor by koinInject()
     private val service by lazy {
         VVOService(
-            chocolateFlow = credentialFlow.map { it.chocolate },
+            credentialFlow = credentialFlow,
+            refreshCookieWhenStale = true,
+            onCredentialRefreshed = { credential ->
+                updateCredential(credential)
+            },
         )
     }
 
@@ -289,9 +294,7 @@ internal class VVODataSource(
                         )
                     }
 
-                    PagingRequest.Refresh -> {
-                        Unit
-                    }
+                    PagingRequest.Refresh -> {}
                 }
 
                 val status = loadStatusDetail(statusKey)
