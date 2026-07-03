@@ -22,48 +22,4 @@ Flare is an open-source, privacy-first social client that brings Mastodon, Missk
 <a href='https://f-droid.org/packages/dev.dimension.flare'><img alt='Get it on F-Droid' src='https://f-droid.org/badge/get-it-on.svg' width=150/></a>
 <a href='https://github.com/DimensionDev/Flare/releases/latest'><img alt='Download AppImage' src='docs/appimage_badge.svg' width=150/></a>
 
-## Features
- - Unified social inbox: Flare brings Mastodon, Misskey, Bluesky, X, and RSS together in one place, so users can follow fragmented communities through a single timeline.
- - Mixed timeline experience: It merges content from multiple accounts and platforms into a coherent feed, reducing context switching between apps.
- - Cross-platform by design: Built with Kotlin Multiplatform, Flare shares core logic across Android, iOS, macOS, Windows, and Linux.
- - Rich platform support: Beyond basic timelines, it supports features such as polls, lists, bookmarks/favorites, Misskey antennas, Bluesky feeds and DMs, and RSS management.
- - Cross-posting workflow: Users can publish to multiple platforms at once, making it practical for creators and heavy social media users.
- - AI-assisted reading: Flare includes AI-powered capabilities such as translation and summaries to help users catch up on content faster.
- - Privacy-first approach: As a FOSS client, it emphasizes user control with features like anonymous mode, local filtering, local history, and transparent data handling.
-
-## Roadmap
-Here're some features we're planning to implement in the future.
- - [x] Grouped Mixed timeline
- - [ ] Showing instance's announcement
- - [ ] Crossposting for repost
- - [ ] Auto thread
- - [ ] AI powered features
-   - [ ] Personal trends of the day
-   - [ ] Quick reply
- - [ ] Support for Meta Threads
- - [ ] Support for Discourse forum
- - [x] Support for Nostr
- - [x] Desktop Client
- - [x] Web Client
-
-## Building
-### Android
- - Make sure you have JDK 25 installed
- - Run `./gradlew installDebug` to build and install the debug version of the app
- - You can open the project in Android Studio or IntelliJ IDEA if you want
-
-### iOS
- - Make sure you have JDK 25 installed
- - Make sure you have a Mac with Xcode 26 installed
- - open `appleApp/Flare.xcodeproj` in Xcode
- - Build and run the app
-
-### Desktop
- - Make sure you have JDK 25 installed
- - Run `./gradlew run` to build and run the debug version of the desktop app.
-
-## Contributing
-See [CONTRIBUTING.md](CONTRIBUTING.md) for more information.
-
-## License
 This project is licensed under the [AGPL-3.0](LICENSE) license.
