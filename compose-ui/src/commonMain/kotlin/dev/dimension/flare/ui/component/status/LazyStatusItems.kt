@@ -52,9 +52,16 @@ public fun LazyStaggeredGridScope.status(
         onSuccess {
             items(
                 itemCount,
+                // DER KOMBINATIONS-FIX:
+                // producePresenter (andere Datei) rettet die Navigation,
+                // und DIESER Anker rettet den Auto-Refresh!
                 key =
-                    itemKey {
-                        it.itemKey ?: it.hashCode()
+                    itemKey { item ->
+                        when (item) {
+                            is UiTimelineV2.Post -> "post_${item.statusKey}"
+                            is UiTimelineV2.Feed -> "feed_${item.statusKey}"
+                            else -> item.itemKey ?: item.hashCode().toString()
+                        }
                     },
                 contentType =
                     itemContentType {
