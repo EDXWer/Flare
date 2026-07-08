@@ -81,7 +81,6 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -92,7 +91,6 @@ import coil3.imageLoader
 import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
-import coil3.request.crossfade
 import coil3.size.Size
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -128,6 +126,7 @@ import dev.dimension.flare.ui.humanizer.humanize
 import dev.dimension.flare.ui.model.UiMedia
 import dev.dimension.flare.ui.model.UiState
 import dev.dimension.flare.ui.model.UiTimelineV2
+import dev.dimension.flare.ui.model.contentPostOrNull
 import dev.dimension.flare.ui.model.isSuccess
 import dev.dimension.flare.ui.model.onLoading
 import dev.dimension.flare.ui.model.onSuccess
@@ -182,7 +181,7 @@ internal fun StatusMediaScreen(
             accountType = accountType,
         )
     }
-    val status = state.status.takeSuccess() as? UiTimelineV2.Post
+    val status = state.status.takeSuccess()?.contentPostOrNull()
     MediaViewerScreen(
         medias = state.medias,
         initialIndex = index,
@@ -882,9 +881,9 @@ internal fun MediaViewerScreen(
                                         val url = current.url
                                         clipboard.setClipEntry(
                                             ClipEntry(
-                                                ClipData.newRawUri(
+                                                ClipData.newPlainText(
                                                     label,
-                                                    url.toUri(),
+                                                    url,
                                                 ),
                                             ),
                                         )
@@ -1337,7 +1336,7 @@ private fun ImageItem(
                 .Builder(LocalContext.current)
                 .data(url)
                 .placeholderMemoryCacheKey(previewUrl)
-                .crossfade(1_000)
+//                .crossfade(1_000)
                 .size(Size.ORIGINAL)
                 .let { builder ->
                     if (customHeaders.isNullOrEmpty()) {
@@ -1396,7 +1395,8 @@ private fun statusMediaPresenter(
                 .onSuccess {
                     medias =
                         UiState.Success(
-                            (it as? UiTimelineV2.Post)
+                            it
+                                .contentPostOrNull()
                                 ?.images
                                 .orEmpty()
                                 .toImmutableList(),

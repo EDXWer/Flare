@@ -24,7 +24,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import kotlin.native.HiddenFromObjC
 
@@ -66,24 +65,29 @@ public class PostHandler(
             cacheSource = {
                 val dbAccountType = accountType as DbAccountType
                 combine(
-                    merge(
-                        database
-                            .statusDao()
-                            .getWithReferences(postKey, dbAccountType)
-                            .filterNotNull(),
-                        database
-                            .pagingTimelineDao()
-                            .get(pagingKey, accountType = dbAccountType)
-                            .filterNotNull(),
-                    ),
+                    database
+                        .statusDao()
+                        .getWithReferences(postKey, dbAccountType),
+                    database
+                        .pagingTimelineDao()
+                        .get(pagingKey, accountType = dbAccountType),
                     translationDisplay.optionsFlow(translationDisplayFlow),
-                ) { status, translationDisplayOptions ->
-                    TimelinePagingMapper.toUi(
-                        item = status,
-                        pagingKey = pagingKey,
-                        translationDisplayOptions = translationDisplayOptions,
-                    )
-                }.distinctUntilChanged()
+                ) { status, timelineStatus, translationDisplayOptions ->
+                    timelineStatus?.let {
+                        TimelinePagingMapper.toUi(
+                            item = it,
+                            pagingKey = pagingKey,
+                            translationDisplayOptions = translationDisplayOptions,
+                        )
+                    } ?: status?.let {
+                        TimelinePagingMapper.toUi(
+                            item = it,
+                            pagingKey = pagingKey,
+                            translationDisplayOptions = translationDisplayOptions,
+                        )
+                    }
+                }.filterNotNull()
+                    .distinctUntilChanged()
             },
         )
     }
