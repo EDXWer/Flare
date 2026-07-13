@@ -384,9 +384,9 @@ private struct GalleryAuthorCard: View {
                 Button {
                     detail.onBookmark(ClickContext(launcher: AppleUriLauncher(openUrl: openURL)))
                 } label: {
-                    Image(fontAwesome: detail.isBookmarked ? .bookmarkFill : .bookmark)
+                    Image(fontAwesome: detail.isBookmarked ? .heartFill : .heart)
                 }
-                .foregroundStyle(detail.isBookmarked ? Color.accentColor : Color.secondary)
+                .foregroundStyle(detail.isBookmarked ? Color.red : Color.secondary)
                 .buttonStyle(.plain)
             }
             .padding(.horizontal, 12)
@@ -777,12 +777,14 @@ private extension TimelineAppearance {
             showSensitiveContent: showSensitiveContent,
             expandContentWarning: expandContentWarning,
             expandMediaSize: expandMediaSize,
+            limitMediaGridToNine: limitMediaGridToNine,
             videoAutoplay: videoAutoplay,
             showLinkPreview: showLinkPreview,
             compatLinkPreview: compatLinkPreview,
             showNumbers: showNumbers,
             postActionStyle: postActionStyle,
             postActionLayout: postActionLayout,
+            postActionFixedWidth: postActionFixedWidth,
             fullWidthPost: fullWidthPost,
             absoluteTimestamp: absoluteTimestamp,
             showPlatformLogo: showPlatformLogo,

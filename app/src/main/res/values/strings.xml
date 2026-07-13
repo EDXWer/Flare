@@ -304,6 +304,8 @@
     <string name="settings_post_action_layout_title">Post actions</string>
     <string name="settings_post_action_layout_enable">Customize actions</string>
     <string name="settings_post_action_layout_enable_description">Choose which actions appear in the row, More menu, or stay hidden</string>
+    <string name="settings_post_action_fixed_width">Fixed button width</string>
+    <string name="settings_post_action_fixed_width_description">Keep action buttons with counts at a consistent width</string>
     <string name="settings_post_action_layout_button_row">Button row</string>
     <string name="settings_post_action_layout_more_menu">More menu</string>
     <string name="settings_post_action_layout_hidden">Hidden</string>
@@ -334,6 +336,8 @@
     <string name="settings_appearance_expand_content_warning_description">Always reveal post content hidden by content warnings</string>
     <string name="settings_appearance_expand_media">Preserve media aspect ratio</string>
     <string name="settings_appearance_expand_media_description">Show media at its original aspect ratio in timelines</string>
+    <string name="settings_appearance_limit_media_grid_to_nine">Limit media grids to 9 items</string>
+    <string name="settings_appearance_limit_media_grid_to_nine_description">Show at most 9 media items in each timeline post</string>
     <string name="gallery_detail_tab_info">Info</string>
     <string name="gallery_detail_tab_comments">Comments</string>
     <string name="gallery_detail_tab_recommend">Recommend</string>
@@ -530,6 +534,7 @@
     <string name="pixiv_ranking_day_manga_title">Manga Ranking</string>
     <string name="pixiv_private_following_title">Private Following</string>
     <string name="pixiv_private_bookmarks_title">Private Bookmarks</string>
+    <string name="pixiv_private_favourites_title">Private Favorites</string>
 
     <string name="tab_settings_title">Tab settings</string>
 
@@ -681,6 +686,8 @@
     <string name="tab_settings_filter_image">Images</string>
     <string name="tab_settings_filter_video">Videos</string>
     <string name="status_share_sheet_theme_title">Theme</string>
+    <string name="status_share_crosspost">Cross-post</string>
+    <string name="status_share_crosspost_failed">Unable to prepare cross-post</string>
     <string name="channel_title">Channel</string>
     <string name="channel_item_follow">Follow</string>
     <string name="channel_item_unfollow">Unfollow</string>

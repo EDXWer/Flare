@@ -85,6 +85,8 @@
     <string name="media_hide_thumbnail_list">サムネイルリストを隠す</string>
     <string name="media_save">保存</string>
     <string name="media_fullscreen">全画面表示</string>
+    <string name="status_share_crosspost">クロスポスト</string>
+    <string name="status_share_crosspost_failed">クロスポストを準備できませんでした</string>
     <string name="status_share">リンクを共有</string>
     <string name="status_share_save_screenshot">スクリーンショットを保存</string>
     <string name="status_share_image">スクリーンショットを共有</string>
@@ -592,6 +594,7 @@
     <string name="profile_blocked_gate_show">表示</string>
     <string name="pixiv_private_following_title">非公開フォロー</string>
     <string name="pixiv_private_bookmarks_title">非公開ブックマーク</string>
+    <string name="pixiv_private_favourites_title">非公開のお気に入り</string>
     <string name="bluesky_login_fix_delegation_scopes_button">Tranquil の権限を修正</string>
     <string name="settings_behavior_title">挙動</string>
     <string name="settings_behavior_description">ブラウザとリンク処理の設定</string>

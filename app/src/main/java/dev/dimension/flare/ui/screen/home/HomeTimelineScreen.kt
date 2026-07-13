@@ -120,14 +120,8 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import dev.dimension.flare.ui.component.Text as FlareText
 
-import dev.dimension.flare.data.model.tab.isSystemHomeMixedTimeline
-// Zeitpunkt des letzten Auto-Refreshs der gemeinsamen Timeline (prozessweit).
-// Verhindert Refresh-Spam bei schnellen App-Wechseln, erlaubt aber einen
-// frischen Refresh, wenn die App nach einer Pause wieder geöffnet wird.
-private var lastMixedTimelineAutoRefreshMillis = 0L
-
-private const val MIXED_AUTO_REFRESH_MIN_INTERVAL = 5 * 60 * 1000L // 5 Minuten
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 internal fun HomeTimelineScreen(
@@ -482,23 +476,6 @@ internal fun TimelineItemContent(
             item = item,
             lazyStaggeredGridState = lazyStaggeredGridState,
         )
-    // Nur gemeinsame Timeline: automatisch aktualisieren, wenn die App in den
-    // Vordergrund kommt (auch beim Kaltstart) – höchstens alle 5 Minuten, und
-    // erst, wenn die Liste bereit ist (vorher wäre refreshSuspend() wirkungslos).
-    if (item.isSystemHomeMixedTimeline) {
-        val isListReady = state.listState.isSuccess()
-        val lifecycleOwner = LocalLifecycleOwner.current
-        LaunchedEffect(lifecycleOwner, isListReady) {
-            if (!isListReady) return@LaunchedEffect
-            lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                val now = System.currentTimeMillis()
-                if (now - lastMixedTimelineAutoRefreshMillis > MIXED_AUTO_REFRESH_MIN_INTERVAL) {
-                    lastMixedTimelineAutoRefreshMillis = now
-                    state.refreshSuspend()
-                }
-            }
-        }
-    }
     if (isCurrentlyVisible) {
         RegisterTabCallback(
             lazyListState = state.lazyListState,

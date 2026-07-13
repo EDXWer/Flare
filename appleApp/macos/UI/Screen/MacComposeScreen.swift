@@ -21,6 +21,7 @@ struct MacComposeScreen: View {
     @State private var showAccountPopover = false
     @State private var showDraftBoxPopover = false
     @State private var initialTextApplied = false
+    @State private var prefillApplied = false
     @State private var nsTextView: NSTextView?
     @State private var pendingCursor: Int?
     @State private var closeController = MacComposeWindowCloseController()
@@ -41,9 +42,21 @@ struct MacComposeScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if viewModel.enableContentWarning {
-                TextField("compose_cw_placeholder", text: $viewModel.contentWarning)
-                Divider()
+            VStack(spacing: 0) {
+                if viewModel.enableContentWarning {
+                    TextField("compose_cw_placeholder", text: $viewModel.contentWarning)
+                    Divider()
+                }
+            }
+            .background {
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: MacComposeWindowLayoutPreferenceKey.self,
+                        value: MacComposeWindowLayoutMetrics(
+                            dynamicContentHeight: proxy.size.height
+                        )
+                    )
+                }
             }
             
             TextEditor(text: $viewModel.text)
@@ -58,16 +71,38 @@ struct MacComposeScreen: View {
                 }
                 .focused($textEditorFocused)
                 .frame(maxWidth: .infinity, minHeight: 60, maxHeight: .infinity)
-            
-            if !mediaItems.isEmpty {
-                mediaSection
-            }
+                .background {
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: MacComposeWindowLayoutPreferenceKey.self,
+                            value: MacComposeWindowLayoutMetrics(
+                                editorHeight: proxy.size.height
+                            )
+                        )
+                    }
+                }
 
-            if viewModel.pollViewModel.enabled {
-                pollSection
-            }
+            VStack(spacing: 0) {
+                if !mediaItems.isEmpty {
+                    mediaSection
+                }
 
-            referencePostSection
+                if viewModel.pollViewModel.enabled {
+                    pollSection
+                }
+
+                referencePostSection
+            }
+            .background {
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: MacComposeWindowLayoutPreferenceKey.self,
+                        value: MacComposeWindowLayoutMetrics(
+                            dynamicContentHeight: proxy.size.height
+                        )
+                    )
+                }
+            }
             Divider()
 
             bottomBar
@@ -144,7 +179,11 @@ struct MacComposeScreen: View {
                 }
             )
         }
+        .onPreferenceChange(MacComposeWindowLayoutPreferenceKey.self) { metrics in
+            closeController.updateLayoutMetrics(metrics)
+        }
         .onAppear {
+            applyPrefillIfNeeded()
             presenter.state.setText(value: viewModel.text)
             presenter.state.setMediaSize(value: Int32(mediaItems.count))
         }
@@ -522,6 +561,21 @@ struct MacComposeScreen: View {
             return []
         }
         return Array(visibilityState.data.allVisibilities)
+    }
+
+    private func applyPrefillIfNeeded() {
+        guard !prefillApplied, let prefill = request.prefill else { return }
+        prefillApplied = true
+        initialTextApplied = true
+        viewModel.text = prefill.text
+        mediaItems = MacComposeMediaItem(
+            data: prefill.imageData,
+            fileName: prefill.fileName,
+            contentType: .png
+        ).map { [$0] } ?? []
+        pendingCursor = prefill.cursorPosition
+        requestComposerFocus()
+        applyCursorIfPossible()
     }
 
     private func applyCursorIfPossible(retryCount: Int = 0) {
@@ -1099,11 +1153,80 @@ private struct MacComposeMediaInputBridge: NSViewRepresentable {
     }
 }
 
+private struct MacComposeWindowLayoutMetrics: Equatable {
+    var editorHeight: CGFloat?
+    var dynamicContentHeight: CGFloat?
+
+    init(
+        editorHeight: CGFloat? = nil,
+        dynamicContentHeight: CGFloat? = nil
+    ) {
+        self.editorHeight = editorHeight
+        self.dynamicContentHeight = dynamicContentHeight
+    }
+}
+
+private struct MacComposeWindowLayoutPreferenceKey: PreferenceKey {
+    static let defaultValue = MacComposeWindowLayoutMetrics()
+
+    static func reduce(
+        value: inout MacComposeWindowLayoutMetrics,
+        nextValue: () -> MacComposeWindowLayoutMetrics
+    ) {
+        let next = nextValue()
+        if let editorHeight = next.editorHeight {
+            value.editorHeight = editorHeight
+        }
+        if let dynamicContentHeight = next.dynamicContentHeight {
+            value.dynamicContentHeight = (value.dynamicContentHeight ?? 0) + dynamicContentHeight
+        }
+    }
+}
+
 @MainActor
 private final class MacComposeWindowCloseController {
-    weak var window: NSWindow?
+    private weak var window: NSWindow?
     var allowsWindowClose = false
     private var isPresentingCloseConfirmation = false
+    private var layoutMetrics: MacComposeWindowLayoutMetrics?
+    private var pendingHeightAdjustment: CGFloat = 0
+    private var heightAdjustmentScheduled = false
+
+    func attach(to window: NSWindow) {
+        self.window = window
+        scheduleHeightAdjustment()
+    }
+
+    func detach(from window: NSWindow?) {
+        guard self.window === window else { return }
+        self.window = nil
+    }
+
+    func updateLayoutMetrics(_ metrics: MacComposeWindowLayoutMetrics) {
+        guard let editorHeight = metrics.editorHeight,
+              let dynamicContentHeight = metrics.dynamicContentHeight,
+              editorHeight.isFinite,
+              dynamicContentHeight.isFinite else {
+            return
+        }
+
+        defer {
+            layoutMetrics = metrics
+        }
+
+        guard let previous = layoutMetrics,
+              let previousEditorHeight = previous.editorHeight,
+              let previousDynamicContentHeight = previous.dynamicContentHeight,
+              abs(dynamicContentHeight - previousDynamicContentHeight) > 0.5 else {
+            return
+        }
+
+        let editorHeightDelta = previousEditorHeight - editorHeight
+        guard abs(editorHeightDelta) > 0.5 else { return }
+
+        pendingHeightAdjustment += editorHeightDelta
+        scheduleHeightAdjustment()
+    }
 
     func closeWindow(fallback: () -> Void) {
         allowsWindowClose = true
@@ -1140,6 +1263,44 @@ private final class MacComposeWindowCloseController {
                 break
             }
         }
+    }
+
+    private func scheduleHeightAdjustment() {
+        guard !heightAdjustmentScheduled,
+              abs(pendingHeightAdjustment) > 0.5 else {
+            return
+        }
+
+        heightAdjustmentScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            self?.applyPendingHeightAdjustment()
+        }
+    }
+
+    private func applyPendingHeightAdjustment() {
+        heightAdjustmentScheduled = false
+        guard let window else { return }
+
+        let adjustment = pendingHeightAdjustment
+        pendingHeightAdjustment = 0
+
+        let currentFrame = window.frame
+        var targetHeight = currentFrame.height + adjustment
+        targetHeight = max(targetHeight, window.minSize.height)
+        targetHeight = min(targetHeight, window.maxSize.height)
+
+        if adjustment > 0,
+           let visibleFrame = window.screen?.visibleFrame {
+            let availableHeight = currentFrame.maxY - visibleFrame.minY
+            targetHeight = min(targetHeight, availableHeight)
+        }
+
+        guard abs(targetHeight - currentFrame.height) > 0.5 else { return }
+
+        var targetFrame = currentFrame
+        targetFrame.origin.y = currentFrame.maxY - targetHeight
+        targetFrame.size.height = targetHeight
+        window.setFrame(targetFrame, display: true, animate: true)
     }
 }
 
@@ -1197,7 +1358,7 @@ private struct MacComposeWindowCloseInterceptor: NSViewRepresentable {
             }
             detach()
             self.window = window
-            closeController.window = window
+            closeController.attach(to: window)
             previousDelegate = window.delegate
             window.delegate = self
         }
@@ -1206,9 +1367,7 @@ private struct MacComposeWindowCloseInterceptor: NSViewRepresentable {
             if window?.delegate === self {
                 window?.delegate = previousDelegate
             }
-            if closeController.window === window {
-                closeController.window = nil
-            }
+            closeController.detach(from: window)
             window = nil
             previousDelegate = nil
         }

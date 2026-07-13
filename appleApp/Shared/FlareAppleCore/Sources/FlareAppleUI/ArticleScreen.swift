@@ -37,6 +37,8 @@ public struct ArticleScreen: View {
             ArticleContentView(
                 article: article,
                 accountType: accountType,
+                articleKey: articleKey,
+                comments: presenter.state.comments,
                 onOpenProfile: onOpenProfile,
                 onOpenMedia: onOpenMedia,
                 onOpenURL: openArticleURL,
@@ -67,6 +69,25 @@ public struct ArticleScreen: View {
                     }
                     .accessibilityLabel(Text("deep_link_account_picker_open_in_browser", bundle: FlareAppleUILocalization.bundle))
                 }
+                #if os(macOS)
+                if let onShareArticle {
+                    ToolbarItem {
+                        MacStatusShareMenu(
+                            data: MacStatusShareData(
+                                statusKey: articleKey,
+                                accountType: accountType,
+                                shareUrl: sourceURL.absoluteString
+                            ),
+                            onShareScreenshot: {
+                                onShareArticle(accountType, articleKey, sourceURL.absoluteString)
+                            }
+                        ) {
+                            Image(fontAwesome: .shareNodes)
+                        }
+                        .accessibilityLabel(Text("fx_share", bundle: FlareAppleUILocalization.bundle))
+                    }
+                }
+                #else
                 if let onShareArticle {
                     ToolbarItem {
                         Button {
@@ -77,6 +98,7 @@ public struct ArticleScreen: View {
                         .accessibilityLabel(Text("fx_share", bundle: FlareAppleUILocalization.bundle))
                     }
                 }
+                #endif
             }
         }
     }
@@ -99,6 +121,8 @@ public struct ArticleScreen: View {
 private struct ArticleContentView: View {
     let article: UiArticle
     let accountType: AccountType
+    let articleKey: MicroBlogKey
+    let comments: PagingState<UiTimelineV2>
     let onOpenProfile: (AccountType, MicroBlogKey) -> Void
     let onOpenMedia: ([any UiMedia], Int, String?) -> Void
     let onOpenURL: (String) -> Void
@@ -141,11 +165,51 @@ private struct ArticleContentView: View {
                 .padding(.horizontal)
                 .padding(.vertical, 8)
                 .textSelection(.enabled)
+
+                switch onEnum(of: comments) {
+                case .empty:
+                    EmptyView()
+                case .error(let error):
+                    articleCommentsTitle
+                    ListErrorView(error: error.error) {
+                        _ = error.onRetry()
+                    }
+                    .frame(maxWidth: 680, alignment: .center)
+                    .padding(.horizontal)
+                case .loading:
+                    articleCommentsTitle
+                    articleCommentsContent
+                case .success(let success):
+                    if success.itemCount > 0 {
+                        articleCommentsTitle
+                        articleCommentsContent
+                    }
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(.bottom, 24)
+            .environment(\.timelineMediaOpenAction, { post, media, index in
+                onOpenMedia(Array(post.images), index, media.mediaPreviewURL)
+            })
         }
         .ignoresSafeArea(edges: article.cover == nil ? Edge.Set() : .top)
+    }
+
+    private var articleCommentsTitle: some View {
+        Text("Comments", bundle: FlareAppleUILocalization.bundle)
+            .font(.headline)
+            .frame(maxWidth: 680, alignment: .leading)
+            .padding(.horizontal)
+    }
+
+    private var articleCommentsContent: some View {
+        TimelinePagingContent(
+            data: comments,
+            detailStatusKey: articleKey,
+            loadingCount: 3,
+            contentMaxWidth: 680,
+            contentHorizontalPadding: 0
+        )
     }
 
     private var articleMedias: [any UiMedia] {
