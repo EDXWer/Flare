@@ -116,11 +116,18 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.getValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import dev.dimension.flare.data.model.tab.isSystemHomeMixedTimeline
 import dev.dimension.flare.ui.component.Text as FlareText
+
+// Zeitpunkt des letzten Auto-Refreshs der gemeinsamen Timeline (prozessweit).
+// Verhindert Refresh-Spam bei schnellen App-Wechseln, erlaubt aber einen
+// frischen Refresh, wenn die App nach einer Pause wieder geöffnet wird.
+private var lastMixedTimelineAutoRefreshMillis = 0L
+
+private const val MIXED_AUTO_REFRESH_MIN_INTERVAL = 5 * 60 * 1000L // 5 Minuten
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
@@ -174,13 +181,13 @@ internal fun HomeTimelineScreen(
                     }
                     CompositionLocalProvider(
                         LocalUriHandler provides
-                            remember(tabItemState) {
-                                object : UriHandler {
-                                    override fun openUri(uri: String) {
-                                        tabItemState.handle(uri)
+                                remember(tabItemState) {
+                                    object : UriHandler {
+                                        override fun openUri(uri: String) {
+                                            tabItemState.handle(uri)
+                                        }
                                     }
-                                }
-                            },
+                                },
                         LocalWindowSizeClass provides WindowSizeClass.Compact,
                     ) {
                         Row {
@@ -426,12 +433,12 @@ internal fun HomeTimelineScreen(
                             val timelineAppearance = LocalTimelineAppearance.current
                             CompositionLocalProvider(
                                 LocalTimelineAppearance provides
-                                    remember(
-                                        item.appearancePatch,
-                                        timelineAppearance,
-                                    ) {
-                                        item.resolveTimelineAppearance(timelineAppearance)
-                                    },
+                                        remember(
+                                            item.appearancePatch,
+                                            timelineAppearance,
+                                        ) {
+                                            item.resolveTimelineAppearance(timelineAppearance)
+                                        },
                             ) {
                                 TimelineItemContent(
                                     item = item,
@@ -476,6 +483,25 @@ internal fun TimelineItemContent(
             item = item,
             lazyStaggeredGridState = lazyStaggeredGridState,
         )
+
+    // Nur gemeinsame Timeline: automatisch aktualisieren, wenn die App in den
+    // Vordergrund kommt (auch beim Kaltstart) - höchstens alle 5 Minuten, und
+    // erst, wenn die Liste bereit ist (vorher wäre refreshSuspend() wirkungslos).
+    if (item.isSystemHomeMixedTimeline) {
+        val isListReady = state.listState.isSuccess()
+        val lifecycleOwner = LocalLifecycleOwner.current
+        LaunchedEffect(lifecycleOwner, isListReady) {
+            if (!isListReady) return@LaunchedEffect
+            lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                val now = System.currentTimeMillis()
+                if (now - lastMixedTimelineAutoRefreshMillis > MIXED_AUTO_REFRESH_MIN_INTERVAL) {
+                    lastMixedTimelineAutoRefreshMillis = now
+                    state.refreshSuspend()
+                }
+            }
+        }
+    }
+
     if (isCurrentlyVisible) {
         RegisterTabCallback(
             lazyListState = state.lazyListState,
