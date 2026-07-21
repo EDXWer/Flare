@@ -340,9 +340,16 @@ internal interface PagingTimelineDao {
             "DbStatus.id AS status_id " +
             "FROM DbPagingTimeline " +
             "INNER JOIN DbStatus ON DbStatus.id = DbPagingTimeline.statusId " +
-            "WHERE DbStatus.accountType = :accountType",
+            "WHERE DbStatus.accountType = :accountType " +
+            "AND (:afterId IS NULL OR DbPagingTimeline._id > :afterId) " +
+            "ORDER BY DbPagingTimeline._id " +
+            "LIMIT :limit",
     )
-    suspend fun getByAccountTypeWithStatus(accountType: DbAccountType): List<DbPagingTimelineWithStatus>
+    suspend fun getByAccountTypeWithStatus(
+        accountType: DbAccountType,
+        afterId: String?,
+        limit: Int,
+    ): List<DbPagingTimelineWithStatus>
 
     @Delete
     suspend fun delete(timeline: List<DbPagingTimeline>)
@@ -440,7 +447,7 @@ internal interface PagingTimelineDao {
     @Query("UPDATE DbPagingKey SET nextKey = :nextKey WHERE pagingKey = :pagingKey")
     suspend fun updatePagingKeyNextKey(
         pagingKey: String,
-        nextKey: String,
+        nextKey: String?,
     )
 
     @Query("UPDATE DbPagingKey SET prevKey = :prevKey WHERE pagingKey = :pagingKey")

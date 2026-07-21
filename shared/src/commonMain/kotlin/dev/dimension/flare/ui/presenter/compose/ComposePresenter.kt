@@ -140,6 +140,10 @@ public class ComposePresenter(
         MutableStateFlow(status)
     }
 
+    private val statusFlow by lazy {
+        MutableStateFlow<UiState<UiTimelineV2>>(UiState.Loading())
+    }
+
     private val editingDraftGroupIdFlow by lazy {
         MutableStateFlow<String?>(draftGroupId)
     }
@@ -297,13 +301,6 @@ public class ComposePresenter(
         MutableStateFlow("")
     }
 
-    private val textMaxLengthFlow: Flow<Int?> by lazy {
-        composeConfigFlow
-            .flatMapLatest { config ->
-                config.text?.maxLength?.map<Int, Int?> { it } ?: flowOf(null)
-            }.distinctUntilChanged()
-    }
-
     private val mediaSizeFlow by lazy {
         MutableStateFlow(0)
     }
@@ -311,10 +308,12 @@ public class ComposePresenter(
     private val remainingLengthFlow by lazy {
         combine(
             textFlow,
-            textMaxLengthFlow,
-        ) { text, maxLength ->
-            maxLength?.minus(text.length) ?: Int.MAX_VALUE
-        }
+            composeConfigFlow,
+        ) { text, config ->
+            text to config.text
+        }.flatMapLatest { (text, config) ->
+            config?.remainingLength(text)?.map<Int, Int?> { it } ?: flowOf(null)
+        }.distinctUntilChanged()
     }
 
     private val canSendFlow by lazy {
@@ -324,22 +323,27 @@ public class ComposePresenter(
             remainingLengthFlow,
             selectedComposeAccountKeysFlow,
             composeConfigFlow,
-        ) { text, mediaSize, remainingLength, selectedAccountKeys, composeConfig ->
-            (text.isNotBlank() && text.isNotEmpty() && selectedAccountKeys.isNotEmpty() && remainingLength >= 0) ||
+        ) {
+            text,
+            mediaSize,
+            remainingLength,
+            selectedAccountKeys,
+            composeConfig,
+            ->
+            (
+                text.isNotBlank() && text.isNotEmpty() && selectedAccountKeys.isNotEmpty() &&
+                    (remainingLength == null || remainingLength >= 0)
+            ) ||
                 ((text.isEmpty() || text.isBlank()) && composeConfig.media?.allowMediaOnly == true && mediaSize > 0)
         }
     }
 
-    private val statusFlow by lazy {
-        combine(activeStatusFlow, selectedComposeAccountKeysFlow) { composeStatus, accountKeys ->
-            composeStatus to accountKeys.firstOrNull()
-        }.flatMapLatest { (composeStatus, selectedAccountKey) ->
-            val resolvedAccountType =
-                when {
-                    selectedAccountKey != null -> AccountType.Specific(selectedAccountKey)
-                    accountType is AccountType.Specific -> accountType
-                    else -> null
-                }
+    private val statusSourceFlow by lazy {
+        observeComposeStatusTarget(
+            activeStatusFlow = activeStatusFlow,
+            selectedAccountKeysFlow = selectedComposeAccountKeysFlow,
+            fallbackAccountType = accountType,
+        ).flatMapLatest { (composeStatus, resolvedAccountType) ->
             if (composeStatus != null && resolvedAccountType != null) {
                 accountServiceFlow(
                     accountType = resolvedAccountType,
@@ -404,13 +408,17 @@ public class ComposePresenter(
     @Composable
     override fun body(): ComposeState {
         val scope = rememberCoroutineScope()
+        val loadedStatus by statusSourceFlow.flattenUiState()
+        LaunchedEffect(loadedStatus) {
+            statusFlow.value = loadedStatus
+        }
         val selectedUsers by selectedUsersFlow.collectAsUiState()
         val remainingUsers by otherUsersFlow.collectAsUiState()
         val accountUsers by accountUsersFlow.collectAsUiState()
         val emojiState by emojiFlow.flattenUiState()
         val enableCrossPost by enableCrossPostFlow.collectAsUiState()
         val composeConfig: UiState<ComposeConfig> by composeConfigFlow.collectAsUiState()
-        val textMaxLength by textMaxLengthFlow.collectAsState(null)
+        val remainingLength by remainingLengthFlow.collectAsState(null)
         val canSend by canSendFlow.collectAsState(false)
         val loadedDraftState by loadedDraftStateFlow.collectAsState()
         val editingDraftGroupId by editingDraftGroupIdFlow.collectAsState()
@@ -578,7 +586,7 @@ public class ComposePresenter(
             composeStatus = composeStatus,
             showDraft = showDraft,
             directSendState = directSendState,
-            textMaxLength = textMaxLength,
+            remainingLength = remainingLength,
             pollMaxOptions = pollMaxOptions,
             contentWarningEnabled = contentWarningEnabled,
             mediaEnabled = mediaEnabled,
@@ -601,10 +609,12 @@ public class ComposePresenter(
                             accounts = selectedAccounts,
                             data = data,
                             groupId = editingDraftGroupIdFlow.value ?: newDraftGroupId(),
+                            onPrepared = {
+                                withContext(Dispatchers.Main) {
+                                    onDispatched(true)
+                                }
+                            },
                         )
-                        withContext(Dispatchers.Main) {
-                            onDispatched(true)
-                        }
                     } else {
                         withContext(Dispatchers.Main) {
                             onDispatched(false)
@@ -759,13 +769,15 @@ public class ComposePresenter(
                             accounts = selectedAccounts,
                             data = data,
                             groupId = groupId,
+                            onSaved = {
+                                withContext(Dispatchers.Main) {
+                                    if (editingDraftGroupIdFlow.value.isNullOrEmpty() && groupId.isNotEmpty()) {
+                                        editingDraftGroupIdFlow.value = groupId
+                                    }
+                                    onDispatched(true)
+                                }
+                            },
                         )
-                        if (editingDraftGroupIdFlow.value.isNullOrEmpty() && groupId.isNotEmpty()) {
-                            editingDraftGroupIdFlow.value = groupId
-                        }
-                        withContext(Dispatchers.Main) {
-                            onDispatched(true)
-                        }
                     } else {
                         withContext(Dispatchers.Main) {
                             onDispatched(false)
@@ -889,6 +901,18 @@ internal fun observeSelectedComposeAccountKeys(
             .toImmutableList()
     }.distinctUntilChanged()
 
+internal fun observeComposeStatusTarget(
+    activeStatusFlow: Flow<ComposeStatus?>,
+    selectedAccountKeysFlow: Flow<ImmutableList<MicroBlogKey>>,
+    fallbackAccountType: AccountType?,
+): Flow<Pair<ComposeStatus?, AccountType.Specific?>> =
+    combine(activeStatusFlow, selectedAccountKeysFlow) { composeStatus, accountKeys ->
+        val resolvedAccountType =
+            accountKeys.firstOrNull()?.let(AccountType::Specific)
+                ?: fallbackAccountType as? AccountType.Specific
+        composeStatus to resolvedAccountType
+    }.distinctUntilChanged()
+
 internal fun observeAllComposeAccounts(
     accountFlows: Flow<List<Flow<Pair<MicroBlogKey, UiState<UiAccount>>>>>,
 ): Flow<Map<MicroBlogKey, UiState<UiAccount>>> =
@@ -965,7 +989,7 @@ public abstract class ComposeState(
     public val composeStatus: ComposeStatus?,
     public val showDraft: Boolean,
     public val directSendState: ComposeDirectSendState,
-    public val textMaxLength: Int?,
+    public val remainingLength: Int?,
     public val pollMaxOptions: Int?,
     public val contentWarningEnabled: Boolean,
     public val mediaEnabled: Boolean,
