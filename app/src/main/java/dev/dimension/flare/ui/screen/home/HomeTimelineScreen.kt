@@ -1,10 +1,13 @@
 package dev.dimension.flare.ui.screen.home
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -27,6 +30,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
@@ -35,6 +39,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LeadingIconTab
@@ -52,8 +57,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -65,22 +73,30 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import compose.icons.FontAwesomeIcons
 import compose.icons.fontawesomeicons.Solid
 import compose.icons.fontawesomeicons.solid.AnglesUp
 import compose.icons.fontawesomeicons.solid.Bars
+import compose.icons.fontawesomeicons.solid.CaretDown
+import compose.icons.fontawesomeicons.solid.Check
 import compose.icons.fontawesomeicons.solid.Sliders
 import dev.dimension.flare.R
 import dev.dimension.flare.common.onSuccess
+import dev.dimension.flare.data.datastore.model.TimelineAutoRefreshInterval
 import dev.dimension.flare.data.model.BottomBarBehavior
 import dev.dimension.flare.data.model.TimelineDisplayMode
 import dev.dimension.flare.data.model.tab.UiTimelineTabItem
 import dev.dimension.flare.data.model.tab.resolveTimelineAppearance
 import dev.dimension.flare.ui.component.AvatarComponent
 import dev.dimension.flare.ui.component.FAIcon
+import dev.dimension.flare.ui.component.FlareDropdownMenu
 import dev.dimension.flare.ui.component.FlareScaffold
 import dev.dimension.flare.ui.component.FlareTopAppBar
 import dev.dimension.flare.ui.component.Glassify
+import dev.dimension.flare.ui.component.LocalAppSettings
 import dev.dimension.flare.ui.component.LocalBottomBarShowing
 import dev.dimension.flare.ui.component.LocalGlobalAppearance
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
@@ -108,6 +124,7 @@ import dev.dimension.flare.ui.route.Route
 import dev.dimension.flare.ui.route.Router
 import dev.dimension.flare.ui.theme.isLightTheme
 import dev.dimension.flare.ui.theme.screenHorizontalPadding
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import moe.tlaster.precompose.molecule.producePresenter
 import androidx.compose.runtime.snapshotFlow
@@ -433,19 +450,22 @@ internal fun HomeTimelineScreen(
                             val timelineAppearance = LocalTimelineAppearance.current
                             CompositionLocalProvider(
                                 LocalTimelineAppearance provides
-                                        remember(
-                                            item.appearancePatch,
-                                            timelineAppearance,
-                                        ) {
-                                            item.resolveTimelineAppearance(timelineAppearance)
-                                        },
+                                    remember(
+                                        item.appearancePatch,
+                                        timelineAppearance,
+                                    ) {
+                                        item.resolveTimelineAppearance(timelineAppearance)
+                                    },
                             ) {
                                 TimelineItemContent(
                                     item = item,
                                     contentPadding = contentPadding,
                                     modifier = Modifier.fillMaxWidth(),
                                     changeLogState = state,
+                                    isHomeTimeline = true,
                                     isCurrentlyVisible = pagerState.currentPage == index,
+                                    autoRefreshInterval =
+                                        LocalAppSettings.current.homeTimelineAutoRefreshInterval,
                                 )
                             }
                         }
@@ -462,7 +482,9 @@ internal fun TimelineItemContent(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     changeLogState: ChangeLogState? = null,
+    isHomeTimeline: Boolean = false,
     isCurrentlyVisible: Boolean = true,
+    autoRefreshInterval: TimelineAutoRefreshInterval = TimelineAutoRefreshInterval.DISABLED,
     lazyStaggeredGridState: LazyStaggeredGridState = rememberLazyStaggeredGridState(),
 ) {
     val isBigScreen = isBigScreen()
@@ -481,8 +503,24 @@ internal fun TimelineItemContent(
     val state =
         rememberTimelineItemPresenterWithLazyListState(
             item = item,
+            isHomeTimeline = isHomeTimeline,
             lazyStaggeredGridState = lazyStaggeredGridState,
         )
+    val latestState by rememberUpdatedState(state)
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(isHomeTimeline, autoRefreshInterval, isCurrentlyVisible, lifecycleOwner) {
+        if (!isHomeTimeline || !isCurrentlyVisible || autoRefreshInterval == TimelineAutoRefreshInterval.DISABLED) {
+            return@LaunchedEffect
+        }
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                delay(autoRefreshInterval.minutes * 60_000L)
+                if (!latestState.isRefreshing) {
+                    latestState.refreshSuspend()
+                }
+            }
+        }
+    }
 
     // Nur gemeinsame Timeline: automatisch aktualisieren, wenn die App in den
     // Vordergrund kommt (auch beim Kaltstart) - höchstens alle 5 Minuten, und

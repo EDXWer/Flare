@@ -36,6 +36,7 @@ import dev.dimension.flare.data.model.Theme
 import dev.dimension.flare.data.model.VideoAutoplay
 import dev.dimension.flare.data.model.appearance.GlobalAppearance
 import dev.dimension.flare.data.model.appearance.TimelineAppearance
+import dev.dimension.flare.ui.component.LocalAppSettings
 import dev.dimension.flare.ui.component.LocalGlobalAppearance
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
 import dev.dimension.flare.ui.component.platform.LocalWifiState
@@ -393,6 +394,7 @@ internal fun ProvideThemeSettings(content: @Composable () -> Unit) {
             }
         }
         CompositionLocalProvider(
+            LocalAppSettings provides appSettings,
             LocalGlobalAppearance provides globalAppearance,
             LocalTimelineAppearance provides
                 remember(globalAppearance, timelineAppearance, appSettings.translateConfig, appSettings.aiConfig) {
@@ -402,6 +404,8 @@ internal fun ProvideThemeSettings(content: @Composable () -> Unit) {
                                 translation = true,
                                 tldr = appSettings.aiConfig.tldr,
                                 agent = appSettings.aiConfig.agent && !openAIConfig?.model.isNullOrBlank(),
+                                showOriginalWithTranslation =
+                                    appSettings.translateConfig.showOriginalWithTranslation,
                             ),
                     )
                 },

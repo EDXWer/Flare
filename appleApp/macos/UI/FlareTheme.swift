@@ -8,7 +8,7 @@ struct FlareTheme<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     @StateObject private var presenter = KotlinPresenter(presenter: EnvironmentSettingsPresenter())
-    @State private var appSettings: AppSettings = AppSettings(version: "0")
+    @State private var appSettings = AppSettings.companion.default
     @State private var globalAppearance: GlobalAppearance = GlobalAppearance.companion.Default
     @State private var timelineAppearance: TimelineAppearance = TimelineAppearance.companion.Default
 
@@ -19,6 +19,7 @@ struct FlareTheme<Content: View>: View {
             .networkStatus()
             .environment(\.aiConfig, appSettings.aiConfig)
             .environment(\.translateConfig, appSettings.translateConfig)
+            .environment(\.appSettings, appSettings)
             .environment(\.globalAppearance, globalAppearance)
             .environment(\.timelineAppearance, timelineAppearance)
             .preferredColorScheme(
@@ -64,7 +65,8 @@ private extension TimelineAppearance {
             aiConfig: TimelineAppearance.AiConfig(
                 translation: true,
                 tldr: appSettings.aiConfig.tldr,
-                agent: appSettings.aiConfig.agent && appSettings.aiConfig.type.openAIModel?.isEmpty == false
+                agent: appSettings.aiConfig.agent && appSettings.aiConfig.type.openAIModel?.isEmpty == false,
+                showOriginalWithTranslation: appSettings.translateConfig.showOriginalWithTranslation
             ),
             lineLimit: lineLimit,
             showTranslateButton: showTranslateButton

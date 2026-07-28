@@ -5,15 +5,13 @@ import dev.dimension.flare.data.datasource.microblog.MixedRemoteMediator
 import dev.dimension.flare.data.datasource.microblog.paging.CacheableRemoteLoader
 import dev.dimension.flare.data.datasource.microblog.paging.RemoteLoader
 import dev.dimension.flare.data.datasource.microblog.paging.notSupported
-import dev.dimension.flare.data.model.tab.TimelineFilterConfig
 import dev.dimension.flare.data.model.tab.TimelineMergePolicy
-import dev.dimension.flare.data.model.tab.TimelinePresenterFactory
 import dev.dimension.flare.data.model.tab.TimelineResolver
 import dev.dimension.flare.data.model.tab.UiGroupTimelineTabItem
 import dev.dimension.flare.data.model.tab.UiTimelineTabItem
 import dev.dimension.flare.data.model.tab.isSystemHomeMixedTimeline
 import dev.dimension.flare.data.repository.SettingsRepository
-import dev.dimension.flare.model.AccountType
+import dev.dimension.flare.di.koinInject
 import dev.dimension.flare.ui.model.UiTimelineV2
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -22,15 +20,12 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
 
 public class MixedTimelinePresenter(
     id: String,
     private val fallbackSubTimelinePresenter: List<TimelinePresenter> = emptyList(),
     private val fallbackMergePolicy: TimelineMergePolicy = TimelineMergePolicy.TimePerPage,
-) : TimelinePresenter(),
-    KoinComponent {
+) : TimelinePresenter(tabId = id) {
     private val groupId = id
 
     public constructor(
@@ -42,13 +37,9 @@ public class MixedTimelinePresenter(
         fallbackMergePolicy = mergePolicy,
     )
 
-    private val database: CacheDatabase by inject()
-    private val settingsRepository: SettingsRepository by inject()
-    private val presenterFactory: TimelinePresenterFactory by inject()
-
-    init {
-        // bindTimelineTabItemId(id)
-    }
+    private val database: CacheDatabase by koinInject()
+    private val settingsRepository: SettingsRepository by koinInject()
+    private val timelineResolver: TimelineResolver by koinInject()
 
     private val groupTabFlow: Flow<UiGroupTimelineTabItem?> by lazy {
         settingsRepository
@@ -72,11 +63,16 @@ public class MixedTimelinePresenter(
             }.distinctUntilChanged { old, new ->
                 old.orEmpty().map { it.id } == new.orEmpty().map { it.id }
             }.flatMapLatest { tabs ->
-                val presenters = tabs?.map { presenterFactory.create(it) } ?: fallbackSubTimelinePresenter
-                if (presenters.isEmpty()) {
+                if (tabs == null) {
+                    if (fallbackSubTimelinePresenter.isEmpty()) {
+                        flowOf(emptyList())
+                    } else {
+                        combine(fallbackSubTimelinePresenter.map { it.loader }) { it.toList() }
+                    }
+                } else if (tabs.isEmpty()) {
                     flowOf(emptyList())
                 } else {
-                    combine(presenters.map { it.loader }) { it.toList() }
+                    combine(tabs.map { timelineResolver.resolveLoader(it) }) { it.toList() }
                 }
             }
     }
@@ -98,41 +94,13 @@ public class MixedTimelinePresenter(
 
 public class SystemHomeMixedTimelinePresenter(
     id: String,
-) : TimelinePresenter(),
-    KoinComponent {
+    isHomeTimeline: Boolean = false,
+) : TimelinePresenter(tabId = id, isHomeTimeline = isHomeTimeline) {
     private val groupId = id
 
-    private val database: CacheDatabase by inject()
-    private val settingsRepository: SettingsRepository by inject()
-    private val timelineResolver: TimelineResolver by inject()
-    private val presenterFactory: TimelinePresenterFactory by inject()
-
-    // Gemeinsame Timeline: statt eines globalen Filters wird für jeden Post der Filter
-    // seiner Quell-Timeline angewendet (zugeordnet über den Account des Posts).
-    override val timelineFilterPredicateFlow: Flow<(UiTimelineV2) -> Boolean> by lazy {
-        settingsRepository.homeTimelineTabs
-            .map { tabs ->
-                tabs
-                    .filterNot { it.isSystemHomeMixedTimeline }
-                    .mapNotNull { tab ->
-                        val key =
-                            runCatching { timelineResolver.resolveAccountKey(tab) }
-                                .getOrNull() ?: return@mapNotNull null
-                        key to tab.filterConfig
-                    }.toMap()
-            }.distinctUntilChanged()
-            .map { configByAccount ->
-                { item: UiTimelineV2 ->
-                    val accountKey = (item.accountType as? AccountType.Specific)?.accountKey
-                    val config = accountKey?.let { configByAccount[it] } ?: TimelineFilterConfig()
-                    item.matchesTimelineFilter(config)
-                }
-            }
-    }
-
-    init {
-        // bindTimelineTabItemId(id)
-    }
+    private val database: CacheDatabase by koinInject()
+    private val settingsRepository: SettingsRepository by koinInject()
+    private val timelineResolver: TimelineResolver by koinInject()
 
     private val groupTabFlow: Flow<UiGroupTimelineTabItem?> by lazy {
         settingsRepository
@@ -155,11 +123,10 @@ public class SystemHomeMixedTimelinePresenter(
                     .filter { it.enabled }
             }.distinctUntilChangedByTabIds()
             .flatMapLatest { tabs ->
-                val presenters = tabs.map { presenterFactory.create(it) }
-                if (presenters.isEmpty()) {
+                if (tabs.isEmpty()) {
                     flowOf(emptyList())
                 } else {
-                    combine(presenters.map { it.loader }) { it.toList() }
+                    combine(tabs.map { timelineResolver.resolveLoader(it) }) { it.toList() }
                 }
             }
     }

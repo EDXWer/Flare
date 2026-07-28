@@ -13,12 +13,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import dev.dimension.flare.common.onSuccess
 import dev.dimension.flare.data.model.tab.UiTimelineTabItem
-import dev.dimension.flare.data.model.tab.isSystemHomeMixedTimeline
-import dev.dimension.flare.ui.model.UiTimelineV2
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.mapNotNull
 import moe.tlaster.precompose.molecule.producePresenter
 
@@ -31,9 +27,19 @@ public interface TimelineWithLazyListState : TimelineItemPresenter.State {
     public fun onNewTootsShown()
 }
 
+/**
+ * UI-side composable that exposes the timeline paging state plus scroll-bound indicator state
+ * (new-toots banner, scroll-to-top etc.) bound to the supplied [lazyStaggeredGridState].
+ *
+ * The paging/refresh portion runs inside a molecule presenter scoped to a `ViewModel`
+ * (so it survives configuration changes), while the lazyListState-dependent effects run in
+ * plain Composition. This avoids capturing a stale `LazyStaggeredGridState` across Activity
+ * recreation — every fresh Composition rebinds its own [lazyStaggeredGridState] to the effects.
+ */
 @Composable
 public fun rememberTimelineItemPresenterWithLazyListState(
     item: UiTimelineTabItem,
+    isHomeTimeline: Boolean = false,
     lazyStaggeredGridState: LazyStaggeredGridState = rememberLazyStaggeredGridState(),
 ): TimelineWithLazyListState {
 
