@@ -37,7 +37,6 @@ public fun rememberTimelineItemPresenterWithLazyListState(
     lazyStaggeredGridState: LazyStaggeredGridState = rememberLazyStaggeredGridState(),
 ): TimelineWithLazyListState {
 
-    // Das Langzeitgedächtnis für reibungslose Navigation
     val baseState by producePresenter<TimelineItemPresenter.State>(key = "timeline_${item.id}") {
         val presenter = remember { TimelineItemPresenter(item) }
         presenter.invoke()
@@ -50,7 +49,7 @@ public fun rememberTimelineItemPresenterWithLazyListState(
     )
 }
 
-// Die kugelsicheren Upstream-IDs (Viel besser als die alte Author+Time Methode)
+// Sichere ID Extraktion (Kugelsicher gegen Nulls)
 private fun getPostFingerprint(item: Any?): String {
     return runCatching {
         val timelineItem = item as? UiTimelineV2 ?: return@runCatching "unknown_${item?.hashCode()}"
@@ -62,13 +61,13 @@ private fun getPostFingerprint(item: Any?): String {
     }.getOrDefault("error_${item?.hashCode()}")
 }
 
-// Unser aktualisierter Speicher (jetzt mit Höchststands-Tracker!)
+// Die neue Datenstruktur für die Brotkrümel-Spur
 private class ScrollContext {
-    var anchorFingerprints: List<String> = emptyList()
+    var anchorFingerprints: List<String> = emptyList() // Speichert die Top 10 Posts als Fallback-Netz!
     var anchorOffset: Int = 0
     var isAnchored: Boolean = false
     var knownTopFingerprint: String? = null
-    var highestReadIndex: Int = Int.MAX_VALUE // DAS UPGRADE: Blockiert das Speichern beim Runterscrollen
+    var highestReadIndex: Int = Int.MAX_VALUE
 }
 
 @Composable
@@ -102,52 +101,60 @@ private fun rememberTimelineWithLazyListState(
             }
         }
 
-        // 2. DIE AKTIVE JAGD (Das Meisterstück aus dem alten Code)
+        // 2. DIE AKTIVE JAGD (Jetzt mit Brotkrümel-Fallback und mehr Geduld)
         LaunchedEffect(isHunting) {
-            if (isHunting) {
+            if (isHunting && tracker.anchorFingerprints.isNotEmpty()) {
                 var huntAttempts = 0
                 var lastLoadedCount = 0
 
-                while (isHunting && huntAttempts <= 15) {
-                    var targetIndex = -1
+                // Wir erlauben mehr Versuche (20), falls das Netzwerk langsam ist
+                while (isHunting && huntAttempts <= 20) {
+                    var bestMatchIndex = -1
+                    var bestMatchPriority = Int.MAX_VALUE // 0 ist der Original-Post, 1 ist der darunter, etc.
                     var contiguousLoadedCount = 0
 
                     for (i in 0 until itemCount) {
                         val item = runCatching { peek(i) }.getOrNull()
                         if (item != null) {
                             contiguousLoadedCount = i + 1
+                            val fp = getPostFingerprint(item)
 
-                            if (targetIndex == -1 && tracker.anchorFingerprints.isNotEmpty()) {
-                                val fpItem = getPostFingerprint(item)
-                                if (tracker.anchorFingerprints.contains(fpItem)) {
-                                    targetIndex = i
-                                }
+                            // Welchen Brotkrümel haben wir gefunden?
+                            val priority = tracker.anchorFingerprints.indexOf(fp)
+
+                            // Wir nehmen immer den Krümel, der am nächsten am Original-Anker ist!
+                            if (priority != -1 && priority < bestMatchPriority) {
+                                bestMatchPriority = priority
+                                bestMatchIndex = i
                             }
                         } else {
                             break
                         }
                     }
 
-                    if (targetIndex != -1) {
-                        // ANKER GEFUNDEN!
-                        lazyListState.scrollToItem(targetIndex, tracker.anchorOffset)
-                        tracker.highestReadIndex = targetIndex // Höchststand auf den neuen Index kalibrieren
+                    if (bestMatchIndex != -1) {
+                        // TREFFER! Entweder der exakte Post oder der bestmögliche Fallback darunter!
+                        val offset = if (bestMatchPriority == 0) tracker.anchorOffset else 0
+                        lazyListState.scrollToItem(bestMatchIndex, offset)
+                        tracker.highestReadIndex = bestMatchIndex
                         isHunting = false
                         break
                     } else {
-                        // FORCE PAGING3 TO LOAD MORE
-                        if (contiguousLoadedCount > lastLoadedCount) {
-                            lastLoadedCount = contiguousLoadedCount
-                            huntAttempts++
-
-                            val boundaryIndex = maxOf(0, contiguousLoadedCount - 1)
-                            lazyListState.scrollToItem(boundaryIndex, 0)
-                        } else if (contiguousLoadedCount == itemCount) {
+                        // SICHERHEITSLEINE: Wenn wir schon 80 Posts geladen haben, geben wir auf.
+                        if (contiguousLoadedCount > 80) {
                             isHunting = false
                             break
                         }
 
-                        delay(100) // Warten, bis Paging3 die Daten liefert
+                        // FORCE PAGING3 TO LOAD MORE
+                        if (contiguousLoadedCount > lastLoadedCount) {
+                            lastLoadedCount = contiguousLoadedCount
+                            val boundaryIndex = maxOf(0, contiguousLoadedCount - 1)
+                            lazyListState.scrollToItem(boundaryIndex, 0)
+                        }
+                        // WICHTIG: Kein sofortiger Abbruch mehr! Wir geben Paging3 Zeit zum Laden.
+                        huntAttempts++
+                        delay(150) // 150ms warten, damit die Liste im Hintergrund nachwachsen kann
                     }
                 }
 
@@ -155,7 +162,7 @@ private fun rememberTimelineWithLazyListState(
             }
         }
 
-        // 3. DAS HIGH-WATER MARK TRACKING
+        // 3. DAS HIGH-WATER MARK TRACKING (Legt die Brotkrümel aus)
         LaunchedEffect(lazyListState) {
             snapshotFlow {
                 Triple(
@@ -170,25 +177,29 @@ private fun rememberTimelineWithLazyListState(
                         isHunting = false
                     }
 
-                    // DAS UPGRADE: Wir aktualisieren den Anker NUR, wenn wir einen neuen Höchststand erreichen!
                     val isSettingInitialAnchor = !tracker.isAnchored
                     val isBreakingRecord = index <= tracker.highestReadIndex
 
+                    // Wenn wir aktualisieren oder nach oben scrollen, werfen wir das Netz aus
                     if (isScrolling || isSettingInitialAnchor) {
                         if (isSettingInitialAnchor || isBreakingRecord) {
                             tracker.anchorOffset = offset
                             tracker.highestReadIndex = index
 
-                            val history = mutableListOf<String>()
-                            for (i in 0 until 3) {
+                            // DIE BROTKRÜMEL: Wir speichern die Top 10 sichtbaren Posts
+                            val breadcrumbs = mutableListOf<String>()
+                            for (i in 0 until 10) {
                                 val pos = index + i
                                 if (pos < itemCount) {
                                     val item = runCatching { peek(pos) }.getOrNull()
-                                    if (item != null) history.add(getPostFingerprint(item))
+                                    if (item != null) {
+                                        breadcrumbs.add(getPostFingerprint(item))
+                                    }
                                 }
                             }
-                            if (history.isNotEmpty()) {
-                                tracker.anchorFingerprints = history
+
+                            if (breadcrumbs.isNotEmpty()) {
+                                tracker.anchorFingerprints = breadcrumbs
                                 tracker.isAnchored = true
                             }
                         }
@@ -212,7 +223,7 @@ private fun rememberTimelineWithLazyListState(
         }
     }
 
-    // 5. Smarter Counter (Ignoriert die Jagd)
+    // 5. Smarter Counter
     LaunchedEffect(lazyListState) {
         snapshotFlow {
             Triple(lazyListState.firstVisibleItemIndex, isHunting, showNewToots)
