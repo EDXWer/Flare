@@ -12,6 +12,8 @@
 ![badge-Linux](https://img.shields.io/badge/Linux-AppImage-black)
 ![badge-Web](https://img.shields.io/badge/Web-Svelte-black)
 
+--- This fork contains Vibe Coding. --- 
+
 Flare is an open-source, privacy-first social client that brings Mastodon, Misskey, Bluesky, X, Nostr, and RSS into one unified timeline. It supports cross-posting, lists, feeds, DMs, RSS management, and AI-powered features such as translation and summaries. Built with Kotlin Multiplatform, Flare shares its core logic across Android, iOS, macOS, Windows, and Linux, turning fragmented social feeds into a personal information hub.
 
 <a href="https://apps.microsoft.com/detail/9NLRN0BKZ357?referrer=appbadge&mode=direct">
