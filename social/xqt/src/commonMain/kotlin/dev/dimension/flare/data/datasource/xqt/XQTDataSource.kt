@@ -296,6 +296,18 @@ internal class XQTDataSource(
                     )
                 }
             }
+
+            is PostEvent.XQT.NotInterested -> {
+                val response =
+                    service.postTimelineFeedback(
+                        feedbackType = "DontLike",
+                        actionMetadata = event.actionMetadata,
+                    )
+                check(response.isSuccessful) {
+                    "X timeline feedback failed with HTTP ${response.code}"
+                }
+                updater.deleteFromCache(event.postKey)
+            }
         }
     }
 
@@ -458,7 +470,6 @@ internal class XQTDataSource(
     override fun notification(type: NotificationFilter): RemoteLoader<UiTimelineV2> =
         if (type == NotificationFilter.All) {
             NotificationPagingSource(
-                locale = "en",
                 service = service,
                 accountKey = accountKey,
                 onClearMarker = {

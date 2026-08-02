@@ -8,6 +8,7 @@ import dev.dimension.flare.common.encodeJson
 import dev.dimension.flare.data.database.cache.mapper.XQTTimeline
 import dev.dimension.flare.data.datasource.microblog.ActionMenu
 import dev.dimension.flare.data.datasource.microblog.PostActionFamily
+import dev.dimension.flare.data.datasource.microblog.PostEvent
 import dev.dimension.flare.data.datasource.microblog.userActionsMenu
 import dev.dimension.flare.data.network.xqt.model.Admin
 import dev.dimension.flare.data.network.xqt.model.AudioSpace
@@ -19,7 +20,11 @@ import dev.dimension.flare.data.network.xqt.model.Media
 import dev.dimension.flare.data.network.xqt.model.NoteTweetResultRichTextTag
 import dev.dimension.flare.data.network.xqt.model.TimelineAddEntries
 import dev.dimension.flare.data.network.xqt.model.TimelineAddToModule
+import dev.dimension.flare.data.network.xqt.model.TimelineFeedbackActionValue
+import dev.dimension.flare.data.network.xqt.model.TimelineNotification
+import dev.dimension.flare.data.network.xqt.model.TimelineTimelineItem
 import dev.dimension.flare.data.network.xqt.model.TimelineTimelineModule
+import dev.dimension.flare.data.network.xqt.model.TimelineTweet
 import dev.dimension.flare.data.network.xqt.model.TimelineTwitterList
 import dev.dimension.flare.data.network.xqt.model.Tweet
 import dev.dimension.flare.data.network.xqt.model.TweetCardLegacy
@@ -39,7 +44,6 @@ import dev.dimension.flare.data.network.xqt.model.User
 import dev.dimension.flare.data.network.xqt.model.UserResultCore
 import dev.dimension.flare.data.network.xqt.model.UserResults
 import dev.dimension.flare.data.network.xqt.model.UserUnavailable
-import dev.dimension.flare.data.network.xqt.model.legacy.TopLevel
 import dev.dimension.flare.data.network.xqt.xTwitterClientLanguage
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.MicroBlogKey
@@ -75,6 +79,7 @@ import dev.dimension.flare.ui.render.toUiPlainText
 import dev.dimension.flare.ui.render.uiRichTextOf
 import dev.dimension.flare.ui.route.DeeplinkRoute
 import dev.dimension.flare.ui.route.toUri
+import io.ktor.http.Url
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
@@ -137,203 +142,147 @@ private fun TweetUnion.getQuoted(): TweetUnion? =
         is TweetWithVisibilityResults -> tweet.quotedStatusResult?.result
     }
 
-internal fun TopLevel.renderNotifications(accountKey: MicroBlogKey): List<UiTimelineV2> {
-    return timeline
-        ?.instructions
-        ?.asSequence()
-        ?.flatMap {
-            it.addEntries?.entries.orEmpty()
-        }?.mapNotNull { entry ->
-            entry.content?.item?.content
-        }?.mapNotNull { content ->
-            val notification = content.notification
-            val mentionTweet = content.tweet
-            if (notification != null) {
-                val url = notification.url?.url
-                val data = globalObjects?.notifications?.get(notification.id)
-                val message = data?.message?.text
-                val users =
-                    data?.template?.aggregateUserActionsV1?.fromUsers?.mapNotNull { ref ->
-                        globalObjects
-                            .users
-                            ?.get(ref.user?.id)
-                            ?.let { userLegacy ->
-                                User(
-                                    legacy = userLegacy,
-                                    isBlueVerified = userLegacy.verified,
-                                    restId = ref.user?.id.orEmpty(),
-                                )
-                            }?.render(accountKey)
-                    }
-                val notificationTweet =
-                    notification.targetTweets?.mapNotNull {
-                        globalObjects?.tweets?.get(it)
-                    }
-                val createdAt =
-                    data?.timestampMS?.toLongOrNull()?.let {
-                        Instant.fromEpochMilliseconds(it)
-                    }
-                val icon =
-                    when (data?.icon?.id) {
-                        "person_icon" -> UiIcon.Follow
-                        "heart_icon" -> UiIcon.Like
-                        "bird_icon" -> UiIcon.Info
-                        else -> UiIcon.Info
-                    }
-                val post =
-                    notificationTweet?.firstOrNull()?.let {
-                        Tweet(
-                            restId = it.idStr,
-                            core =
-                                UserResultCore(
-                                    userResults =
-                                        UserResults(
-                                            result =
-                                                User(
-                                                    legacy =
-                                                        globalObjects?.users?.get(it.userIdStr)
-                                                            ?: return@let null,
-                                                    isBlueVerified = false,
-                                                    restId = it.userIdStr ?: return@let null,
-                                                ),
-                                        ),
-                                ),
-                            legacy = it,
-                        ).renderStatus(accountKey)
-                    }
+internal fun List<InstructionUnion>.renderNotifications(accountKey: MicroBlogKey): List<UiTimelineV2> =
+    flatMap { instruction ->
+        when (instruction) {
+            is TimelineAddEntries -> instruction.propertyEntries
+            else -> emptyList()
+        }
+    }.mapNotNull { entry ->
+        val itemContent = (entry.content as? TimelineTimelineItem)?.itemContent
+        when (itemContent) {
+            is TimelineNotification -> itemContent.renderNotification(accountKey)
+            is TimelineTweet -> itemContent.renderMention(accountKey)
+            else -> null
+        }
+    }
 
-                val statusKey =
-                    MicroBlogKey(
-                        id = notification.id.orEmpty(),
-                        host = accountKey.host,
-                    )
-                val clickEvent =
-                    when {
-                        url == "/2/notifications/device_follow.json" -> {
-                            ClickEvent.Deeplink(
-                                DeeplinkRoute.Timeline
-                                    .XQTDeviceFollow(
-                                        accountType = AccountType.Specific(accountKey),
-                                    ),
-                            )
-                        }
-
-                        post == null && !url.isNullOrEmpty() && !url.startsWith("/") -> {
-                            ClickEvent.Deeplink(
-                                DeeplinkRoute.OpenLinkDirectly(url),
-                            )
-                        }
-
-                        else -> {
-                            ClickEvent.Noop
-                        }
-                    }
-                val messageItem =
-                    UiTimelineV2.Message(
-                        user = null,
-                        statusKey = statusKey,
-                        icon = icon,
-                        type = UiTimelineV2.Message.Type.Raw(message.orEmpty()),
-                        createdAt = createdAt?.toUi() ?: Clock.System.now().toUi(),
-                        clickEvent = clickEvent,
-                        accountType = AccountType.Specific(accountKey),
-                    )
+private fun TimelineNotification.renderNotification(accountKey: MicroBlogKey): UiTimelineV2 {
+    val createdAt = timestampMs.toNotificationInstant()?.toUi() ?: Clock.System.now().toUi()
+    val statusKey = MicroBlogKey(id = id, host = accountKey.host)
+    val users =
+        template.fromUsers
+            .orEmpty()
+            .mapNotNull { reference ->
+                when (val user = reference.userResults?.result) {
+                    is User -> user.render(accountKey)
+                    is UserUnavailable, null -> null
+                }
+            }
+    val post =
+        template.targetObjects
+            .orEmpty()
+            .firstNotNullOfOrNull { reference ->
+                reference.tweetResults
+                    ?.result
+                    ?.toTweetOrNull()
+                    ?.renderStatus(accountKey)
+            }
+    val url = notificationUrl.url
+    val message =
+        UiTimelineV2.Message(
+            user = null,
+            statusKey = statusKey,
+            icon = notificationIcon.toUiIcon(),
+            type = UiTimelineV2.Message.Type.Raw(richMessage.text.orEmpty()),
+            createdAt = createdAt,
+            clickEvent =
                 when {
-                    data?.icon?.id == "person_icon" && users?.size == 1 -> {
-                        UiTimelineV2.User(
-                            message = messageItem,
-                            value = users.first(),
-                            createdAt = createdAt?.toUi() ?: Clock.System.now().toUi(),
-                            statusKey = users.first().key,
-                            accountType = AccountType.Specific(accountKey),
+                    url == "/2/notifications/device_follow.json" -> {
+                        ClickEvent.Deeplink(
+                            DeeplinkRoute.Timeline
+                                .XQTDeviceFollow(
+                                    accountType = AccountType.Specific(accountKey),
+                                ),
                         )
                     }
 
-                    data?.icon?.id == "person_icon" && !users.isNullOrEmpty() -> {
-                        UiTimelineV2.UserList(
-                            message = messageItem,
-                            users = users.toImmutableList(),
-                            createdAt = createdAt?.toUi() ?: Clock.System.now().toUi(),
-                            statusKey = statusKey,
-                            post = null,
-                            accountType = AccountType.Specific(accountKey),
-                        )
-                    }
-
-                    post != null -> {
-                        post.withPresentationMessage(messageItem)
+                    post == null && !url.isNullOrEmpty() && !url.startsWith("/") -> {
+                        ClickEvent.Deeplink(DeeplinkRoute.OpenLinkDirectly(url))
                     }
 
                     else -> {
-                        messageItem
+                        ClickEvent.Noop
                     }
-                }
-            } else if (mentionTweet != null) {
-                val tweet = globalObjects?.tweets?.get(mentionTweet.id) ?: return@mapNotNull null
-                if (tweet.userIdStr == null) {
-                    return@mapNotNull null
-                }
-                val user = globalObjects.users?.get(tweet.userIdStr) ?: return@mapNotNull null
-                if (mentionTweet.id == null) {
-                    return@mapNotNull null
-                }
-                val renderedUser =
-                    user
-                        .let { userLegacy ->
-                            User(
-                                legacy = userLegacy,
-                                isBlueVerified = userLegacy.verified,
-                                restId = tweet.userIdStr,
-                            )
-                        }.render(accountKey)
-                val data =
-                    Tweet(
-                        restId = mentionTweet.id,
-                        core =
-                            UserResultCore(
-                                userResults =
-                                    UserResults(
-                                        result =
-                                            User(
-                                                legacy = user,
-                                                isBlueVerified = user.verified,
-                                                restId = tweet.userIdStr,
-                                            ),
-                                    ),
-                            ),
-                        legacy = tweet,
-                    ).renderStatus(accountKey)
-                data.withPresentationMessage(
-                    UiTimelineV2.Message(
-                        user = renderedUser,
-                        statusKey =
-                            MicroBlogKey(
-                                id = notification?.id.orEmpty(),
-                                host = accountKey.host,
-                            ),
-                        icon = UiIcon.Retweet,
-                        type =
-                            UiTimelineV2.Message.Type.Localized(
-                                UiTimelineV2.Message.Type.Localized.MessageId.Mention,
-                            ),
-                        createdAt = data.createdAt,
-                        clickEvent =
-                            ClickEvent.Deeplink(
-                                DeeplinkRoute.Profile
-                                    .User(
-                                        accountType = AccountType.Specific(accountKey),
-                                        userKey = renderedUser.key,
-                                    ),
-                            ),
-                        accountType = AccountType.Specific(accountKey),
-                    ),
-                )
-            } else {
-                null
-            }
-        }?.toList()
-        .orEmpty()
+                },
+            accountType = AccountType.Specific(accountKey),
+        )
+
+    return when {
+        notificationIcon == "person_icon" && users.size == 1 -> {
+            UiTimelineV2.User(
+                message = message,
+                value = users.first(),
+                createdAt = createdAt,
+                statusKey = users.first().key,
+                accountType = AccountType.Specific(accountKey),
+            )
+        }
+
+        notificationIcon == "person_icon" && users.isNotEmpty() -> {
+            UiTimelineV2.UserList(
+                message = message,
+                users = users.toImmutableList(),
+                createdAt = createdAt,
+                statusKey = statusKey,
+                post = null,
+                accountType = AccountType.Specific(accountKey),
+            )
+        }
+
+        post != null -> {
+            post.withPresentationMessage(message)
+        }
+
+        else -> {
+            message
+        }
+    }
 }
+
+private fun TimelineTweet.renderMention(accountKey: MicroBlogKey): UiTimelineV2? {
+    val post = tweetResults.result?.toTweetOrNull()?.renderStatus(accountKey) ?: return null
+    val user = post.user
+    return post.withPresentationMessage(
+        UiTimelineV2.Message(
+            user = user,
+            statusKey = post.statusKey,
+            icon = UiIcon.Mention,
+            type =
+                UiTimelineV2.Message.Type.Localized(
+                    UiTimelineV2.Message.Type.Localized.MessageId.Mention,
+                ),
+            createdAt = post.createdAt,
+            clickEvent =
+                if (user != null) {
+                    ClickEvent.Deeplink(
+                        DeeplinkRoute.Profile
+                            .User(
+                                accountType = AccountType.Specific(accountKey),
+                                userKey = user.key,
+                            ),
+                    )
+                } else {
+                    ClickEvent.Noop
+                },
+            accountType = AccountType.Specific(accountKey),
+        ),
+    )
+}
+
+private fun String.toNotificationInstant(): Instant? =
+    toLongOrNull()?.let(Instant::fromEpochMilliseconds)
+        ?: runCatching { Instant.parse(this) }.getOrNull()
+
+private fun String.toUiIcon(): UiIcon =
+    when (this) {
+        "person_icon" -> UiIcon.Follow
+        "heart_icon" -> UiIcon.Like
+        "reply_icon" -> UiIcon.Reply
+        "retweet_icon" -> UiIcon.Retweet
+        "bell_icon" -> UiIcon.Notification
+        else -> UiIcon.Info
+    }
 
 private fun UiTimelineV2.withPresentationMessage(message: UiTimelineV2.Message): UiTimelineV2 {
     val post = asTimelinePostItem() ?: return this
@@ -408,6 +357,7 @@ internal fun XQTTimeline.render(accountKey: MicroBlogKey): UiTimelineV2? {
                     ?.toTweetOrNull()
             }.map { it.renderStatus(accountKey = accountKey) }
             .toImmutableList()
+    val retweetTweet = retweetUnion?.toTweetOrNull()
 
     val currentTweet =
         result
@@ -416,13 +366,15 @@ internal fun XQTTimeline.render(accountKey: MicroBlogKey): UiTimelineV2? {
                 accountKey = accountKey,
                 parents = parentStatuses,
                 quote = quote,
+                notInterestedAction = notInterestedAction.takeIf { retweetTweet == null },
             ) ?: return null
     val retweet =
-        retweetUnion
-            ?.toTweetOrNull()
+        retweetTweet
             ?.renderStatus(
                 accountKey = accountKey,
                 quote = quote,
+                notInterestedAction = notInterestedAction,
+                notInterestedPostKey = currentTweet.statusKey,
             )
     val user = currentTweet.user
     val message =
@@ -471,10 +423,38 @@ internal fun XQTTimeline.render(accountKey: MicroBlogKey): UiTimelineV2? {
     }
 }
 
+private fun TimelineFeedbackActionValue.toNotInterestedMenuItem(
+    accountKey: MicroBlogKey,
+    statusKey: MicroBlogKey,
+): ActionMenu.Item? {
+    val url = feedbackUrl ?: return null
+    val metadata =
+        Url("https://x.com$url")
+            .parameters["action_metadata"]
+            ?.takeIf { it.isNotEmpty() }
+            ?: return null
+    val label = prompt?.takeIf { it.isNotBlank() } ?: return null
+    return ActionMenu.Item(
+        updateKey = "xqt_not_interested_${statusKey}_${metadata.hashCode()}",
+        icon = UiIcon.Report,
+        text = ActionMenu.Item.Text.Raw(label),
+        clickEvent =
+            ClickEvent.event(
+                accountKey,
+                PostEvent.XQT.NotInterested(
+                    postKey = statusKey,
+                    actionMetadata = metadata,
+                ),
+            ),
+    )
+}
+
 internal fun Tweet.renderStatus(
     accountKey: MicroBlogKey,
     parents: List<UiTimelineV2.Post> = emptyList(),
     quote: UiTimelineV2.Post? = null,
+    notInterestedAction: TimelineFeedbackActionValue? = null,
+    notInterestedPostKey: MicroBlogKey? = null,
 ): UiTimelineV2.Post {
     val actualParents = parents.toImmutableList()
     val actualQuote = quote ?: quotedStatusResult?.result?.toTweetOrNull()?.renderStatus(accountKey = accountKey)
@@ -817,6 +797,14 @@ internal fun Tweet.renderStatus(
                         ),
                     actions =
                         buildList {
+                            notInterestedAction
+                                ?.toNotInterestedMenuItem(
+                                    accountKey = accountKey,
+                                    statusKey = notInterestedPostKey ?: statusKey,
+                                )?.let {
+                                    add(it)
+                                    add(ActionMenu.Divider)
+                                }
                             add(
                                 ActionMenu.xqtBookmark(
                                     statusKey = statusKey,
@@ -953,7 +941,7 @@ internal fun User.render(accountKey: MicroBlogKey): UiProfile {
             ),
         mark =
             listOfNotNull(
-                if (legacy.verified) {
+                if (legacy.verified || isBlueVerified) {
                     UiProfile.Mark.Verified
                 } else {
                     null
