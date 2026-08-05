@@ -171,7 +171,7 @@ public class SystemHomeMixedTimelinePresenter(
 
 /**
  * Der aktualisierte Türsteher: Angepasst an die brandneue Paging-Architektur!
- * Er liest die excludedKinds (z.B. TimelinePostKind.Reply) deines Tabs aus und blockiert unerwünschte Posts.
+ * Er liest die excludedKinds aus und erlaubt clevere Ausnahmen (wie Selbst-Antworten/Threads).
  */
 private class FilteredRemoteLoader(
     private val delegate: CacheableRemoteLoader<UiTimelineV2>,
@@ -186,7 +186,7 @@ private class FilteredRemoteLoader(
     ): PagingResult<UiTimelineV2> {
         val result = delegate.load(pageSize, request)
 
-        // Tab-Einstellungen präzise auslesen (Was soll blockiert werden?)
+        // Tab-Einstellungen präzise auslesen
         val excluded = tabItem.filterConfig.excludedKinds
         val hideReplies = excluded.contains(TimelinePostKind.Reply)
         val hideReposts = excluded.contains(TimelinePostKind.Repost)
@@ -200,12 +200,30 @@ private class FilteredRemoteLoader(
             when (item) {
                 is UiTimelineV2.TimelinePostItem -> {
                     if (hideReposts && item.presentation.repost != null) return@filter false
-                    if (hideReplies && item.presentation.inlineParents.isNotEmpty()) return@filter false
+
+                    if (hideReplies && item.presentation.inlineParents.isNotEmpty()) {
+                        // Der Autor des aktuellen Posts
+                        val postAuthor = item.post.user?.key
+
+                        // Der Autor des Posts, auf den geantwortet wird (der Eltern-Post)
+                        val parentAuthor = item.presentation.inlineParents.firstOrNull()?.user?.key
+
+                        // Wenn der Autor NICHT derselbe ist (oder unbekannt), blockieren wir die Antwort.
+                        // Wenn es derselbe ist, springt er hier nicht rein und darf als Thread durch!
+                        if (postAuthor == null || parentAuthor == null || postAuthor != parentAuthor) {
+                            return@filter false
+                        }
+                    }
                     true
                 }
                 is UiTimelineV2.Post -> {
                     if (hideReposts && item.references.any { it.type == ReferenceType.Retweet }) return@filter false
-                    if (hideReplies && item.references.any { it.type == ReferenceType.Reply }) return@filter false
+
+                    if (hideReplies && item.references.any { it.type == ReferenceType.Reply }) {
+                        // Da nackte Posts die Eltern nicht komplett geladen haben,
+                        // filtern wir "fremde" Antworten hier pauschal.
+                        return@filter false
+                    }
                     true
                 }
                 else -> true
