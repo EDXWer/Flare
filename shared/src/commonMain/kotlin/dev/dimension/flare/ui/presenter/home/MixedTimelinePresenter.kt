@@ -3,15 +3,19 @@ package dev.dimension.flare.ui.presenter.home
 import dev.dimension.flare.data.database.cache.CacheDatabase
 import dev.dimension.flare.data.datasource.microblog.MixedRemoteMediator
 import dev.dimension.flare.data.datasource.microblog.paging.CacheableRemoteLoader
+import dev.dimension.flare.data.datasource.microblog.paging.PagingRequest
+import dev.dimension.flare.data.datasource.microblog.paging.PagingResult
 import dev.dimension.flare.data.datasource.microblog.paging.RemoteLoader
 import dev.dimension.flare.data.datasource.microblog.paging.notSupported
 import dev.dimension.flare.data.model.tab.TimelineMergePolicy
+import dev.dimension.flare.data.model.tab.TimelinePostKind
 import dev.dimension.flare.data.model.tab.TimelineResolver
 import dev.dimension.flare.data.model.tab.UiGroupTimelineTabItem
 import dev.dimension.flare.data.model.tab.UiTimelineTabItem
 import dev.dimension.flare.data.model.tab.isSystemHomeMixedTimeline
 import dev.dimension.flare.data.repository.SettingsRepository
 import dev.dimension.flare.di.koinInject
+import dev.dimension.flare.model.ReferenceType
 import dev.dimension.flare.ui.model.UiTimelineV2
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -60,9 +64,7 @@ public class MixedTimelinePresenter(
                 group
                     ?.children
                     ?.filter { it.enabled }
-            }.distinctUntilChanged { old, new ->
-                old.orEmpty().map { it.id } == new.orEmpty().map { it.id }
-            }.flatMapLatest { tabs ->
+            }.distinctUntilChanged().flatMapLatest { tabs ->
                 if (tabs == null) {
                     if (fallbackSubTimelinePresenter.isEmpty()) {
                         flowOf(emptyList())
@@ -72,7 +74,18 @@ public class MixedTimelinePresenter(
                 } else if (tabs.isEmpty()) {
                     flowOf(emptyList())
                 } else {
-                    combine(tabs.map { timelineResolver.resolveLoader(it) }) { it.toList() }
+                    // HIER IST DER FIX FÜR DIE MANUELLE GRUPPE:
+                    // Wir entwirren den Flow und hüllen den nackten Loader in unseren Türsteher ein
+                    val flows = tabs.map { tab ->
+                        timelineResolver.resolveLoader(tab).map { rawLoader ->
+                            if (rawLoader is CacheableRemoteLoader<UiTimelineV2>) {
+                                FilteredRemoteLoader(rawLoader, tab)
+                            } else {
+                                rawLoader
+                            }
+                        }
+                    }
+                    combine(flows) { it.toList() }
                 }
             }
     }
@@ -121,12 +134,22 @@ public class SystemHomeMixedTimelinePresenter(
                 tabs
                     .filterNot { it.isSystemHomeMixedTimeline }
                     .filter { it.enabled }
-            }.distinctUntilChangedByTabIds()
+            }.distinctUntilChanged()
             .flatMapLatest { tabs ->
                 if (tabs.isEmpty()) {
                     flowOf(emptyList())
                 } else {
-                    combine(tabs.map { timelineResolver.resolveLoader(it) }) { it.toList() }
+                    // HIER IST DER FIX FÜR DIE SYSTEM-GRUPPE:
+                    val flows = tabs.map { tab ->
+                        timelineResolver.resolveLoader(tab).map { rawLoader ->
+                            if (rawLoader is CacheableRemoteLoader<UiTimelineV2>) {
+                                FilteredRemoteLoader(rawLoader, tab)
+                            } else {
+                                rawLoader
+                            }
+                        }
+                    }
+                    combine(flows) { it.toList() }
                 }
             }
     }
@@ -146,7 +169,54 @@ public class SystemHomeMixedTimelinePresenter(
             }
 }
 
-private fun Flow<List<UiTimelineTabItem>>.distinctUntilChangedByTabIds(): Flow<List<UiTimelineTabItem>> =
-    distinctUntilChanged { old, new ->
-        old.map { it.id } == new.map { it.id }
+/**
+ * Der aktualisierte Türsteher: Angepasst an die brandneue Paging-Architektur!
+ * Er liest die excludedKinds (z.B. TimelinePostKind.Reply) deines Tabs aus und blockiert unerwünschte Posts.
+ */
+private class FilteredRemoteLoader(
+    private val delegate: CacheableRemoteLoader<UiTimelineV2>,
+    private val tabItem: UiTimelineTabItem
+) : CacheableRemoteLoader<UiTimelineV2> {
+
+    override val pagingKey: String = delegate.pagingKey
+
+    override suspend fun load(
+        pageSize: Int,
+        request: PagingRequest
+    ): PagingResult<UiTimelineV2> {
+        val result = delegate.load(pageSize, request)
+
+        // Tab-Einstellungen präzise auslesen (Was soll blockiert werden?)
+        val excluded = tabItem.filterConfig.excludedKinds
+        val hideReplies = excluded.contains(TimelinePostKind.Reply)
+        val hideReposts = excluded.contains(TimelinePostKind.Repost)
+
+        // Wenn weder Replies noch Reposts blockiert sind, winken wir die Liste direkt durch
+        if (!hideReplies && !hideReposts) {
+            return result
+        }
+
+        val filteredData = result.data.filter { item ->
+            when (item) {
+                is UiTimelineV2.TimelinePostItem -> {
+                    if (hideReposts && item.presentation.repost != null) return@filter false
+                    if (hideReplies && item.presentation.inlineParents.isNotEmpty()) return@filter false
+                    true
+                }
+                is UiTimelineV2.Post -> {
+                    if (hideReposts && item.references.any { it.type == ReferenceType.Retweet }) return@filter false
+                    if (hideReplies && item.references.any { it.type == ReferenceType.Reply }) return@filter false
+                    true
+                }
+                else -> true
+            }
+        }
+
+        // Wir packen die sauberen Daten wieder sicher in das von Upstream geforderte PagingResult
+        return PagingResult(
+            data = filteredData,
+            previousKey = result.previousKey,
+            nextKey = result.nextKey
+        )
     }
+}
