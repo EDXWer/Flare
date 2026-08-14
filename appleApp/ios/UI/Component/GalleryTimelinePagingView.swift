@@ -102,6 +102,7 @@ final class UIGalleryTimelineController: UIViewController, UICollectionViewDeleg
     private let refreshControl = UIRefreshControl()
     private let sizingPostTile = GalleryPostTileUIView()
     private let sizingFeedTile = GalleryFeedTileUIView()
+    private let actionMenuBuilder = StatusActionsUIView()
     private var heightCache: [String: CGFloat] = [:]
     private var heightCacheKeysByItemID: [String: Set<String>] = [:]
     private var isUserRefreshing = false
@@ -785,10 +786,11 @@ final class UIGalleryTimelineController: UIViewController, UICollectionViewDeleg
     }
 
     private func measuredTileHeight(_ tile: UIView, width: CGFloat) -> CGFloat {
-        tile.bounds = CGRect(x: 0, y: 0, width: width, height: UIView.layoutFittingExpandedSize.height)
+        let fittingHeight = UIView.layoutFittingCompressedSize.height
+        tile.bounds = CGRect(x: 0, y: 0, width: width, height: fittingHeight)
         tile.setNeedsLayout()
         let size = tile.systemLayoutSizeFitting(
-            CGSize(width: width, height: UIView.layoutFittingExpandedSize.height),
+            CGSize(width: width, height: fittingHeight),
             withHorizontalFittingPriority: .required,
             verticalFittingPriority: .fittingSizeLevel
         )
@@ -796,6 +798,30 @@ final class UIGalleryTimelineController: UIViewController, UICollectionViewDeleg
     }
 
     // MARK: - Delegate
+
+    func collectionView(
+        _ collectionView: UICollectionView,
+        contextMenuConfigurationForItemAt indexPath: IndexPath,
+        point: CGPoint
+    ) -> UIContextMenuConfiguration? {
+        guard let itemID = dataSource.itemIdentifier(for: indexPath),
+              let index = itemIndexMap[itemID],
+              let success = currentSuccess,
+              index >= 0,
+              index < Int(success.itemCount),
+              let post = success.peek(index: Int32(index))?.timelineContentPost,
+              !post.actions.isEmpty else {
+            return nil
+        }
+        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
+            guard let self else { return UIMenu() }
+            self.actionMenuBuilder.onOpenURL = self.openURL
+            return self.actionMenuBuilder.contextMenu(
+                data: Array(post.actions),
+                postActionLayout: self.appearance.postActionLayout
+            )
+        }
+    }
 
     func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
         guard let success = currentSuccess,
@@ -1045,18 +1071,21 @@ private final class GalleryPostTileUIView: UIView, UIGestureRecognizerDelegate {
         bodyTranslationText.setContentCompressionResistancePriority(.required, for: .vertical)
         textContainer.setContentHuggingPriority(.required, for: .vertical)
         textContainer.setContentCompressionResistancePriority(.required, for: .vertical)
+        let textStack = UIStackView()
+        textStack.axis = .vertical
+        textStack.alignment = .fill
+        textStack.spacing = 4
+        textStack.translatesAutoresizingMaskIntoConstraints = false
         bodyText.translatesAutoresizingMaskIntoConstraints = false
         bodyTranslationText.translatesAutoresizingMaskIntoConstraints = false
-        textContainer.addSubview(bodyText)
-        textContainer.addSubview(bodyTranslationText)
+        textStack.addArrangedSubview(bodyText)
+        textStack.addArrangedSubview(bodyTranslationText)
+        textContainer.addSubview(textStack)
         NSLayoutConstraint.activate([
-            bodyText.topAnchor.constraint(equalTo: textContainer.topAnchor, constant: 8),
-            bodyText.leadingAnchor.constraint(equalTo: textContainer.leadingAnchor, constant: 8),
-            bodyText.trailingAnchor.constraint(equalTo: textContainer.trailingAnchor, constant: -8),
-            bodyTranslationText.topAnchor.constraint(equalTo: bodyText.bottomAnchor, constant: 4),
-            bodyTranslationText.leadingAnchor.constraint(equalTo: textContainer.leadingAnchor, constant: 8),
-            bodyTranslationText.trailingAnchor.constraint(equalTo: textContainer.trailingAnchor, constant: -8),
-            bodyTranslationText.bottomAnchor.constraint(equalTo: textContainer.bottomAnchor),
+            textStack.topAnchor.constraint(equalTo: textContainer.topAnchor, constant: 8),
+            textStack.leadingAnchor.constraint(equalTo: textContainer.leadingAnchor, constant: 8),
+            textStack.trailingAnchor.constraint(equalTo: textContainer.trailingAnchor, constant: -8),
+            textStack.bottomAnchor.constraint(equalTo: textContainer.bottomAnchor),
         ])
         stack.addArrangedSubview(textContainer)
 
