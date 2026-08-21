@@ -6,6 +6,8 @@ import app.bsky.actor.ProfileViewDetailed
 import app.bsky.bookmark.BookmarkView
 import app.bsky.bookmark.BookmarkViewItemUnion
 import app.bsky.embed.ExternalView
+import app.bsky.embed.GalleryView
+import app.bsky.embed.GalleryViewItemUnion
 import app.bsky.embed.RecordViewRecordEmbedUnion
 import app.bsky.embed.RecordViewRecordUnion
 import app.bsky.embed.RecordWithMediaViewMediaUnion
@@ -31,7 +33,9 @@ import chat.bsky.convo.DeletedMessageView
 import chat.bsky.convo.MessageView
 import dev.dimension.flare.common.SerializableImmutableList
 import dev.dimension.flare.data.datasource.microblog.ActionMenu
+import dev.dimension.flare.data.datasource.microblog.PostActionFamily
 import dev.dimension.flare.data.datasource.microblog.userActionsMenu
+import dev.dimension.flare.data.network.bluesky.normalizeHttpUrl
 import dev.dimension.flare.data.platform.BLUESKY_PLATFORM_ID
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.MicroBlogKey
@@ -44,6 +48,8 @@ import dev.dimension.flare.ui.model.UiHandle
 import dev.dimension.flare.ui.model.UiIcon
 import dev.dimension.flare.ui.model.UiList
 import dev.dimension.flare.ui.model.UiMedia
+import dev.dimension.flare.ui.model.UiMedia.Image
+import dev.dimension.flare.ui.model.UiMedia.Video
 import dev.dimension.flare.ui.model.UiNumber
 import dev.dimension.flare.ui.model.UiProfile
 import dev.dimension.flare.ui.model.UiTimelineV2
@@ -180,11 +186,13 @@ internal suspend fun parseBskyFacets(
         val feature =
             when (token) {
                 is UrlToken -> {
-                    FacetFeatureUnion.Link(
-                        FacetLink(
-                            uri = Uri(token.value),
-                        ),
-                    )
+                    normalizeHttpUrl(token.value)?.let { uri ->
+                        FacetFeatureUnion.Link(
+                            FacetLink(
+                                uri = Uri(uri),
+                            ),
+                        )
+                    }
                 }
 
                 is HashTagToken -> {
@@ -907,6 +915,7 @@ internal fun PostView.render(accountKey: MicroBlogKey): UiTimelineV2.Post {
                                     statusKey = statusKey,
                                 ),
                         ),
+                    actionFamily = PostActionFamily.Reply,
                 ),
                 ActionMenu.Group(
                     displayItem =
@@ -947,6 +956,7 @@ internal fun PostView.render(accountKey: MicroBlogKey): UiTimelineV2.Post {
                                                 statusKey = statusKey,
                                             ),
                                     ),
+                                actionFamily = PostActionFamily.Quote,
                             ),
                         ).toImmutableList(),
                 ),
@@ -990,6 +1000,7 @@ internal fun PostView.render(accountKey: MicroBlogKey): UiTimelineV2.Post {
                                                     fxShareUrl = fxUrl,
                                                 ),
                                         ),
+                                    actionFamily = PostActionFamily.Share,
                                 ),
                             )
 
@@ -1010,6 +1021,7 @@ internal fun PostView.render(accountKey: MicroBlogKey): UiTimelineV2.Post {
                                                         statusKey = statusKey,
                                                     ),
                                             ),
+                                        actionFamily = PostActionFamily.Delete,
                                     ),
                                 )
                             } else {
@@ -1038,6 +1050,7 @@ internal fun PostView.render(accountKey: MicroBlogKey): UiTimelineV2.Post {
                                                             ),
                                                     ),
                                             ),
+                                        actionFamily = PostActionFamily.Report,
                                     ),
                                 )
                             }
@@ -1288,6 +1301,10 @@ private fun findMedias(postView: PostView): SerializableImmutableList<UiMedia> =
             )
         }
 
+        is PostViewEmbedUnion.GalleryView -> {
+            embed.value.toUiMedias()
+        }
+
         is PostViewEmbedUnion.RecordWithMediaView -> {
             when (val media = embed.value.media) {
                 is RecordWithMediaViewMediaUnion.ExternalView -> {
@@ -1297,7 +1314,7 @@ private fun findMedias(postView: PostView): SerializableImmutableList<UiMedia> =
                 is RecordWithMediaViewMediaUnion.ImagesView -> {
                     media.value.images
                         .map {
-                            UiMedia.Image(
+                            Image(
                                 url = it.fullsize.uri,
                                 previewUrl = it.thumb.uri,
                                 description = it.alt,
@@ -1310,7 +1327,7 @@ private fun findMedias(postView: PostView): SerializableImmutableList<UiMedia> =
 
                 is RecordWithMediaViewMediaUnion.VideoView -> {
                     persistentListOf(
-                        UiMedia.Video(
+                        Video(
                             url = media.value.playlist.uri,
                             thumbnailUrl = media.value.thumbnail?.uri ?: "",
                             description = media.value.alt,
@@ -1329,8 +1346,9 @@ private fun findMedias(postView: PostView): SerializableImmutableList<UiMedia> =
                 is RecordWithMediaViewMediaUnion.Unknown -> {
                     persistentListOf()
                 }
-                else -> {
-                    persistentListOf()
+
+                is RecordWithMediaViewMediaUnion.GalleryView -> {
+                    media.value.toUiMedias()
                 }
             }
         }
@@ -1343,6 +1361,33 @@ private fun findMedias(postView: PostView): SerializableImmutableList<UiMedia> =
             persistentListOf()
         }
     }
+
+private fun GalleryView.toUiMedias(): SerializableImmutableList<UiMedia> =
+    items
+        .mapNotNull { item ->
+            when (item) {
+                is GalleryViewItemUnion.Unknown -> {
+                    null
+                }
+
+                is GalleryViewItemUnion.ViewImage -> {
+                    UiMedia.Image(
+                        url = item.value.fullsize.uri,
+                        previewUrl = item.value.thumbnail.uri,
+                        description = item.value.alt,
+                        width =
+                            item.value.aspectRatio
+                                .width
+                                .toFloat(),
+                        height =
+                            item.value.aspectRatio
+                                .height
+                                .toFloat(),
+                        sensitive = false,
+                    )
+                }
+            }
+        }.toImmutableList()
 
 private fun findMediaFromExternal(value: ExternalView): PersistentList<UiMedia> {
     val url = Url(value.external.uri.uri)
@@ -1456,6 +1501,10 @@ private fun render(
                                     }
                                 }
 
+                                is RecordViewRecordEmbedUnion.GalleryView -> {
+                                    it.value.toUiMedias()
+                                }
+
                                 is RecordViewRecordEmbedUnion.RecordWithMediaView -> {
                                     when (val media = it.value.media) {
                                         is RecordWithMediaViewMediaUnion.ImagesView -> {
@@ -1489,6 +1538,10 @@ private fun render(
                                                             ?.toFloat() ?: 0f,
                                                 ),
                                             )
+                                        }
+
+                                        is RecordWithMediaViewMediaUnion.GalleryView -> {
+                                            media.value.toUiMedias()
                                         }
 
                                         else -> {
@@ -1555,6 +1608,7 @@ private fun render(
                                             statusKey = statusKey,
                                         ),
                                 ),
+                            actionFamily = PostActionFamily.Reply,
                         ),
                         ActionMenu.Group(
                             displayItem =
@@ -1585,6 +1639,7 @@ private fun render(
                                                         statusKey = statusKey,
                                                     ),
                                             ),
+                                        actionFamily = PostActionFamily.Quote,
                                     ),
                                 ).toImmutableList(),
                         ),
@@ -1617,6 +1672,7 @@ private fun render(
                                                         fxShareUrl = fxUrl,
                                                     ),
                                             ),
+                                        actionFamily = PostActionFamily.Share,
                                     ),
                                     if (isFromMe) {
                                         ActionMenu.Item(
@@ -1633,6 +1689,7 @@ private fun render(
                                                             statusKey = statusKey,
                                                         ),
                                                 ),
+                                            actionFamily = PostActionFamily.Delete,
                                         )
                                     } else {
                                         ActionMenu.Item(
@@ -1649,6 +1706,7 @@ private fun render(
                                                                 ),
                                                         ),
                                                 ),
+                                            actionFamily = PostActionFamily.Report,
                                         )
                                     },
                                 ).toImmutableList(),

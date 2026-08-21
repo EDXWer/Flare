@@ -1,4 +1,6 @@
 import SwiftUI
+import Combine
+import UIKit
 import FlareAppleUI
 import SwiftUIBackports
 @preconcurrency import KotlinSharedUI
@@ -10,6 +12,8 @@ struct NotificationScreen: View {
     @State private var selectedAccountStableKey: String?
     @State private var selectedFilter: NotificationFilter?
     @State private var filterSegmentsHeight: CGFloat = 0
+    @State private var isAtTop = true
+    @State private var isTabRefreshInFlight = false
 
     private var notificationItems: [NotificationAccountItem] {
         presenter.state.notifications
@@ -81,11 +85,23 @@ struct NotificationScreen: View {
             data: presenter.state.timeline,
             detailStatusKey: nil,
             key: timelineKey,
-            topContentInset: horizontalSizeClass == .compact && !isSyncingAccountSelection ? filterSegmentsHeight + 8 : 0
+            topContentInset: horizontalSizeClass == .compact && !isSyncingAccountSelection ? filterSegmentsHeight + 8 : 0,
+            onIsAtTopChanged: { isAtTop = $0 }
         )
             .id(timelineKey)
             .refreshable {
                 try? await presenter.state.refreshSuspend()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .tabDoubleTapped)) { notification in
+                guard notification.object as? String == HomeTabsPresenterStateHomeTabs.notifications.name.lowercased(),
+                      case .success(let timeline) = onEnum(of: presenter.state.timeline),
+                      isAtTop, !isTabRefreshInFlight, !timeline.isRefreshing else { return }
+                isTabRefreshInFlight = true
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                Task {
+                    defer { isTabRefreshInFlight = false }
+                    try? await presenter.state.refreshSuspend()
+                }
             }
             .detectScrolling()
             .if(!notificationItems.isEmpty && horizontalSizeClass == .compact && !isSyncingAccountSelection) { view in

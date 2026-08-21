@@ -35,6 +35,8 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
     private var showParents: Bool = true
     private var inlineParents: [UiTimelineV2.Post] = []
     private var quotes: [UiTimelineV2.Post] = []
+    private var allowsMediaCarousel: Bool = false
+    private var carouselOuterHorizontalPadding: CGFloat = 0
     private var appearance = StatusUIKitAppearance(timeline: TimelineAppearance.companion.Default)
     private var lastConfigureSignature: ConfigureSignature?
     private var lastPreparedFittingWidthKey: Int?
@@ -56,6 +58,8 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         let parentRenderHashes: [Int32]
         let quoteKeys: [String]
         let quoteRenderHashes: [Int32]
+        let allowsMediaCarousel: Bool
+        let carouselOuterHorizontalPadding: CGFloat
         let appearance: StatusUIKitAppearance
 
         init(
@@ -72,7 +76,9 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             forceHideActions: Bool,
             showTranslate: Bool,
             aiTldrEnabled: Bool,
-            showParents: Bool
+            showParents: Bool,
+            allowsMediaCarousel: Bool,
+            carouselOuterHorizontalPadding: CGFloat
         ) {
             statusKey = String(describing: data.statusKey)
             renderHash = data.renderHash
@@ -90,6 +96,8 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             self.parentRenderHashes = inlineParents.map { $0.renderHash }
             self.quoteKeys = quotes.map { String(describing: $0.statusKey) }
             self.quoteRenderHashes = quotes.map { $0.renderHash }
+            self.allowsMediaCarousel = allowsMediaCarousel
+            self.carouselOuterHorizontalPadding = carouselOuterHorizontalPadding
             self.appearance = appearance
         }
     }
@@ -104,16 +112,21 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
     private var activeParents: [UIView] = []
     /// The current header view (one of userHeaderFull/userHeaderQuote/userHeaderCompat), or nil
     private var currentHeaderView: UIView?
-    /// Content column children (vertical, spacing 8)
+    private struct ContentColumnLayoutItem {
+        let view: UIView
+        var spacingBefore: CGFloat
+        var spacingAfter: CGFloat = 0
+    }
+
+    /// Content column children and their Compose-equivalent semantic spacing.
     private var contentColumnChildren: [UIView] = []
+    private var contentColumnLayoutItems: [ContentColumnLayoutItem] = []
     /// Whether avatar is currently displayed
     private var wantsAvatar: Bool = false
 
     // MARK: - Layout constants
 
     private static let mainRowSpacing: CGFloat = 8
-    private static let innerColumnSpacing: CGFloat = 8
-    private static let contentColumnSpacing: CGFloat = 8
     private static let avatarSize: CGFloat = 44
     private static let replyIconSize: CGFloat = 12
     private static let sourceIconSize: CGFloat = 12
@@ -339,6 +352,9 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
     private func resolvedReactionView() -> StatusReactionUIView {
         if let reactionViewStorage { return reactionViewStorage }
         let view = StatusReactionUIView()
+        view.onLocalHeightInvalidated = { [weak self] in
+            self?.notifyLocalHeightInvalidated()
+        }
         reactionViewStorage = view
         return view
     }
@@ -382,11 +398,14 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         aiTldrEnabled: Bool = false,
         showParents: Bool = true,
         inlineParents: [UiTimelineV2.Post] = [],
-        quotes: [UiTimelineV2.Post] = []
+        quotes: [UiTimelineV2.Post] = [],
+        allowsMediaCarousel: Bool = false,
+        carouselOuterHorizontalPadding: CGFloat = 0
     ) {
         let newStatusKey = String(describing: data.statusKey)
         if boundStatusKey != newStatusKey {
             expand = false
+            reactionViewStorage?.resetExpansion()
             boundStatusKey = newStatusKey
         }
         let signature = ConfigureSignature(
@@ -403,7 +422,9 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             forceHideActions: forceHideActions,
             showTranslate: showTranslate,
             aiTldrEnabled: aiTldrEnabled,
-            showParents: showParents
+            showParents: showParents,
+            allowsMediaCarousel: allowsMediaCarousel,
+            carouselOuterHorizontalPadding: carouselOuterHorizontalPadding
         )
         let signatureUnchanged = lastConfigureSignature == signature
         self.data = data
@@ -423,6 +444,8 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         self.showParents = showParents
         self.inlineParents = inlineParents
         self.quotes = quotes
+        self.allowsMediaCarousel = allowsMediaCarousel
+        self.carouselOuterHorizontalPadding = carouselOuterHorizontalPadding
         self.appearance = appearance
         lastConfigureSignature = signature
         lastPreparedFittingWidthKey = nil
@@ -441,10 +464,12 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         mediaViewStorage?.prepareForPoolRemoval()
         actionsViewStorage?.prepareForPoolRemoval()
         translateViewStorage?.prepareForPoolRemoval()
+        reactionViewStorage?.resetExpansion()
 
         // Remove all managed children
         for view in contentColumnChildren { view.removeFromSuperview() }
         contentColumnChildren = []
+        contentColumnLayoutItems = []
         currentHeaderView?.removeFromSuperview()
         currentHeaderView = nil
         avatarViewStorage?.removeFromSuperview()
@@ -487,7 +512,10 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         bodyTextStorage?.prepareForFitting(width: contentWidth)
         bodyTranslationTextStorage?.prepareForFitting(width: contentWidth)
         if let mediaViewStorage {
-            mediaViewStorage.bounds = CGRect(x: 0, y: 0, width: contentWidth, height: mediaViewStorage.bounds.height)
+            let mediaWidth = mediaViewStorage.isShowingCarousel
+                ? width + carouselEdgePadding * 2
+                : contentWidth
+            mediaViewStorage.bounds = CGRect(x: 0, y: 0, width: mediaWidth, height: mediaViewStorage.bounds.height)
         }
         if let normalCardViewStorage {
             normalCardViewStorage.bounds = CGRect(x: 0, y: 0, width: contentWidth, height: normalCardViewStorage.bounds.height)
@@ -587,17 +615,27 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         if let header = currentHeaderView {
             let h = childHeight(of: header, for: contentWidth)
             if assignFrames { header.frame = CGRect(x: contentX, y: innerY, width: contentWidth, height: h) }
-            innerY += h + Self.innerColumnSpacing
+            innerY += h
+            // Compose inserts this spacer only after CommonStatusHeaderComponent;
+            // compact side-avatar and quote headers do not get it.
+            if !showAsFullWidth && !isQuote {
+                innerY += 4
+            }
         }
 
-        // Content column (vertical, spacing 8)
-        for (i, child) in contentColumnChildren.enumerated() {
-            let h = childHeight(of: child, for: contentWidth)
-            if assignFrames { child.frame = CGRect(x: contentX, y: innerY, width: contentWidth, height: h) }
-            innerY += h
-            if i < contentColumnChildren.count - 1 {
-                innerY += Self.contentColumnSpacing
+        // Compose uses semantic 4/8pt spacers instead of a uniform stack gap.
+        for item in contentColumnLayoutItems {
+            let child = item.view
+            innerY += item.spacingBefore
+            let isCarousel = child === mediaViewStorage && mediaViewStorage?.isShowingCarousel == true
+            if isCarousel, wantsAvatar {
+                innerY = max(innerY, y + Self.avatarSize + 8)
             }
+            let childWidth = isCarousel ? width + carouselEdgePadding * 2 : contentWidth
+            let childX = isCarousel ? -carouselEdgePadding : contentX
+            let h = childHeight(of: child, for: childWidth)
+            if assignFrames { child.frame = CGRect(x: childX, y: innerY, width: childWidth, height: h) }
+            innerY += h + item.spacingAfter
         }
 
         return max(innerY, y)
@@ -607,6 +645,10 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
 
     private var showAsFullWidth: Bool {
         (!appearance.fullWidthPost || withLeadingPadding) && !isQuote && !isDetail
+    }
+
+    private var carouselEdgePadding: CGFloat {
+        isQuote ? 8 : carouselOuterHorizontalPadding
     }
 
     private func fittingContentColumnWidth(for width: CGFloat) -> CGFloat {
@@ -645,7 +687,8 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
 
         // Content column children
         let contentItems = buildContentColumnList(data: data)
-        syncManagedSubviews(parent: self, current: &contentColumnChildren, desired: contentItems)
+        contentColumnLayoutItems = contentItems
+        syncManagedSubviews(parent: self, current: &contentColumnChildren, desired: contentItems.map(\.view))
 
         // Parents
         let parents = resolveActiveParentContainers(data: data)
@@ -659,6 +702,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
     private func removeAllManaged() {
         for view in contentColumnChildren { view.removeFromSuperview() }
         contentColumnChildren = []
+        contentColumnLayoutItems = []
         currentHeaderView?.removeFromSuperview()
         currentHeaderView = nil
         avatarViewStorage?.removeFromSuperview()
@@ -710,8 +754,11 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         }
     }
 
-    private func buildContentColumnList(data: UiTimelineV2.Post) -> [UIView] {
-        var items: [UIView] = []
+    private func buildContentColumnList(data: UiTimelineV2.Post) -> [ContentColumnLayoutItem] {
+        var items: [ContentColumnLayoutItem] = []
+        func append(_ view: UIView, before: CGFloat = 0, after: CGFloat = 0) {
+            items.append(ContentColumnLayoutItem(view: view, spacingBefore: before, spacingAfter: after))
+        }
         let translationDisplayed = data.translationDisplayState == .translated
         let contentWarnings: [UiRichText] = if let warning = data.contentWarning {
             if translationDisplayed, let translation = warning.translation {
@@ -734,7 +781,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         if let replyToHandle = data.replyToHandle {
             let replyToContainer = resolvedReplyToContainer()
             replyToContainer.configure(text: String(localized: "Reply to \(replyToHandle)"))
-            items.append(replyToContainer)
+            append(replyToContainer, before: 4)
         }
 
         // content warning
@@ -751,7 +798,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
                     preferredContentSizeCategory: appearance.preferredContentSizeCategory,
                     contentKey: Int(data.renderHash) * 4 + index
                 )
-                items.append(contentWarningText)
+                append(contentWarningText, before: 4)
             }
             if !appearance.expandContentWarning {
                 let contentWarningToggle = resolvedContentWarningToggle()
@@ -761,11 +808,16 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
                         : String(localized: "mastodon_item_show_more"),
                     for: .normal
                 )
-                items.append(contentWarningToggle)
+                append(contentWarningToggle, before: 4)
+            }
+            // StatusContentComponent gives its warning column 4pt bottom padding.
+            if !items.isEmpty {
+                items[items.count - 1].spacingAfter += 4
             }
         }
 
         // main body
+        var visibleBodyCount = 0
         if expand || appearance.expandContentWarning || !hasCW {
             let bodyLineLimit: Int?
             let bodySelectionEnabled: Bool
@@ -789,27 +841,17 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
                     preferredContentSizeCategory: appearance.preferredContentSizeCategory,
                     contentKey: Int(data.renderHash) * 4 + 2 + index
                 )
-                items.append(bodyText)
+                append(bodyText, before: visibleBodyCount == 0 ? 0 : 4)
+                visibleBodyCount += 1
             }
             if !shouldExpandTextByDefault,
                contents.contains(where: { !$0.isEmpty }),
                !isDetail,
                !expand,
-               showExpandTextButton {
-                items.append(resolvedExpandMoreButton())
+                showExpandTextButton {
+                append(resolvedExpandMoreButton(), before: visibleBodyCount == 0 ? 0 : 4)
+                visibleBodyCount += 1
             }
-        }
-
-        // translate (detail-only)
-        if isDetail, showTranslate {
-            let translateView = resolvedTranslateView()
-            translateView.content = data.content.original
-            translateView.contentWarning = data.contentWarning?.original
-            translateView.isSummaryAvailable = aiTldrEnabled
-            translateView.onLocalHeightInvalidated = { [weak self] in
-                self?.notifyLocalHeightInvalidated()
-            }
-            items.append(translateView)
         }
 
         // poll
@@ -823,7 +865,21 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
                     indices.map { KotlinInt(value: Int32($0)) }
                 )
             }
-            items.append(pollView)
+            // Compose places an 8pt Spacer inside a Column(spacedBy: 4),
+            // yielding 16pt after body content and 12pt when the poll is first.
+            append(pollView, before: visibleBodyCount > 0 ? 16 : 12)
+        }
+
+        // translate (detail-only), after StatusContent (including its poll)
+        if isDetail, showTranslate {
+            let translateView = resolvedTranslateView()
+            translateView.content = data.content.original
+            translateView.contentWarning = data.contentWarning?.original
+            translateView.isSummaryAvailable = aiTldrEnabled
+            translateView.onLocalHeightInvalidated = { [weak self] in
+                self?.notifyLocalHeightInvalidated()
+            }
+            append(translateView)
         }
 
         // media grid
@@ -839,7 +895,10 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
                 appearanceShowMedia: appearance.showMedia,
                 appearanceShowSensitive: appearance.showSensitiveContent,
                 appearanceExpandMediaSize: appearance.expandMediaSize,
-                appearanceLimitMediaGridToNine: appearance.limitMediaGridToNine
+                appearanceLimitMediaGridToNine: appearance.limitMediaGridToNine,
+                appearanceMediaLayout: allowsMediaCarousel ? appearance.mediaLayout : .grid,
+                carouselLeadingPadding: carouselEdgePadding + (wantsAvatar ? Self.avatarSize + Self.mainRowSpacing : 0),
+                carouselTrailingPadding: carouselEdgePadding
             )
             mediaView.onMediaClicked = { [weak self] media, index in
                 guard let self else { return }
@@ -869,7 +928,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             mediaView.onLocalHeightInvalidated = { [weak self] in
                 self?.notifyLocalHeightInvalidated()
             }
-            items.append(mediaView)
+            append(mediaView, before: 8)
         }
 
         // card (only when no images & no quote & enabled)
@@ -884,20 +943,20 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
                 compatCardView.layer.cornerRadius = corner
                 compatCardView.configure(data: card)
                 compatCardView.onOpenURL = { [weak self] in self?.openURL?($0) }
-                items.append(compatCardView)
+                append(compatCardView, before: 8)
             } else {
                 let normalCardView = resolvedNormalCardView(cornerRadius: corner)
                 normalCardView.layer.cornerRadius = corner
                 normalCardView.configure(data: card)
                 normalCardView.onOpenURL = { [weak self] in self?.openURL?($0) }
-                items.append(normalCardView)
+                append(normalCardView, before: 8)
             }
         }
 
         // quotes (not when self is quote)
         if !quotes.isEmpty, !isQuote {
             updateQuotes(quotes: quotes)
-            items.append(resolvedQuotesContainer())
+            append(resolvedQuotesContainer(), before: 4)
         } else {
             updateQuotes(quotes: [])
         }
@@ -907,7 +966,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             if let channel = data.sourceChannel {
                 let sourceChannelContainer = resolvedSourceChannelContainer()
                 sourceChannelContainer.configure(text: channel.name)
-                items.append(sourceChannelContainer)
+                append(sourceChannelContainer, before: 4)
             }
             if !data.emojiReactions.isEmpty {
                 let reactionView = resolvedReactionView()
@@ -916,7 +975,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
                     guard let self = self else { return }
                     reaction.onClicked(ClickContext(launcher: self.makeLauncher()))
                 }
-                items.append(reactionView)
+                append(reactionView, before: 4)
             }
         }
 
@@ -925,7 +984,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             let detailTimestampView = resolvedDetailTimestampView()
             detailTimestampView.absoluteTimestamp = appearance.absoluteTimestamp
             detailTimestampView.set(data: data.createdAt)
-            items.append(detailTimestampView)
+            append(detailTimestampView, before: 8)
         }
 
         // actions
@@ -945,7 +1004,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             )
             let actionsContainer = resolvedActionsContainer()
             actionsContainer.content = actionsView
-            items.append(actionsContainer)
+            append(actionsContainer, before: 8)
         }
 
         return items
@@ -964,7 +1023,11 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             container.child.onLocalHeightInvalidated = { [weak self] in
                 self?.notifyLocalHeightInvalidated()
             }
-            container.child.configure(data: parent, appearance: appearance, withLeadingPadding: true)
+            container.child.configure(
+                data: parent,
+                appearance: appearance,
+                withLeadingPadding: true
+            )
         }
         return Array(parentContainers.prefix(parentData.count))
     }
@@ -1357,7 +1420,7 @@ private final class SourceChannelRowView: UIView, ManualLayoutMeasurable, Timeli
     }
 }
 
-// MARK: - ActionsContainerView (replaces PaddingContainerView for actions with 4pt top padding)
+// MARK: - ActionsContainerView
 
 private final class ActionsContainerView: UIView, ManualLayoutMeasurable, TimelineHeightProviding {
     var content: UIView? {
@@ -1368,7 +1431,7 @@ private final class ActionsContainerView: UIView, ManualLayoutMeasurable, Timeli
             setNeedsLayout()
         }
     }
-    private static let topPadding: CGFloat = 4
+    private static let topPadding: CGFloat = 0
 
     override func layoutSubviews() {
         super.layoutSubviews()
@@ -1484,11 +1547,12 @@ private final class QuotesContainerView: UIView, ManualLayoutMeasurable, Timelin
 // MARK: - Parent container
 
 /// Wraps a `StatusUIKitView` with SwiftUI-equivalent leading line overlay and
-/// an 8pt trailing spacer.
+/// the rendered 18pt parent-to-parent/main gap from Compose
+/// (8pt item bottom + 2pt list gap + 8pt next item top).
 private final class ParentContainerView: UIView, ManualLayoutMeasurable, TimelineHeightProviding {
     let child = StatusUIKitView()
     private let line = UIView()
-    private static let bottomSpacing: CGFloat = 8
+    private static let bottomSpacing: CGFloat = 18
 
     override init(frame: CGRect) {
         super.init(frame: frame)

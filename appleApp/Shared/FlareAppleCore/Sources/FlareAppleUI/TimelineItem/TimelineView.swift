@@ -20,28 +20,36 @@ public struct TimelineView: View {
         case .feed(let feed):
             FeedView(data: feed)
         case .post(let post):
-            VStack {
-                StatusView(data: post, isDetail: detailStatusKey == post.statusKey, showTranslate: showTranslate)
+            VStack(spacing: 8) {
+                StatusView(
+                    data: post,
+                    isDetail: detailStatusKey == post.statusKey,
+                    showTranslate: showTranslate,
+                    allowsMediaCarousel: true,
+                    carouselOuterHorizontalPadding: 16
+                )
             }
         case .timelinePostItem(let item):
             let bodyPost = item.presentation.repost ?? item.post
-            VStack {
+            VStack(spacing: 8) {
                 messageView(item.presentation.message, topMessageOnly: false)
                 StatusView(
                     data: bodyPost,
                     isDetail: detailStatusKey == bodyPost.statusKey,
                     showTranslate: showTranslate,
                     inlineParents: Array(item.presentation.inlineParents),
-                    quotes: Array(item.presentation.quotes)
+                    quotes: Array(item.presentation.quotes),
+                    allowsMediaCarousel: true,
+                    carouselOuterHorizontalPadding: 16
                 )
             }
         case .user(let user):
-            VStack {
+            VStack(spacing: 8) {
                 messageView(user.message, topMessageOnly: false)
                 TimelineUserView(data: user)
             }
         case .userList(let userList):
-            VStack {
+            VStack(spacing: 8) {
                 messageView(userList.message, topMessageOnly: false)
                 UserListView(data: userList)
             }

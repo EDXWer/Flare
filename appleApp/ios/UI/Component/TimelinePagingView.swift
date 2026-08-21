@@ -14,6 +14,7 @@ struct UITimelinePagingView: View {
     let allowGalleryMode: Bool
     let accessoryItems: [UITimelineCollectionViewAccessoryItem]
     let suppressInitialRefreshIndicator: Bool
+    let onIsAtTopChanged: (Bool) -> Void
 
     init(
         data: PagingState<UiTimelineV2>,
@@ -22,7 +23,8 @@ struct UITimelinePagingView: View {
         topContentInset: CGFloat = 0,
         allowGalleryMode: Bool = false,
         accessoryItems: [UITimelineCollectionViewAccessoryItem] = [],
-        suppressInitialRefreshIndicator: Bool = false
+        suppressInitialRefreshIndicator: Bool = false,
+        onIsAtTopChanged: @escaping (Bool) -> Void = { _ in }
     ) {
         self.data = data
         self.detailStatusKey = detailStatusKey
@@ -31,35 +33,30 @@ struct UITimelinePagingView: View {
         self.allowGalleryMode = allowGalleryMode
         self.accessoryItems = accessoryItems
         self.suppressInitialRefreshIndicator = suppressInitialRefreshIndicator
+        self.onIsAtTopChanged = onIsAtTopChanged
     }
 
     var body: some View {
         if allowGalleryMode && timelineDisplayMode == .gallery {
-            UIGalleryTimelinePagingView(data: data)
+            UIGalleryTimelinePagingView(data: data, onIsAtTopChanged: onIsAtTopChanged)
                 .ignoresSafeArea(edges: .vertical)
-        } else if horizontalSizeClass == .compact {
+        } else if UIDevice.current.userInterfaceIdiom == .phone ||
+            horizontalSizeClass == .compact {
             singleListView
         } else {
             GeometryReader { proxy in
-                if isIPhoneLandscape(size: proxy.size) {
-                    singleListView
-                } else {
-                    UITimelineCollectionView(
-                        data: data,
-                        detailStatusKey: detailStatusKey,
-                        topContentInset: topContentInset,
-                        columnCount: max(Int((proxy.size.width / 320).rounded(.down)), 1),
-                        accessoryItems: accessoryItems,
-                        suppressInitialRefreshIndicator: suppressInitialRefreshIndicator
-                    )
-                    .ignoresSafeArea(edges: .vertical)
-                }
+                UITimelineCollectionView(
+                    data: data,
+                    detailStatusKey: detailStatusKey,
+                    topContentInset: topContentInset,
+                    columnCount: max(Int((proxy.size.width / 320).rounded(.down)), 1),
+                    accessoryItems: accessoryItems,
+                    suppressInitialRefreshIndicator: suppressInitialRefreshIndicator,
+                    onIsAtTopChanged: onIsAtTopChanged
+                )
+                .ignoresSafeArea(edges: .vertical)
             }
         }
-    }
-
-    private func isIPhoneLandscape(size: CGSize) -> Bool {
-        UIDevice.current.userInterfaceIdiom == .phone && size.width > size.height
     }
 
     var singleListView: some View {
@@ -68,7 +65,8 @@ struct UITimelinePagingView: View {
             detailStatusKey: detailStatusKey,
             topContentInset: topContentInset,
             accessoryItems: accessoryItems,
-            suppressInitialRefreshIndicator: suppressInitialRefreshIndicator
+            suppressInitialRefreshIndicator: suppressInitialRefreshIndicator,
+            onIsAtTopChanged: onIsAtTopChanged
         )
         .ignoresSafeArea(edges: .vertical)
     }

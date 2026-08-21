@@ -53,9 +53,9 @@ public data object XqtPlatformSpec :
         val post =
             listOf(
                 "https://$xqtHost/{handle}/status/{id}",
-                "https://$xqtOldHost/{handle}/",
+                "https://$xqtOldHost/{handle}/status/{id}",
                 "https://www.$xqtHost/{handle}/status/{id}",
-                "https://www.$xqtOldHost/{handle}/",
+                "https://www.$xqtOldHost/{handle}/status/{id}",
             )
         val media =
             listOf(
@@ -94,6 +94,19 @@ public data object XqtPlatformSpec :
             loaderFactory =
                 accountLoader<XQTDataSource, TimelineSpec.AccountBasedData> {
                     popularTimelineLoader()
+                },
+        )
+
+    internal val tagTimelineSpec =
+        TimelineSpec(
+            id = XQT_TAG_TIMELINE_SPEC_ID,
+            title = UiStrings.Discover,
+            icon = UiIcon.World.asType(),
+            serializer = XqtTagTimelineData.serializer(),
+            targetId = { "${it.accountKey}:${it.tag}" },
+            loaderFactory =
+                accountLoader<XQTDataSource, XqtTagTimelineData> {
+                    tagTimelineLoader(tag = it.tag)
                 },
         )
 
@@ -142,6 +155,7 @@ public data object XqtPlatformSpec :
             CommonTimelineSpecs.list,
             featuredTimelineSpec,
             popularTimelineSpec,
+            tagTimelineSpec,
             bookmarkTimelineSpec,
             likedTimelineSpec,
             deviceFollowTimelineSpec,
@@ -213,6 +227,13 @@ private data class XqtProfileDeepLink(
 
 private const val XQT_POPULAR_TIMELINE_SPEC_ID = "xqt.popular"
 private const val XQT_LIKED_TIMELINE_SPEC_ID = "xqt.liked"
+private const val XQT_TAG_TIMELINE_SPEC_ID = "xqt.tag"
+
+@Serializable
+internal data class XqtTagTimelineData(
+    override val accountKey: MicroBlogKey,
+    val tag: String,
+) : TimelineSpec.AccountData
 
 @Serializable
 private data class XqtPostDeepLink(
