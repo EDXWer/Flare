@@ -64,6 +64,7 @@ struct GalleryDetailScreen: View {
                     } label: {
                         Image(fontAwesome: .shareNodes)
                     }
+                    .accessibilityLabel(Text("fx_share"))
                     .disabled({
                         switch onEnum(of: presenter.state.detail) {
                         case .success:
@@ -83,6 +84,7 @@ struct GalleryDetailScreen: View {
                     } label: {
                         Image(fontAwesome: .chevronDown)
                     }
+                    .accessibilityLabel(Text("show_gallery_info"))
                     .disabled({
                         switch onEnum(of: presenter.state.detail) {
                         case .success:
@@ -142,6 +144,7 @@ struct GalleryDetailScreen: View {
                 }
                 .navigationTitle("Info")
                 .navigationBarTitleDisplayMode(.inline)
+                .modifier(ScrollMinimizingNavigationBar())
             }
             .presentationDetents([.medium, .large])
         }
@@ -241,6 +244,7 @@ private struct GalleryImagesView: View {
                         .onTapGesture {
                             openMedia(image)
                         }
+                        .accessibilityLabel(Text(verbatim: image.accessibleDescription))
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: images.count > 1 ? .automatic : .never))
@@ -256,6 +260,7 @@ private struct GalleryImagesView: View {
                         .onTapGesture {
                             openMedia(image)
                         }
+                        .accessibilityLabel(Text(verbatim: image.accessibleDescription))
                 }
             }
         }
@@ -289,6 +294,7 @@ private struct GalleryBigScreenImagePane: View {
                             .onTapGesture {
                                 onOpenMedia(image)
                             }
+                            .accessibilityLabel(Text(verbatim: image.accessibleDescription))
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: images.count > 1 ? .automatic : .never))
@@ -306,6 +312,7 @@ private struct GalleryBigScreenImagePane: View {
                                     .onTapGesture {
                                         onOpenMedia(image)
                                     }
+                                    .accessibilityLabel(Text(verbatim: image.accessibleDescription))
                             }
                         }
                         .frame(maxWidth: .infinity)
@@ -386,6 +393,13 @@ private struct GalleryAuthorCard: View {
                 } label: {
                     Image(fontAwesome: detail.isBookmarked ? .heartFill : .heart)
                 }
+                .accessibilityLabel(
+                    Text(
+                        detail.isBookmarked
+                            ? String(localized: "bookmark_remove")
+                            : String(localized: "bookmark_add")
+                    )
+                )
                 .foregroundStyle(detail.isBookmarked ? Color.red : Color.secondary)
                 .buttonStyle(.plain)
             }
@@ -432,6 +446,13 @@ private struct GalleryMetadataRow: View {
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .accessibilityLabel(
+                    Text(
+                        verbatim: item.humanizedCount.isEmpty
+                            ? galleryMetricName(item.icon)
+                            : "\(galleryMetricName(item.icon)): \(item.humanizedCount)"
+                    )
+                )
             }
             Spacer(minLength: 0)
         }

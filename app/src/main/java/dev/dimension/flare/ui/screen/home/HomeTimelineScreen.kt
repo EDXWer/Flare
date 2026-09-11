@@ -339,6 +339,7 @@ internal fun HomeTimelineScreen(
                                         AvatarComponent(
                                             it.avatar,
                                             size = 24.dp,
+                                            contentDescription = stringResource(R.string.open_navigation_menu),
                                         )
                                     }
                                 }.onError {
@@ -349,7 +350,7 @@ internal fun HomeTimelineScreen(
                                     ) {
                                         FAIcon(
                                             imageVector = FontAwesomeIcons.Solid.Bars,
-                                            contentDescription = null,
+                                            contentDescription = stringResource(R.string.open_navigation_menu),
                                             modifier = Modifier.size(24.dp),
                                         )
                                     }
@@ -361,7 +362,7 @@ internal fun HomeTimelineScreen(
                                     ) {
                                         FAIcon(
                                             imageVector = FontAwesomeIcons.Solid.Bars,
-                                            contentDescription = null,
+                                            contentDescription = stringResource(R.string.open_navigation_menu),
                                             modifier = Modifier.size(24.dp),
                                         )
                                     }
@@ -432,6 +433,71 @@ internal fun HomeTimelineScreen(
         }
     }
 }
+
+@Composable
+private fun HomeTabDropdown(
+    tabs: List<UiTimelineTabItem>,
+    selectedTabIndex: Int,
+    onTabSelected: (Int) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedTab = tabs[selectedTabIndex]
+
+    Box {
+        AnimatedContent(selectedTab) { selectedTab ->
+            Row(
+                modifier =
+                    Modifier
+                        .clickable { expanded = true }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                TabIcon(selectedTab)
+                FlareText(selectedTab.title, style = MaterialTheme.typography.bodyLarge)
+                FAIcon(
+                    imageVector = FontAwesomeIcons.Solid.CaretDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(12.dp),
+                )
+            }
+        }
+        FlareDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.widthIn(min = 200.dp, max = 320.dp),
+        ) {
+            tabs.forEachIndexed { index, tab ->
+                DropdownMenuItem(
+                    text = {
+                        FlareText(tab.title)
+                    },
+                    leadingIcon = {
+                        TabIcon(tab)
+                    },
+                    trailingIcon =
+                        if (index == selectedTabIndex) {
+                            {
+                                FAIcon(
+                                    imageVector = FontAwesomeIcons.Solid.Check,
+                                    contentDescription = stringResource(R.string.selected),
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
+                        } else {
+                            null
+                        },
+                    onClick = {
+                        expanded = false
+                        onTabSelected(index)
+                    },
+                )
+            }
+        }
+    }
+}
+
+private const val MAX_SCROLLABLE_HOME_TABS = 10
 
 @Composable
 internal fun TimelineItemContent(

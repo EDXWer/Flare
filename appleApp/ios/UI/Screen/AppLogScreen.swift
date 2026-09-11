@@ -1,6 +1,7 @@
 import SwiftUI
 import KotlinSharedUI
 import FlareAppleCore
+import FlareAppleUI
 
 struct AppLogScreen: View {
     @StateObject private var presenter = KotlinPresenter(presenter: DevModePresenter())
@@ -32,6 +33,7 @@ struct AppLogScreen: View {
                 } label: {
                     Image(fontAwesome: .trash)
                 }
+                .accessibilityLabel(Text("clear_log"))
             }
             ToolbarItem {
                 Button {
@@ -39,6 +41,7 @@ struct AppLogScreen: View {
                 } label: {
                     Image(fontAwesome: .floppyDisk)
                 }
+                .accessibilityLabel(Text("save_log"))
             }
         }
         .fileExporter(
@@ -63,6 +66,7 @@ struct AppLogScreen: View {
                         .padding()
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .modifier(ScrollMinimizingNavigationBar())
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button {
@@ -70,6 +74,7 @@ struct AppLogScreen: View {
                         } label: {
                             Image(fontAwesome: .xmark)
                         }
+                        .accessibilityLabel(Text("Close"))
                     }
                 }
             }

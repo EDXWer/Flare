@@ -334,6 +334,7 @@ private struct AiConfigEditSheet: View {
             }
             .formStyle(.grouped)
             .navigationTitle(Text(field.titleKey, bundle: FlareAppleUILocalization.bundle))
+            .modifier(ScrollMinimizingNavigationBar(enabled: false))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
@@ -341,6 +342,7 @@ private struct AiConfigEditSheet: View {
                     } label: {
                         Image(fontAwesome: .xmark)
                     }
+                    .accessibilityLabel(Text("Cancel", bundle: FlareAppleUILocalization.bundle))
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
@@ -349,6 +351,7 @@ private struct AiConfigEditSheet: View {
                     } label: {
                         Image(fontAwesome: .check)
                     }
+                    .accessibilityLabel(Text("done", bundle: FlareAppleUILocalization.bundle))
                 }
             }
         }

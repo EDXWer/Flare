@@ -48,6 +48,7 @@ public struct LocalFilterSettingsView: View {
                         )
                     )
                 }
+                .modifier(ScrollMinimizingNavigationBar(enabled: false))
             }
         }
         #if os(iOS)
@@ -58,6 +59,7 @@ public struct LocalFilterSettingsView: View {
                 } label: {
                     Image(fontAwesome: .plus)
                 }
+                .accessibilityLabel(Text("add_filter", bundle: FlareAppleUILocalization.bundle))
             }
         }
         #endif

@@ -102,6 +102,7 @@ struct GroupConfigScreen: View {
                                 Image(fontAwesome: .pen)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel(Text("edit"))
                         }
                     }
                     .onMove(perform: move)
@@ -110,6 +111,7 @@ struct GroupConfigScreen: View {
             }
         }
         .navigationTitle(item == nil ? "tab_settings_add_group" : "tab_settings_edit_group")
+        .modifier(ScrollMinimizingNavigationBar(enabled: false))
         .sheet(isPresented: $showAddTabSheet) {
             NavigationStack {
                 AddTabSheet(
@@ -164,6 +166,7 @@ struct GroupConfigScreen: View {
                 } label: {
                     Image(fontAwesome: .xmark)
                 }
+                .accessibilityLabel(Text("Cancel"))
             }
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -171,6 +174,7 @@ struct GroupConfigScreen: View {
                 } label: {
                     Image(fontAwesome: .plus)
                 }
+                .accessibilityLabel(Text("tab_settings_add_tab"))
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button {
@@ -192,6 +196,7 @@ struct GroupConfigScreen: View {
                 } label: {
                     Image(fontAwesome: .check)
                 }
+                .accessibilityLabel(Text("done"))
                 .disabled(tabs.isEmpty && item == nil)
             }
         }
@@ -227,6 +232,7 @@ struct IconPicker: View {
             .padding()
         }
         .navigationTitle("Select Icon")
+        .modifier(ScrollMinimizingNavigationBar(enabled: false))
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") {
