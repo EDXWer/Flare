@@ -4,7 +4,7 @@ import FlareAppleCore
 import FlareAppleUI
 
 struct AppLogScreen: View {
-    @StateObject private var presenter = KotlinPresenter(presenter: DevModePresenter())
+    @State private var presenter = KotlinPresenter(presenter: DevModePresenter())
     @State private var selectedMessage: String? = nil
     @State private var exportedLogContent: String? = nil
     var body: some View {
@@ -66,7 +66,6 @@ struct AppLogScreen: View {
                         .padding()
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .modifier(ScrollMinimizingNavigationBar())
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button {
