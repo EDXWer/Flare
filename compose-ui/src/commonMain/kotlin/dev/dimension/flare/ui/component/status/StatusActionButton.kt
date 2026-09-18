@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerIcon
@@ -95,54 +96,32 @@ public fun StatusActionButton(
             Modifier
         }
     val actionIcon: @Composable () -> Unit = {
-        if (!LocalIsScrollingInProgress.current) {
-            val contentColor = PlatformContentColor.current
-            AnimatedContent(
-                color,
-                transitionSpec = {
-                    if (targetState == contentColor) {
-                        fadeIn() togetherWith fadeOut()
-                    } else {
-                        fadeIn() +
-                            scaleIn(
-                                animationSpec =
-                                    spring(
-                                        stiffness = Spring.StiffnessMediumLow,
-                                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    ),
-                            ) togetherWith scaleOut() + fadeOut()
-                    }.using(SizeTransform(clip = false))
-                },
-            ) { color ->
-                FAIcon(
-                    imageVector = icon,
-                    contentDescription = contentDescription,
-                    modifier =
-                        Modifier
-                            .height(PlatformTextStyle.current.fontSize.value.dp + 2.dp)
-                            .pointerHoverIcon(PointerIcon.Hand)
-                            .clickable(
-                                onClick = onClicked,
-                                enabled = enabled,
-                                interactionSource = interactionSource,
-                                indication =
-                                    rippleIndication(
-                                        bounded = false,
-                                        radius = 20.dp,
-                                        color = Color.Unspecified,
-                                    ),
-                            ),
-                    tint = color,
-                )
-            }
-        } else {
+        // Keep the icon mounted across scroll transitions; animate only color changes.
+        val contentColor = PlatformContentColor.current
+        AnimatedContent(
+            color,
+            transitionSpec = {
+                if (targetState == contentColor) {
+                    fadeIn() togetherWith fadeOut()
+                } else {
+                    fadeIn() +
+                        scaleIn(
+                            animationSpec =
+                                spring(
+                                    stiffness = Spring.StiffnessMediumLow,
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                ),
+                        ) togetherWith scaleOut() + fadeOut()
+                }.using(SizeTransform(clip = false))
+            },
+        ) { color ->
             FAIcon(
                 imageVector = icon,
                 contentDescription = contentDescription,
                 modifier =
                     Modifier
                         .height(PlatformTextStyle.current.fontSize.value.dp + 2.dp)
-                        .pointerHoverIcon(PointerIcon.Hand)
+                        .pointerHoverIcon(if (enabled) PointerIcon.Hand else PointerIcon.Default)
                         .clickable(
                             onClick = onClicked,
                             enabled = enabled,
@@ -162,6 +141,7 @@ public fun StatusActionButton(
         modifier =
             modifier
                 .then(accessibilityModifier)
+                .alpha(if (enabled) 1f else 0.4f)
                 .padding(vertical = 4.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -204,7 +184,7 @@ public fun StatusActionButton(
                     color = color,
                     modifier =
                         Modifier
-                            .pointerHoverIcon(PointerIcon.Hand)
+                            .pointerHoverIcon(if (enabled) PointerIcon.Hand else PointerIcon.Default)
                             .clickable(
                                 onClick = onClicked,
                                 enabled = enabled,

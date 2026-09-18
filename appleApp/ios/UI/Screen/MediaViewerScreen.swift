@@ -39,7 +39,7 @@ struct MediaViewerScreen<SupplementaryOverlay: View>: View {
     @State private var selectedIndex: Int
     @State private var isPlaying: Bool = true
     @State private var videoState: VideoState = .idle
-    @State private var currentTime: CMTime = .zero
+    @State private var playbackTimes: [String: CMTime] = [:]
     @State private var opacity: CGFloat = 1
     @State private var dismissOffset: CGFloat = 0
     @State private var isDismissing = false
@@ -47,7 +47,6 @@ struct MediaViewerScreen<SupplementaryOverlay: View>: View {
     @State private var protectInitialPagerSelection: Bool
     @State private var didApplyInitialSelection = false
     @State private var isPreparingShare = false
-    @State private var holdsPlaybackSession = false
     @State private var playbackRate: Float = 1
     @State private var isLandscapeViewing = false
 
@@ -69,8 +68,8 @@ struct MediaViewerScreen<SupplementaryOverlay: View>: View {
         self.shareContext = shareContext
         self.showsSupplementaryOverlay = showsSupplementaryOverlay
         self.supplementaryOverlay = supplementaryOverlay
-        self._selectedIndex = .init(initialValue: max(0, initialIndex))
-        self._protectInitialPagerSelection = .init(initialValue: initialIndex > 0)
+        self.selectedIndex = max(0, initialIndex)
+        self.protectInitialPagerSelection = initialIndex > 0
     }
 
     var body: some View {
@@ -110,23 +109,26 @@ struct MediaViewerScreen<SupplementaryOverlay: View>: View {
                             mediaContent(media)
                                 .accessibilityLabel(Text(verbatim: media.accessibleDescription))
                                 .contextMenu {
-                                    MediaViewerContextMenu(
-                                        media: media,
-                                        showsDownloadAll: medias.count > 1,
-                                        isPreparingShare: isPreparingShare,
-                                        onDownload: {
-                                            saveMedia(media)
-                                        },
-                                        onDownloadAll: {
-                                            saveAllMedia()
-                                        },
-                                        onShareImage: {
-                                            shareSelectedImage(media)
-                                        },
-                                        onCopyLink: {
-                                            UIPasteboard.general.string = media.url
-                                        }
-                                    )
+                                    // Video long presses are reserved for temporary double-speed playback.
+                                    if !media.isVideoMedia {
+                                        MediaViewerContextMenu(
+                                            media: media,
+                                            showsDownloadAll: medias.count > 1,
+                                            isPreparingShare: isPreparingShare,
+                                            onDownload: {
+                                                saveMedia(media)
+                                            },
+                                            onDownloadAll: {
+                                                saveAllMedia()
+                                            },
+                                            onShareImage: {
+                                                shareSelectedImage(media)
+                                            },
+                                            onCopyLink: {
+                                                UIPasteboard.general.string = media.url
+                                            }
+                                        )
+                                    }
                                 }
                         }
                         .onTap {
@@ -188,6 +190,7 @@ struct MediaViewerScreen<SupplementaryOverlay: View>: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .videoPlaybackPresentation(mediaURLs: medias.map(\.url), selectedMediaURL: selectedMedia?.url)
         .onAppear {
             applyInitialSelectionIfNeeded()
         }
@@ -197,20 +200,12 @@ struct MediaViewerScreen<SupplementaryOverlay: View>: View {
         .onChange(of: selectedIndex) { _, _ in
             isPlaying = true
             videoState = .idle
-            currentTime = .zero
             playbackRate = 1
-        }
-        .onChange(of: isVideoActivelyPlaying) { _, newValue in
-            updatePlaybackSession(playing: newValue)
         }
         .onChange(of: isLandscapeViewing) { _, newValue in
             MediaOrientationController.setLandscape(newValue)
         }
         .onDisappear {
-            if holdsPlaybackSession {
-                AudioSessionManager.shared.endPlayback()
-                holdsPlaybackSession = false
-            }
             if isLandscapeViewing {
                 MediaOrientationController.setLandscape(false)
             }
@@ -236,7 +231,7 @@ struct MediaViewerScreen<SupplementaryOverlay: View>: View {
                     data: video,
                     play: $isPlaying,
                     videoState: $videoState,
-                    time: $currentTime,
+                    time: timeBinding(for: video.url),
                     playbackRate: $playbackRate
                 )
             } else {
@@ -355,10 +350,11 @@ struct MediaViewerScreen<SupplementaryOverlay: View>: View {
             if let selectedMedia, case .video = onEnum(of: selectedMedia) {
                 VideoControlView(
                     isPlaying: $isPlaying,
-                    currentTime: $currentTime,
+                    currentTime: timeBinding(for: selectedMedia.url),
                     videoState: videoState,
                     playbackRate: playbackRate
                 )
+                .id(selectedMedia.url)
             }
 
             if showData, !isLandscapeViewing, showsSupplementaryOverlay {
@@ -375,7 +371,7 @@ struct MediaViewerScreen<SupplementaryOverlay: View>: View {
             showData: showData,
             isLandscapeViewing: isLandscapeViewing,
             isPlaying: $isPlaying,
-            currentTime: $currentTime,
+            currentTime: timeBinding(for: selectedMedia?.url),
             videoState: videoState,
             playbackRate: playbackRate
         )
@@ -399,16 +395,22 @@ struct MediaViewerScreen<SupplementaryOverlay: View>: View {
         )
     }
 
+    private func timeBinding(for url: String?) -> Binding<CMTime> {
+        guard let url else { return .constant(.zero) }
+        return Binding(
+            get: { playbackTimes[url] ?? CMTime(seconds: MediaPlaybackMemory.shared.position(for: url), preferredTimescale: 600) },
+            set: {
+                playbackTimes[url] = $0
+                VideoPlaybackSession.setPosition(for: url, seconds: $0.seconds)
+            }
+        )
+    }
+
     private var selectedMedia: (any UiMedia)? {
         guard medias.indices.contains(selectedIndex) else {
             return nil
         }
         return medias[selectedIndex]
-    }
-
-    private var isVideoActivelyPlaying: Bool {
-        if case .playing = videoState { return true }
-        return false
     }
 
     private var selectedMediaIsVideo: Bool {
@@ -435,16 +437,6 @@ struct MediaViewerScreen<SupplementaryOverlay: View>: View {
             selectedIndex = initialSelection
             protectInitialPagerSelection = initialSelection > 0
             didApplyInitialSelection = true
-        }
-    }
-
-    private func updatePlaybackSession(playing: Bool) {
-        if playing, !holdsPlaybackSession {
-            AudioSessionManager.shared.beginPlayback()
-            holdsPlaybackSession = true
-        } else if !playing, holdsPlaybackSession {
-            AudioSessionManager.shared.endPlayback()
-            holdsPlaybackSession = false
         }
     }
 

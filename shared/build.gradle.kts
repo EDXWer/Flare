@@ -1,6 +1,7 @@
 
 import dev.dimension.flare.buildlogic.FlarePlatform
 import dev.dimension.flare.buildlogic.flare
+import java.time.Duration
 
 plugins {
     id("dev.dimension.flare.multiplatform-library")
@@ -70,7 +71,6 @@ kotlin {
                 implementation(libs.kotlinx.serialization.protobuf)
                 implementation(libs.ktor.client.resources)
                 implementation(libs.cryptography.provider.optimal)
-                implementation(libs.openai.client)
             }
         }
         val nonWebMain by getting {
@@ -84,6 +84,11 @@ kotlin {
                 implementation(libs.kotlinx.coroutines.test)
                 implementation(libs.paging.testing)
                 implementation(libs.ktor.client.mock)
+            }
+        }
+        val jvmTest by getting {
+            dependencies {
+                implementation(projects.social.pixiv)
             }
         }
         val androidJvmMain by getting {
@@ -185,6 +190,8 @@ if (sqliteNativeLibrary != null) {
 
     tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
         if (name == "testAndroidHostTest") {
+            timeout.set(Duration.ofMinutes(5))
+            testLogging.events("started", "failed", "skipped")
             dependsOn(extractSqliteBundledJvmNative)
             systemProperty(
                 "androidx.sqlite.driver.bundled.path",

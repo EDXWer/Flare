@@ -6,7 +6,7 @@ import FlareAppleCore
 
 struct EditListScreen: View {
     @Environment(\.dismiss) var dismiss
-    @StateObject private var presenter: KotlinPresenter<ListEditPresenterState>
+    @State private var presenter: KotlinPresenter<ListEditPresenterState>
     private let accountType: AccountType
     private let listId: String
     @State private var title: String = ""
@@ -130,7 +130,6 @@ struct EditListScreen: View {
         .sheet(isPresented: $showEditMember, content: {
             NavigationStack {
                 EditListMemberScreen(accountType: accountType, listId: listId)
-                    .modifier(ScrollMinimizingNavigationBar(enabled: false))
             }
         })
         .toolbar {

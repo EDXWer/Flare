@@ -7,18 +7,7 @@ import FlareAppleCore
 
 #if os(iOS)
 import UIKit
-#if canImport(VideoPlayer)
-import VideoPlayer
 #endif
-#endif
-
-public enum VideoState {
-    case idle
-    case loading
-    case playing(Double)
-    case paused(Double)
-    case error(any Error)
-}
 
 public struct VideoControlView: View {
     @Binding private var isPlaying: Bool
@@ -31,7 +20,11 @@ public struct VideoControlView: View {
     @State private var baselineSeconds: Double = 0
     @State private var baselineDate = Date()
 
-    private let progressTimer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
+    private struct ProgressUpdates: Hashable {
+        let isActive: Bool
+        let duration: Double
+        let playbackRate: Float
+    }
 
     public init(
         isPlaying: Binding<Bool>,
@@ -122,14 +115,17 @@ public struct VideoControlView: View {
             baselineSeconds = seconds
             baselineDate = Date()
         }
+        .onDisappear {
+            if isSeeking { currentTime = CMTime(seconds: sliderValue, preferredTimescale: 600) }
+        }
         .onChange(of: currentTime.seconds) { _, newValue in
             guard !isSeeking, newValue.isFinite else { return }
             baselineSeconds = newValue
             baselineDate = Date()
             sliderValue = newValue
         }
-        .onChange(of: isPlaying) { _, playing in
-            if playing {
+        .onChange(of: isProgressActive) { _, active in
+            if active {
                 baselineSeconds = sliderValue
                 baselineDate = Date()
             }
@@ -143,14 +139,31 @@ public struct VideoControlView: View {
                 sliderValue = newValue
             }
         }
-        .onReceive(progressTimer) { _ in
-            guard !isSeeking, isPlaying, duration > 0 else { return }
-            let elapsed = Date().timeIntervalSince(baselineDate)
-            let projected = min(baselineSeconds + elapsed * Double(playbackRate), duration)
-            if projected != sliderValue {
-                sliderValue = projected
+        .task(id: ProgressUpdates(
+            isActive: isProgressActive,
+            duration: duration,
+            playbackRate: playbackRate
+        )) {
+            guard isProgressActive else { return }
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .milliseconds(100))
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled else { return }
+                let elapsed = Date().timeIntervalSince(baselineDate)
+                let projected = min(baselineSeconds + elapsed * Double(playbackRate), duration)
+                if projected != sliderValue {
+                    sliderValue = projected
+                }
             }
         }
+    }
+
+    private var isProgressActive: Bool {
+        guard !isSeeking, isPlaying, case .playing(let duration) = videoState else { return false }
+        return duration > 0
     }
 
     private var duration: Double {
@@ -181,6 +194,9 @@ public struct VideoControlView: View {
 }
 
 public struct StatusMediaVideoView: View {
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.videoPlaybackPresentation) private var presentation
+    @State private var fallbackPresentation = VideoPlaybackPresentation()
     @Binding private var play: Bool
     @Binding private var videoState: VideoState
     @Binding private var time: CMTime
@@ -191,11 +207,7 @@ public struct StatusMediaVideoView: View {
     @State private var seekFeedback: SeekFeedback?
     @State private var seekFeedbackOpacity: Double = 0
     @State private var seekFeedbackTask: Task<Void, Never>?
-    #if os(macOS)
-    @State private var macPlayer = AVQueuePlayer()
-    @State private var macPlayerURL: URL?
-    @State private var macPlayerLooper: AVPlayerLooper?
-    #endif
+    @State private var session = VideoPlaybackSession()
     private let data: UiMediaVideo
     private let seekInterval: Double = 5
     private let normalPlaybackRate: Float = 1
@@ -216,26 +228,84 @@ public struct StatusMediaVideoView: View {
     }
 
     public var body: some View {
-        #if os(iOS)
-        content
-        #elseif os(macOS)
-        macContent
-        #else
-        EmptyView()
-        #endif
+        Group {
+            #if os(iOS)
+            content
+            #else
+            Color.clear
+                .overlay {
+                    NetworkImage(data: data.thumbnailUrl, customHeader: data.customHeaders)
+                        .scaledToFit()
+                        .allowsHitTesting(false)
+                }
+                .clipped()
+                .overlay { player }
+            #endif
+        }
+        .onAppear {
+            if presentation == nil {
+                fallbackPresentation.setSuspended(scenePhase != .active)
+                fallbackPresentation.begin()
+            }
+            updatePlayback()
+        }
+        .onChange(of: play) { _, _ in updatePlayback() }
+        .onChange(of: scenePhase) { _, phase in
+            if presentation == nil { fallbackPresentation.setSuspended(phase != .active) }
+        }
+        .onChange(of: playbackRate) { _, _ in updatePlayback() }
+        .onChange(of: data.url) { _, _ in
+            session.detach()
+            updatePlayback()
+        }
+        .onChange(of: time) { _, target in
+            if target == time, session.mediaURL == data.url,
+               target.seconds.isFinite, abs(session.position - target.seconds) > 0.5 {
+                session.seek(to: target.seconds)
+            }
+        }
+        .onReceive(session.updates) { _ in
+            videoState = session.state
+            #if os(macOS)
+            if session.player != nil {
+                switch session.state {
+                case .playing: if !play { play = true }
+                case .paused: if play { play = false }
+                default: break
+                }
+            }
+            #endif
+            if abs((time.seconds.isFinite ? time.seconds : 0) - session.position) > 0.05 {
+                time = CMTime(seconds: session.position, preferredTimescale: 600)
+            }
+        }
+        .onDisappear {
+            endFastPlayback()
+            if session.mediaURL == data.url, time.seconds.isFinite,
+               abs(session.position - time.seconds) > 0.5 {
+                session.seek(to: time.seconds)
+            }
+            (presentation ?? fallbackPresentation).release(session)
+            if presentation == nil { fallbackPresentation.end() }
+        }
+    }
+
+    private func updatePlayback() {
+        (presentation ?? fallbackPresentation).update(
+            session, url: data.url,
+            playing: play, rate: playbackRate
+        )
     }
 
     #if os(iOS)
     @ViewBuilder
     private var content: some View {
-        Color.clear
+        Color.black
             .overlay {
-                if case .idle = videoState {
+                if !session.hasDisplayedFrame {
                     NetworkImage(data: data.thumbnailUrl, customHeader: data.customHeaders)
                         .scaledToFit()
                         .allowsHitTesting(false)
-                } else {
-                    EmptyView()
                 }
             }
             .clipped()
@@ -281,6 +351,7 @@ public struct StatusMediaVideoView: View {
                     }
                     .padding(.horizontal, 56)
                     .opacity(seekFeedbackOpacity)
+                    .allowsHitTesting(false)
                 }
             }
             .onDisappear {
@@ -292,189 +363,19 @@ public struct StatusMediaVideoView: View {
 
     @ViewBuilder
     private var player: some View {
-        #if os(iOS) && canImport(VideoPlayer)
-        if let videoURL = URL(string: data.url) {
-            VideoPlayer(url: videoURL, play: $play, time: $time)
-                .mute(false)
-                .autoReplay(true)
-                .speedRate(playbackRate)
-                .onStateChanged { state in
-                    switch state {
-                    case .playing(let duration):
-                        videoState = .playing(duration)
-                    case .loading:
-                        videoState = .loading
-                    case .paused:
-                        if case .playing(let duration) = videoState {
-                            videoState = .paused(duration)
-                        } else if case .paused(let duration) = videoState {
-                            videoState = .paused(duration)
-                        } else {
-                            videoState = .idle
-                        }
-                    case .error(let error):
-                        videoState = .error(error)
-                    }
-                }
-                .contentMode(.scaleAspectFit)
+        if let player = session.player {
+            #if os(iOS)
+            InlineAVPlayerView(player: player, videoGravity: .resizeAspect,
+                               canDisplayFrame: session.hasRestoredPosition, onReady: session.surfaceReady)
+                .id(data.url)
                 .allowsHitTesting(false)
-        }
-        #else
-        EmptyView()
-        #endif
-    }
-
-    #if os(macOS)
-    @ViewBuilder
-    private var macContent: some View {
-        Color.clear
-            .overlay {
-                if case .idle = videoState {
-                    NetworkImage(data: data.thumbnailUrl, customHeader: data.customHeaders)
-                        .scaledToFit()
-                        .allowsHitTesting(false)
-                } else {
-                    EmptyView()
-                }
-            }
-            .clipped()
-            .overlay {
-                if macPlayerURL != nil {
-                    MacAVPlayerView(player: macPlayer, videoGravity: .resizeAspect, showsControls: true)
-                }
-            }
-            .onAppear {
-                configureMacPlayerIfNeeded()
-                updateMacPlayback()
-            }
-            .onChange(of: play) { _, _ in
-                updateMacPlayback()
-            }
-            .onChange(of: playbackRate) { _, _ in
-                updateMacPlayback()
-            }
-            .onChange(of: time) { _, newValue in
-                seekMacPlayerIfNeeded(to: newValue)
-            }
-            .onChange(of: data.url) { _, _ in
-                configureMacPlayerIfNeeded()
-                updateMacPlayback()
-            }
-            .onReceive(Timer.publish(every: 0.25, on: .main, in: .common).autoconnect()) { _ in
-                refreshMacState()
-            }
-            .onDisappear {
-                endFastPlayback()
-                resetMacPlayer()
-            }
-    }
-
-    private func configureMacPlayerIfNeeded() {
-        guard let videoURL = URL(string: data.url) else {
-            resetMacPlayer()
-            videoState = .error(URLError(.badURL))
-            return
-        }
-
-        guard macPlayerURL != videoURL else {
-            macPlayer.isMuted = false
-            macPlayer.actionAtItemEnd = .advance
-            return
-        }
-
-        resetMacPlayer()
-        macPlayer.isMuted = false
-        macPlayer.actionAtItemEnd = .advance
-        let item = AVPlayerItem(url: videoURL)
-        macPlayerLooper = AVPlayerLooper(player: macPlayer, templateItem: item)
-        macPlayerURL = videoURL
-        videoState = .loading
-    }
-
-    private func updateMacPlayback() {
-        configureMacPlayerIfNeeded()
-        if play {
-            macPlayer.playImmediately(atRate: playbackRate)
-        } else {
-            macPlayer.pause()
+            #elseif os(macOS)
+            MacAVPlayerView(player: player, videoGravity: .resizeAspect, showsControls: true,
+                            canDisplayFrame: session.hasRestoredPosition, onReady: session.surfaceReady)
+                .id(data.url)
+            #endif
         }
     }
-
-    private func seekMacPlayerIfNeeded(to target: CMTime) {
-        guard macPlayerURL != nil, target.seconds.isFinite else {
-            return
-        }
-
-        let current = macPlayer.currentTime().seconds
-        if !current.isFinite || abs(current - target.seconds) > 0.5 {
-            macPlayer.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero)
-        }
-    }
-
-    private func refreshMacState() {
-        guard let item = macPlayer.currentItem, macPlayerURL != nil else {
-            return
-        }
-
-        if let error = item.error {
-            videoState = .error(error)
-            return
-        }
-
-        let playerTime = macPlayer.currentTime()
-        if playerTime.seconds.isFinite, abs((time.seconds.isFinite ? time.seconds : 0) - playerTime.seconds) > 0.05 {
-            time = playerTime
-        }
-
-        let rawDuration = item.duration.seconds
-        let duration = rawDuration.isFinite ? rawDuration : 0
-
-        switch item.status {
-        case .readyToPlay:
-            switch macPlayer.timeControlStatus {
-            case .playing where macPlayer.rate != 0:
-                videoState = .playing(duration)
-            case .playing:
-                videoState = play ? .loading : .idle
-            case .waitingToPlayAtSpecifiedRate:
-                videoState = .loading
-            case .paused:
-                if wasPlayingOrPaused {
-                    videoState = .paused(duration)
-                } else if play {
-                    videoState = .loading
-                } else {
-                    videoState = .idle
-                }
-            @unknown default:
-                videoState = play ? .loading : .idle
-            }
-        case .failed:
-            videoState = .error(item.error ?? URLError(.cannotDecodeContentData))
-        case .unknown:
-            videoState = play ? .loading : .idle
-        @unknown default:
-            videoState = play ? .loading : .idle
-        }
-    }
-
-    private var wasPlayingOrPaused: Bool {
-        switch videoState {
-        case .playing, .paused:
-            true
-        case .idle, .loading, .error:
-            false
-        }
-    }
-
-    private func resetMacPlayer() {
-        let player = macPlayer
-        player.pause()
-        macPlayerLooper = nil
-        macPlayer = AVQueuePlayer()
-        macPlayerURL = nil
-    }
-    #endif
 
     private func seek(by offset: Double) {
         let currentSeconds = time.seconds.isFinite ? time.seconds : 0
@@ -567,20 +468,15 @@ private struct VideoGestureOverlay: UIViewRepresentable {
     let onLongPressChanged: (Bool) -> Void
 
     func makeUIView(context: Context) -> UIView {
-        let view = WindowGestureHostView()
+        let view = UIView()
         view.backgroundColor = .clear
-        view.onWindowChanged = { [weak coordinator = context.coordinator, weak view] in
-            coordinator?.installGestures(from: view)
-        }
+        context.coordinator.installGestures(from: view)
         return view
     }
 
     func updateUIView(_ uiView: UIView, context: Context) {
         context.coordinator.onDoubleTap = onDoubleTap
         context.coordinator.onLongPressChanged = onLongPressChanged
-        DispatchQueue.main.async {
-            context.coordinator.installGestures(from: uiView)
-        }
     }
 
     static func dismantleUIView(_ uiView: UIView, coordinator: Coordinator) {
@@ -595,7 +491,6 @@ private struct VideoGestureOverlay: UIViewRepresentable {
         var onDoubleTap: (CGFloat, CGFloat) -> Void
         var onLongPressChanged: (Bool) -> Void
         private weak var sourceView: UIView?
-        private weak var installedWindow: UIWindow?
         private var doubleTapRecognizer: UITapGestureRecognizer?
         private var longPressRecognizer: UILongPressGestureRecognizer?
         private var longPressBeganInside = false
@@ -608,9 +503,8 @@ private struct VideoGestureOverlay: UIViewRepresentable {
             self.onLongPressChanged = onLongPressChanged
         }
 
-        func installGestures(from view: UIView?) {
-            sourceView = view
-            guard let window = view?.window, installedWindow !== window else { return }
+        func installGestures(from view: UIView) {
+            guard sourceView !== view else { return }
             uninstallGestures()
             sourceView = view
 
@@ -625,21 +519,21 @@ private struct VideoGestureOverlay: UIViewRepresentable {
             longPress.cancelsTouchesInView = false
             longPress.delegate = self
 
-            window.addGestureRecognizer(doubleTap)
-            window.addGestureRecognizer(longPress)
-            installedWindow = window
+            // Let UIKit hit testing exclude controls and panels above the video.
+            view.addGestureRecognizer(doubleTap)
+            view.addGestureRecognizer(longPress)
             doubleTapRecognizer = doubleTap
             longPressRecognizer = longPress
         }
 
         func uninstallGestures() {
             if let doubleTapRecognizer {
-                installedWindow?.removeGestureRecognizer(doubleTapRecognizer)
+                sourceView?.removeGestureRecognizer(doubleTapRecognizer)
             }
             if let longPressRecognizer {
-                installedWindow?.removeGestureRecognizer(longPressRecognizer)
+                sourceView?.removeGestureRecognizer(longPressRecognizer)
             }
-            installedWindow = nil
+            sourceView = nil
             doubleTapRecognizer = nil
             longPressRecognizer = nil
             longPressBeganInside = false
@@ -647,19 +541,17 @@ private struct VideoGestureOverlay: UIViewRepresentable {
 
         @objc func handleDoubleTap(_ recognizer: UITapGestureRecognizer) {
             guard recognizer.state == .ended,
-                  let window = recognizer.view,
                   let sourceView,
-                  let location = localLocation(from: recognizer, in: window, sourceView: sourceView) else { return }
+                  let location = localLocation(from: recognizer, in: sourceView) else { return }
             onDoubleTap(location.x, sourceView.bounds.width)
         }
 
         @objc func handleLongPress(_ recognizer: UILongPressGestureRecognizer) {
-            guard let window = recognizer.view,
-                  let sourceView else { return }
+            guard let sourceView else { return }
 
             switch recognizer.state {
             case .began:
-                longPressBeganInside = localLocation(from: recognizer, in: window, sourceView: sourceView) != nil
+                longPressBeganInside = localLocation(from: recognizer, in: sourceView) != nil
                 if longPressBeganInside {
                     onLongPressChanged(true)
                 }
@@ -673,13 +565,6 @@ private struct VideoGestureOverlay: UIViewRepresentable {
             }
         }
 
-        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-            guard let sourceView,
-                  let window = installedWindow else { return false }
-            let point = touch.location(in: window)
-            return sourceView.convert(sourceView.bounds, to: window).contains(point)
-        }
-
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
@@ -689,27 +574,11 @@ private struct VideoGestureOverlay: UIViewRepresentable {
 
         private func localLocation(
             from recognizer: UIGestureRecognizer,
-            in windowView: UIView,
-            sourceView: UIView
+            in sourceView: UIView
         ) -> CGPoint? {
-            let pointInWindow = recognizer.location(in: windowView)
-            let sourceFrame = sourceView.convert(sourceView.bounds, to: windowView)
-            guard sourceFrame.contains(pointInWindow) else { return nil }
-            return sourceView.convert(pointInWindow, from: windowView)
+            let point = recognizer.location(in: sourceView)
+            return sourceView.bounds.contains(point) ? point : nil
         }
-    }
-}
-
-private final class WindowGestureHostView: UIView {
-    var onWindowChanged: (() -> Void)?
-
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        onWindowChanged?()
-    }
-
-    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-        false
     }
 }
 #endif

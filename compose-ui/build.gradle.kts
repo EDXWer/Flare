@@ -23,6 +23,10 @@ kotlin {
     }
     android {
         experimentalProperties["android.experimental.kmp.enableAndroidResources"] = true
+        withDeviceTest {
+            instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+            execution = "HOST"
+        }
     }
     sourceSets {
         val commonMain by getting {
@@ -63,6 +67,8 @@ kotlin {
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))
+                implementation(libs.kotlinx.coroutines.test)
+                implementation(libs.molecule.runtime)
             }
         }
         val androidMain by getting {
@@ -77,6 +83,13 @@ kotlin {
                 implementation(libs.bundles.koin)
             }
         }
+        val androidDeviceTest by getting {
+            dependencies {
+                implementation(libs.androidx.test.ext.junit)
+                implementation(libs.ui.test.junit4)
+                implementation(libs.ui.test.manifest)
+            }
+        }
         val jvmMain by getting {
             dependencies {
                 implementation(project.dependencies.platform(libs.koin.bom))
@@ -87,6 +100,12 @@ kotlin {
                     // https://github.com/kdroidFilter/ComposeMediaPlayer/blob/13cb1d94382f300d338c6ca3b9098c52b2b61d6a/mediaplayer/build.gradle.kts#L82
                     exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-test")
                 }
+            }
+        }
+        val jvmTest by getting {
+            dependencies {
+                implementation(compose("org.jetbrains.compose.ui:ui-test-junit4"))
+                runtimeOnly(compose.desktop.currentOs)
             }
         }
     }

@@ -4,10 +4,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.produceState
+import androidx.paging.ItemSnapshotList
 import androidx.paging.LoadState
 import androidx.paging.LoadStates
 import androidx.paging.compose.LazyPagingItems
-import androidx.paging.compose.itemContentType
 import androidx.paging.compose.itemKey
 import dev.dimension.flare.ui.model.UiState
 import kotlinx.collections.immutable.ImmutableList
@@ -87,38 +87,45 @@ public sealed class PagingState<T> {
         @Immutable
         internal data class PagingSuccess<T : Any>(
             private val data: LazyPagingItems<T>,
+            private val items: ItemSnapshotList<T>,
+            override val isRefreshing: Boolean,
             override val appendState: LoadState,
+            private val onRetry: () -> Unit = data::retry,
         ) : Success<T>() {
             override val itemCount: Int
-                get() = data.itemCount
-            override val isRefreshing: Boolean
-                get() = data.isRefreshing
+                get() = items.size
 
-            override operator fun get(index: Int): T? =
-                if (index < 0 || index >= data.itemCount) {
-                    null
-                } else {
+            override operator fun get(index: Int): T? {
+                if (index !in items.indices) {
+                    return null
+                }
+                // Only send load hints for the current snapshot. An older UI state must
+                // keep its count, keys, content types and items from the same snapshot.
+                if (items === data.itemSnapshotList) {
                     data[index]
                 }
+                return items[index]
+            }
 
-            override fun peek(index: Int): T? =
-                if (index < 0 || index >= data.itemCount) {
-                    null
-                } else {
-                    data.peek(index)
-                }
+            override fun peek(index: Int): T? = items.getOrNull(index)
 
             override suspend fun refreshSuspend() {
                 data.refreshSuspend()
             }
 
             override fun retry() {
-                data.retry()
+                onRetry()
             }
 
-            override fun itemKey(key: ((item: T) -> Any)?): (index: Int) -> Any = data.itemKey(key)
+            override fun itemKey(key: ((item: T) -> Any)?): (index: Int) -> Any {
+                // The default factory creates Android-saveable placeholder keys without
+                // reading the live list, and cannot collide with caller-provided keys.
+                val placeholderKey = data.itemKey()
+                return { index -> key?.let { items.getOrNull(index)?.let(it) } ?: placeholderKey(index) }
+            }
 
-            override fun itemContentType(contentType: ((item: T) -> Any?)?): (index: Int) -> Any? = data.itemContentType(contentType)
+            override fun itemContentType(contentType: ((item: T) -> Any?)?): (index: Int) -> Any? =
+                { index -> contentType?.let { items.getOrNull(index)?.let(it) } }
         }
     }
 }
@@ -230,17 +237,25 @@ public fun <T : Any> UiState<LazyPagingItems<T>>.toPagingState(): PagingState<T>
     }
 
 @HiddenFromObjC
-public fun <T : Any> LazyPagingItems<T>.toPagingState(): PagingState<T> {
+public fun <T : Any> LazyPagingItems<T>.toPagingState(
+    contextLoadStates: LoadStates? = null,
+    onRetry: () -> Unit = this::retry,
+): PagingState<T> {
     val snapshot = snapshot()
     if (itemCount > 0) {
         return PagingState.Success.PagingSuccess(
             data = this,
-            appendState = loadState.append,
+            // LazyPagingItems is reused across updates. Include the presented items and
+            // refresh state so equal load states cannot hide changes from UI consumers.
+            items = itemSnapshotList,
+            isRefreshing = isRefreshing,
+            appendState = contextLoadStates?.contextFooterState() ?: loadState.append,
+            onRetry = onRetry,
         )
     } else if (snapshot.initialErrorOrNull() != null) {
         return PagingState.Error(
             error = snapshot.initialErrorOrNull()!!,
-            onRetry = { retry() },
+            onRetry = onRetry,
         )
     } else if (!snapshot.isResolvedEmpty()) {
         return PagingState.Loading()
@@ -248,6 +263,15 @@ public fun <T : Any> LazyPagingItems<T>.toPagingState(): PagingState<T> {
         return PagingState.Empty(this::refresh)
     }
 }
+
+// Context work in either direction uses the existing footer.
+internal fun LoadStates.contextFooterState(): LoadState =
+    when {
+        append is LoadState.Error -> append
+        prepend is LoadState.Error -> prepend
+        append is LoadState.Loading || prepend is LoadState.Loading -> LoadState.Loading
+        else -> append
+    }
 
 @Immutable
 internal data class PagingSnapshot(

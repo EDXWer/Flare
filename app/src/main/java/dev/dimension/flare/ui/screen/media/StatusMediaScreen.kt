@@ -52,13 +52,16 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
+import androidx.compose.material3.rememberSliderState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -124,6 +127,8 @@ import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.Glassify
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
+import dev.dimension.flare.ui.component.MediaViewerPlayback
+import dev.dimension.flare.ui.component.MediaViewerSelection
 import dev.dimension.flare.ui.component.SurfaceBindingManager
 import dev.dimension.flare.ui.component.VideoPlayer
 import dev.dimension.flare.ui.component.accessibleDescription
@@ -295,9 +300,10 @@ internal fun MediaViewerScreen(
     LaunchedEffect(pagerState.currentPage) {
         state.setCurrentPage(pagerState.currentPage)
         playbackSpeed = NORMAL_PLAYBACK_SPEED
-        surfaceBindingManager.player.setPlaybackSpeed(NORMAL_PLAYBACK_SPEED)
     }
-    FlareTheme(darkTheme = true) {
+    MediaViewerPlaybackTheme {
+        val mediaItems = medias.takeSuccess().orEmpty()
+        MediaViewerSelection(mediaItems.map { it.url }, mediaItems.getOrNull(pagerState.currentPage)?.url)
         val swiperState =
             rememberSwiperState(
                 onDismiss = onDismiss,
@@ -418,16 +424,20 @@ internal fun MediaViewerScreen(
                                                         muted = false,
                                                         contentScale = ContentScale.Fit,
                                                     )
-                                                    VideoGestureOverlay(
-                                                        player = surfaceBindingManager.player,
-                                                        onClick = {
-                                                            state.setShowUi(!state.showUi)
-                                                        },
-                                                        onPlaybackSpeedChanged = {
-                                                            playbackSpeed = it
-                                                        },
-                                                        modifier = Modifier.fillMaxSize(),
-                                                    )
+                                                    surfaceBindingManager.playerFor(media.url)?.let { player ->
+                                                        key(media.url) {
+                                                            VideoGestureOverlay(
+                                                                player = player,
+                                                                onClick = {
+                                                                    state.setShowUi(!state.showUi)
+                                                                },
+                                                                onPlaybackSpeedChanged = {
+                                                                    playbackSpeed = it
+                                                                },
+                                                                modifier = Modifier.fillMaxSize(),
+                                                            )
+                                                        }
+                                                    }
                                                 }
                                             } else if (media is UiMedia.Audio) {
                                                 VideoPlayer(
@@ -714,13 +724,17 @@ internal fun MediaViewerScreen(
                                                 medias.getOrNull(state.currentPage)
                                             }
                                         if (current is UiMedia.Video) {
-                                            PlayerControl(
-                                                surfaceBindingManager.player,
-                                                playbackSpeed = playbackSpeed,
-                                                modifier =
-                                                    Modifier
-                                                        .widthIn(max = 480.dp),
-                                            )
+                                            surfaceBindingManager.playerFor(current.url)?.let { player ->
+                                                key(current.url) {
+                                                    PlayerControl(
+                                                        player,
+                                                        playbackSpeed = playbackSpeed,
+                                                        modifier =
+                                                            Modifier
+                                                                .widthIn(max = 480.dp),
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                     if (status != null && !isBigScreen && state.showUi && !state.isLandscapeViewing) {
@@ -946,6 +960,13 @@ internal fun MediaViewerScreen(
 }
 
 @Composable
+private fun MediaViewerPlaybackTheme(content: @Composable () -> Unit) {
+    MediaViewerPlayback {
+        FlareTheme(darkTheme = true, content = content)
+    }
+}
+
+@Composable
 private fun MediaPageSlider(
     pageCount: Int,
     currentPage: Int,
@@ -954,16 +975,21 @@ private fun MediaPageSlider(
 ) {
     val maxPage = (pageCount - 1).coerceAtLeast(0)
     var isDragging by remember { mutableStateOf(false) }
-    var sliderValue by remember(pageCount) {
-        mutableFloatStateOf(currentPage.coerceIn(0, maxPage).toFloat())
-    }
+    val sliderState =
+        remember(pageCount) {
+            SliderState(
+                value = currentPage.coerceIn(0, maxPage).toFloat(),
+                steps = (pageCount - 2).coerceAtLeast(0),
+                trackRange = 0f..maxPage.toFloat(),
+            )
+        }
     LaunchedEffect(currentPage, maxPage, isDragging) {
         if (!isDragging) {
-            sliderValue = currentPage.coerceIn(0, maxPage).toFloat()
+            sliderState.value = currentPage.coerceIn(0, maxPage).toFloat()
         }
     }
 
-    val sliderPage = sliderValue.roundToInt().coerceIn(0, maxPage)
+    val sliderPage = sliderState.value.roundToInt().coerceIn(0, maxPage)
     val positionLabel = stringResource(R.string.media_page_position)
     val pageDescription = stringResource(R.string.media_page_of, sliderPage + 1, pageCount)
     Row(
@@ -976,24 +1002,22 @@ private fun MediaPageSlider(
             style = MaterialTheme.typography.labelMedium,
         )
         Slider(
-            value = sliderValue.coerceIn(0f, maxPage.toFloat()),
+            state = sliderState,
             onValueChange = { value ->
                 val page = value.roundToInt().coerceIn(0, maxPage)
                 isDragging = true
-                sliderValue = page.toFloat()
+                sliderState.value = page.toFloat()
                 if (page != currentPage) {
                     onPageSelected(page)
                 }
             },
             onValueChangeFinished = {
-                val page = sliderValue.roundToInt().coerceIn(0, maxPage)
+                val page = sliderState.value.roundToInt().coerceIn(0, maxPage)
                 isDragging = false
                 if (page != currentPage) {
                     onPageSelected(page)
                 }
             },
-            valueRange = 0f..maxPage.toFloat(),
-            steps = (pageCount - 2).coerceAtLeast(0),
             modifier =
                 Modifier
                     .weight(1f)
@@ -1074,13 +1098,11 @@ private fun PlayerControl(
                 var isSliderChanging by remember {
                     mutableStateOf(false)
                 }
-                var sliderValue by remember {
-                    mutableFloatStateOf(0f)
-                }
+                val sliderState = rememberSliderState()
                 if (!playPauseButtonState.showPlay && !isSliderChanging) {
                     LaunchedEffect(Unit) {
                         while (true) {
-                            sliderValue = player.currentPosition.toFloat() / player.duration.toFloat()
+                            sliderState.value = player.currentPosition.toFloat() / player.duration.toFloat()
                             time =
                                 buildString {
                                     append(player.currentPosition.milliseconds.humanize())
@@ -1115,10 +1137,10 @@ private fun PlayerControl(
                     )
                 }
                 Slider(
-                    value = sliderValue,
+                    state = sliderState,
                     onValueChange = {
                         isSliderChanging = true
-                        sliderValue = it
+                        sliderState.value = it
                         time =
                             buildString {
                                 append((player.duration * it).toLong().milliseconds.humanize())
@@ -1127,7 +1149,7 @@ private fun PlayerControl(
                             }
                     },
                     onValueChangeFinished = {
-                        player.seekTo((player.duration * sliderValue).toLong())
+                        player.seekTo((player.duration * sliderState.value).toLong())
                         isSliderChanging = false
                     },
                     modifier =
