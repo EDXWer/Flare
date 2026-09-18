@@ -214,7 +214,7 @@ internal fun rememberTimelineWithLazyListState(
                 if (keys.isNotEmpty()) {
                     // Während der Jagd zählen wir nicht mit, da sich Indizes/Keys währenddessen
                     // noch nicht stabilisiert haben.
-                    if (previousKeys.isNotEmpty() && !isAtTheTop && !isHunting) {
+                    if (previousKeys.isNotEmpty() && !isAtTheTop) {
                         newPostCount += keys.takeWhile { it !in previousKeys }.size
                     }
                     previousKeys = keys.toSet()

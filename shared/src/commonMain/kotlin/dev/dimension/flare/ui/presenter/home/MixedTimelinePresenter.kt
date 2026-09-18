@@ -206,7 +206,7 @@ private class FilteredRemoteLoader(
                         val postAuthor = item.post.user?.key
 
                         // Der Autor des Posts, auf den geantwortet wird (der Eltern-Post)
-                        val parentAuthor = item.presentation.inlineParents.firstOrNull()?.user?.key
+                        val parentAuthor = item.presentation.inlineParents.firstOrNull()?.post?.user?.key
 
                         // Wenn der Autor NICHT derselbe ist (oder unbekannt), blockieren wir die Antwort.
                         // Wenn es derselbe ist, springt er hier nicht rein und darf als Thread durch!
