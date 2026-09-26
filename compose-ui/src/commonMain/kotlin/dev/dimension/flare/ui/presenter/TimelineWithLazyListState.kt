@@ -18,6 +18,7 @@ import dev.dimension.flare.data.model.tab.UiTimelineTabItem
 import dev.dimension.flare.data.model.tab.isSystemHomeMixedTimeline
 import dev.dimension.flare.ui.model.UiTimelineV2
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import moe.tlaster.precompose.molecule.producePresenter
@@ -49,6 +50,16 @@ public fun rememberTimelineItemPresenterWithLazyListState(
     )
 }
 
+// Temporaere Diagnose-Ausgabe. Nach der Fehlersuche wieder entfernen:
+// einfach ANCHOR_DEBUG auf false setzen.
+private const val ANCHOR_DEBUG = true
+
+private fun anchorLog(message: String) {
+    if (ANCHOR_DEBUG) {
+        println("FLARE_ANCHOR $message")
+    }
+}
+
 // Sichere ID Extraktion (Kugelsicher gegen Nulls)
 private fun getPostFingerprint(item: Any?): String {
     return runCatching {
@@ -56,19 +67,71 @@ private fun getPostFingerprint(item: Any?): String {
         when (timelineItem) {
             is UiTimelineV2.Post -> "post_${timelineItem.statusKey}"
             is UiTimelineV2.Feed -> "feed_${timelineItem.statusKey}"
-            else -> "${timelineItem.itemKey ?: timelineItem.hashCode()}"
+            // Upstream packt Posts mit Repost/Zitat in diesen Wrapper. Ohne eigenen Zweig
+            // landeten sie im else und bekamen einen instabilen hashCode als Fingerprint.
+            is UiTimelineV2.TimelinePostItem -> "post_${timelineItem.statusKey}"
+            // Kein hashCode-Fallback mehr: statusKey ist fuer jeden Subtyp stabil, auch
+            // fuer kuenftige neue Wrapper-Typen aus dem Upstream.
+            else -> timelineItem.itemKey ?: "item_${timelineItem.statusKey}"
         }
     }.getOrDefault("error_${item?.hashCode()}")
 }
 
 // Die neue Datenstruktur für die Brotkrümel-Spur
 private class ScrollContext {
-    var anchorFingerprints: List<String> = emptyList() // Speichert die Top 10 Posts als Fallback-Netz!
-    var anchorOffset: Int = 0
+    // Die Fingerprints der obersten 10 Listeneintraege, wie sie VOR dem letzten
+    // Listenwechsel aussahen. anchorFingerprints[0] ist damit der Post, der zuletzt
+    // der aktuellste war - genau der soll nach einem Refresh wieder oben stehen.
+    var anchorFingerprints: List<String> = emptyList()
     var isAnchored: Boolean = false
-    var knownTopFingerprint: String? = null
-    var highestReadIndex: Int = Int.MAX_VALUE
+
+    // Der zuletzt beobachtete Kopf der Liste. Muss hier liegen und nicht als lokale
+    // Variable im Effekt: Der Effekt wird neu gestartet, wenn die Liste waehrend eines
+    // Refreshs kurz in einen Ladezustand geht - und wuerde dabei den alten Kopf vergessen.
+    var lastCrumbs: List<String> = emptyList()
+
+    // True nur waehrend eines Scrolls, den die Jagd selbst ausloest. Damit der
+    // Scroll-Abbruch (Abschnitt 3) unser eigenes scrollToItem nicht fuer den Nutzer haelt.
+    var selfScrolling: Boolean = false
 }
+
+// Scrollt und setzt dabei selfScrolling. finally laeuft auch bei Abbruch des Effekts,
+// daher kann das Flag nicht haengen bleiben.
+private suspend fun LazyStaggeredGridState.selfScrollTo(
+    tracker: ScrollContext,
+    index: Int,
+    offset: Int,
+) {
+    tracker.selfScrolling = true
+    try {
+        scrollToItem(index, offset)
+    } finally {
+        tracker.selfScrolling = false
+    }
+}
+
+// Ein Listeneintrag kann weitere Posts enthalten: eingeklappte Antwort-Ketten
+// (inlineParents), Zitate und Reposts. collapseReplyChains() faltet Ketten zu einem
+// Eintrag zusammen, wodurch der gesuchte Post aus der obersten Ebene verschwindet.
+// Die Jagd muss deshalb auch nach innen schauen, sonst findet sie ihn nie.
+private fun getCoveredFingerprints(item: Any?): List<String> =
+    runCatching {
+        val timelineItem = item as? UiTimelineV2 ?: return@runCatching emptyList()
+        val result = mutableListOf(getPostFingerprint(timelineItem))
+        val presentation =
+            when (timelineItem) {
+                is UiTimelineV2.TimelinePostItem -> timelineItem.presentation
+                else -> null
+            }
+        presentation?.let { p ->
+            p.inlineParents.forEach { parent -> result.add(getPostFingerprint(parent)) }
+            p.quotes.forEach { quote -> result.add(getPostFingerprint(quote)) }
+            p.repost?.let { repost -> result.add(getPostFingerprint(repost)) }
+        }
+        result
+    }.getOrDefault(emptyList())
+
+
 
 @Composable
 internal fun rememberTimelineWithLazyListState(
@@ -94,16 +157,45 @@ internal fun rememberTimelineWithLazyListState(
         val currentTopItem = if (currentCount > 0) runCatching { peek(0) }.getOrNull() else null
         val currentTopFp = if (currentTopItem != null) getPostFingerprint(currentTopItem) else null
 
-        // 1. DATA REFRESH DETECTOR (eigene Anker-Logik – unverändert)
-        LaunchedEffect(currentCount, currentTopFp) {
-            if (currentCount > 0 && currentTopFp != null) {
-                val isTopChanged = tracker.knownTopFingerprint != null && currentTopFp != tracker.knownTopFingerprint
-
-                if (isTopChanged && tracker.isAnchored) {
-                    isHunting = true
+        // 1. KOPF DER LISTE BEOBACHTEN
+        // Der Anker ist der jeweils aktuellste Post. Wechselt der Kopf der Liste
+        // (Refresh oder neue Posts), war der vorherige Kopf das Ziel: dorthin zurueck,
+        // sodass das Neue darueber liegt. Die Leseposition spielt bewusst keine Rolle.
+        LaunchedEffect(Unit) {
+            snapshotFlow {
+                val pagingState = currentPagingState
+                (0 until minOf(10, pagingState.itemCount))
+                    .mapNotNull { runCatching { pagingState.peek(it) }.getOrNull() }
+                    .map { getPostFingerprint(it) }
+            }.distinctUntilChanged().collect { crumbs ->
+                if (crumbs.isNotEmpty() && tracker.lastCrumbs.isEmpty()) {
+                    // Diagnose: Was sieht die Logik beim Start als Allererstes?
+                    // Ist das noch der Stand von gestern (aus der Datenbank) oder schon
+                    // der frische vom Server?
+                    anchorLog(
+                        "Erste Liste nach Start: Kopf ${crumbs.firstOrNull()}," +
+                                " itemCount ${currentPagingState.itemCount}",
+                    )
                 }
+                if (crumbs.isNotEmpty()) {
+                    val headChanged =
+                        tracker.lastCrumbs.isNotEmpty() && crumbs.firstOrNull() != tracker.lastCrumbs.firstOrNull()
 
-                tracker.knownTopFingerprint = currentTopFp
+                    if (headChanged && !isHunting) {
+                        anchorLog(
+                            "Kopfwechsel: neu ${crumbs.firstOrNull()}," +
+                                    " gesucht wird ${tracker.lastCrumbs.firstOrNull()}",
+                        )
+                        tracker.anchorFingerprints = tracker.lastCrumbs
+                        tracker.isAnchored = true
+                        isHunting = true
+                    }
+
+                    // Nicht waehrend der Jagd ueberschreiben, sonst verlieren wir das Ziel.
+                    if (!isHunting) {
+                        tracker.lastCrumbs = crumbs
+                    }
+                }
             }
         }
 
@@ -113,7 +205,27 @@ internal fun rememberTimelineWithLazyListState(
                 var huntAttempts = 0
                 var lastLoadedCount = 0
 
-                while (isHunting && huntAttempts <= 20) {
+                // Startposition merken: Falls die Jagd scheitert, kehren wir hierher zurueck,
+                // statt den Nutzer dort stehen zu lassen, wo der letzte Zwangs-Scroll war.
+                val startIndex = lazyListState.firstVisibleItemIndex
+                val startOffset = lazyListState.firstVisibleItemScrollOffset
+                var fallbackIndex = -1
+                var fallbackPriority = Int.MAX_VALUE
+                // So viele Runden (a 150 ms) warten wir auf den exakten Anker, bevor wir
+                // uns mit einem Ersatzkruemel zufriedengeben.
+                val patienceAttempts = 8
+
+                // Wurde ueberhaupt kein Kruemel gefunden, ist die Alternative "oben stehen
+                // bleiben" - dann lohnt langes Warten. Nach einer Nacht liegt der Lesepost
+                // etliche Seiten tiefer und Paging braucht Zeit.
+                val patienceWithoutAnyMatch = 40
+                val fpAtStart = runCatching { peek(startIndex) }.getOrNull()?.let { getPostFingerprint(it) }
+                anchorLog(
+                    "Jagd startet bei Index $startIndex (dort steht: $fpAtStart)" +
+                            ", gesucht wird ${tracker.anchorFingerprints.firstOrNull()}",
+                )
+
+                while (isHunting && huntAttempts <= 60) {
                     var bestMatchIndex = -1
                     var bestMatchPriority = Int.MAX_VALUE
                     var contiguousLoadedCount = 0
@@ -122,86 +234,124 @@ internal fun rememberTimelineWithLazyListState(
                         val item = runCatching { peek(i) }.getOrNull()
                         if (item != null) {
                             contiguousLoadedCount = i + 1
-                            val fp = getPostFingerprint(item)
 
-                            val priority = tracker.anchorFingerprints.indexOf(fp)
-
-                            if (priority != -1 && priority < bestMatchPriority) {
-                                bestMatchPriority = priority
-                                bestMatchIndex = i
+                            // Auch eingeklappte Posts beruecksichtigen, nicht nur die
+                            // oberste Ebene des Eintrags.
+                            getCoveredFingerprints(item).forEach { fp ->
+                                val priority = tracker.anchorFingerprints.indexOf(fp)
+                                if (priority != -1 && priority < bestMatchPriority) {
+                                    bestMatchPriority = priority
+                                    bestMatchIndex = i
+                                }
                             }
                         } else {
                             break
                         }
                     }
 
-                    if (bestMatchIndex != -1) {
-                        val offset = if (bestMatchPriority == 0) tracker.anchorOffset else 0
-                        lazyListState.scrollToItem(bestMatchIndex, offset)
-                        tracker.highestReadIndex = bestMatchIndex
+                    // Exakter Treffer: sofort annehmen, mit Original-Offset.
+                    if (bestMatchIndex != -1 && bestMatchPriority == 0) {
+                        anchorLog(
+                            "EXAKTER TREFFER Index $bestMatchIndex, Versuch $huntAttempts" +
+                                    " -> verschiebe um ${bestMatchIndex - startIndex} Positionen",
+                        )
+                        lazyListState.selfScrollTo(tracker, bestMatchIndex, 0)
                         isHunting = false
                         break
-                    } else {
-                        if (contiguousLoadedCount > 80) {
-                            isHunting = false
-                            break
-                        }
+                    }
 
+                    // Nur ein Ersatzkruemel gefunden: merken, aber noch nicht zuschlagen.
+                    // Die Liste waechst nach einem Refresh oft noch, und der exakte Anker
+                    // taucht haeufig erst ein, zwei Ladevorgaenge spaeter auf. Genau hier
+                    // hat die Jagd bisher zu frueh abgebrochen.
+                    if (bestMatchIndex != -1 && bestMatchPriority < fallbackPriority) {
+                        fallbackIndex = bestMatchIndex
+                        fallbackPriority = bestMatchPriority
+                        anchorLog("Ersatzkruemel gemerkt: Index $bestMatchIndex, Prioritaet $bestMatchPriority, warte auf Besseres")
+                    }
+
+                    val listStoppedGrowing = contiguousLoadedCount <= lastLoadedCount
+
+                    val patienceLimit =
+                        if (fallbackIndex == -1) patienceWithoutAnyMatch else patienceAttempts
+
+                    if (contiguousLoadedCount > 400 ||
+                        (listStoppedGrowing && huntAttempts >= patienceLimit)
+                    ) {
+                        if (fallbackIndex != -1) {
+                            anchorLog("nehme Ersatzkruemel Index $fallbackIndex, Prioritaet $fallbackPriority, Versuch $huntAttempts")
+                            lazyListState.selfScrollTo(tracker, fallbackIndex, 0)
+                        } else {
+                            anchorLog("AUFGEGEBEN, Versuch $huntAttempts, itemCount $itemCount")
+                            lazyListState.selfScrollTo(tracker, startIndex, startOffset)
+                        }
+                        isHunting = false
+                        break
+                    }
+
+                    // Nur nachladen erzwingen, wenn noch gar kein Kruemel gefunden wurde.
+                    // Haben wir schon einen Ersatz, warten wir einfach ab, statt den
+                    // Nutzer sichtbar durch die Liste zu ziehen.
+                    // Nachschub anfordern. Entscheidend ist get() statt peek():
+                    // peek() liest nur, get() schickt Paging3 den Ladehinweis. Ohne das
+                    // waechst die Liste nie, egal wie weit wir scrollen.
+                    if (fallbackIndex == -1 && itemCount > 0) {
+                        val tailIndex = itemCount - 1
+                        runCatching { currentPagingState[tailIndex] }
                         if (contiguousLoadedCount > lastLoadedCount) {
                             lastLoadedCount = contiguousLoadedCount
-                            val boundaryIndex = maxOf(0, contiguousLoadedCount - 1)
-                            lazyListState.scrollToItem(boundaryIndex, 0)
+                            anchorLog(
+                                "kein Treffer, fordere Nachschub ab Index $tailIndex an" +
+                                        " (geladen $contiguousLoadedCount von $itemCount)",
+                            )
                         }
-                        huntAttempts++
-                        delay(150)
+                    } else {
+                        lastLoadedCount = maxOf(lastLoadedCount, contiguousLoadedCount)
                     }
+                    huntAttempts++
+                    if (huntAttempts % 5 == 0) {
+                        anchorLog(
+                            "Versuch $huntAttempts: itemCount $itemCount, geladen $contiguousLoadedCount" +
+                                    ", waechst=${!listStoppedGrowing}, ersatz=$fallbackIndex",
+                        )
+                    }
+                    delay(250)
                 }
 
+                // Schleife ohne Treffer beendet (20 Versuche aufgebraucht):
+                // ebenfalls zurueck an den Ausgangspunkt.
+                if (isHunting) {
+                    anchorLog("AUFGEGEBEN nach $huntAttempts Versuchen, zurueck zu Index $startIndex")
+                    lazyListState.selfScrollTo(tracker, startIndex, startOffset)
+                }
+                // Achtung: isHunting = false startet diesen Effekt neu. Code danach wird
+                // nicht mehr ausgefuehrt - deshalb steht hier nichts mehr dahinter.
                 isHunting = false
+            } else if (!isHunting && tracker.lastCrumbs.isNotEmpty()) {
+                // Jagd vorbei (oder gar nicht noetig): Der jetzige Kopf ist das Ziel fuer
+                // den naechsten Refresh. Ohne das wuerde der naechste Refresh nach dem
+                // vorletzten Kopf suchen, weil waehrend der Jagd nicht mitgeschrieben wurde.
+                val pagingState = currentPagingState
+                val current =
+                    (0 until minOf(10, pagingState.itemCount))
+                        .mapNotNull { runCatching { pagingState.peek(it) }.getOrNull() }
+                        .map { getPostFingerprint(it) }
+                if (current.isNotEmpty()) {
+                    tracker.lastCrumbs = current
+                }
             }
         }
 
-        // 3. HIGH-WATER MARK TRACKING (eigene Anker-Logik – unverändert)
+        // 3. Nutzer-Scroll bricht eine laufende Jagd ab.
         LaunchedEffect(lazyListState) {
-            snapshotFlow {
-                Triple(
-                    lazyListState.firstVisibleItemIndex,
-                    lazyListState.firstVisibleItemScrollOffset,
-                    lazyListState.isScrollInProgress,
-                )
-            }.collect { (index, offset, isScrolling) ->
-                if (itemCount > 0) {
-                    if (isScrolling && isHunting) {
+            snapshotFlow { lazyListState.isScrollInProgress }
+                .filter { it }
+                .collect {
+                    if (isHunting && !tracker.selfScrolling) {
+                        anchorLog("Nutzer scrollt, Jagd abgebrochen")
                         isHunting = false
                     }
-
-                    val isSettingInitialAnchor = !tracker.isAnchored
-                    val isBreakingRecord = index <= tracker.highestReadIndex
-
-                    if (isScrolling || isSettingInitialAnchor) {
-                        if (isSettingInitialAnchor || isBreakingRecord) {
-                            tracker.anchorOffset = offset
-                            tracker.highestReadIndex = index
-
-                            val breadcrumbs = mutableListOf<String>()
-                            for (i in 0 until 10) {
-                                val pos = index + i
-                                if (pos < itemCount) {
-                                    val item = runCatching { peek(pos) }.getOrNull()
-                                    if (item != null) {
-                                        breadcrumbs.add(getPostFingerprint(item))
-                                    }
-                                }
-                            }
-
-                            if (breadcrumbs.isNotEmpty()) {
-                                tracker.anchorFingerprints = breadcrumbs
-                                tracker.isAnchored = true
-                            }
-                        }
-                    }
                 }
-            }
         }
 
         // 4. Zähler für neue Posts – Upstreams key-basierter Ansatz (robuster als reiner Index-Vergleich)
