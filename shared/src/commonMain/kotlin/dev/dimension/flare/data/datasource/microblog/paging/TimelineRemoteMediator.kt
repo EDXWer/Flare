@@ -30,9 +30,9 @@ internal open class TimelineRemoteMediator(
         OffsetFromStartPagingKey,
         TimelinePageItem,
         DbPagingTimelineWithStatus,
-    >(
-        database = database,
-    ),
+        >(
+    database = database,
+),
     RemoteLoader<DbPagingTimelineWithStatus> {
     private var suppressInitialPrepend = false
 
@@ -144,20 +144,63 @@ internal open class TimelineRemoteMediator(
                     }
                     data
                 }
+            } else if (request is PagingRequest.Append && data.isNotEmpty()) {
+                // Repeated posts may have fresh content, but moving them to the end
+                // shifts the items being read while the next page is loading.
+                val existing =
+                    data
+                        .map { it.timeline.statusId }
+                        .distinct()
+                        .chunked(500)
+                        .flatMap { statusIds ->
+                            database.pagingTimelineDao().getByPagingKeyAndStatusIds(pagingKey, statusIds)
+                        }.associateBy { it._id }
+                data.map { item ->
+                    existing[item.timeline._id]?.let { previous ->
+                        item.copy(timeline = item.timeline.copy(sortId = previous.sortId))
+                    } ?: item
+                }
             } else {
                 data
             }
         val staleTimeline =
             if (request is PagingRequest.Refresh) {
-                val retainedStatusIds =
-                    dataToSave
-                        .groupBy { it.timeline.pagingKey }
-                        .mapValues { (_, rows) -> rows.mapTo(mutableSetOf()) { it.timeline.statusId } }
-                (retainedStatusIds.keys + loader.pagingKey).flatMap { key ->
-                    database
-                        .pagingTimelineDao()
-                        .getByPagingKey(key)
-                        .filter { it.statusId !in retainedStatusIds[key].orEmpty() }
+                val rowsByKey = dataToSave.groupBy { it.timeline.pagingKey }
+                // Upstream nutzt seit 09/2026 _id (pagingKey + statusId) statt statusId -
+                // uebernommen, weil es bei mehreren Quellen eindeutiger ist.
+                val retainedTimelineIds =
+                    rowsByKey.mapValues { (_, rows) -> rows.mapTo(mutableSetOf()) { it.timeline._id } }
+
+                // Fork-Anpassung: Aufraeumen nur innerhalb des Zeitraums, den die frische
+                // Antwort tatsaechlich abdeckt. Alles Aeltere bleibt erhalten.
+                //
+                // Upstream loescht hier jede Zeile, die nicht in der Refresh-Antwort steht.
+                // Damit verschwindet nach einem Refresh die gesamte aeltere Historie, sobald
+                // mehr neue Posts eingelaufen sind, als auf eine Seite passen - und die
+                // Anker-Suche in TimelineWithLazyListState findet ihren Zielpost nicht mehr.
+                //
+                // sortId ist aufsteigend sortiert: kleiner = neuer. Zeilen, die aelter sind
+                // als der aelteste Post der Antwort, haben also eine groessere sortId als
+                // dessen Maximum - die ruehren wir nicht an. Der Zweck der Upstream-Aenderung
+                // bleibt erhalten: geloeschte oder verschobene Posts innerhalb des frisch
+                // geladenen Bereichs werden weiterhin entfernt.
+                val oldestRetainedSortId =
+                    rowsByKey.mapValues { (_, rows) -> rows.maxOf { it.timeline.sortId } }
+
+                (retainedTimelineIds.keys + loader.pagingKey).flatMap { key ->
+                    val boundary = oldestRetainedSortId[key]
+                    if (boundary == null) {
+                        // Keine frischen Daten fuer diesen Key - dann auch nichts loeschen.
+                        emptyList()
+                    } else {
+                        database
+                            .pagingTimelineDao()
+                            .getByPagingKey(key)
+                            .filter {
+                                it._id !in retainedTimelineIds[key].orEmpty() &&
+                                        it.sortId <= boundary
+                            }
+                    }
                 }
             } else {
                 emptyList()
@@ -168,7 +211,7 @@ internal open class TimelineRemoteMediator(
                 .pagingTimelineDao()
                 .deletePresentationReferences(
                     pagingKey = pagingKey,
-                    statusIds = rows.map { it.statusId },
+                    timelineIds = rows.map { it._id },
                 )
         }
         if (staleTimeline.isNotEmpty()) {
@@ -182,14 +225,14 @@ internal open class TimelineRemoteMediator(
             dataToSave
                 .flatMap { item ->
                     listOfNotNull(item.status.status.data) +
-                        item.status.references.mapNotNull { it.status?.data } +
-                        item.presentationReferences.flatMap { reference ->
-                            listOfNotNull(reference.status?.status?.data) +
-                                reference.status
-                                    ?.references
-                                    .orEmpty()
-                                    .mapNotNull { it.status?.data }
-                        }
+                            item.status.references.mapNotNull { it.status?.data } +
+                            item.presentationReferences.flatMap { reference ->
+                                listOfNotNull(reference.status?.status?.data) +
+                                        reference.status
+                                            ?.references
+                                            .orEmpty()
+                                            .mapNotNull { it.status?.data }
+                            }
                 }.distinctBy { it.id },
             allowLongText = allowLongText,
         )
@@ -281,12 +324,12 @@ private fun List<UiTimelineV2>.collapseReplyChains(): List<UiTimelineV2> {
                         post.presentation.copy(
                             inlineParents =
                                 (
-                                    post.presentation.inlineParents.dropLast(1) +
-                                        collapsed.presentation.inlineParents +
-                                        listOf(
-                                            collapsed.copy(presentation = collapsed.presentation.copy(inlineParents = persistentListOf())),
-                                        )
-                                ).distinctBy { it.statusKey }
+                                        post.presentation.inlineParents.dropLast(1) +
+                                                collapsed.presentation.inlineParents +
+                                                listOf(
+                                                    collapsed.copy(presentation = collapsed.presentation.copy(inlineParents = persistentListOf())),
+                                                )
+                                        ).distinctBy { it.statusKey }
                                     .toImmutableList(),
                         ),
                 )
