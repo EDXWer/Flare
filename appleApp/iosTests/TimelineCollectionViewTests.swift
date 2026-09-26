@@ -223,23 +223,6 @@ final class TimelineCollectionViewTests: XCTestCase {
         try fixture.assertPosition(Position(id: String(Int(position.id)! + 1), distance: position.distance))
     }
 
-    func testReturningToAnotherTabRestoresItsItemAtTheNewWidth() throws {
-        let positions = TimelinePagePositions()
-        let first = Fixture(width: 390, columns: 1)
-        first.scroll(to: 4_000)
-        let expected = try first.readingPosition()
-        positions.state(for: "home", scope: "account-a").position = first.collectionView.captureReadingPosition()
-        let other = Fixture(width: 390, columns: 1)
-        other.scroll(to: 1_000)
-        positions.state(for: "bookmarks", scope: "account-a").position = other.collectionView.captureReadingPosition()
-
-        let returning = Fixture(width: 900, columns: 3)
-        returning.collectionView.restoreReadingPosition(try XCTUnwrap(positions.state(for: "home", scope: "account-a").position))
-        returning.settle()
-        try returning.assertPosition(expected)
-        XCTAssertNil(positions.state(for: "home", scope: "account-b").position)
-    }
-
     func testPrependingItemsKeepsTheReadingItemInsteadOfItsIndex() throws {
         let fixture = Fixture(width: 700, columns: 2)
         fixture.scroll(to: 2_000)
@@ -670,33 +653,6 @@ final class TimelineCollectionViewTests: XCTestCase {
         XCTAssertEqual(secondAfter, secondBefore, accuracy: 0.5)
     }
 
-    func testQueryBookmarksAreReleasedWithTheirSourceAndPage() {
-        var positions: TimelinePagePositions? = TimelinePagePositions()
-        let home = positions!.state(for: "home", scope: "account")
-        home.position = .item(id: "home-item", distanceFromTop: -20, itemOrder: ["home-item"])
-        var query: NSObject? = NSObject()
-        weak var queryState = positions!.state(for: "query", scope: "account", owner: query)
-        queryState?.position = .top
-        XCTAssertNotNil(queryState)
-        query = nil
-        XCTAssertTrue(home === positions!.state(for: "home", scope: "account"))
-        XCTAssertNil(queryState)
-        weak var otherPage = positions!.state(for: "other", scope: "account")
-        positions = nil
-        XCTAssertNil(otherPage)
-    }
-
-    func testChangingAccountsCannotResurrectAnOldBookmark() {
-        let positions = TimelinePagePositions()
-        let old = positions.state(for: "home", scope: "a")
-        old.position = .top
-        XCTAssertNil(positions.state(for: "home", scope: "b").position)
-        // An outgoing controller can still save during dismantling. Its detached
-        // page state must not write into the newly selected account's state.
-        old.position = .item(id: "old", distanceFromTop: -10, itemOrder: ["old"])
-        XCTAssertNil(positions.state(for: "home", scope: "a").position)
-    }
-
     func testRefinedHeightDoesNotReplayAnUnreachableEstimatedOffset() throws {
         let fixture = Fixture(width: 390, columns: 1)
         let view = fixture.collectionView
@@ -713,6 +669,42 @@ final class TimelineCollectionViewTests: XCTestCase {
         view.collectionViewLayout.invalidateLayout()
         fixture.settle()
         try fixture.assertPosition(measuredPosition)
+    }
+
+    func testMeasuringAPartlyHiddenEstimateKeepsTheNextVisibleTop() throws {
+        let fixture = Fixture(width: 390, columns: 1)
+        let view = fixture.collectionView
+        fixture.heightOverride = { _, _ in 240 }
+        view.collectionViewLayout.invalidateLayout()
+        fixture.settle()
+        let frame = try XCTUnwrap(view.layoutAttributesForItem(at: IndexPath(item: 20, section: 0))).frame
+        fixture.scroll(to: frame.minY + 200)
+        let next = IndexPath(item: 21, section: 0)
+        let screenY = try XCTUnwrap(view.layoutAttributesForItem(at: next)).frame.minY - view.contentOffset.y
+
+        fixture.heightOverride = { id, _ in id == 20 ? 100 : 240 }
+        view.invalidateMeasuredHeights()
+        fixture.settle()
+
+        XCTAssertEqual(try XCTUnwrap(view.layoutAttributesForItem(at: next)).frame.minY - view.contentOffset.y,
+                       screenY, accuracy: 0.5)
+    }
+
+    func testMeasuringACardFillingTheViewportKeepsThatItemVisible() throws {
+        let fixture = Fixture(width: 390, columns: 1)
+        let view = fixture.collectionView
+        fixture.heightOverride = { _, _ in 1_200 }
+        view.collectionViewLayout.invalidateLayout()
+        fixture.settle()
+        fixture.scroll(to: 400)
+
+        fixture.heightOverride = { _, _ in 200 }
+        view.invalidateMeasuredHeights()
+        fixture.settle()
+
+        XCTAssertEqual(try fixture.readingPosition().id, "0")
+        let frame = try XCTUnwrap(view.layoutAttributesForItem(at: IndexPath(item: 0, section: 0))).frame
+        XCTAssertGreaterThan(frame.maxY, view.contentOffset.y)
     }
 
     func testColumnThresholdIncludesInsetsAndSpacing() {

@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +40,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
@@ -46,6 +50,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
@@ -178,6 +183,10 @@ public fun CommonStatusComponent(
     quotes: ImmutableList<UiTimelineV2.Post> = persistentListOf(),
     allowMediaCarousel: Boolean = false,
     carouselOuterHorizontalPadding: Dp = 0.dp,
+    nameModifier: Modifier = Modifier,
+    handleModifier: Modifier = Modifier,
+    avatarModifier: Modifier = Modifier,
+    actionsModifier: Modifier = Modifier,
 ) {
     val uriHandler = LocalUriHandler.current
     val openPostLabel = stringResource(Res.string.status_open_post)
@@ -354,6 +363,9 @@ public fun CommonStatusComponent(
                     } else {
                         CommonStatusHeaderComponent(
                             data = user,
+                            nameModifier = nameModifier,
+                            handleModifier = handleModifier,
+                            avatarModifier = avatarModifier,
                             onUserClick = {
                                 user.onClicked.invoke(
                                     ClickContext(
@@ -493,7 +505,8 @@ public fun CommonStatusComponent(
                             modifier =
                                 Modifier
                                     .fillMaxWidth()
-                                    .padding(top = 8.dp),
+                                    .padding(top = 8.dp)
+                                    .then(actionsModifier),
                         )
                     }
                 } else {
@@ -506,7 +519,8 @@ public fun CommonStatusComponent(
                             modifier =
                                 Modifier
                                     .fillMaxWidth()
-                                    .padding(top = 8.dp),
+                                    .padding(top = 8.dp)
+                                    .then(actionsModifier),
                         )
                     }
                 }
@@ -966,11 +980,13 @@ internal fun StatusActions(
     val appearanceSettings = LocalTimelineAppearance.current
     val displayItems =
         remember(items, appearanceSettings.postActionLayout) {
-            items.applyPostActionLayout(appearanceSettings.postActionLayout)
+            items.applyPostActionLayout(appearanceSettings.postActionLayout).filterNot { it == ActionMenu.Divider }
         }
     if (displayItems.isEmpty()) return
     val haptics = LocalHapticFeedback.current
     val launcher = LocalUriHandler.current
+    val isStretched = appearanceSettings.postActionStyle == PostActionStyle.Stretch
+    val trailingNumberWidth = PlatformTextStyle.current.fontSize.value.dp * 2.5f + 2.dp
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.Bottom,
@@ -979,16 +995,30 @@ internal fun StatusActions(
                 PostActionStyle.Hidden -> Arrangement.spacedBy(4.dp, Alignment.Start)
                 PostActionStyle.LeftAligned -> Arrangement.spacedBy(4.dp, Alignment.Start)
                 PostActionStyle.RightAligned -> Arrangement.spacedBy(4.dp, Alignment.End)
-                PostActionStyle.Stretch -> Arrangement.SpaceBetween
+                PostActionStyle.Stretch -> Arrangement.Start
             },
     ) {
         displayItems.fastForEachIndexed { index, action ->
+            val number =
+                when (action) {
+                    is ActionMenu.Item -> action.count
+                    is ActionMenu.Group -> action.displayItem.count
+                    ActionMenu.Divider -> null
+                }
+            // Equal leading slots keep icon centers independent of the count's width.
+            val actionModifier =
+                when {
+                    !isStretched || displayItems.size == 1 -> Modifier
+                    index != displayItems.lastIndex -> Modifier.weight(1f)
+                    else -> Modifier.width(28.dp + if (number != null) trailingNumberWidth else 0.dp)
+                }
             if (index == displayItems.lastIndex && appearanceSettings.postActionStyle == PostActionStyle.LeftAligned) {
                 Spacer(modifier = Modifier.weight(1f))
             }
             when (action) {
                 is ActionMenu.Group -> {
                     StatusActionGroup(
+                        modifier = actionModifier,
                         icon =
                             action.displayItem.icon?.toImageVector()
                                 ?: FontAwesomeIcons.Solid.Ellipsis,
@@ -1000,9 +1030,10 @@ internal fun StatusActions(
                             action.displayItem.text?.asString()
                                 ?: stringResource(Res.string.more),
                         withTextMinWidth =
-                            appearanceSettings.postActionFixedWidth &&
+                            !isStretched && appearanceSettings.postActionFixedWidth &&
                                 action.displayItem.count != null &&
                                 index != displayItems.lastIndex,
+                        isStretched = isStretched,
                     ) { closeMenu, isMenuShown ->
                         action.actions.fastForEach { subActions ->
                             when (subActions) {
@@ -1023,6 +1054,7 @@ internal fun StatusActions(
 
                 is ActionMenu.Item -> {
                     StatusActionButton(
+                        modifier = actionModifier,
                         icon =
                             action.icon?.toImageVector()
                                 ?: FontAwesomeIcons.Solid.Ellipsis,
@@ -1034,9 +1066,10 @@ internal fun StatusActions(
                                 ?: stringResource(Res.string.more),
                         enabled = action.enabled,
                         withTextMinWidth =
-                            appearanceSettings.postActionFixedWidth &&
+                            !isStretched && appearanceSettings.postActionFixedWidth &&
                                 action.count != null &&
                                 index != displayItems.lastIndex,
+                        isStretched = isStretched,
                         onClicked = {
                             action.onClicked.let { onClick ->
                                 haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
@@ -1304,23 +1337,13 @@ private fun StatusContentComponent(
                     listOf(warning.original)
                 }
             }.orEmpty()
-    val shouldExpandTextByDefault =
-        visibleContentWarning.all { it.isEmpty } &&
-            visibleContent.sumOf { it.innerText.length } <= 500
-    val effectiveMaxLines =
-        resolveStatusContentMaxLines(
-            explicitMaxLines = maxLines,
-            defaultMaxLines = appearanceSettings.lineLimit,
-            shouldExpandTextByDefault = shouldExpandTextByDefault,
-        )
+    val effectiveMaxLines = (maxLines ?: appearanceSettings.lineLimit).coerceAtLeast(1)
+    val collapseThresholdLines = maxLines?.coerceAtLeast(1) ?: 15
     var expanded by rememberSaveable {
         mutableStateOf(false)
     }
-    var showSoftExpand by rememberSaveable {
-        mutableStateOf(false)
-    }
-    LaunchedEffect(visibleContent, effectiveMaxLines, expanded) {
-        showSoftExpand = false
+    var overflowingTextIndexes by remember(visibleContent, effectiveMaxLines, expanded) {
+        mutableStateOf(emptySet<Int>())
     }
     Column(
         modifier = modifier,
@@ -1359,32 +1382,34 @@ private fun StatusContentComponent(
         }
         AnimatedVisibility(visible = expanded || expandContentWarning || visibleContentWarning.all { it.isEmpty }) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                visibleContent.forEach { visibleText ->
-                    if (!visibleText.isEmpty) {
-                        RichText(
-                            text = visibleText,
-                            modifier = Modifier.fillMaxWidth(),
-                            maxLines =
-                                if (expanded || effectiveMaxLines == Int.MAX_VALUE) {
-                                    Int.MAX_VALUE
-                                } else {
-                                    effectiveMaxLines
-                                },
-                            onTextLayout = {
-                                if (
-                                    it.hasVisualOverflow &&
-                                    !expanded &&
-                                    effectiveMaxLines != Int.MAX_VALUE &&
-                                    showExpandButton
-                                ) {
-                                    showSoftExpand = true
-                                }
-                            },
-                        )
+                key(visibleContent, effectiveMaxLines) {
+                    visibleContent.forEachIndexed { index, visibleText ->
+                        if (!visibleText.isEmpty) {
+                            if (expanded || effectiveMaxLines == Int.MAX_VALUE) {
+                                RichText(
+                                    text = visibleText,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            } else {
+                                CollapsibleRichText(
+                                    text = visibleText,
+                                    lineLimit = effectiveMaxLines,
+                                    collapseThresholdLines = collapseThresholdLines,
+                                    onOverflowChanged = { overflows ->
+                                        overflowingTextIndexes =
+                                            if (overflows) {
+                                                overflowingTextIndexes + index
+                                            } else {
+                                                overflowingTextIndexes - index
+                                            }
+                                    },
+                                )
+                            }
+                        }
                     }
                 }
                 if (visibleContent.any { !it.isEmpty }) {
-                    if (showSoftExpand) {
+                    if (overflowingTextIndexes.isNotEmpty() && showExpandButton) {
                         PlatformTextButton(
                             onClick = {
                                 expanded = true
@@ -1408,11 +1433,72 @@ private fun StatusContentComponent(
     }
 }
 
-internal fun resolveStatusContentMaxLines(
-    explicitMaxLines: Int?,
-    defaultMaxLines: Int,
-    shouldExpandTextByDefault: Boolean,
-): Int = explicitMaxLines ?: if (shouldExpandTextByDefault) Int.MAX_VALUE else defaultMaxLines
+@Composable
+private fun CollapsibleRichText(
+    text: UiRichText,
+    lineLimit: Int,
+    collapseThresholdLines: Int,
+    onOverflowChanged: (Boolean) -> Unit,
+) {
+    val lineHeight =
+        with(LocalDensity.current) {
+            PlatformTextStyle.current.lineHeight
+                .roundToPx()
+                .coerceAtLeast(1)
+        }
+    var fullHeight by remember(text) { mutableStateOf(0) }
+    val overflows = shouldCollapseRichText(fullHeight, lineHeight, maxOf(lineLimit, collapseThresholdLines))
+    LaunchedEffect(overflows) {
+        onOverflowChanged(overflows)
+    }
+    Layout(
+        modifier = Modifier.fillMaxWidth().clipToBounds(),
+        content = {
+            RichText(
+                text = text,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .onSizeChanged { fullHeight = it.height },
+            )
+        },
+    ) { measurables, constraints ->
+        val placeable =
+            measurables.single().measure(
+                constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity),
+            )
+        val height =
+            collapsedRichTextHeight(
+                fullHeight = placeable.height,
+                lineHeight = lineHeight,
+                lineLimit = lineLimit,
+                collapseThresholdLines = collapseThresholdLines,
+            )
+        layout(placeable.width, height.coerceIn(constraints.minHeight, constraints.maxHeight)) {
+            placeable.placeRelative(0, 0)
+        }
+    }
+}
+
+internal fun shouldCollapseRichText(
+    fullHeight: Int,
+    lineHeight: Int,
+    collapseThresholdLines: Int,
+): Boolean =
+    fullHeight.toLong() >
+        lineHeight.coerceAtLeast(1).toLong() * collapseThresholdLines.coerceAtLeast(1)
+
+internal fun collapsedRichTextHeight(
+    fullHeight: Int,
+    lineHeight: Int,
+    lineLimit: Int,
+    collapseThresholdLines: Int,
+): Int =
+    if (shouldCollapseRichText(fullHeight, lineHeight, maxOf(lineLimit, collapseThresholdLines))) {
+        minOf(fullHeight.toLong(), lineHeight.coerceAtLeast(1).toLong() * lineLimit.coerceAtLeast(1)).toInt()
+    } else {
+        fullHeight
+    }
 
 @Composable
 private fun StatusPollComponent(

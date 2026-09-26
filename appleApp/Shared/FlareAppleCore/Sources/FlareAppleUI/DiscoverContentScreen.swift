@@ -63,9 +63,6 @@ public struct DiscoverContentScreen<AskAiOverlay: View>: View {
 
             #if os(iOS)
             accountToolbarItem
-            if #available(iOS 26.0, *) {
-                DefaultToolbarItem(kind: .search, placement: .bottomBar)
-            }
             #elseif os(macOS)
             macAccountToolbarItem
             #endif
@@ -145,10 +142,8 @@ public struct DiscoverContentScreen<AskAiOverlay: View>: View {
         if showsPosts { headers.append(.title(searching ? "local_history_status" : "discover_status")) }
         return TimelineListRequest(
             key: "\(listScope):\(searching ? searchPresenter.key : "discover")",
-            positionScope: listScope,
             content: showsPosts ? .posts(posts) : .none,
-            headers: headers,
-            positionOwner: searching ? searchPresenter : presenter
+            headers: headers
         )
     }
 

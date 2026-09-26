@@ -202,6 +202,7 @@ internal fun Notification.render(accountKey: MicroBlogKey): UiTimelineV2 {
             presentation =
                 renderedStatus.presentation.copy(
                     message = message,
+                    notificationKey = message.statusKey,
                 ),
         )
     } else {
@@ -983,7 +984,7 @@ internal fun Account.render(
                                 .mapNotNull { (name, value) ->
                                     name?.let {
                                         value?.let {
-                                            name to parseHtml(value).toUi()
+                                            name to parseHtml(value, baseUri = url?.takeIf { it.isNotBlank() } ?: "https://$host/").toUi()
                                         }
                                     }
                                 }.toMap()
@@ -1022,7 +1023,7 @@ private fun parseNote(
                 "<img src=\"${it.url}\" alt=\"${it.shortcode}\" />",
             )
     }
-    return parseHtml(content).let {
+    return parseHtml(content, baseUri = account.url?.takeIf { it.isNotBlank() } ?: "https://$host/").let {
         updateHtmlTagToken(it, accountKey, host)
         it.toUi()
     }
@@ -1124,7 +1125,7 @@ internal fun parseMastodonContent(
                 "<img src=\"${it.url}\" alt=\"${it.shortcode}\" />",
             )
     }
-    val body = parseHtml(content)
+    val body = parseHtml(content, baseUri = status.url?.takeIf { it.isNotBlank() } ?: "https://$host/")
     body.childNodes().forEach {
         replaceMentionAndHashtag(mentions, it, accountKey, host)
     }

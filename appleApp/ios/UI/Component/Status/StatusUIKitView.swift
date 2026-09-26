@@ -620,15 +620,19 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             innerY += h
             // Compose inserts this spacer only after CommonStatusHeaderComponent;
             // compact side-avatar and quote headers do not get it.
-            if !showAsFullWidth && !isQuote {
+            // The reply row supplies its own spacing below the header.
+            if !showAsFullWidth && !isQuote && data?.replyToHandle == nil {
                 innerY += 4
             }
         }
 
         // Compose uses semantic 4/8pt spacers instead of a uniform stack gap.
-        for item in contentColumnLayoutItems {
+        updateExpandMoreButtonVisibility(contentWidth: contentWidth)
+        var followsReply = false
+        for item in contentColumnLayoutItems where !item.view.isHidden {
             let child = item.view
-            innerY += item.spacingBefore
+            // Keep the reply row's bottom spacing from stacking with the next block's.
+            innerY += followsReply ? 0 : item.spacingBefore
             let isCarousel = child === mediaViewStorage && mediaViewStorage?.isShowingCarousel == true
             if isCarousel, wantsAvatar {
                 innerY = max(innerY, y + Self.avatarSize + 8)
@@ -638,9 +642,22 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             let h = childHeight(of: child, for: childWidth)
             if assignFrames { child.frame = CGRect(x: childX, y: innerY, width: childWidth, height: h) }
             innerY += h + item.spacingAfter
+            followsReply = child === replyToContainerStorage
         }
 
         return max(innerY, y)
+    }
+
+    private func updateExpandMoreButtonVisibility(contentWidth: CGFloat) {
+        guard let button = expandMoreButtonStorage,
+              contentColumnChildren.contains(where: { $0 === button }) else {
+            return
+        }
+        let bodyViews = [bodyTextStorage, bodyTranslationTextStorage].compactMap { $0 }
+        button.isHidden = !bodyViews.contains { bodyView in
+            contentColumnChildren.contains(where: { $0 === bodyView }) &&
+                bodyView.hasCollapsedOverflow(for: contentWidth)
+        }
     }
 
     // MARK: - SwiftUI-equivalent computed
@@ -780,13 +797,12 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             showOriginalWithTranslation: appearance.showOriginalWithTranslation
         )
         let hasCW = contentWarnings.contains { !$0.text.isEmpty }
-        let shouldExpandTextByDefault = !hasCW && contents.reduce(0) { $0 + $1.text.innerText.count } <= 500
 
         // reply-to
         if let replyToHandle = data.replyToHandle {
             let replyToContainer = resolvedReplyToContainer()
             replyToContainer.configure(text: String(localized: "Reply to \(replyToHandle)"))
-            append(replyToContainer, before: 4)
+            append(replyToContainer, before: 2, after: 2)
         }
 
         // content warning
@@ -825,16 +841,20 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         var visibleBodyCount = 0
         if expand || appearance.expandContentWarning || !hasCW {
             let bodyLineLimit: Int?
+            let collapseAboveLineCount: Int?
             let bodySelectionEnabled: Bool
             if isDetail {
                 bodySelectionEnabled = true
                 bodyLineLimit = nil
-            } else if (shouldExpandTextByDefault || expand) && maxLine >= 5 {
+                collapseAboveLineCount = nil
+            } else if expand {
                 bodySelectionEnabled = false
                 bodyLineLimit = nil
+                collapseAboveLineCount = nil
             } else {
                 bodySelectionEnabled = false
-                bodyLineLimit = Int(maxLine)
+                bodyLineLimit = max(maxLine, 1)
+                collapseAboveLineCount = maxLine >= 5 ? max(15, maxLine) : max(maxLine, 1)
             }
             for content in contents where !content.text.isEmpty {
                 let bodyText = content.cacheKeyOffset == 0 ? resolvedBodyText() : resolvedBodyTranslationText()
@@ -844,13 +864,13 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
                     isTextSelectionEnabled: bodySelectionEnabled,
                     onOpenURL: openURL,
                     preferredContentSizeCategory: appearance.preferredContentSizeCategory,
-                    contentKey: Int(data.renderHash) * 4 + 2 + content.cacheKeyOffset
+                    contentKey: Int(data.renderHash) * 4 + 2 + content.cacheKeyOffset,
+                    collapseAboveLineCount: collapseAboveLineCount
                 )
                 append(bodyText, before: visibleBodyCount == 0 ? 0 : 4)
                 visibleBodyCount += 1
             }
-            if !shouldExpandTextByDefault,
-               contents.contains(where: { !$0.text.isEmpty }),
+            if contents.contains(where: { !$0.text.isEmpty }),
                !isDetail,
                !expand,
                 showExpandTextButton {

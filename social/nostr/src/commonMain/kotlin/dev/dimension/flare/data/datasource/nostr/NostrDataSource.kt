@@ -1,6 +1,5 @@
 package dev.dimension.flare.data.datasource.nostr
 
-import dev.dimension.flare.common.FileType
 import dev.dimension.flare.common.SwitchingServiceManager
 import dev.dimension.flare.data.datasource.microblog.ActionMenu
 import dev.dimension.flare.data.datasource.microblog.AuthenticatedMicroblogDataSource
@@ -23,6 +22,7 @@ import dev.dimension.flare.data.datasource.microblog.handler.RelationHandler
 import dev.dimension.flare.data.datasource.microblog.handler.UserHandler
 import dev.dimension.flare.data.datasource.microblog.loader.RelationActionType
 import dev.dimension.flare.data.datasource.microblog.paging.CacheableRemoteLoader
+import dev.dimension.flare.data.datasource.microblog.paging.NotificationTimelineLoader
 import dev.dimension.flare.data.datasource.microblog.paging.PagingRequest
 import dev.dimension.flare.data.datasource.microblog.paging.PagingResult
 import dev.dimension.flare.data.datasource.microblog.paging.RemoteLoader
@@ -362,7 +362,7 @@ internal class NostrDataSource(
         )
 
     override fun notification(type: NotificationFilter): RemoteLoader<UiTimelineV2> =
-        object : CacheableRemoteLoader<UiTimelineV2> {
+        object : NotificationTimelineLoader {
             override val pagingKey: String = "notification_${type.name.lowercase()}_$accountKey"
 
             override suspend fun load(
@@ -477,17 +477,13 @@ internal class NostrDataSource(
         val credential = credentialFlow.first()
         val medias =
             data.medias.map { media ->
-                val bytes = media.file.readBytes()
-                require(media.file.type != FileType.Other) {
-                    "Unsupported Nostr media type: ${media.file.name.orEmpty()}"
-                }
+                val upload = media.file.uploadMedia()
+                upload.validate("Nostr")
                 serviceManager
                     .withService {
                         it.uploadMedia(
                             serverUrl = credential.mediaServerUrl,
-                            name = media.file.name,
-                            bytes = bytes,
-                            fileType = media.file.type,
+                            media = upload,
                             altText = media.altText,
                         )
                     }.also {
