@@ -36,7 +36,7 @@ import dev.dimension.flare.data.datasource.microblog.paging.TimelineDbPageLoader
 import dev.dimension.flare.data.datasource.microblog.paging.TimelinePageItem
 import dev.dimension.flare.data.datasource.microblog.paging.TimelineRemoteMediator
 import dev.dimension.flare.data.datasource.microblog.paging.notSupported
-import dev.dimension.flare.data.datasource.microblog.paging.toPagingSource
+import dev.dimension.flare.data.datasource.microblog.paging.toTimelinePagingSource
 import dev.dimension.flare.data.datasource.microblog.pagingConfig
 import dev.dimension.flare.data.datastore.AppDataStore
 import dev.dimension.flare.data.model.tab.TimelineFilterConfig
@@ -239,7 +239,7 @@ public open class TimelinePresenter : PresenterBase<TimelineState> {
         Pager(
             config = pagingConfig,
             pagingSourceFactory = {
-                loader.toPagingSource()
+                loader.toTimelinePagingSource()
             },
         ).flow
 
@@ -362,13 +362,17 @@ internal fun UiTimelineV2.TimelinePostItem.traits(): TimelinePostTraits {
         }
     val contents =
         buildSet {
-            val hasVisualMedia = visiblePost.images.any { it is UiMedia.Image || it is UiMedia.Gif || it is UiMedia.Video }
+            val hasVisualMedia =
+                visiblePost.images.any {
+                    it is UiMedia.Image || it is UiMedia.Gif || it is UiMedia.Ugoira ||
+                        it is UiMedia.Video
+                }
             if (visiblePost.content.original.raw
                     .isNotBlank() && !hasVisualMedia
             ) {
                 add(TimelinePostContent.Text)
             }
-            if (visiblePost.images.any { it is UiMedia.Image || it is UiMedia.Gif }) {
+            if (visiblePost.images.any { it is UiMedia.Image || it is UiMedia.Gif || it is UiMedia.Ugoira }) {
                 add(TimelinePostContent.Image)
             }
             if (visiblePost.images.any { it is UiMedia.Video }) {

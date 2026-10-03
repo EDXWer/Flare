@@ -487,7 +487,7 @@ private fun LazyListScope.articleComments(
             articleCommentsTitle()
             items(
                 count = comments.itemCount,
-                key = comments.itemKey { item -> item.itemKey ?: item.hashCode() },
+                key = comments.itemKey { item -> item.stableItemKey },
                 contentType = comments.itemContentType { item -> item.itemType },
             ) { index ->
                 ArticleBodyContainer {
@@ -951,6 +951,7 @@ private fun UiMedia.previewUrl(): String? =
     when (this) {
         is UiMedia.Audio -> previewUrl
         is UiMedia.Gif -> previewUrl
+        is UiMedia.Ugoira -> previewUrl
         is UiMedia.Image -> previewUrl
         is UiMedia.Video -> thumbnailUrl
     }

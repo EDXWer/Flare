@@ -131,6 +131,7 @@ import dev.dimension.flare.ui.component.LocalGlobalAppearance
 import dev.dimension.flare.ui.component.MediaViewerPlayback
 import dev.dimension.flare.ui.component.MediaViewerSelection
 import dev.dimension.flare.ui.component.SurfaceBindingManager
+import dev.dimension.flare.ui.component.UgoiraPlayer
 import dev.dimension.flare.ui.component.VideoPlayer
 import dev.dimension.flare.ui.component.accessibleDescription
 import dev.dimension.flare.ui.component.placeholder
@@ -168,6 +169,7 @@ import me.saket.telephoto.zoomable.coil3.ZoomableAsyncImage
 import me.saket.telephoto.zoomable.rememberZoomableImageState
 import me.saket.telephoto.zoomable.rememberZoomableState
 import me.saket.telephoto.zoomable.spatial.CoordinateSpace
+import me.saket.telephoto.zoomable.zoomable
 import moe.tlaster.precompose.molecule.producePresenter
 import moe.tlaster.swiper.Swiper
 import moe.tlaster.swiper.rememberSwiperState
@@ -315,7 +317,7 @@ internal fun MediaViewerScreen(
     MediaViewerPlaybackTheme {
         val motionScheme = MaterialTheme.motionScheme
         val mediaItems = medias.takeSuccess().orEmpty()
-        MediaViewerSelection(mediaItems.map { it.url }, mediaItems.getOrNull(pagerState.currentPage)?.url)
+        MediaViewerSelection(mediaItems.map { it.url }, pagerState.currentPage)
         val swiperState =
             rememberSwiperState(
                 onDismiss = onDismiss,
@@ -343,21 +345,8 @@ internal fun MediaViewerScreen(
                             HorizontalPager(
                                 state = pagerState,
                                 userScrollEnabled = !state.lockPager,
-                                key = {
-                                    when (val mediaState = medias) {
-                                        is UiState.Error -> {
-                                            preview
-                                        }
-
-                                        is UiState.Loading -> {
-                                            preview
-                                        }
-
-                                        is UiState.Success -> {
-                                            mediaState.data.getOrNull(it)?.previewKey()
-                                        }
-                                    } ?: it
-                                },
+                                // Keep the loading placeholder attached to the image originally tapped.
+                                key = { index -> if (medias is UiState.Success) index else initialIndex },
                             ) { index ->
                                 AnimatedContent(
                                     medias,
@@ -384,6 +373,7 @@ internal fun MediaViewerScreen(
                                                     is UiMedia.Gif -> media.url
                                                     is UiMedia.Image -> media.url
                                                     is UiMedia.Video -> media.thumbnailUrl
+                                                    is UiMedia.Ugoira -> media.previewUrl
                                                 }
                                             val previewUrl =
                                                 when (media) {
@@ -391,6 +381,7 @@ internal fun MediaViewerScreen(
                                                     is UiMedia.Gif -> media.previewUrl
                                                     is UiMedia.Image -> media.previewUrl
                                                     is UiMedia.Video -> media.thumbnailUrl
+                                                    is UiMedia.Ugoira -> media.previewUrl
                                                 }
                                             if (pagerState.currentPage != index || media is UiMedia.Image || media is UiMedia.Gif) {
                                                 ImageItem(
@@ -419,6 +410,10 @@ internal fun MediaViewerScreen(
                                                         state.setShowSheet(true)
                                                     },
                                                 )
+                                            } else if (media is UiMedia.Ugoira) {
+                                                val zoom = rememberZoomableState(zoomSpec = ZoomSpec(maxZoomFactor = 10f))
+                                                LaunchedEffect(zoom.zoomFraction) { state.setLockPager((zoom.zoomFraction ?: 0f) > .01f) }
+                                                UgoiraPlayer(media, Modifier.fillMaxSize().zoomable(zoom))
                                             } else if (media is UiMedia.Video) {
                                                 Box(
                                                     modifier = Modifier.fillMaxSize(),
@@ -1385,14 +1380,6 @@ private fun ImageItem(
     )
 }
 
-private fun UiMedia.previewKey(): String? =
-    when (this) {
-        is UiMedia.Audio -> previewUrl
-        is UiMedia.Gif -> previewUrl
-        is UiMedia.Image -> previewUrl
-        is UiMedia.Video -> thumbnailUrl
-    }
-
 @Composable
 private fun statusMediaPresenter(
     statusKey: MicroBlogKey,
@@ -1496,6 +1483,7 @@ private fun mediaViewerPresenter(
                 is UiMedia.Gif -> download(data.url, fileName, data.customHeaders, context)
                 is UiMedia.Image -> save(data.url, fileName, context)
                 is UiMedia.Video -> download(data.urlForDownload, fileName, data.customHeaders, context)
+                is UiMedia.Ugoira -> scope.launch { mediaDownloadManager.saveUgoira(data, fileName) }
             }
         }
 
@@ -1553,7 +1541,7 @@ private fun mediaViewerPresenter(
                     }
                 }
 
-                is UiMedia.Video -> {}
+                is UiMedia.Video, is UiMedia.Ugoira -> {}
             }
         }
 

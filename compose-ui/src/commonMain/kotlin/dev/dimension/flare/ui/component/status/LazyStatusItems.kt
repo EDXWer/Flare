@@ -56,12 +56,13 @@ public fun LazyStaggeredGridScope.status(
                 // producePresenter (andere Datei) rettet die Navigation,
                 // und DIESER Anker rettet den Auto-Refresh!
                 key =
-                    itemKey { item ->
-                        when (item) {
-                            is UiTimelineV2.Post -> "post_${item.statusKey}"
-                            is UiTimelineV2.Feed -> "feed_${item.statusKey}"
-                            else -> item.itemKey ?: item.hashCode().toString()
-                        }
+                    itemKey {
+                        // Upstreams stableItemKey (seit 09/2026) ersetzt den fruehreren
+                        // eigenen Zweig hier: es nutzt itemKey, faellt sonst auf statusKey
+                        // zurueck, kennt keinen hashCode-Fallback mehr und trennt
+                        // zusaetzlich nach Account. Damit ist der Key ueber Refreshes
+                        // hinweg stabil - genau das, was die Anker-Suche braucht.
+                        it.stableItemKey
                     },
                 contentType =
                     itemContentType {
@@ -285,7 +286,7 @@ public fun StatusPlaceholder(modifier: Modifier = Modifier) {
         PlatformText(
             text =
                 "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec euismod, nisl eget ultricies" +
-                    " ultrices, nisl nisl aliquet nisl, nec aliquam nisl nisl nec.",
+                        " ultrices, nisl nisl aliquet nisl, nec aliquam nisl nisl nec.",
             modifier =
                 Modifier
                     .placeholder(true),

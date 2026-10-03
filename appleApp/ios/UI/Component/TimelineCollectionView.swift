@@ -40,9 +40,11 @@ final class TimelineCollectionView: UICollectionView {
 
     // This is a pending layout transaction, not a continuously enforced offset.
     private var readingPosition: ReadingPosition?
+    private var readingPositionWasAtTop = false
     // Passive across size changes: a different column may become visually first,
     // or a shorter card may temporarily clamp the original intra-item distance.
     private var geometryReadingPosition: ReadingPosition?
+    private var geometryReadingPositionWasAtTop = false
     private var readingPositionGeneration = 0
     private var isRestoringReadingPosition = false
     private var appliedTopInset: CGFloat?
@@ -55,6 +57,10 @@ final class TimelineCollectionView: UICollectionView {
     private(set) var isProgrammaticScrolling = false
 
     var hasReadingPosition: Bool { readingPosition != nil }
+    var canRestoreTopReadingPosition: Bool {
+        if geometryReadingPosition?.itemID != nil { return geometryReadingPositionWasAtTop }
+        return readingPosition?.itemID == nil || readingPositionWasAtTop
+    }
     var isPresentingRefresh: Bool { refreshRequested || isEndingRefresh || refreshControl?.isRefreshing == true }
 
     // Prepending during an elastic pull moves the offset into the normal content
@@ -260,6 +266,8 @@ final class TimelineCollectionView: UICollectionView {
 
         readingPositionGeneration += 1
         if readingPosition == nil {
+            // Measuring a section below a pinned title can capture an item even at the top.
+            readingPositionWasAtTop = canRestoreTopReadingPosition && contentOffset.y + restingAdjustedTopInset <= 1
             readingPosition = captureCurrentLayoutPosition(preferringVisibleTop: preferringVisibleTop)
         }
     }
@@ -268,10 +276,14 @@ final class TimelineCollectionView: UICollectionView {
         guard preservesReadingPosition, !isRestoringReadingPosition,
               allowsReadingPositionRestoration else { return }
         if geometryReadingPosition == nil {
+            // A later size change can clamp a scrolled list to zero without making it a top bookmark.
+            geometryReadingPositionWasAtTop = canRestoreTopReadingPosition &&
+                contentOffset.y + restingAdjustedTopInset <= 1
             geometryReadingPosition = captureReadingPosition()
         }
         readingPositionGeneration += 1
         readingPosition = geometryReadingPosition
+        readingPositionWasAtTop = geometryReadingPositionWasAtTop
     }
 
     func prepareForSnapshotChange() {
@@ -282,6 +294,7 @@ final class TimelineCollectionView: UICollectionView {
         // Reuse the item bookmark if a snapshot arrives during reflow. Once a top
         // restore completes, later prepends capture the loaded reading item.
         if readingPosition?.itemID == nil {
+            readingPositionWasAtTop = canRestoreTopReadingPosition && contentOffset.y + restingAdjustedTopInset <= 1
             readingPosition = captureCurrentLayoutPosition()
         }
         readingPositionGeneration += 1
@@ -409,13 +422,16 @@ final class TimelineCollectionView: UICollectionView {
     func restoreReadingPosition(_ position: ReadingPosition) {
         readingPositionGeneration += 1
         geometryReadingPosition = position.itemID == nil ? nil : position
+        geometryReadingPositionWasAtTop = false
         readingPosition = position
+        readingPositionWasAtTop = position.itemID == nil
         setNeedsLayout()
     }
 
     func resetReadingPosition() {
         readingPositionGeneration += 1
         readingPosition = nil
+        readingPositionWasAtTop = false
         geometryReadingPosition = nil
     }
 
@@ -428,6 +444,7 @@ final class TimelineCollectionView: UICollectionView {
                   !self.isEndingRefresh, self.allowsReadingPositionRestoration,
                   self.isReadingLayoutReady?(indexPath) != false else { return }
             self.readingPosition = nil
+            self.readingPositionWasAtTop = false
             if self.geometryReadingPosition?.itemID == nil { self.geometryReadingPosition = nil }
         }
     }
@@ -466,6 +483,7 @@ final class TimelineCollectionView: UICollectionView {
                 // No old item survives a replacement. Start below the bars;
                 // never turn the disappearing refresh gap into an item offset.
                 self.readingPosition = .top
+                readingPositionWasAtTop = true
                 geometryReadingPosition = nil
                 setNeedsLayout()
                 return
