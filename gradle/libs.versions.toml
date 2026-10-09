@@ -34,7 +34,7 @@ prettytime = "5.0.9.Final"
 readability = "1.0.0"
 reorderable = "3.1.0"
 richtextUiMaterial3 = "1.0.0-alpha05"
-sentry = "8.58.0"
+sentry = "8.59.0"
 twitter-parser = "0.5.11"
 molecule = "2.2.0"
 accompanist = "0.37.3"
@@ -43,11 +43,11 @@ ktlintPlugin = "14.2.0"
 apng-android = "3.0.5"
 ktlint = "1.5.0"
 okio = "3.18.2"
-skie = "0.10.14"
+skie = "0.10.15"
 ksoup = "0.2.6"
 versionUpdate = "0.64.0"
 bluesky = "0.3.4-SNAPSHOT"
-blueskyLexicons = "2026.09.22"
+blueskyLexicons = "2026.09.30"
 kotlinx-coroutines = "1.11.0"
 koin = "4.2.2"
 koin-plugin = "1.2.1"
@@ -224,7 +224,7 @@ xmlUtil = { module = "io.github.pdvrieze.xmlutil:serialization", version = "1.0.
 
 fluent-ui = { module = "io.github.compose-fluent:fluent", version = "v0.1.0" }
 
-commons-lang3 = { module = "org.apache.commons:commons-lang3", version = "3.20.0" }
+commons-lang3 = { module = "org.apache.commons:commons-lang3", version = "3.21.0" }
 
 nostr-sdk-kmp = { module = "org.rust-nostr:nostr-sdk-kmp", version.ref = "nostrSdkKmp" }
 qrose = { module = "io.github.alexzhirkevich:qrose", version.ref = "qrose" }
