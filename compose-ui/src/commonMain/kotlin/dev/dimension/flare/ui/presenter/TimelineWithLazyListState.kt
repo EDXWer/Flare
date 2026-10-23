@@ -15,7 +15,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import dev.dimension.flare.common.onSuccess
 import dev.dimension.flare.data.model.tab.UiTimelineTabItem
-import dev.dimension.flare.data.model.tab.isSystemHomeMixedTimeline
 import dev.dimension.flare.ui.model.UiTimelineV2
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -30,23 +29,29 @@ public interface TimelineWithLazyListState : TimelineItemPresenter.State {
     public val newPostsCount: Int
 
     public fun onNewTootsShown()
+
+    public fun loadGap(message: UiTimelineV2.Gap) {
+        message.onActivate?.invoke {}
+    }
 }
 
 @Composable
 public fun rememberTimelineItemPresenterWithLazyListState(
     item: UiTimelineTabItem,
+    isHomeTimeline: Boolean = false,
     lazyStaggeredGridState: LazyStaggeredGridState = rememberLazyStaggeredGridState(),
+    leadingItemCount: Int = 0,
 ): TimelineWithLazyListState {
-
-    val baseState by producePresenter<TimelineItemPresenter.State>(key = "timeline_${item.id}") {
-        val presenter = remember { TimelineItemPresenter(item) }
-        presenter.invoke()
+    val baseState by producePresenter("timeline_${item.id}_${item.contentSourceKey}_$isHomeTimeline") {
+        remember(item.id, item.contentSourceKey, isHomeTimeline) {
+            TimelineItemPresenter(item, isHomeTimeline)
+        }.invoke()
     }
 
     return rememberTimelineWithLazyListState(
-        baseState,
-        lazyStaggeredGridState,
-        isSystemHomeMixedTimeline = item.isSystemHomeMixedTimeline,
+        baseState = baseState,
+        lazyStaggeredGridState = lazyStaggeredGridState,
+        leadingItemCount = leadingItemCount,
     )
 }
 
@@ -77,7 +82,7 @@ private fun getPostFingerprint(item: Any?): String {
     }.getOrDefault("error_${item?.hashCode()}")
 }
 
-// Die neue Datenstruktur für die Brotkrümel-Spur
+// Die Datenstruktur für die Brotkrümel-Spur
 private class ScrollContext {
     // Die Fingerprints der obersten 10 Listeneintraege, wie sie VOR dem letzten
     // Listenwechsel aussahen. anchorFingerprints[0] ist damit der Post, der zuletzt
@@ -131,47 +136,78 @@ private fun getCoveredFingerprints(item: Any?): List<String> =
         result
     }.getOrDefault(emptyList())
 
-
-
 @Composable
 internal fun rememberTimelineWithLazyListState(
     baseState: TimelineItemPresenter.State,
-    lazyListState: LazyStaggeredGridState,
-    isSystemHomeMixedTimeline: Boolean = false,
+    lazyStaggeredGridState: LazyStaggeredGridState,
+    leadingItemCount: Int = 0,
 ): TimelineWithLazyListState {
+    val currentLeadingItemCount by rememberUpdatedState(leadingItemCount)
+    var gapAnchor by remember { mutableStateOf<GapScrollAnchor?>(null) }
     var newPostCount by remember { mutableIntStateOf(0) }
 
     val tracker = remember { ScrollContext() }
     var isHunting by remember { mutableStateOf(false) }
 
-    val isAtTheTop by remember(lazyListState) {
+    val isAtTheTop by remember(lazyStaggeredGridState) {
         derivedStateOf {
-            lazyListState.firstVisibleItemIndex == 0 &&
-                    lazyListState.firstVisibleItemScrollOffset == 0
+            lazyStaggeredGridState.firstVisibleItemIndex == 0 &&
+                    lazyStaggeredGridState.firstVisibleItemScrollOffset == 0
+        }
+    }
+
+    // Neutralisiert Upstreams eigene Lese-Restaurierung, damit sie nicht gegen isHunting arbeitet
+    LaunchedEffect(baseState.reading?.restorePosition) {
+        if (baseState.reading?.restorePosition != null) {
+            baseState.reading?.restorationFinished()
         }
     }
 
     baseState.listState.onSuccess {
         val currentPagingState by rememberUpdatedState(this)
-        val currentCount = itemCount
-        val currentTopItem = if (currentCount > 0) runCatching { peek(0) }.getOrNull() else null
-        val currentTopFp = if (currentTopItem != null) getPostFingerprint(currentTopItem) else null
+
+        // 0. UPSTREAM GAP-ANCHOR (Nur aktiv, wenn der Nutzer gezielt eine "Lücke laden" anklickt)
+        LaunchedEffect(this, gapAnchor) {
+            val anchor = gapAnchor ?: return@LaunchedEffect
+            if (lazyStaggeredGridState.isScrollInProgress && !tracker.selfScrolling) {
+                gapAnchor = null
+                return@LaunchedEffect
+            }
+            val gap =
+                (0 until itemCount)
+                    .mapNotNull { peek(it) as? UiTimelineV2.Gap }
+                    .firstOrNull { it.stableItemKey == anchor.gapKey }
+            if (anchor.itemKey == null && anchor.insertedKeys == null) return@LaunchedEffect
+            val index =
+                (0 until itemCount).firstOrNull {
+                    val item = peek(it)
+                    if (anchor.itemKey != null) {
+                        item?.stableItemKey == anchor.itemKey
+                    } else {
+                        item != null && !item.isPaginationGap && item.stableItemKey in anchor.insertedKeys.orEmpty()
+                    }
+                } ?: return@LaunchedEffect
+            lazyStaggeredGridState.selfScrollTo(
+                tracker,
+                index + anchor.headerCount + if (anchor.afterItem) 1 else 0,
+                anchor.scrollOffset,
+            )
+            val loading = gap?.loading == true
+            if (anchor.itemKey == null || gap == null || (!loading && gap.renderHash != anchor.renderHash)) {
+                gapAnchor = null
+            }
+        }
 
         // 1. KOPF DER LISTE BEOBACHTEN
-        // Der Anker ist der jeweils aktuellste Post. Wechselt der Kopf der Liste
-        // (Refresh oder neue Posts), war der vorherige Kopf das Ziel: dorthin zurueck,
-        // sodass das Neue darueber liegt. Die Leseposition spielt bewusst keine Rolle.
         LaunchedEffect(Unit) {
             snapshotFlow {
                 val pagingState = currentPagingState
                 (0 until minOf(10, pagingState.itemCount))
                     .mapNotNull { runCatching { pagingState.peek(it) }.getOrNull() }
+                    .filter { !it.isPaginationGap }
                     .map { getPostFingerprint(it) }
             }.distinctUntilChanged().collect { crumbs ->
                 if (crumbs.isNotEmpty() && tracker.lastCrumbs.isEmpty()) {
-                    // Diagnose: Was sieht die Logik beim Start als Allererstes?
-                    // Ist das noch der Stand von gestern (aus der Datenbank) oder schon
-                    // der frische vom Server?
                     anchorLog(
                         "Erste Liste nach Start: Kopf ${crumbs.firstOrNull()}," +
                                 " itemCount ${currentPagingState.itemCount}",
@@ -191,7 +227,6 @@ internal fun rememberTimelineWithLazyListState(
                         isHunting = true
                     }
 
-                    // Nicht waehrend der Jagd ueberschreiben, sonst verlieren wir das Ziel.
                     if (!isHunting) {
                         tracker.lastCrumbs = crumbs
                     }
@@ -199,25 +234,18 @@ internal fun rememberTimelineWithLazyListState(
             }
         }
 
-        // 2. DIE AKTIVE JAGD (eigene Anker-Logik – unverändert)
+        // 2. DIE AKTIVE JAGD (eigene Anker-Logik)
         LaunchedEffect(isHunting) {
             if (isHunting && tracker.anchorFingerprints.isNotEmpty()) {
                 var huntAttempts = 0
                 var lastLoadedCount = 0
 
-                // Startposition merken: Falls die Jagd scheitert, kehren wir hierher zurueck,
-                // statt den Nutzer dort stehen zu lassen, wo der letzte Zwangs-Scroll war.
-                val startIndex = lazyListState.firstVisibleItemIndex
-                val startOffset = lazyListState.firstVisibleItemScrollOffset
+                val startIndex = lazyStaggeredGridState.firstVisibleItemIndex
+                val startOffset = lazyStaggeredGridState.firstVisibleItemScrollOffset
                 var fallbackIndex = -1
                 var fallbackPriority = Int.MAX_VALUE
-                // So viele Runden (a 150 ms) warten wir auf den exakten Anker, bevor wir
-                // uns mit einem Ersatzkruemel zufriedengeben.
                 val patienceAttempts = 8
 
-                // Wurde ueberhaupt kein Kruemel gefunden, ist die Alternative "oben stehen
-                // bleiben" - dann lohnt langes Warten. Nach einer Nacht liegt der Lesepost
-                // etliche Seiten tiefer und Paging braucht Zeit.
                 val patienceWithoutAnyMatch = 40
                 val fpAtStart = runCatching { peek(startIndex) }.getOrNull()?.let { getPostFingerprint(it) }
                 anchorLog(
@@ -235,8 +263,6 @@ internal fun rememberTimelineWithLazyListState(
                         if (item != null) {
                             contiguousLoadedCount = i + 1
 
-                            // Auch eingeklappte Posts beruecksichtigen, nicht nur die
-                            // oberste Ebene des Eintrags.
                             getCoveredFingerprints(item).forEach { fp ->
                                 val priority = tracker.anchorFingerprints.indexOf(fp)
                                 if (priority != -1 && priority < bestMatchPriority) {
@@ -249,21 +275,23 @@ internal fun rememberTimelineWithLazyListState(
                         }
                     }
 
-                    // Exakter Treffer: sofort annehmen, mit Original-Offset.
                     if (bestMatchIndex != -1 && bestMatchPriority == 0) {
                         anchorLog(
                             "EXAKTER TREFFER Index $bestMatchIndex, Versuch $huntAttempts" +
                                     " -> verschiebe um ${bestMatchIndex - startIndex} Positionen",
                         )
-                        lazyListState.selfScrollTo(tracker, bestMatchIndex, 0)
+                        lazyStaggeredGridState.selfScrollTo(
+                            tracker,
+                            bestMatchIndex + currentLeadingItemCount,
+                            0,
+                        )
+                        if (bestMatchIndex > 0) {
+                            newPostCount = bestMatchIndex
+                        }
                         isHunting = false
                         break
                     }
 
-                    // Nur ein Ersatzkruemel gefunden: merken, aber noch nicht zuschlagen.
-                    // Die Liste waechst nach einem Refresh oft noch, und der exakte Anker
-                    // taucht haeufig erst ein, zwei Ladevorgaenge spaeter auf. Genau hier
-                    // hat die Jagd bisher zu frueh abgebrochen.
                     if (bestMatchIndex != -1 && bestMatchPriority < fallbackPriority) {
                         fallbackIndex = bestMatchIndex
                         fallbackPriority = bestMatchPriority
@@ -280,21 +308,22 @@ internal fun rememberTimelineWithLazyListState(
                     ) {
                         if (fallbackIndex != -1) {
                             anchorLog("nehme Ersatzkruemel Index $fallbackIndex, Prioritaet $fallbackPriority, Versuch $huntAttempts")
-                            lazyListState.selfScrollTo(tracker, fallbackIndex, 0)
+                            lazyStaggeredGridState.selfScrollTo(
+                                tracker,
+                                fallbackIndex + currentLeadingItemCount,
+                                0,
+                            )
+                            if (fallbackIndex > 0) {
+                                newPostCount = fallbackIndex
+                            }
                         } else {
                             anchorLog("AUFGEGEBEN, Versuch $huntAttempts, itemCount $itemCount")
-                            lazyListState.selfScrollTo(tracker, startIndex, startOffset)
+                            lazyStaggeredGridState.selfScrollTo(tracker, startIndex, startOffset)
                         }
                         isHunting = false
                         break
                     }
 
-                    // Nur nachladen erzwingen, wenn noch gar kein Kruemel gefunden wurde.
-                    // Haben wir schon einen Ersatz, warten wir einfach ab, statt den
-                    // Nutzer sichtbar durch die Liste zu ziehen.
-                    // Nachschub anfordern. Entscheidend ist get() statt peek():
-                    // peek() liest nur, get() schickt Paging3 den Ladehinweis. Ohne das
-                    // waechst die Liste nie, egal wie weit wir scrollen.
                     if (fallbackIndex == -1 && itemCount > 0) {
                         val tailIndex = itemCount - 1
                         runCatching { currentPagingState[tailIndex] }
@@ -318,23 +347,17 @@ internal fun rememberTimelineWithLazyListState(
                     delay(250)
                 }
 
-                // Schleife ohne Treffer beendet (20 Versuche aufgebraucht):
-                // ebenfalls zurueck an den Ausgangspunkt.
                 if (isHunting) {
                     anchorLog("AUFGEGEBEN nach $huntAttempts Versuchen, zurueck zu Index $startIndex")
-                    lazyListState.selfScrollTo(tracker, startIndex, startOffset)
+                    lazyStaggeredGridState.selfScrollTo(tracker, startIndex, startOffset)
                 }
-                // Achtung: isHunting = false startet diesen Effekt neu. Code danach wird
-                // nicht mehr ausgefuehrt - deshalb steht hier nichts mehr dahinter.
                 isHunting = false
             } else if (!isHunting && tracker.lastCrumbs.isNotEmpty()) {
-                // Jagd vorbei (oder gar nicht noetig): Der jetzige Kopf ist das Ziel fuer
-                // den naechsten Refresh. Ohne das wuerde der naechste Refresh nach dem
-                // vorletzten Kopf suchen, weil waehrend der Jagd nicht mitgeschrieben wurde.
                 val pagingState = currentPagingState
                 val current =
                     (0 until minOf(10, pagingState.itemCount))
                         .mapNotNull { runCatching { pagingState.peek(it) }.getOrNull() }
+                        .filter { !it.isPaginationGap }
                         .map { getPostFingerprint(it) }
                 if (current.isNotEmpty()) {
                     tracker.lastCrumbs = current
@@ -343,8 +366,8 @@ internal fun rememberTimelineWithLazyListState(
         }
 
         // 3. Nutzer-Scroll bricht eine laufende Jagd ab.
-        LaunchedEffect(lazyListState) {
-            snapshotFlow { lazyListState.isScrollInProgress }
+        LaunchedEffect(lazyStaggeredGridState) {
+            snapshotFlow { lazyStaggeredGridState.isScrollInProgress }
                 .filter { it }
                 .collect {
                     if (isHunting && !tracker.selfScrolling) {
@@ -354,17 +377,15 @@ internal fun rememberTimelineWithLazyListState(
                 }
         }
 
-        // 4. Zähler für neue Posts – Upstreams key-basierter Ansatz (robuster als reiner Index-Vergleich)
-        LaunchedEffect(lazyListState) {
+        // 4. Zähler für neue Posts – Upstreams key-basierter Ansatz
+        LaunchedEffect(lazyStaggeredGridState) {
             var previousKeys = emptySet<String>()
             snapshotFlow {
                 val pagingState = currentPagingState
                 (0 until pagingState.itemCount).mapNotNull { pagingState.peek(it)?.itemKey }
             }.collect { keys ->
                 if (keys.isNotEmpty()) {
-                    // Während der Jagd zählen wir nicht mit, da sich Indizes/Keys währenddessen
-                    // noch nicht stabilisiert haben.
-                    if (previousKeys.isNotEmpty() && !isAtTheTop) {
+                    if (previousKeys.isNotEmpty() && (!isAtTheTop || isHunting)) {
                         newPostCount += keys.takeWhile { it !in previousKeys }.size
                     }
                     previousKeys = keys.toSet()
@@ -372,20 +393,22 @@ internal fun rememberTimelineWithLazyListState(
             }
         }
 
-        // 5. Zähler verringern, während der Nutzer durch die neuen Posts scrollt (Upstream)
-        LaunchedEffect(lazyListState) {
+        // 5. Zähler verringern, während der Nutzer durch die neuen Posts nach oben scrollt
+        LaunchedEffect(lazyStaggeredGridState) {
             snapshotFlow {
-                val index = lazyListState.firstVisibleItemIndex
+                val index = lazyStaggeredGridState.firstVisibleItemIndex
                 index to
-                        lazyListState.layoutInfo.visibleItemsInfo
+                        lazyStaggeredGridState.layoutInfo.visibleItemsInfo
                             .firstOrNull { it.index == index }
                             ?.key
             }.drop(1)
                 .collect { (index, key) ->
+                    if (isHunting || tracker.selfScrolling) return@collect
+
                     val pagingState = currentPagingState
                     val postIndex =
                         if (key == null) {
-                            index
+                            (index - currentLeadingItemCount).coerceAtLeast(0)
                         } else {
                             (0 until pagingState.itemCount).indexOfFirst { pagingState.peek(it)?.itemKey == key }
                         }
@@ -396,16 +419,8 @@ internal fun rememberTimelineWithLazyListState(
         }
     }
 
-    if (isSystemHomeMixedTimeline) {
-        LaunchedEffect(lazyListState) {
-            snapshotFlow { lazyListState.isScrollInProgress }
-                .filter { it }
-                .collect { newPostCount = 0 }
-        }
-    }
-
-    LaunchedEffect(isAtTheTop) {
-        if (isAtTheTop) {
+    LaunchedEffect(isAtTheTop, isHunting) {
+        if (isAtTheTop && !isHunting && !tracker.selfScrolling) {
             newPostCount = 0
         }
     }
@@ -413,12 +428,76 @@ internal fun rememberTimelineWithLazyListState(
     return object :
         TimelineWithLazyListState,
         TimelineItemPresenter.State by baseState {
+        // Nur anzeigen, wenn wirklich gezählte neue Posts über dem Anker liegen (nie "0")
         override val showNewToots = newPostCount > 0
-        override val lazyListState = lazyListState
+        override val lazyListState = lazyStaggeredGridState
         override val newPostsCount = newPostCount
 
         override fun onNewTootsShown() {
             newPostCount = 0
         }
+
+        override fun loadGap(message: UiTimelineV2.Gap) {
+            val activate = message.onActivate ?: return
+            if (message.loading ||
+                gapAnchor?.let { it.gapKey == message.stableItemKey && it.renderHash == message.renderHash } == true
+            ) {
+                return
+            }
+            baseState.listState.onSuccess {
+                val gapIndex =
+                    (0 until itemCount).firstOrNull { peek(it)?.stableItemKey == message.stableItemKey }
+                        ?: return@onSuccess
+                val previous = (gapIndex - 1 downTo 0).firstOrNull { peek(it)?.isPaginationGap == false }
+                val key = previous?.let { peek(it)?.stableItemKey }
+                if (key != null) {
+                    val visible = lazyStaggeredGridState.layoutInfo.visibleItemsInfo
+                    val above = visible.firstOrNull { it.key == key }
+                    val gap = visible.firstOrNull { it.key == message.stableItemKey }
+                    val headerCount = currentLeadingItemCount
+                    val top = above?.offset?.y ?: gap?.offset?.y ?: 0
+                    gapAnchor =
+                        GapScrollAnchor(
+                            message.stableItemKey,
+                            message.renderHash,
+                            key,
+                            -top,
+                            above == null,
+                            headerCount,
+                        )
+                } else {
+                    val top =
+                        lazyStaggeredGridState.layoutInfo.visibleItemsInfo
+                            .firstOrNull { it.key == message.stableItemKey }
+                            ?.offset
+                            ?.y ?: 0
+                    gapAnchor =
+                        GapScrollAnchor(
+                            message.stableItemKey,
+                            message.renderHash,
+                            null,
+                            -top,
+                            false,
+                            currentLeadingItemCount,
+                        )
+                }
+            }
+            val requestAnchor = gapAnchor
+            activate { keys ->
+                if (gapAnchor === requestAnchor && requestAnchor?.itemKey == null) {
+                    gapAnchor = requestAnchor?.takeIf { keys.isNotEmpty() }?.copy(insertedKeys = keys.toSet())
+                }
+            }
+        }
     }
 }
+
+private data class GapScrollAnchor(
+    val gapKey: String,
+    val renderHash: Int,
+    val itemKey: String?,
+    val scrollOffset: Int,
+    val afterItem: Boolean,
+    val headerCount: Int,
+    val insertedKeys: Set<String>? = null,
+)

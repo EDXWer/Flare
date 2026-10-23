@@ -64,7 +64,9 @@ public class MixedTimelinePresenter(
                 group
                     ?.children
                     ?.filter { it.enabled }
-            }.distinctUntilChanged().flatMapLatest { tabs ->
+            }.distinctUntilChanged { old, new ->
+                old.orEmpty().map { it.contentSourceKey } == new.orEmpty().map { it.contentSourceKey }
+            }.flatMapLatest { tabs ->
                 if (tabs == null) {
                     if (fallbackSubTimelinePresenter.isEmpty()) {
                         flowOf(emptyList())
@@ -74,8 +76,7 @@ public class MixedTimelinePresenter(
                 } else if (tabs.isEmpty()) {
                     flowOf(emptyList())
                 } else {
-                    // HIER IST DER FIX FÜR DIE MANUELLE GRUPPE:
-                    // Wir entwirren den Flow und hüllen den nackten Loader in unseren Türsteher ein
+                    // UNSER FILTER-WRAPPER FÜR MANUELLE GRUPPEN
                     val flows = tabs.map { tab ->
                         timelineResolver.resolveLoader(tab).map { rawLoader ->
                             if (rawLoader is CacheableRemoteLoader<UiTimelineV2>) {
@@ -134,12 +135,13 @@ public class SystemHomeMixedTimelinePresenter(
                 tabs
                     .filterNot { it.isSystemHomeMixedTimeline }
                     .filter { it.enabled }
-            }.distinctUntilChanged()
+                    .sortedBy { it.id }
+            }.distinctUntilChangedBySource()
             .flatMapLatest { tabs ->
                 if (tabs.isEmpty()) {
                     flowOf(emptyList())
                 } else {
-                    // HIER IST DER FIX FÜR DIE SYSTEM-GRUPPE:
+                    // UNSER FILTER-WRAPPER FÜR DIE SYSTEM-GRUPPE
                     val flows = tabs.map { tab ->
                         timelineResolver.resolveLoader(tab).map { rawLoader ->
                             if (rawLoader is CacheableRemoteLoader<UiTimelineV2>) {
@@ -168,6 +170,11 @@ public class SystemHomeMixedTimelinePresenter(
                 }
             }
 }
+
+private fun Flow<List<UiTimelineTabItem>>.distinctUntilChangedBySource(): Flow<List<UiTimelineTabItem>> =
+    distinctUntilChanged { old, new ->
+        old.map { it.contentSourceKey } == new.map { it.contentSourceKey }
+    }
 
 /**
  * Der aktualisierte Türsteher: Angepasst an die brandneue Paging-Architektur!

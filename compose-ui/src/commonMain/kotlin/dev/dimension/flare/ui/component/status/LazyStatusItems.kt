@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import compose.icons.FontAwesomeIcons
 import compose.icons.fontawesomeicons.Solid
@@ -47,14 +48,13 @@ import org.jetbrains.compose.resources.stringResource
 public fun LazyStaggeredGridScope.status(
     pagingState: PagingState<UiTimelineV2>,
     detailStatusKey: MicroBlogKey? = null,
+    onLoadGap: ((UiTimelineV2.Gap) -> Unit)? = null,
 ): Unit =
     with(pagingState) {
         onSuccess {
             items(
                 itemCount,
-                // DER KOMBINATIONS-FIX:
-                // producePresenter (andere Datei) rettet die Navigation,
-                // und DIESER Anker rettet den Auto-Refresh!
+                span = { if (peek(it)?.isPaginationGap == true) StaggeredGridItemSpan.FullLine else StaggeredGridItemSpan.SingleLane },
                 key =
                     itemKey {
                         // Upstreams stableItemKey (seit 09/2026) ersetzt den fruehreren
@@ -69,12 +69,20 @@ public fun LazyStaggeredGridScope.status(
                         it.itemType
                     },
             ) { index ->
-                val item = get(index)
+                val original = get(index)
+                val item =
+                    if (original is UiTimelineV2.Gap && original.isPaginationGap && onLoadGap != null) {
+                        original.copy(onActivate = { onLoadGap(original) })
+                    } else {
+                        original
+                    }
                 val mode = LocalEffectiveTimelineDisplayMode.current
-                if (mode == TimelineDisplayMode.Gallery) {
-                    GalleryTimelineItem(item = item)
+                val itemModifier = item?.let { Modifier.testTag("timeline-item:${it.stableItemKey}") } ?: Modifier
+                if (mode == TimelineDisplayMode.Gallery && item?.isPaginationGap != true) {
+                    GalleryTimelineItem(item = item, modifier = itemModifier)
                 } else {
                     AdaptiveCard(
+                        modifier = itemModifier,
 //                    modifier =
 //                        Modifier
 //                            .animateItem(),
