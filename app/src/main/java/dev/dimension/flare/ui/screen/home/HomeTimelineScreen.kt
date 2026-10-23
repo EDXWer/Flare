@@ -53,7 +53,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -576,17 +575,7 @@ internal fun TimelineItemContent(
         )
     val latestState by rememberUpdatedState(state)
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer =
-            androidx.lifecycle.LifecycleEventObserver { _, event ->
-                if (event == Lifecycle.Event.ON_STOP) latestState.reading?.savePosition()
-            }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-    LaunchedEffect(isCurrentlyVisible) {
-        if (!isCurrentlyVisible) latestState.reading?.savePosition()
-    }
+
     LaunchedEffect(isHomeTimeline, autoRefreshInterval, isCurrentlyVisible, lifecycleOwner) {
         if (!isHomeTimeline || !isCurrentlyVisible || autoRefreshInterval == TimelineAutoRefreshInterval.DISABLED) {
             return@LaunchedEffect
@@ -600,17 +589,19 @@ internal fun TimelineItemContent(
             }
         }
     }
+
     if (isCurrentlyVisible) {
         RegisterTabCallback(
             lazyListState = state.lazyListState,
-            onScrollToTop = state.reading?.let { { it.showLatest() } },
-            canRefreshAtTop = state.reading?.isAtLatest != false,
+            onScrollToTop = null,
+            canRefreshAtTop = true,
             onRefresh = {
                 state.refreshSync()
                 changeLogState?.dismissChangeLog()
             },
         )
     }
+
     val scope = rememberCoroutineScope()
     RefreshContainer(
         modifier = modifier,
@@ -677,7 +668,8 @@ internal fun TimelineItemContent(
 
                 status(state.listState, onLoadGap = state::loadGap)
             }
-            if (state.reading != null || state.listState is dev.dimension.flare.common.PagingState.Success) {
+
+            if (state.listState is dev.dimension.flare.common.PagingState.Success) {
                 AnimatedVisibility(
                     state.showNewToots,
                     enter = slideInVertically { -it },
@@ -690,12 +682,8 @@ internal fun TimelineItemContent(
                     Glassify(
                         onClick = {
                             state.onNewTootsShown()
-                            if (state.reading != null) {
-                                state.reading?.showLatest()
-                            } else {
-                                scope.launch {
-                                    state.lazyListState.scrollToItem(0)
-                                }
+                            scope.launch {
+                                state.lazyListState.scrollToItem(0)
                             }
                         },
                         shape = RoundedCornerShape(50),
@@ -714,16 +702,11 @@ internal fun TimelineItemContent(
                                 modifier = Modifier.size(16.dp),
                             )
                             val ctx = LocalContext.current
-                            val newTootsText =
-                                if (state.reading != null) {
-                                    stringResource(R.string.home_timeline_view_latest)
-                                } else {
-                                    ctx.resources.getQuantityString(
-                                        R.plurals.home_timeline_new_toots,
-                                        state.newPostsCount,
-                                        state.newPostsCount,
-                                    )
-                                }
+                            val newTootsText = ctx.resources.getQuantityString(
+                                R.plurals.home_timeline_new_toots,
+                                state.newPostsCount,
+                                state.newPostsCount,
+                            )
                             Text(text = newTootsText)
                         }
                     }

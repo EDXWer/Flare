@@ -156,13 +156,6 @@ internal fun rememberTimelineWithLazyListState(
         }
     }
 
-    // Neutralisiert Upstreams eigene Lese-Restaurierung, damit sie nicht gegen isHunting arbeitet
-    LaunchedEffect(baseState.reading?.restorePosition) {
-        if (baseState.reading?.restorePosition != null) {
-            baseState.reading?.restorationFinished()
-        }
-    }
-
     baseState.listState.onSuccess {
         val currentPagingState by rememberUpdatedState(this)
 
