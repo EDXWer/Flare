@@ -358,14 +358,23 @@ internal fun rememberTimelineWithLazyListState(
             }
         }
 
-        // 3. Nutzer-Scroll bricht eine laufende Jagd ab.
+        // 3. Nutzer-Scroll bricht eine laufende Jagd ab UND blendet den Banner aus.
         LaunchedEffect(lazyStaggeredGridState) {
             snapshotFlow { lazyStaggeredGridState.isScrollInProgress }
                 .filter { it }
                 .collect {
-                    if (isHunting && !tracker.selfScrolling) {
-                        anchorLog("Nutzer scrollt, Jagd abgebrochen")
-                        isHunting = false
+                    // Wir reagieren nur auf echte menschliche Finger-Wischer
+                    if (!tracker.selfScrolling) {
+
+                        if (isHunting) {
+                            anchorLog("Nutzer scrollt, Jagd abgebrochen")
+                            isHunting = false
+                        }
+
+                        // Dein Claude-Tweak: Den Zähler sofort nullen, das lässt den Banner verschwinden!
+                        if (newPostCount > 0) {
+                            newPostCount = 0
+                        }
                     }
                 }
         }

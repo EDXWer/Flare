@@ -15,7 +15,7 @@ import dev.dimension.flare.data.network.bluesky.resolveBlueskyVideoDownloadUrls
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.model.UiTimelineV2
 import dev.dimension.flare.ui.model.mapper.render
-import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toImmutableMap
 import kotlin.time.Clock
 
@@ -140,15 +140,18 @@ internal class NotificationRemoteMediator(
                         }
                     }
                 }.distinct()
-                .toImmutableList()
-        val references =
+                .toPersistentList()
+        val fetchedPosts = referencesUri.chunked(25).mapNotNull { chunk ->
             service
-                .getPosts(params = GetPostsQueryParams(uris = referencesUri))
+                .getPosts(params = GetPostsQueryParams(uris = chunk.toPersistentList()))
                 .maybeResponse()
                 ?.posts
-                .orEmpty()
-                .associateBy { it.uri }
-                .toImmutableMap()
+        }.flatten()
+
+        val references = fetchedPosts
+            .associateBy { it.uri }
+            .toImmutableMap()
+
         return PagingResult(
             endOfPaginationReached = response.cursor == null,
             data = response.notifications.render(accountKey, references, resolveBlueskyVideoDownloadUrls(references.values)),
