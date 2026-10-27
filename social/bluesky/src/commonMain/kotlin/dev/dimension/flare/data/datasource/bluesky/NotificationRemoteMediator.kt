@@ -154,7 +154,7 @@ internal class NotificationRemoteMediator(
 
         return PagingResult(
             endOfPaginationReached = response.cursor == null,
-            data = response.notifications.render(accountKey, references, resolveBlueskyVideoDownloadUrls(references.values)),
+            data = response.notifications.render(accountKey, references, resolveBlueskyVideoDownloadUrls(references.values, accountKey)),
             nextKey = response.cursor,
         )
     }

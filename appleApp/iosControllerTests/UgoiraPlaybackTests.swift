@@ -47,12 +47,12 @@ final class UgoiraPlaybackTests: XCTestCase {
         func descendants(_ view: UIView) -> [UIView] {
             view.subviews.flatMap { [$0] + descendants($0) }
         }
+        media.setAutoplayOverlay(.idle)
         let badge = try XCTUnwrap(descendants(media).compactMap { $0 as? UIButton }.first)
         let spinner = try XCTUnwrap(descendants(badge).compactMap { $0 as? UIActivityIndicatorView }.first)
         let label = try XCTUnwrap(descendants(badge).compactMap { $0 as? UILabel }.first)
         let icon = try XCTUnwrap(descendants(badge).compactMap { $0 as? UIImageView }.first)
 
-        media.setAutoplayOverlay(.idle)
         try await layout()
         XCTAssertEqual(badge.frame, CGRect(x: 16, y: 152, width: 32, height: 32))
         let iconCenter = icon.convert(CGPoint(x: icon.bounds.midX, y: icon.bounds.midY), to: media)
@@ -94,6 +94,17 @@ final class UgoiraPlaybackTests: XCTestCase {
         XCTAssertNil(media.accessibilityCustomActions)
         badge.sendActions(for: .touchUpInside)
         XCTAssertEqual(retries, 1)
+
+        let failure = "Target returned HTTP 503: " + String(repeating: "temporarily unavailable ", count: 10)
+        media.setAutoplayOverlay(.error, errorMessage: failure)
+        try await layout()
+        XCTAssertEqual(label.text, failure)
+        XCTAssertFalse(label.isHidden)
+        XCTAssertEqual(media.accessibilityValue, failure)
+        XCTAssertLessThanOrEqual(badge.frame.maxX, media.bounds.maxX - 16)
+        media.setAutoplayOverlay(.idle)
+        XCTAssertTrue(label.isHidden)
+        XCTAssertNil(media.accessibilityValue)
     }
 
     func testFrameDelayPreservesTimingAndCatchesUpAcrossLoopBoundaries() {

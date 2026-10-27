@@ -33,6 +33,7 @@ appleApp/K_D/
 .env
 
 GoogleService-Info.plist
+/artifacts/
 
 # Java Crash Logs
 hs_err_pid*.log

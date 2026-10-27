@@ -1,13 +1,13 @@
 import UIKit
-import Kingfisher
+import FlareAppleUI
 import KotlinSharedUI
 import FlareAppleCore
 
 // MARK: - AvatarUIView
 // Mirrors AvatarView.swift (NetworkImage + clipShape by avatarShape).
 final class AvatarUIView: UIView {
-    private let imageView: UIImageView = {
-        let v = UIImageView()
+    private let imageView: NetworkImageView = {
+        let v = NetworkImageView()
         v.contentMode = .scaleAspectFill
         v.clipsToBounds = true
         v.backgroundColor = .secondarySystemBackground
@@ -24,26 +24,8 @@ final class AvatarUIView: UIView {
     }
     required init(coder: NSCoder) { fatalError("init(coder:) not supported") }
 
-    func set(url: String?, customHeaders: [String: String]? = nil) {
-        imageView.kf.cancelDownloadTask()
-        imageView.image = nil
-        if let url = url.flatMap(URL.init(string:)) {
-            imageView.kf.setImage(
-                with: url,
-                options: [
-                    .transition(.fade(0.25)),
-                    .cacheOriginalImage,
-                    .backgroundDecode,
-                    .requestModifier(AnyModifier { request in
-                        var request = request
-                        customHeaders?.forEach { key, value in
-                            request.setValue(value, forHTTPHeaderField: key)
-                        }
-                        return request
-                    }),
-                ]
-            )
-        }
+    func set(media: UiMedia?) {
+        imageView.setImage(media: media)
     }
 
     override func layoutSubviews() {
@@ -327,7 +309,7 @@ final class UserOnelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightPro
     }
 
     func configure(data: UiProfile, trailing: UIView?, onClicked: (() -> Void)?) {
-        avatar.set(url: data.avatar?.url, customHeaders: data.avatar?.customHeaders)
+        avatar.set(media: data.avatar)
         name.text = data.name
         handleLabel.text = data.handle.canonical
         if trailingView !== trailing {
@@ -481,7 +463,7 @@ final class UserCompatUIView: UIStackView {
     required init(coder: NSCoder) { fatalError("init(coder:) not supported") }
 
     func configure(data: UiProfile, trailing: UIView?, onClicked: (() -> Void)?) {
-        avatar.set(url: data.avatar?.url, customHeaders: data.avatar?.customHeaders)
+        avatar.set(media: data.avatar)
         name.text = data.name
         handleLabel.text = data.handle.canonical
         if let trailing = trailing {

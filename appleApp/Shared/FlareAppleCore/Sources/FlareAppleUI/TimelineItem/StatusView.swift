@@ -137,7 +137,7 @@ public struct StatusView: View {
         let accountType = data.accountType
         let statusKey = data.statusKey
         let effectiveLineLimit = max(maxLine ?? Int(appearanceLineLimit), 1)
-        let contentLineLimit: Int? = isDetail || textExpanded ? nil : effectiveLineLimit
+        let contentLineLimit: Int? = isDetail || textExpanded || effectiveLineLimit == Int(Int32.max) ? nil : effectiveLineLimit
         let collapseThreshold = maxLine == nil ? max(15, effectiveLineLimit) : effectiveLineLimit
         let canExpandLineLimitedContent = contentLineLimit != nil && !isDetail && !textExpanded && showExpandTextButton
         let hasPreMediaBody =
@@ -180,7 +180,7 @@ public struct StatusView: View {
                 spacing: 8,
             ) {
                 if showAsFullWidth, let user {
-                    AvatarView(data: user.avatar?.url, customHeader: user.avatar?.customHeaders)
+                    AvatarView(data: user.avatar)
                         .frame(width: 44, height: 44)
                         .accessibilityLabel(
                             Text(

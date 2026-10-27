@@ -29,7 +29,9 @@ import dev.dimension.flare.data.datasource.microblog.handler.UserHandler
 import dev.dimension.flare.data.datasource.microblog.paging.PagingRequest
 import dev.dimension.flare.data.datasource.microblog.paging.PagingResult
 import dev.dimension.flare.data.datasource.microblog.paging.RemoteLoader
+import dev.dimension.flare.data.datasource.microblog.paging.ShareRepliesLoader
 import dev.dimension.flare.data.model.IconType
+import dev.dimension.flare.data.model.ProxyRef
 import dev.dimension.flare.data.model.tab.ShortcutSpec
 import dev.dimension.flare.data.model.tab.TimelineSpec
 import dev.dimension.flare.data.network.vvo.VVOService
@@ -50,6 +52,7 @@ import dev.dimension.flare.ui.model.UiState
 import dev.dimension.flare.ui.model.UiStrings
 import dev.dimension.flare.ui.model.UiText
 import dev.dimension.flare.ui.model.UiTimelineV2
+import dev.dimension.flare.ui.model.contentPostOrNull
 import dev.dimension.flare.ui.model.mapper.render
 import dev.dimension.flare.ui.model.toUi
 import dev.dimension.flare.ui.presenter.compose.ComposeStatus
@@ -82,7 +85,7 @@ internal class VVODataSource(
     private val imageCompressor: ImageCompressor by koinInject()
     private val service by lazy {
         VVOService(
-            credentialFlow = credentialFlow,
+            proxy = ProxyRef.forAccount(accountKey),            credentialFlow = credentialFlow,
             refreshCookieWhenStale = true,
             onCredentialRefreshed = { credential ->
                 updateCredential(credential)
@@ -177,6 +180,7 @@ internal class VVODataSource(
 
     override val userHandler by lazy {
         UserHandler(
+            proxy = ProxyRef.forAccount(accountKey),
             host = accountKey.host,
             loader = loader,
         )
@@ -284,6 +288,18 @@ internal class VVODataSource(
         accountKey = accountKey,
         mediaOnly = mediaOnly,
     )
+
+    override fun shareReplies(statusKey: MicroBlogKey): RemoteLoader<UiTimelineV2> =
+        ShareRepliesLoader(statusComment(statusKey), statusKey, comments = true)
+
+    override fun shareReplyChildren(reply: UiTimelineV2): RemoteLoader<UiTimelineV2>? =
+        reply
+            .contentPostOrNull()
+            ?.takeIf { post ->
+                post.actions.filterIsInstance<dev.dimension.flare.data.datasource.microblog.ActionMenu.Item>().any {
+                    it.actionFamily == dev.dimension.flare.data.datasource.microblog.PostActionFamily.Comment && (it.count?.value ?: 0) > 0
+                }
+            }?.let { ShareRepliesLoader(commentChild(it.statusKey), it.statusKey, comments = true) }
 
     override fun context(statusKey: MicroBlogKey): RemoteLoader<UiTimelineV2> =
         object : RemoteLoader<UiTimelineV2> {
