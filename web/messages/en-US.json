@@ -271,6 +271,8 @@
   "profileTabLikes": "Likes",
   "profileTabHighlights": "Highlights",
   "profileTabArticles": "Articles",
+  "weiboFriendsCircleTitle": "Friends Circle",
+  "weiboPrivateFollowingTitle": "Private Following",
   "profileTabMedia": "Media",
   "profileTimelinesAriaLabel": "Profile timelines",
   "profileUnableToLoadTabs": "Unable to load profile tabs",
@@ -307,6 +309,7 @@
   "settingsAccountsRemoveTitle": "Remove account",
   "settingsAccountsRemoveAriaLabel": "Remove {name}",
   "settingsAccountsRemoveConfirm": "Are you sure you want to remove this account from this device?",
+  "settingsAccountsRemoveFailed": "Could not remove this account. Please try again.",
   "settingsAccountCountOne": "1 account",
   "settingsAccountCountOther": "{count} accounts",
   "settingsAppearanceTitle": "Appearance",
@@ -554,5 +557,9 @@
   "settingsAiUseShared": "Use translation and summary AI settings",
   "settingsAiUseSharedDescription": "Turn off to configure a separate server, model and reasoning settings for the Agent.",
   "settingsAiAgentEnabled": "Enable AI Agent",
-  "settingsAiAgentDescription": "Show AI Agent entry points when a compatible model is configured."
+  "settingsAiAgentDescription": "Show AI Agent entry points when a compatible model is configured.",
+  "composeVisibilityFriends": "Friends circle",
+  "composeVisibilityFriendsDescription": "Only people who follow you and whom you follow can see this post",
+  "composeVisibilitySelf": "Only me",
+  "composeVisibilitySelfDescription": "Only you can see this post"
 }

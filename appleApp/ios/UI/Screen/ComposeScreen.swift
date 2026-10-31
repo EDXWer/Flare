@@ -4,9 +4,9 @@ import FlareAppleCore
 import FlareAppleUI
 import PhotosUI
 import CoreTransferable
-import UniformTypeIdentifiers
 import SwiftUIIntrospect
 import SwiftUIBackports
+import UniformTypeIdentifiers
 
 final class ComposePrefill: Hashable {
     let id = UUID()
@@ -198,8 +198,8 @@ struct ComposeScreen: View {
                 applyCursorIfPossible()
             }
         }
-        .onChange(of: mediaViewModel.items.count) { _, newValue in
-            presenter.state.setMediaSize(value: Int32(newValue))
+        .onChange(of: mediaViewModel.items.map { $0.mimeType ?? "" }) { _, mimeTypes in
+            presenter.state.setMediaMimeTypes(value: mimeTypes)
         }
         .sheet(isPresented: $showDraftSheet) {
             draftSheet
@@ -396,7 +396,7 @@ struct ComposeScreen: View {
             }
             .padding(8)
         }
-        .frame(minWidth: 280, maxWidth: 340, maxHeight: 420)
+        .frame(idealWidth: 340, idealHeight: 420)
         .presentationDetents([.medium, .large])
     }
 
@@ -457,10 +457,7 @@ struct ComposeScreen: View {
                 .frame(width: size, height: size)
                 .clipShape(Circle())
                 .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 2))
-            Image(fontAwesome: user.platformIcon.fontAwesomeIcon)
-                .resizable()
-                .scaledToFit()
-                .frame(width: size * 0.34, height: size * 0.34)
+            TabIcon(icon: user.platformIcon, size: size * 0.34)
                 .padding(3)
                 .background(Color(.systemBackground))
                 .clipShape(Circle())
@@ -507,7 +504,7 @@ struct ComposeScreen: View {
             fileName: prefill.fileName
         )
         presenter.state.setText(value: prefill.text)
-        presenter.state.setMediaSize(value: Int32(mediaViewModel.items.count))
+        presenter.state.setMediaMimeTypes(value: mediaViewModel.items.map { $0.mimeType ?? "" })
         pendingCursor = prefill.cursorPosition
         requestComposerFocus()
         applyCursorIfPossible()
@@ -585,10 +582,9 @@ struct ComposeScreen: View {
     }
 
     private func applyDraft(_ draft: UiDraft) {
-        let result = viewModel.applyDraft(draft)
-        mediaViewModel.sensitive = result.sensitive
+        viewModel.applyDraft(draft)
+        mediaViewModel.sensitive = draft.data.sensitive
         mediaViewModel.restore(draftMedias: draft.medias)
-        setVisibility(result.visibility)
         requestComposerFocus()
     }
     
@@ -605,17 +601,12 @@ struct ComposeScreen: View {
             return .init(file: file, altText: item.altText.isEmpty ? nil : item.altText)
         }
     }
-    private func getVisibility() -> UiTimelineV2.PostVisibility {
-        switch onEnum(of: presenter.state.visibilityState) {
-            case .success(let success): return success.data.visibility
-            default: return .public
-        }
+    private func getVisibility() -> UiTimelineV2.PostVisibility? {
+        presenter.state.visibility
     }
 
     private func setVisibility(_ visibility: UiTimelineV2.PostVisibility) {
-        if case .success(let visibilityState) = onEnum(of: presenter.state.visibilityState) {
-            visibilityState.data.setVisibility(value: visibility)
-        }
+        presenter.state.setVisibility(value: visibility)
     }
 
     private var composeVisibility: UiTimelineV2.PostVisibility? {

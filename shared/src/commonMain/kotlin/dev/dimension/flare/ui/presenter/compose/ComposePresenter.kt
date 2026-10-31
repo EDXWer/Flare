@@ -14,10 +14,11 @@ import dev.dimension.flare.common.FileType
 import dev.dimension.flare.common.combineLatestFlowLists
 import dev.dimension.flare.data.datasource.microblog.ComposeConfig
 import dev.dimension.flare.data.datasource.microblog.ComposeData
-import dev.dimension.flare.data.datasource.microblog.ComposeDataSource
 import dev.dimension.flare.data.datasource.microblog.ComposeType
-import dev.dimension.flare.data.datasource.microblog.datasource.PostDataSource
-import dev.dimension.flare.data.datasource.microblog.datasource.UserDataSource
+import dev.dimension.flare.data.datasource.microblog.MicroblogDataSource
+import dev.dimension.flare.data.datasource.microblog.accountKeyOrNull
+import dev.dimension.flare.data.datasource.microblog.accountProfileFlow
+import dev.dimension.flare.data.datasource.microblog.capabilities
 import dev.dimension.flare.data.datastore.AppDataStore
 import dev.dimension.flare.data.repository.AccountRepository
 import dev.dimension.flare.data.repository.DraftRepository
@@ -109,10 +110,14 @@ public class ComposePresenter(
                 allAccountServicesFlow(accountRepository)
                     .map { accounts ->
                         accounts
-                            .filterIsInstance<ComposeDataSource>()
-                            .map { account ->
-                                accountRepository.getFlow(account.accountKey).map {
-                                    account.accountKey to it
+                            .mapNotNull { dataSource ->
+                                val accountKey = dataSource.accountKeyOrNull
+                                if (dataSource.capabilities.compose != null && accountKey != null) {
+                                    accountRepository.getFlow(accountKey).map {
+                                        accountKey to it
+                                    }
+                                } else {
+                                    null
                                 }
                             }
                     },
@@ -126,21 +131,7 @@ public class ComposePresenter(
         )
     }
 
-    private val allUsersFlow by lazy {
-        allAccountServicesFlow(accountRepository)
-            .map { services ->
-                services.mapNotNull { service ->
-                    if (service is UserDataSource && service is ComposeDataSource) {
-                        service.userHandler.userById(service.accountKey.id).toUi().map {
-                            service.accountKey to it
-                        }
-                    } else {
-                        null
-                    }
-                }
-            }.combineLatestFlowLists()
-            .map { it.toMap() }
-    }
+    private val allUsersFlow by lazy { observeComposeUsers(allAccountServicesFlow(accountRepository)) }
 
     private val activeStatusFlow by lazy {
         MutableStateFlow(status)
@@ -192,19 +183,15 @@ public class ComposePresenter(
     private val composeConfigFlow by lazy {
         combine(selectedAccountServicesFlow, activeStatusFlow) { services, composeStatus ->
             val configs =
-                services.mapNotNull {
-                    if (it is ComposeDataSource) {
-                        it.composeConfig(
-                            type =
-                                when (composeStatus) {
-                                    is ComposeStatus.Quote -> ComposeType.Quote
-                                    is ComposeStatus.Reply -> ComposeType.Reply
-                                    null -> ComposeType.New
-                                },
-                        )
-                    } else {
-                        null
-                    }
+                services.mapNotNull { service ->
+                    service.capabilities.compose?.composeConfig(
+                        type =
+                            when (composeStatus) {
+                                is ComposeStatus.Quote -> ComposeType.Quote
+                                is ComposeStatus.Reply -> ComposeType.Reply
+                                null -> ComposeType.New
+                            },
+                    )
                 }
 
             when (configs.size) {
@@ -307,8 +294,8 @@ public class ComposePresenter(
         MutableStateFlow("")
     }
 
-    private val mediaSizeFlow by lazy {
-        MutableStateFlow(0)
+    private val mediaMimeTypesFlow by lazy {
+        MutableStateFlow<List<String>>(emptyList())
     }
 
     private val spoilerTextFlow = MutableStateFlow<String?>(null)
@@ -321,17 +308,33 @@ public class ComposePresenter(
         }.distinctUntilChanged()
     }
 
-    private val canSendFlow by lazy {
-        combine(textFlow, mediaSizeFlow, textCheckFlow, selectedComposeAccountKeysFlow, composeConfigFlow) {
+    private val composeContentValidFlow by lazy {
+        combine(
+            textFlow,
+            mediaMimeTypesFlow,
+            composeConfigFlow,
+            activeStatusFlow,
+        ) {
             text,
-            mediaSize,
-            check,
-            selectedAccountKeys,
+            mediaMimeTypes,
             composeConfig,
+            composeStatus,
             ->
-            check?.isValid != false && selectedAccountKeys.isNotEmpty() && (
-                text.isNotBlank() || (composeConfig.media?.allowMediaOnly == true && mediaSize > 0)
-            )
+            isComposeContentValid(text, mediaMimeTypes, composeConfig, composeStatus)
+        }
+    }
+
+    private val canSendFlow by lazy {
+        combine(
+            composeContentValidFlow,
+            textCheckFlow,
+            selectedComposeAccountKeysFlow,
+            composeConfigFlow,
+        ) { contentValid, check, selectedAccountKeys, composeConfig ->
+            selectedAccountKeys.isNotEmpty() &&
+                contentValid &&
+                check?.isValid != false &&
+                composeConfig.visibility?.allVisibilities?.isNotEmpty() != false
         }
     }
 
@@ -346,8 +349,9 @@ public class ComposePresenter(
                     accountType = resolvedAccountType,
                     repository = accountRepository,
                 ).mapNotNull {
-                    if (it is PostDataSource) {
-                        it.postHandler.post(composeStatus.statusKey).toUi()
+                    val post = it.capabilities.post
+                    if (post != null) {
+                        post.postHandler.post(composeStatus.statusKey).toUi()
                     } else {
                         null
                     }
@@ -512,13 +516,14 @@ public class ComposePresenter(
                 null
             }
 
+        val savedComposeConfig by appDataStore.composeConfigData.data.collectAsState(null)
+        val selection =
+            rememberComposeVisibilityState(
+                config = composeConfig.takeSuccess()?.visibility,
+                savedVisibility = savedComposeConfig?.visibility,
+            )
         val visibilityState =
-            composeConfig
-                .mapNotNull {
-                    it.visibility
-                }.map { visibilityConfig ->
-                    visibilityPresenter(visibilityConfig)
-                }
+            composeConfig.mapNotNull { it.visibility }.map { selection }
         val pollMaxOptions =
             composeConfig
                 .takeSuccess()
@@ -559,16 +564,6 @@ public class ComposePresenter(
                 ?.sortedIsoCodes
                 ?.toImmutableList()
                 ?: persistentListOf()
-        val webVisibility =
-            visibilityState
-                .takeSuccess()
-                ?.visibility
-                ?: UiTimelineV2.Post.Visibility.Public
-        val webVisibilities =
-            visibilityState
-                .takeSuccess()
-                ?.allVisibilities
-                ?: persistentListOf()
         val webEmojis =
             emojiState
                 .takeSuccess()
@@ -583,9 +578,10 @@ public class ComposePresenter(
                 ?.accountType
 
         val showDraft by showDraftFlow.collectAsState(false)
+        val draftReady = loadedDraftState == null || loadedDraftState is UiState.Error
 
         return object : ComposeState(
-            canSend = canSend,
+            canSend = canSend && draftReady && composeConfig.takeSuccess() != null,
             visibilityState = visibilityState,
             replyState = replyState,
             referencePost = replyState.takeSuccess(),
@@ -613,9 +609,13 @@ public class ComposePresenter(
             languageCodes = languageCodes,
             emojiAccountType = webEmojiAccountType,
             emojis = webEmojis,
-            visibility = webVisibility,
-            allVisibilities = webVisibilities,
+            visibility = visibilityState.takeSuccess()?.visibility,
+            allVisibilities = visibilityState.takeSuccess()?.allVisibilities ?: persistentListOf(),
         ) {
+            override fun setVisibility(value: UiTimelineV2.Post.Visibility) {
+                selection.setVisibility(value)
+            }
+
             override fun send(
                 data: ComposeData,
                 onDispatched: (Boolean) -> Unit,
@@ -640,7 +640,7 @@ public class ComposePresenter(
             override fun sendDirect(
                 content: String,
                 accountKeys: List<MicroBlogKey>,
-                visibility: UiTimelineV2.Post.Visibility,
+                visibility: UiTimelineV2.Post.Visibility?,
                 language: String,
                 sensitive: Boolean,
                 spoilerText: String?,
@@ -713,8 +713,10 @@ public class ComposePresenter(
                         }
                         selectedAccounts.forEach { account ->
                             val dataSource =
-                                accountRepository.getOrCreateDataSource(account)
-                                    as? ComposeDataSource
+                                accountRepository
+                                    .getOrCreateDataSource(account)
+                                    .capabilities
+                                    .compose
                                     ?: error("Account does not support compose: ${account.accountKey}")
                             dataSource.compose(data = data) {
                                 // Media upload progress is not surfaced by this web-only entry yet.
@@ -761,7 +763,15 @@ public class ComposePresenter(
             }
 
             override fun setMediaSize(value: Int) {
-                mediaSizeFlow.value = value
+                mediaMimeTypesFlow.value = List(value) { "" }
+            }
+
+            override fun setMediaMimeTypes(value: List<String>) {
+                mediaMimeTypesFlow.value = value
+            }
+
+            override fun setMediaMimeTypesJson(value: String) {
+                mediaMimeTypesFlow.value = Json.decodeFromString<List<String>>(value)
             }
 
             override fun loadDraft(groupId: String) {
@@ -771,6 +781,9 @@ public class ComposePresenter(
             }
 
             override fun consumeLoadedDraft() {
+                loadedDraftStateFlow.value?.takeSuccess()?.let {
+                    it.data.visibility?.let(selection::setVisibility) ?: selection.clear()
+                }
                 loadedDraftStateFlow.value = null
             }
 
@@ -816,68 +829,10 @@ public class ComposePresenter(
             selectedAccountsKeyFlow.value =
                 draft.accounts.map { it.account.accountKey }.toImmutableList()
             textFlow.value = draft.data.content
-            mediaSizeFlow.value = draft.medias.size
+            mediaMimeTypesFlow.value = List(draft.medias.size) { "" }
             loadedDraftStateFlow.value = UiState.Success(draft)
         }.onFailure {
             loadedDraftStateFlow.value = UiState.Error(it)
-        }
-    }
-
-    @Composable
-    private fun visibilityPresenter(config: ComposeConfig.Visibility): VisibilityState {
-        var showVisibilityMenu by remember {
-            mutableStateOf(false)
-        }
-        var visibility by remember {
-            mutableStateOf(config.defaultVisibility)
-        }
-        var hasExplicitVisibility by remember {
-            mutableStateOf(false)
-        }
-        LaunchedEffect(config) {
-            val savedVisibility =
-                if (!hasExplicitVisibility) {
-                    appDataStore.composeConfigData.data
-                        .firstOrNull()
-                        ?.visibility
-                } else {
-                    null
-                }
-            val candidate =
-                if (hasExplicitVisibility) {
-                    visibility
-                } else {
-                    savedVisibility
-                }
-            visibility = candidate?.takeIf { it in config.allVisibilities } ?: config.defaultVisibility
-        }
-        val resolvedVisibility = visibility.takeIf { it in config.allVisibilities } ?: config.defaultVisibility
-        return object : VisibilityState {
-            override val visibility = resolvedVisibility
-
-            override val allVisibilities = config.allVisibilities
-
-            override val showVisibilityMenu: Boolean
-                get() = showVisibilityMenu
-
-            override fun showVisibilityMenu() {
-                showVisibilityMenu = true
-            }
-
-            override fun hideVisibilityMenu() {
-                showVisibilityMenu = false
-            }
-
-            override fun setVisibility(value: UiTimelineV2.Post.Visibility) {
-                hasExplicitVisibility = true
-                visibility = value.takeIf { it in config.allVisibilities } ?: config.defaultVisibility
-            }
-
-            override fun clear() {
-                visibility = config.defaultVisibility
-                showVisibilityMenu = false
-                hasExplicitVisibility = true
-            }
         }
     }
 
@@ -942,6 +897,21 @@ internal fun CoroutineScope.launchComposeWithAccounts(
     }
 }
 
+internal fun isComposeContentValid(
+    text: String,
+    mediaMimeTypes: List<String>,
+    composeConfig: ComposeConfig,
+    composeStatus: ComposeStatus?,
+): Boolean {
+    val media = composeConfig.media
+    val mediaSize = mediaMimeTypes.size
+    val minimumMediaCount = if (composeStatus !is ComposeStatus.Reply) media?.minCountForNew ?: 0 else 0
+    val mediaCountAllowed = media == null || mediaSize in minimumMediaCount..media.maxCount
+    val mediaTypesAllowed = media == null || mediaMimeTypes.all(media::supportsMimeType)
+    val contentPresent = text.isNotBlank() || ((media?.allowMediaOnly == true) && (mediaSize > 0))
+    return contentPresent && mediaCountAllowed && mediaTypesAllowed
+}
+
 internal fun observeComposeStatusTarget(
     activeStatusFlow: Flow<ComposeStatus?>,
     selectedAccountKeysFlow: Flow<ImmutableList<MicroBlogKey>>,
@@ -953,6 +923,24 @@ internal fun observeComposeStatusTarget(
                 ?: fallbackAccountType as? AccountType.Specific
         composeStatus to resolvedAccountType
     }.distinctUntilChanged()
+
+internal fun observeComposeUsers(servicesFlow: Flow<List<MicroblogDataSource>>): Flow<Map<MicroBlogKey, UiState<UiProfile>>> =
+    servicesFlow
+        .map { services ->
+            services.mapNotNull { service ->
+                val accountKey = service.accountKeyOrNull
+                val compose = service.capabilities.compose
+                if (compose != null && accountKey != null) {
+                    val userFlow = service.accountProfileFlow() ?: return@mapNotNull null
+                    userFlow.map {
+                        accountKey to it
+                    }
+                } else {
+                    null
+                }
+            }
+        }.combineLatestFlowLists()
+        .map { it.toMap() }
 
 internal fun observeAllComposeAccounts(
     accountFlows: Flow<List<Flow<Pair<MicroBlogKey, UiState<UiAccount>>>>>,
@@ -984,6 +972,50 @@ public interface VisibilityState {
     public fun setVisibility(value: UiTimelineV2.Post.Visibility)
 
     public fun clear()
+}
+
+@Composable
+internal fun rememberComposeVisibilityState(
+    config: ComposeConfig.Visibility?,
+    savedVisibility: UiTimelineV2.Post.Visibility?,
+): VisibilityState {
+    val options = config?.allVisibilities ?: persistentListOf()
+    val default = config?.defaultVisibility
+    var showVisibilityMenu by remember { mutableStateOf(false) }
+    var visibility by remember { mutableStateOf(default) }
+    var hasExplicitVisibility by remember { mutableStateOf(false) }
+    LaunchedEffect(config, savedVisibility) {
+        val candidate = if (hasExplicitVisibility) visibility else savedVisibility
+        visibility = candidate?.takeIf { it in options } ?: default
+        if (visibility != null && visibility != UiTimelineV2.Post.Visibility.Public) {
+            hasExplicitVisibility = true
+        }
+    }
+    val current = visibility?.takeIf { it in options } ?: default ?: UiTimelineV2.Post.Visibility.Public
+    return object : VisibilityState {
+        override val visibility = current
+        override val allVisibilities = options
+        override val showVisibilityMenu: Boolean get() = showVisibilityMenu
+
+        override fun showVisibilityMenu() {
+            showVisibilityMenu = true
+        }
+
+        override fun hideVisibilityMenu() {
+            showVisibilityMenu = false
+        }
+
+        override fun setVisibility(value: UiTimelineV2.Post.Visibility) {
+            hasExplicitVisibility = true
+            visibility = value.takeIf { it in options } ?: default
+        }
+
+        override fun clear() {
+            visibility = default
+            showVisibilityMenu = false
+            hasExplicitVisibility = true
+        }
+    }
 }
 
 @Immutable
@@ -1042,9 +1074,11 @@ public abstract class ComposeState(
     public val languageCodes: ImmutableList<String>,
     public val emojiAccountType: AccountType?,
     public val emojis: ImmutableList<UiEmoji>,
-    public val visibility: UiTimelineV2.Post.Visibility,
+    public val visibility: UiTimelineV2.Post.Visibility?,
     public val allVisibilities: ImmutableList<UiTimelineV2.Post.Visibility>,
 ) {
+    public abstract fun setVisibility(value: UiTimelineV2.Post.Visibility)
+
     @WebIgnore
     public abstract fun send(
         data: ComposeData,
@@ -1054,7 +1088,7 @@ public abstract class ComposeState(
     public abstract fun sendDirect(
         content: String,
         accountKeys: List<MicroBlogKey>,
-        visibility: UiTimelineV2.Post.Visibility,
+        visibility: UiTimelineV2.Post.Visibility?,
         language: String,
         sensitive: Boolean,
         spoilerText: String?,
@@ -1074,6 +1108,11 @@ public abstract class ComposeState(
     public abstract fun setSpoilerText(value: String?)
 
     public abstract fun setMediaSize(value: Int)
+
+    @WebIgnore
+    public abstract fun setMediaMimeTypes(value: List<String>)
+
+    public abstract fun setMediaMimeTypesJson(value: String)
 
     public abstract fun loadDraft(groupId: String)
 

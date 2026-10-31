@@ -12,6 +12,7 @@ struct MediaViewerTestFixture: View {
     @State private var presented = false
     @State private var dismissed = false
     @State private var medias: [any UiMedia] = []
+    @State private var pastedErrorDetails = ""
     private let video = ProcessInfo.processInfo.arguments.contains("--video")
     private let indicator = ProcessInfo.processInfo.arguments.contains("--indicator")
     private let withoutPost = ProcessInfo.processInfo.arguments.contains("--without-post")
@@ -25,6 +26,12 @@ struct MediaViewerTestFixture: View {
                     .accessibilityIdentifier("media-fixture-open")
             }
             if dismissed { Text("Media dismissed") }
+            if ProcessInfo.processInfo.arguments.contains("--image-translation-error-fixture") {
+                TextEditor(text: $pastedErrorDetails)
+                    .frame(height: 120)
+                    .accessibilityLabel("Paste error details")
+                    .accessibilityIdentifier("media-fixture-paste-error-details")
+            }
         }
         .task {
             await configureTranslationFixture()
@@ -120,9 +127,10 @@ struct MediaViewerTestFixture: View {
         state.setField(id: "prompt", value: prompt)
         state.setField(id: "baseUrl", value: "http://127.0.0.1:18473/v1")
         state.setField(id: "apiKey", value: "offline-fixture-key")
-        state.setField(id: "model", value: "offline-fixture")
+        let model = ProcessInfo.processInfo.arguments.contains("--image-translation-error-fixture") ? "offline-fixture-error" : "offline-fixture"
+        state.setField(id: "model", value: model)
         for _ in 0..<250 {
-            if settings.state.config.configured && settings.state.config.value(id: "baseUrl") == "http://127.0.0.1:18473/v1" && settings.state.config.value(id: "prompt") == prompt { return }
+            if settings.state.config.configured && settings.state.config.value(id: "baseUrl") == "http://127.0.0.1:18473/v1" && settings.state.config.value(id: "prompt") == prompt && settings.state.config.value(id: "model") == model { return }
             try? await Task.sleep(for: .milliseconds(20))
         }
         assertionFailure("Could not configure the local image translation fixture")
@@ -173,9 +181,9 @@ struct MediaViewerTestFixture: View {
     }
 
     private func makePost(medias: [any UiMedia]) -> UiTimelineV2.Post {
-        let profile = UiProfile(key: MicroBlogKey(id: "reader", host: "example.invalid"), handle: UiHandle(raw: "reader", host: "example.invalid"), avatar: nil as UiMediaImage?, nameInternal: richText("Media Test User"), platformId: "mastodon", platformIcon: .world, clickEvent: ClickEventNoop.shared, banner: nil, description: nil, sourceLanguages: [], translationDisplayState: .hidden, matrices: UiProfile.Matrices(fansCount: 0, followsCount: 0, statusesCount: 0, platformFansCount: nil), mark: [], bottomContent: nil)
+        let profile = UiProfile(key: MicroBlogKey(id: "reader", host: "example.invalid"), handle: UiHandle(raw: "reader", host: "example.invalid"), avatar: nil as UiMediaImage?, nameInternal: richText("Media Test User"), platformId: "mastodon", platformIcon: IconType.Material(icon: .world), clickEvent: ClickEventNoop.shared, banner: nil, description: nil, sourceLanguages: [], translationDisplayState: .hidden, matrices: UiProfile.Matrices(fansCount: 0, followsCount: 0, statusesCount: 0, platformFansCount: nil), mark: [], bottomContent: nil)
         let action = ActionMenu.Item(updateKey: "like", icon: .like, text: nil, count: UiNumber(value: 1), color: .contentColor, clickEvent: ClickEventNoop.shared, actionFamily: .like, enabled: true)
-        return UiTimelineV2.Post(platformId: "mastodon", images: medias, sensitive: false, contentWarning: nil, user: profile, platformIcon: .world, sourceLanguages: [], translationDisplayState: .hidden, content: UiTranslatableText(original: richText(String(repeating: "Post details for the native media sheet. ", count: 40)), translation: nil), actions: [action], poll: nil, statusKey: MicroBlogKey(id: "media-fixture", host: "example.invalid"), card: nil, createdAt: KotlinInstant.companion.fromEpochMilliseconds(epochMilliseconds: 0).toUi(), emojiReactions: [], sourceChannel: nil, visibility: nil, replyToHandle: nil, references: [], clickEvent: ClickEventNoop.shared, mediaClickPolicy: .openStatusMedia, accountType: AccountType.Guest.shared, itemKey: "media-fixture")
+        return UiTimelineV2.Post(platformId: "mastodon", images: medias, sensitive: false, contentWarning: nil, user: profile, platformIcon: IconType.Material(icon: .world), sourceLanguages: [], translationDisplayState: .hidden, content: UiTranslatableText(original: richText(String(repeating: "Post details for the native media sheet. ", count: 40)), translation: nil), actions: [action], poll: nil, statusKey: MicroBlogKey(id: "media-fixture", host: "example.invalid"), card: nil, createdAt: KotlinInstant.companion.fromEpochMilliseconds(epochMilliseconds: 0).toUi(), emojiReactions: [], sourceChannel: nil, visibility: nil, replyToHandle: nil, references: [], clickEvent: ClickEventNoop.shared, mediaClickPolicy: .openStatusMedia, accountType: AccountType.Guest.shared, itemKey: "media-fixture", pluginId: nil, authorSubtitleInternal: nil)
     }
 }
 #endif

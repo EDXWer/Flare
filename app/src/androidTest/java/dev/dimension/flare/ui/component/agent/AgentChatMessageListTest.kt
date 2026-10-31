@@ -1,24 +1,34 @@
 package dev.dimension.flare.ui.component.agent
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dev.dimension.flare.common.collectPagingState
 import dev.dimension.flare.feature.agent.common.AgentChatHistoryMessage
+import dev.dimension.flare.feature.agent.common.AgentFailure
 import dev.dimension.flare.feature.agent.presenter.AgentMessagePart
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,6 +37,41 @@ import org.junit.runner.RunWith
 class AgentChatMessageListTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun assistantUsesTheContentWidthWithoutABubbleAndUserKeepsItsBubbleWidth() {
+        val assistantText = "Assistant response ".repeat(12).trim()
+        val userText = "User message ".repeat(12).trim()
+        val messages = MutableStateFlow(listOf(message(assistantText), message(userText).copy(role = AgentChatHistoryMessage.Role.User)))
+        composeRule.setContent {
+            val state by messages.collectPagingState()
+            MaterialTheme {
+                Box(Modifier.size(300.dp, 500.dp).background(Color.Magenta).testTag("chat")) {
+                    AgentChatMessageList(state, {}, contentPadding = PaddingValues(12.dp))
+                }
+            }
+        }
+
+        val chat = composeRule.onNodeWithTag("chat")
+        val chatBounds = chat.getUnclippedBoundsInRoot()
+        val assistant = composeRule.onNodeWithText(assistantText).getUnclippedBoundsInRoot()
+        val user = composeRule.onNodeWithText(userText).getUnclippedBoundsInRoot()
+        val contentWidth = (chatBounds.right - chatBounds.left).value - 24f
+        assertEquals(chatBounds.left.value + 12f, assistant.left.value, 1f)
+        assertEquals(contentWidth, (assistant.right - assistant.left).value, 1f)
+        assertEquals(contentWidth * 0.88f - 24f, (user.right - user.left).value, 1f)
+        assertEquals(chatBounds.right.value - 24f, user.right.value, 1f)
+
+        val pixels = chat.captureToImage().toPixelMap()
+        val scale = pixels.width / (contentWidth + 24f)
+        assertEquals(
+            Color.Magenta,
+            pixels[
+                ((assistant.left.value - chatBounds.left.value + 1f) * scale).toInt(),
+                ((assistant.top.value - chatBounds.top.value - 2f) * scale).toInt(),
+            ],
+        )
+    }
 
     @Test
     fun newReplyIsVisibleWhenReadingTheLatestMessages() {
@@ -48,6 +93,42 @@ class AgentChatMessageListTest {
 
         composeRule.onNodeWithText("Reply 20").assertIsDisplayed()
         composeRule.onNodeWithText("New reply").assertIsNotDisplayed()
+    }
+
+    @Test
+    fun historyRetryResubscribesWithoutStartingAnAgent() {
+        var loads = 0
+        val history =
+            flow {
+                loads++
+                if (loads == 1) error("Database unavailable")
+                emit(listOf(message("Restored reply")))
+            }
+        composeRule.setContent {
+            val state by history.collectPagingState()
+            MaterialTheme {
+                AgentChatMessageList(messages = state, onInputRequestOptionSelected = {})
+            }
+        }
+        composeRule.onNodeWithText("Retry").performClick()
+        composeRule.onNodeWithText("Restored reply").assertIsDisplayed()
+        composeRule.runOnIdle { assertEquals(2, loads) }
+    }
+
+    @Test
+    fun unknownErrorIsPlainVisibleTextAndRetryFitsANarrowCard() {
+        var retries = 0
+        val message = "<b>Provider rejected this model</b>"
+        composeRule.setContent {
+            MaterialTheme {
+                Box(Modifier.size(240.dp, 300.dp)) {
+                    AgentErrorCard(AgentFailure.fromThrowable(IllegalStateException(message)), onRetry = { retries++ })
+                }
+            }
+        }
+        composeRule.onNodeWithText(message).assertIsDisplayed()
+        composeRule.onNodeWithText("Retry").assertIsDisplayed().performClick()
+        composeRule.runOnIdle { assertEquals(1, retries) }
     }
 
     private fun showMessages(): MutableStateFlow<List<AgentChatHistoryMessage>> {

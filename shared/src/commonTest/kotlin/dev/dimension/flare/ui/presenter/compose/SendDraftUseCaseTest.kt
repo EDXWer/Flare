@@ -10,12 +10,18 @@ import dev.dimension.flare.createTestFileItem
 import dev.dimension.flare.createTestFileSystem
 import dev.dimension.flare.createTestRootPath
 import dev.dimension.flare.data.database.app.AppDatabase
+import dev.dimension.flare.data.database.app.model.DbAccount
 import dev.dimension.flare.data.database.app.model.DraftContent
 import dev.dimension.flare.data.database.app.model.DraftMediaType
 import dev.dimension.flare.data.database.app.model.DraftReferenceType
 import dev.dimension.flare.data.database.app.model.DraftTargetStatus
 import dev.dimension.flare.data.database.createDatabaseDriver
+import dev.dimension.flare.data.datasource.microblog.ComposeConfig
 import dev.dimension.flare.data.datasource.microblog.ComposeData
+import dev.dimension.flare.data.datasource.microblog.ComposeDataSource
+import dev.dimension.flare.data.datasource.microblog.ComposeType
+import dev.dimension.flare.data.datasource.microblog.MicroblogDataSource
+import dev.dimension.flare.data.datasource.microblog.UnavailableMicroblogDataSource
 import dev.dimension.flare.data.datastore.AppDataStore
 import dev.dimension.flare.data.io.FileStorage
 import dev.dimension.flare.data.io.OkioFileStorage
@@ -30,6 +36,7 @@ import dev.dimension.flare.memoryDatabaseBuilder
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.model.UiAccount
 import dev.dimension.flare.ui.model.UiTimelineV2
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -92,6 +99,69 @@ class SendDraftUseCaseTest : RobolectricTest() {
         db.close()
         deleteTestRootPath(root)
     }
+
+    @Test
+    fun unspecifiedAudienceUsesEachPlatformDefaultAfterSaveAndRetry() =
+        runTest {
+            val first = mastodonAccount("a", "first.example")
+            val second = mastodonAccount("b", "second.example")
+            val accounts = listOf(first, second)
+            val defaults =
+                mapOf(
+                    first.accountKey to UiTimelineV2.Post.Visibility.SelfOnly,
+                    second.accountKey to UiTimelineV2.Post.Visibility.Followers,
+                )
+            val published = mutableListOf<Pair<MicroBlogKey, UiTimelineV2.Post.Visibility?>>()
+            var failSecond = true
+            val useCase =
+                testUseCase(findAccount = { key -> accounts.find { it.accountKey == key } }) { account, data, progress ->
+                    assertNull(data.visibility)
+                    if (account == second && failSecond) {
+                        failSecond = false
+                        error("retry this account")
+                    }
+                    val source =
+                        object :
+                            ComposeDataSource,
+                            MicroblogDataSource by UnavailableMicroblogDataSource {
+                            override val accountKey = account.accountKey
+
+                            override fun composeConfig(type: ComposeType) =
+                                ComposeConfig(
+                                    visibility =
+                                        ComposeConfig.Visibility(
+                                            allVisibilities =
+                                                persistentListOf(
+                                                    UiTimelineV2.Post.Visibility.Public,
+                                                    defaults.getValue(accountKey),
+                                                ),
+                                            defaultVisibility = defaults.getValue(accountKey),
+                                        ),
+                                )
+
+                            override suspend fun publish(
+                                data: ComposeData,
+                                progress: () -> Unit,
+                            ) {
+                                published += accountKey to data.visibility
+                            }
+                        }
+                    source.compose(data, progress)
+                }
+            useCase(ComposeDraftBundle(groupId = "defaults", accounts = accounts, template = ComposeData("post"))) {}
+            assertNull(assertNotNull(repository.draft("defaults").first()).content.visibility)
+            useCase("defaults") {}
+            assertEquals(
+                listOf<UiTimelineV2.Post.Visibility?>(
+                    UiTimelineV2.Post.Visibility.SelfOnly,
+                    UiTimelineV2.Post.Visibility.Followers,
+                ),
+                published.map {
+                    it.second
+                },
+            )
+            assertNull(repository.draft("defaults").first())
+        }
 
     @Test
     fun cancelledSendKeepsMediaAndMakesUnsentDestinationsRetryable() =
@@ -1308,14 +1378,14 @@ class SendDraftUseCaseTest : RobolectricTest() {
             reference = null,
         )
 
-    private fun mastodonAccount(
+    private suspend fun mastodonAccount(
         id: String,
         host: String,
     ): UiAccount =
         UiAccount(
             accountKey = MicroBlogKey(id, host),
             platformId = "Mastodon",
-        )
+        ).also { db.accountDao().insert(DbAccount(it.accountKey, "{}", it.platformId, 0)) }
 
     private fun media(
         name: String,

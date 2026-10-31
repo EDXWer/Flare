@@ -57,6 +57,7 @@ import dev.dimension.flare.ui.model.UiProfile
 import dev.dimension.flare.ui.model.UiTimelineV2
 import dev.dimension.flare.ui.model.UiTranslatableText
 import dev.dimension.flare.ui.model.asTimelinePostItem
+import dev.dimension.flare.ui.model.asType
 import dev.dimension.flare.ui.model.bindMediaProxy
 import dev.dimension.flare.ui.model.toUiImage
 import dev.dimension.flare.ui.model.withProxy
@@ -819,6 +820,7 @@ private fun FeedViewPost.render(
             renderedPost.copy(
                 statusKey = message?.statusKey ?: renderedPost.statusKey,
                 user = repostUser,
+                authorSubtitleInternal = "@${repostUser.handle.normalizedRaw}",
                 createdAt = feedReason.value.indexedAt.toUi(),
                 images = persistentListOf(),
                 content = UiTranslatableText(original = uiRichTextOf(emptyList())),
@@ -909,6 +911,7 @@ internal fun PostView.render(
     return UiTimelineV2.Post(
         platformId = BLUESKY_PLATFORM_ID,
         user = user,
+        authorSubtitleInternal = "@${user.handle.normalizedRaw}",
         images = findMedias(this, downloadUrls),
         card = findCard(this),
         statusKey = statusKey,
@@ -1130,7 +1133,7 @@ internal fun chat.bsky.actor.ProfileViewBasic.render(accountKey: MicroBlogKey): 
         mark = persistentListOf(),
         bottomContent = null,
         platformId = BLUESKY_PLATFORM_ID,
-        platformIcon = dev.dimension.flare.ui.model.UiIcon.Bluesky,
+        platformIcon = UiIcon.Bluesky.asType(),
         clickEvent =
             ClickEvent.Deeplink(
                 DeeplinkRoute.Profile
@@ -1168,7 +1171,7 @@ internal fun ProfileViewBasic.render(accountKey: MicroBlogKey): UiProfile {
         mark = persistentListOf(),
         bottomContent = null,
         platformId = BLUESKY_PLATFORM_ID,
-        platformIcon = dev.dimension.flare.ui.model.UiIcon.Bluesky,
+        platformIcon = UiIcon.Bluesky.asType(),
         clickEvent =
             ClickEvent.Deeplink(
                 DeeplinkRoute.Profile
@@ -1206,7 +1209,7 @@ internal fun ProfileView.render(accountKey: MicroBlogKey): UiProfile {
         mark = persistentListOf(),
         bottomContent = null,
         platformId = BLUESKY_PLATFORM_ID,
-        platformIcon = dev.dimension.flare.ui.model.UiIcon.Bluesky,
+        platformIcon = UiIcon.Bluesky.asType(),
         clickEvent =
             ClickEvent.Deeplink(
                 DeeplinkRoute.Profile
@@ -1244,7 +1247,7 @@ internal fun ProfileViewDetailed.render(accountKey: MicroBlogKey): UiProfile {
         mark = persistentListOf(),
         bottomContent = null,
         platformId = BLUESKY_PLATFORM_ID,
-        platformIcon = dev.dimension.flare.ui.model.UiIcon.Bluesky,
+        platformIcon = UiIcon.Bluesky.asType(),
         clickEvent =
             ClickEvent.Deeplink(
                 DeeplinkRoute.Profile
@@ -1499,6 +1502,7 @@ private fun render(
                 }
             UiTimelineV2.Post(
                 user = user,
+                authorSubtitleInternal = "@${user.handle.normalizedRaw}",
                 images =
                     record.value.embeds
                         .orEmpty()

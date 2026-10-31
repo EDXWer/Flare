@@ -6,9 +6,11 @@ import ai.koog.prompt.message.MessagePart
 import androidx.compose.runtime.Immutable
 import dev.dimension.flare.feature.agent.database.AgentDatabase
 import dev.dimension.flare.feature.agent.database.connect
+import dev.dimension.flare.feature.agent.database.model.DbAgentContext
 import dev.dimension.flare.feature.agent.database.model.DbAgentConversation
 import dev.dimension.flare.feature.agent.database.model.DbAgentMessage
 import dev.dimension.flare.feature.agent.presenter.AgentMessagePart
+import dev.dimension.flare.feature.agent.presenter.agentMessagePartIdentity
 import dev.dimension.flare.feature.agent.presenter.buildAgentMessageParts
 import dev.dimension.flare.feature.agent.presenter.markAgentInputRequestSelected
 import dev.dimension.flare.feature.agent.presenter.toAgentTextParts
@@ -16,7 +18,10 @@ import dev.dimension.flare.ui.model.UiProfile
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -33,6 +38,10 @@ internal class AgentChatHistoryProvider(
     private val database: AgentDatabase,
     private val generateTitle: suspend (List<AgentChatHistoryMessage>) -> String?,
 ) : ChatHistoryProvider {
+    private val confirmations = MutableStateFlow<Map<String, String>>(emptyMap())
+
+    fun consumeConfirmation(conversationId: String): String? = confirmations.getAndUpdate { it - conversationId }[conversationId]
+
     fun observeRooms(): Flow<List<AgentChatRoom>> =
         database
             .conversationDao()
@@ -74,14 +83,14 @@ internal class AgentChatHistoryProvider(
         title: String,
     ) {
         val fallbackTitle = title.agentFallbackTitle()
-        val existing = database.conversationDao().getConversation(conversationId)
-        val resolvedTitle = existing.agentTitleOrFallback(conversationId, fallbackTitle)
-        if (existing != null && existing.title == resolvedTitle) {
-            return
-        }
-
-        val now = Clock.System.now().toEpochMilliseconds()
         database.connect {
+            val existing = database.conversationDao().getConversation(conversationId)
+            val resolvedTitle = existing.agentTitleOrFallback(conversationId, fallbackTitle)
+            if (existing != null && existing.title == resolvedTitle) {
+                return@connect
+            }
+
+            val now = Clock.System.now().toEpochMilliseconds()
             database.conversationDao().upsertConversation(
                 DbAgentConversation(
                     conversationId = conversationId,
@@ -155,26 +164,57 @@ internal class AgentChatHistoryProvider(
         )
     }
 
+    suspend fun ensureInitialUserUiMessage(
+        conversationId: String,
+        displayText: String,
+        part: AgentMessagePart,
+    ) = storeUserUiContent(
+        conversationId = conversationId,
+        rawText = displayText.agentFallbackTitle(),
+        displayTitle = displayText,
+        parts = listOf(part),
+        initial = true,
+    )
+
     private suspend fun storeUserUiContent(
         conversationId: String,
         rawText: String,
         displayTitle: String,
         parts: List<AgentMessagePart>,
+        initial: Boolean = false,
     ) {
         if (rawText.isBlank() || parts.isEmpty()) {
             return
         }
         val now = Clock.System.now().toEpochMilliseconds()
-        val existing = database.conversationDao().getConversation(conversationId)
-        val title = displayTitle.trim().takeIf { it.isNotBlank() } ?: rawText
-        val nextPosition =
-            database
-                .conversationDao()
-                .getMessages(conversationId)
-                .maxOfOrNull { it.position }
-                ?.plus(1)
-                ?: 0
         database.connect {
+            val existing = database.conversationDao().getConversation(conversationId)
+            val title = displayTitle.trim().takeIf { it.isNotBlank() } ?: rawText
+            val messages = database.conversationDao().getMessagesChronological(conversationId)
+            if (initial) {
+                val identity = parts.single().agentMessagePartIdentity()
+                val previous =
+                    messages.firstOrNull { stored ->
+                        stored.role == Message.Role.User.name && (
+                            stored.decodeContent().any { it.agentMessagePartIdentity() == identity } ||
+                                stored.toMessage()?.textContent()?.let { text ->
+                                    text.startsWith("Analyze this social post for the user.") ||
+                                        text.startsWith("Analyze this social profile for the user.")
+                                } == true
+                        )
+                    }
+                if (previous != null) {
+                    database.conversationDao().insertMessages(listOf(previous.copy(contentJson = encodeContent(parts))))
+                    return@connect
+                }
+            }
+            val nextPosition =
+                if (initial) {
+                    (messages.minOfOrNull { it.position } ?: 1) - 1
+                } else {
+                    (messages.maxOfOrNull { it.position } ?: -1) +
+                        1
+                }
             database.conversationDao().upsertConversation(
                 DbAgentConversation(
                     conversationId = conversationId,
@@ -214,12 +254,12 @@ internal class AgentChatHistoryProvider(
                 supportingParts = supportingParts,
                 inputRequest = inputRequest,
             )
-        val message =
-            database.conversationDao().getLatestMessageByRole(
-                conversationId = conversationId,
-                role = Message.Role.Assistant.name,
-            ) ?: return parts
         database.connect {
+            val message =
+                database.conversationDao().getLatestMessageByRole(
+                    conversationId = conversationId,
+                    role = Message.Role.Assistant.name,
+                ) ?: return@connect
             database.conversationDao().insertMessages(
                 listOf(
                     message.copy(
@@ -239,24 +279,24 @@ internal class AgentChatHistoryProvider(
         updateErrorMessage: Boolean = true,
     ) {
         val now = Clock.System.now().toEpochMilliseconds()
-        val existing = database.conversationDao().getConversation(conversationId)
-        val latestMessageAt = database.conversationDao().getLatestVisibleMessageCreatedAt(conversationId)
-        val nextIsRunning = isRunning ?: existing?.isRunning ?: false
-        val nextErrorMessage =
-            if (updateErrorMessage) {
-                errorMessage
-            } else {
-                existing?.errorMessage
-            }
-        val isEmptyIdleState =
-            !nextIsRunning && nextErrorMessage == null
-        if (existing == null &&
-            isEmptyIdleState &&
-            database.conversationDao().getMessages(conversationId).isEmpty()
-        ) {
-            return
-        }
         database.connect {
+            val existing = database.conversationDao().getConversation(conversationId)
+            val latestMessageAt = database.conversationDao().getLatestVisibleMessageCreatedAt(conversationId)
+            val nextIsRunning = isRunning ?: existing?.isRunning ?: false
+            val nextErrorMessage =
+                if (updateErrorMessage) {
+                    errorMessage
+                } else {
+                    existing?.errorMessage
+                }
+            val isEmptyIdleState =
+                !nextIsRunning && nextErrorMessage == null
+            if (existing == null &&
+                isEmptyIdleState &&
+                database.conversationDao().getMessages(conversationId).isEmpty()
+            ) {
+                return@connect
+            }
             database.conversationDao().upsertConversation(
                 DbAgentConversation(
                     conversationId = conversationId,
@@ -271,50 +311,52 @@ internal class AgentChatHistoryProvider(
         }
     }
 
+    suspend fun consumeRetry(conversationId: String): AgentFailure? {
+        val failure =
+            database
+                .conversationDao()
+                .getConversation(conversationId)
+                ?.errorMessage
+                ?.let(AgentFailure::decode)
+        if (failure?.canRetry != true) return null
+        // A crash during resumed tools must not expose the previous safe boundary again.
+        updateRoomState(conversationId, errorMessage = AgentFailure(AgentFailureKind.Interrupted, "").encode())
+        return failure
+    }
+
     suspend fun markInputRequestSelected(
         conversationId: String,
         requestId: String,
         optionId: String,
     ) {
-        val messages = database.conversationDao().getMessages(conversationId)
-        val updated =
-            messages.mapNotNull { message ->
-                val content = message.decodeContent()
-                var changed = false
-                val updatedContent =
-                    if (content.any { part ->
-                            part is AgentMessagePart.Actions &&
-                                part.request.requestId == requestId &&
-                                !part.selected
-                        }
-                    ) {
-                        changed = true
-                        content.markAgentInputRequestSelected(
-                            requestId = requestId,
-                            optionId = optionId,
-                        )
-                    } else {
-                        content
+        val confirmation =
+            database.connect {
+                val messages = database.conversationDao().getMessages(conversationId)
+                val option =
+                    messages
+                        .asSequence()
+                        .flatMap { it.decodeContent().asSequence() }
+                        .filterIsInstance<AgentMessagePart.Actions>()
+                        .filter { it.request.requestId == requestId && !it.selected }
+                        .flatMap { it.request.options.asSequence() }
+                        .firstOrNull { it.id == optionId } ?: return@connect null
+                val updated =
+                    messages.mapNotNull { message ->
+                        val content = message.decodeContent()
+                        val selected = content.markAgentInputRequestSelected(requestId, optionId)
+                        if (content == selected) null else message.copy(contentJson = encodeContent(selected))
                     }
-                if (!changed) {
-                    null
-                } else {
-                    message.copy(
-                        contentJson = encodeContent(updatedContent),
-                    )
-                }
+                database.conversationDao().insertMessages(updated)
+                option.confirmationKey
             }
-        if (updated.isEmpty()) {
-            return
-        }
-        database.connect {
-            database.conversationDao().insertMessages(updated)
-        }
+        confirmations.update { if (confirmation == null) it - conversationId else it + (conversationId to confirmation) }
     }
 
     suspend fun clear(conversationId: String) {
-        val existing = database.conversationDao().getConversation(conversationId)
+        confirmations.update { it - conversationId }
         database.connect {
+            val existing = database.conversationDao().getConversation(conversationId)
+            database.conversationDao().deleteContext(conversationId)
             database.conversationDao().deleteMessages(conversationId)
             // Initial insight runs clear old messages after the room is marked running.
             // Keep that row so history can continue observing its progress state.
@@ -327,7 +369,9 @@ internal class AgentChatHistoryProvider(
     }
 
     suspend fun deleteConversation(conversationId: String) {
+        confirmations.update { it - conversationId }
         database.connect {
+            database.conversationDao().deleteContext(conversationId)
             database.conversationDao().deleteMessages(conversationId)
             database.conversationDao().deleteConversation(conversationId)
         }
@@ -337,6 +381,12 @@ internal class AgentChatHistoryProvider(
         conversationId: String,
         messages: List<Message>,
     ) = storeMessages(conversationId, messages)
+
+    suspend fun storeCheckpoint(
+        conversationId: String,
+        messages: List<Message>,
+        checkpoint: AgentContextCheckpoint,
+    ) = storeMessages(conversationId, messages, checkpoint = checkpoint)
 
     suspend fun storeAssistantResponse(
         conversationId: String,
@@ -359,34 +409,36 @@ internal class AgentChatHistoryProvider(
 
     private suspend fun storeMessages(
         conversationId: String,
-        messages: List<Message>,
+        history: List<Message>,
         lastResponseParts: List<AgentMessagePart>? = null,
+        checkpoint: AgentContextCheckpoint? = null,
     ) {
+        val messages = history.filterNot { it.id == AGENT_CONTEXT_SUMMARY_ID }
         val now = Clock.System.now().toEpochMilliseconds()
         val latestMessageAt = messages.latestVisibleMessageCreatedAt() ?: now
-        val existing = database.conversationDao().getConversation(conversationId)
-        val existingMessages = database.conversationDao().getMessagesChronological(conversationId)
-        val existingById = existingMessages.associateBy { it.toMessage()?.id ?: it.messageId() }
-        val pendingUiMessages =
-            existingMessages
-                .filter { it.messageJson.isEmpty() }
-                .groupBy { MessageUiContentKey(it.role, it.text) }
-                .mapValues { (_, messages) -> ArrayDeque(messages) }
-        var nextPosition = (existingMessages.maxOfOrNull { it.position } ?: -1) + 1
-        // Keep optimistic user positions while placing new system messages before them.
-        var nextSystemPosition = (existingMessages.minOfOrNull { it.position } ?: 0) - messages.count { it is Message.System }
-        val historyMessages = messages.mapNotNull { it.toHistoryMessage(conversationId) }
-        val fallbackTitle =
-            existing.agentTitleOrFallback(
-                conversationId = conversationId,
-                fallbackTitle =
-                    agentConversationFallbackTitle(
-                        conversationId = conversationId,
-                        messages = messages,
-                        historyMessages = historyMessages,
-                    ),
-            )
         database.connect {
+            val existing = database.conversationDao().getConversation(conversationId)
+            val existingMessages = database.conversationDao().getMessagesChronological(conversationId)
+            val existingById = existingMessages.associateBy { it.toMessage()?.id ?: it.messageId() }
+            val pendingUiMessages =
+                existingMessages
+                    .filter { it.messageJson.isEmpty() }
+                    .groupBy { MessageUiContentKey(it.role, it.text) }
+                    .mapValues { (_, messages) -> ArrayDeque(messages) }
+            var nextPosition = (existingMessages.maxOfOrNull { it.position } ?: -1) + 1
+            // Keep optimistic user positions while placing new system messages before them.
+            var nextSystemPosition = (existingMessages.minOfOrNull { it.position } ?: 0) - messages.count { it is Message.System }
+            val historyMessages = messages.mapNotNull { it.toHistoryMessage(conversationId) }
+            val fallbackTitle =
+                existing.agentTitleOrFallback(
+                    conversationId = conversationId,
+                    fallbackTitle =
+                        agentConversationFallbackTitle(
+                            conversationId = conversationId,
+                            messages = messages,
+                            historyMessages = historyMessages,
+                        ),
+                )
             database.conversationDao().upsertConversation(
                 DbAgentConversation(
                     conversationId = conversationId,
@@ -420,18 +472,45 @@ internal class AgentChatHistoryProvider(
                     )
                 },
             )
+            if (checkpoint != null) {
+                val throughPosition =
+                    database
+                        .conversationDao()
+                        .getMessagesChronological(conversationId)
+                        .first { it.toMessage()?.id == checkpoint.throughMessageId }
+                        .position
+                val previousPosition = database.conversationDao().getContext(conversationId)?.throughPosition ?: throughPosition
+                database.conversationDao().upsertContext(
+                    DbAgentContext(conversationId, checkpoint.summary, maxOf(previousPosition, throughPosition)),
+                )
+            }
         }
     }
 
-    override suspend fun load(conversationId: String): List<Message> =
-        database
-            .conversationDao()
-            .getMessagesChronological(conversationId)
-            .mapNotNull { stored ->
-                stored.toMessage()?.let { message ->
-                    if (message.id == null) message.withAgentMessageId(stored.messageId()) else message
-                }
-            }.sanitizeForReplay()
+    override suspend fun load(conversationId: String): List<Message> {
+        val checkpoint = database.conversationDao().getContext(conversationId)
+        val history = database.conversationDao().getMessagesChronological(conversationId)
+        // Compaction pins the current request even when it precedes the checkpoint.
+        val currentRequestPosition =
+            if (checkpoint != null) {
+                history
+                    .lastOrNull { stored ->
+                        stored.role == Message.Role.User.name &&
+                            stored.toMessage()?.parts?.any { it !is MessagePart.Tool.Result } == true
+                    }?.position
+            } else {
+                null
+            }
+        val messages =
+            history
+                .filter { checkpoint == null || it.position > checkpoint.throughPosition || it.position == currentRequestPosition }
+                .mapNotNull { stored ->
+                    stored.toMessage()?.let { message ->
+                        if (message.id == null) message.withAgentMessageId(stored.messageId()) else message
+                    }
+                }.sanitizeForReplay()
+        return listOfNotNull(checkpoint?.let { agentContextSummary(it.summary) }) + messages
+    }
 
     suspend fun generateTitleIfNeeded(conversationId: String) {
         val existing = database.conversationDao().getConversation(conversationId) ?: return
@@ -515,27 +594,53 @@ internal class AgentChatHistoryProvider(
 
     private fun DbAgentMessage.messageId(): String = "$conversationId:$position"
 
-    private fun List<Message>.sanitizeForReplay(): List<Message> =
-        mapNotNull { message ->
+    private fun List<Message>.sanitizeForReplay(): List<Message> {
+        val pending = mutableMapOf<Pair<String?, String>, Pair<Int, Int>>()
+        val completed = mutableSetOf<Pair<Int, Int>>()
+        forEachIndexed { messageIndex, message ->
+            if (message.parts.none { it is MessagePart.Tool.Result }) pending.clear()
+            message.parts.forEachIndexed { partIndex, part ->
+                val position = messageIndex to partIndex
+                when (part) {
+                    is MessagePart.Tool.Call -> {
+                        pending[part.id to part.tool] = position
+                    }
+
+                    is MessagePart.Tool.Result -> {
+                        pending.remove(part.id to part.tool)?.let { call ->
+                            completed += call
+                            completed += position
+                        }
+                    }
+
+                    else -> {}
+                }
+            }
+        }
+        return mapIndexedNotNull { messageIndex, message ->
             when (message) {
                 is Message.System -> {
                     message
                 }
 
                 is Message.User -> {
-                    val parts = message.parts.filterNot { it is MessagePart.Tool.Result }
+                    val parts =
+                        message.parts.filterIndexed { partIndex, part ->
+                            part !is MessagePart.Tool.Result || (messageIndex to partIndex) in completed
+                        }
                     parts.takeIf { it.isNotEmpty() }?.let { message.copy(parts = it) }
                 }
 
                 is Message.Assistant -> {
                     val parts =
-                        message.parts.filterNot { part ->
-                            part is MessagePart.Reasoning || part is MessagePart.Tool.Call
+                        message.parts.filterIndexed { partIndex, part ->
+                            part !is MessagePart.Reasoning && (part !is MessagePart.Tool.Call || (messageIndex to partIndex) in completed)
                         }
                     parts.takeIf { it.isNotEmpty() }?.let { message.copy(parts = it) }
                 }
             }
         }
+    }
 
     private fun DbAgentConversation.toChatRoom(): AgentChatRoom =
         AgentChatRoom(
@@ -708,6 +813,8 @@ public data class AgentChatRoom(
     val currentTrace: AgentTrace?,
     val errorMessage: String?,
 ) {
+    public val error: AgentFailure? get() = errorMessage?.let(AgentFailure::decode)
+
     public companion object {
         public fun empty(id: String): AgentChatRoom =
             AgentChatRoom(

@@ -28,6 +28,7 @@ dependencies {
     implementation(projects.feature.subscription)
     implementation(projects.feature.tab)
     implementation(projects.feature.agent)
+    implementation(projects.feature.plugin)
     implementation(projects.composeUi)
 
     implementation(compose("org.jetbrains.compose.runtime:runtime"))
@@ -68,7 +69,6 @@ dependencies {
     implementation(libs.systemColor)
     implementation(libs.sentry)
     implementation(libs.richtext.ui)
-    implementation(libs.richtext.commonmark)
 
     testImplementation(compose("org.jetbrains.compose.ui:ui-test-junit4"))
     testImplementation(libs.junit)

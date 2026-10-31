@@ -145,6 +145,7 @@ dependencies {
     implementation(projects.feature.subscription)
     implementation(projects.feature.tab)
     implementation(projects.feature.agent)
+    implementation(projects.feature.plugin)
     implementation(projects.composeUi)
     implementation(libs.androidx.splash)
     implementation(libs.materialKolor)
@@ -155,7 +156,6 @@ dependencies {
     implementation(libs.webkit)
     implementation(libs.bundles.navigation3)
     implementation(libs.richtext.ui.material3)
-    implementation(libs.richtext.commonmark)
     implementation(libs.androidx.browser)
     implementation("net.java.dev.jna:jna:${libs.versions.jna.get()}@aar")
 

@@ -60,6 +60,7 @@ import compose.icons.fontawesomeicons.Solid
 import compose.icons.fontawesomeicons.solid.At
 import compose.icons.fontawesomeicons.solid.Ellipsis
 import compose.icons.fontawesomeicons.solid.Globe
+import compose.icons.fontawesomeicons.solid.Heart
 import compose.icons.fontawesomeicons.solid.Image
 import compose.icons.fontawesomeicons.solid.Language
 import compose.icons.fontawesomeicons.solid.Lock
@@ -119,6 +120,8 @@ import dev.dimension.flare.compose.ui.user_mute_with_parameter
 import dev.dimension.flare.compose.ui.user_send_message
 import dev.dimension.flare.compose.ui.user_unblock
 import dev.dimension.flare.compose.ui.user_unmute
+import dev.dimension.flare.compose.ui.visibility_friends
+import dev.dimension.flare.compose.ui.visibility_self
 import dev.dimension.flare.compose.ui.vote
 import dev.dimension.flare.data.datasource.microblog.ActionMenu
 import dev.dimension.flare.data.datasource.microblog.applyPostActionLayout
@@ -134,6 +137,7 @@ import dev.dimension.flare.ui.component.FlareDividerDefaults
 import dev.dimension.flare.ui.component.HorizontalDivider
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
 import dev.dimension.flare.ui.component.RichText
+import dev.dimension.flare.ui.component.TabIcon
 import dev.dimension.flare.ui.component.placeholder
 import dev.dimension.flare.ui.component.platform.PlatformCard
 import dev.dimension.flare.ui.component.platform.PlatformCheckbox
@@ -281,17 +285,15 @@ public fun CommonStatusComponent(
                                 )
                             }
                             if (appearanceSettings.showPlatformLogo) {
-                                FAIcon(
-                                    imageVector = item.platformIcon.toImageVector(),
+                                TabIcon(
+                                    icon = item.platformIcon,
                                     contentDescription =
                                         stringResource(
                                             Res.string.status_platform,
                                             item.platformId,
                                         ),
-                                    modifier =
-                                        Modifier
-                                            .size(PlatformTheme.typography.caption.fontSize.value.dp),
-                                    tint = PlatformTheme.colorScheme.caption,
+                                    size = PlatformTheme.typography.caption.fontSize.value.dp,
+                                    color = PlatformTheme.colorScheme.caption,
                                 )
                             }
                             if (!isDetail) {
@@ -332,6 +334,7 @@ public fun CommonStatusComponent(
                     if (showAsFullWidth) {
                         UserCompat(
                             user = user,
+                            subtitle = item.authorSubtitle,
                             onUserClick = {
                                 user.onClicked.invoke(
                                     ClickContext(
@@ -348,6 +351,7 @@ public fun CommonStatusComponent(
                     } else if (isQuote) {
                         UserCompat(
                             user,
+                            subtitle = item.authorSubtitle,
                             onUserClick = {
                                 user.onClicked.invoke(
                                     ClickContext(
@@ -363,6 +367,7 @@ public fun CommonStatusComponent(
                     } else {
                         CommonStatusHeaderComponent(
                             data = user,
+                            subtitle = item.authorSubtitle,
                             nameModifier = nameModifier,
                             handleModifier = handleModifier,
                             avatarModifier = avatarModifier,
@@ -965,6 +970,24 @@ public fun StatusVisibilityComponent(
             FAIcon(
                 imageVector = FontAwesomeIcons.Solid.Tv,
                 contentDescription = stringResource(resource = Res.string.channel_title),
+                modifier = modifier,
+                tint = tint,
+            )
+        }
+
+        UiTimelineV2.Post.Visibility.Friends -> {
+            FAIcon(
+                imageVector = FontAwesomeIcons.Solid.Heart,
+                contentDescription = stringResource(Res.string.visibility_friends),
+                modifier = modifier,
+                tint = tint,
+            )
+        }
+
+        UiTimelineV2.Post.Visibility.SelfOnly -> {
+            FAIcon(
+                imageVector = FontAwesomeIcons.Solid.Lock,
+                contentDescription = stringResource(Res.string.visibility_self),
                 modifier = modifier,
                 tint = tint,
             )

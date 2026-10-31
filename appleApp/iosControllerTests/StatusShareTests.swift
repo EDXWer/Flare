@@ -6,6 +6,104 @@ import KotlinSharedUI
 
 @MainActor
 final class StatusShareTests: XCTestCase {
+    func testScreenshotKeepsEqualPaddingOnEveryEdge() async throws {
+        let root = post("centered", text: "Centered post")
+        let reply = post("reply", text: Array(repeating: "Reply line", count: 40).joined(separator: "\n"))
+        for theme in [ColorScheme.light, .dark] {
+            for replies: [UiTimelineV2] in [[], [reply]] {
+                for padding in [CGFloat.zero, 64] {
+                    let image = try await StatusShareContent(data: root, statusKey: root.statusKey, replies: replies)
+                        .frame(width: 360)
+                        .padding(16)
+                        .background(Color(red: 1, green: 0, blue: 0))
+                        .clipShape(.rect(cornerRadius: padding == 0 ? 0 : 16))
+                        .shadow(radius: padding == 0 ? 0 : 8)
+                        .padding(padding)
+                        .background(Color(red: 0, green: 0, blue: 1))
+                        .environment(\.colorScheme, theme)
+                        .snapshot(colorScheme: theme)
+                    let cgImage = try XCTUnwrap(image.cgImage)
+                    let width = cgImage.width
+                    let height = cgImage.height
+                    var pixels = [UInt8](repeating: 0, count: width * height * 4)
+                    let context = try XCTUnwrap(CGContext(data: &pixels, width: width, height: height,
+                                                        bitsPerComponent: 8, bytesPerRow: width * 4,
+                                                        space: CGColorSpaceCreateDeviceRGB(),
+                                                        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+                    context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+                    func isCard(_ x: Int, _ y: Int) -> Bool {
+                        let offset = (y * width + x) * 4
+                        return pixels[offset] > 240 && pixels[offset + 1] < 15 && pixels[offset + 2] < 15
+                    }
+                    let columns = (0..<width).filter { isCard($0, height / 2) }
+                    let rows = (0..<height).filter { isCard(width / 2, $0) }
+                    // A 2x display can antialias the rounded card edge by one pixel in the 3x export.
+                    let expected = padding * image.scale
+                    XCTAssertEqual(CGFloat(try XCTUnwrap(columns.first)), expected, accuracy: 1, "Left padding")
+                    XCTAssertEqual(CGFloat(width - (try XCTUnwrap(columns.last)) - 1), expected, accuracy: 1, "Right padding")
+                    XCTAssertEqual(CGFloat(try XCTUnwrap(rows.first)), expected, accuracy: 1, "Top padding")
+                    XCTAssertEqual(CGFloat(height - (try XCTUnwrap(rows.last)) - 1), expected, accuracy: 1, "Bottom padding")
+                    let attachment = XCTAttachment(image: image)
+                    attachment.name = "share-padding-\(Int(padding))-replies-\(replies.count)-\(theme)"
+                    attachment.lifetime = .keepAlways
+                    add(attachment)
+                }
+            }
+        }
+    }
+
+    func testMissingPlatformImageLeavesLogoEmpty() async throws {
+        let view = StatusTopEndView(frame: CGRect(x: 0, y: 0, width: 100, height: 20))
+        let data = post("missing-icon", textBlocks: [""], platformIcon: IconType.Url(url: "file:///missing-platform-icon.png"))
+        view.configure(post: data, showPlatformLogo: true, absoluteTimestamp: false, isDetail: true, showAgentInsight: false, onInsightTapped: nil)
+        let logo = try XCTUnwrap(view.subviews.compactMap { $0 as? UIImageView }.first { !$0.isHidden && $0.isAccessibilityElement })
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertNil(logo.image, "A failed plugin image must not become a World icon")
+        XCTAssertEqual(view.intrinsicContentSize, CGSize(width: 14, height: 14))
+    }
+
+    func testPlatformLogoLoadsLocalImageOnceAndKeepsLayoutStable() async throws {
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent("platform-\(UUID().uuidString).png")
+        let source = UIGraphicsImageRenderer(size: CGSize(width: 512, height: 512)).image { context in
+            UIColor.red.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 512, height: 512))
+        }
+        try XCTUnwrap(source.pngData()).write(to: path)
+        defer { try? FileManager.default.removeItem(at: path) }
+        let view = StatusTopEndView(frame: CGRect(x: 0, y: 0, width: 100, height: 20))
+        let data = post("icon", textBlocks: [""], platformIcon: IconType.Url(url: path.absoluteString))
+        view.configure(post: data, showPlatformLogo: true, absoluteTimestamp: false, isDetail: true, showAgentInsight: false, onInsightTapped: nil)
+        let logo = try XCTUnwrap(view.subviews.compactMap { $0 as? UIImageView }.first { !$0.isHidden && $0.isAccessibilityElement })
+        XCTAssertNil(logo.image)
+        let size = view.sizeThatFits(CGSize(width: 100, height: 20))
+        for _ in 0..<100 {
+            if logo.image != nil { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let image = try XCTUnwrap(logo.image)
+        XCTAssertEqual(image.size.width, 14, accuracy: 1)
+        XCTAssertLessThanOrEqual(try XCTUnwrap(image.cgImage).width, Int(14 * view.traitCollection.displayScale) + 1)
+        XCTAssertEqual(view.sizeThatFits(CGSize(width: 100, height: 20)), size)
+        view.configure(post: data, showPlatformLogo: true, absoluteTimestamp: false, isDetail: true, showAgentInsight: false, onInsightTapped: nil)
+        XCTAssertTrue(image === logo.image, "Rebinding an unchanged icon must not restart image loading")
+        view.configure(post: data, showPlatformLogo: false, absoluteTimestamp: false, isDetail: true, showAgentInsight: false, onInsightTapped: nil)
+        XCTAssertTrue(logo.isHidden)
+        XCTAssertNil(logo.image)
+    }
+
+    func testReusingPlatformLogoCancelsThePreviousImageAndKeepsTheBuiltinIcon() async throws {
+        let view = StatusTopEndView(frame: CGRect(x: 0, y: 0, width: 100, height: 20))
+        let loading = post("first", textBlocks: [""], platformIcon: IconType.Url(url: "file:///missing-platform-icon.png"))
+        view.configure(post: loading, showPlatformLogo: true, absoluteTimestamp: false, isDetail: true, showAgentInsight: false, onInsightTapped: nil)
+        let builtin = post("second", textBlocks: [""], platformIcon: IconType.Material(icon: .mastodon))
+        view.configure(post: builtin, showPlatformLogo: true, absoluteTimestamp: false, isDetail: true, showAgentInsight: false, onInsightTapped: nil)
+        let logo = try XCTUnwrap(view.subviews.compactMap { $0 as? UIImageView }.first { !$0.isHidden && $0.isAccessibilityElement })
+        let image = try XCTUnwrap(logo.image)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertTrue(image === logo.image, "A cancelled image failure must not overwrite the new icon")
+        XCTAssertNotNil(logo.accessibilityLabel)
+    }
+
     func testReplyScreenshotIncludesFullTextInBothThemes() async throws {
         let root = post("root", text: "Original post")
         let reply = post("reply", text: Array(repeating: "Reply line", count: 40).joined(separator: "\n"))
@@ -180,7 +278,7 @@ final class StatusShareTests: XCTestCase {
         post(id, textBlocks: [text])
     }
 
-    private func post(_ id: String, textBlocks: [String]) -> UiTimelineV2.Post {
+    private func post(_ id: String, textBlocks: [String], platformIcon: IconType = IconType.Material(icon: .world)) -> UiTimelineV2.Post {
         let style = RenderTextStyle(link: nil, bold: false, italic: false, strikethrough: false,
                                     monospace: false, code: false, underline: false, small: false, time: false, imageLink: nil)
         let text = textBlocks.joined(separator: "\n\n")
@@ -189,13 +287,13 @@ final class StatusShareTests: XCTestCase {
         },
                               isRtl: false, raw: text, innerText: text, imageUrls: [])
         return UiTimelineV2.Post(platformId: "mastodon", images: [], sensitive: false, contentWarning: nil,
-                                user: nil, platformIcon: .world, sourceLanguages: [], translationDisplayState: .hidden,
+                                user: nil, platformIcon: platformIcon, sourceLanguages: [], translationDisplayState: .hidden,
                                 content: UiTranslatableText(original: rich, translation: nil), actions: [], poll: nil,
                                 statusKey: MicroBlogKey(id: id, host: "example.invalid"), card: nil,
                                 createdAt: KotlinInstant.companion.fromEpochMilliseconds(epochMilliseconds: 0).toUi(),
                                 emojiReactions: [], sourceChannel: nil, visibility: nil, replyToHandle: nil,
                                 references: [], clickEvent: ClickEventNoop.shared, mediaClickPolicy: .openStatusMedia,
-                                accountType: AccountType.Guest.shared, itemKey: id)
+                                accountType: AccountType.Guest.shared, itemKey: id, pluginId: nil, authorSubtitleInternal: nil)
     }
 
     private final class ReplyPickerState: NSObject, StatusSharePresenterState {
