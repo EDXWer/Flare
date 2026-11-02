@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import EmojiPicker from '$lib/components/emoji/EmojiPicker.svelte';
 	import FaIcon from '$lib/components/FaIcon.svelte';
+	import PlatformIcon from '$lib/components/PlatformIcon.svelte';
 	import UiTimelinePost from '$lib/components/UiTimeline/Post.svelte';
 	import UserDisplay from '$lib/components/user/UserDisplay.svelte';
 	import { m } from '$lib/paraglide/messages.js';
@@ -153,11 +154,11 @@
 	}
 
 	function displayName(profile: UiProfile): string {
-		return profile.name.innerText || profile.handle.canonical || profile.handle.raw;
+		return profile.name.innerText || profile.handle.display || profile.handle.raw;
 	}
 
 	function handleText(profile: UiProfile): string {
-		return profile.handle.canonical || profile.handle.raw;
+		return profile.handle.display || profile.handle.raw;
 	}
 
 	function initials(profile: UiProfile): string {
@@ -654,7 +655,7 @@
 										{/if}
 									</span>
 									<span class="platform-badge bg-base-100 text-base-content">
-										<FaIcon name={profile.platformIcon} size={10} />
+										<PlatformIcon icon={profile.platformIcon} size={10} />
 									</span>
 								</span>
 							{/each}

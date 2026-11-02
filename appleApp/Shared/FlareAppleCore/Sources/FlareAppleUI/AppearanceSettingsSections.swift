@@ -292,23 +292,30 @@ public extension BehaviorSettingsSection where LinkOpenDefaultsLink == EmptyView
     }
 }
 
-public struct LinkOpenDefaultsSettingsSection: View {
+public struct LinkOpenDefaultsSettingsView: View {
     @State private var presenter = KotlinPresenter(presenter: LinkOpenDefaultsPresenter())
 
     public init() {}
 
     public var body: some View {
-        Section {
-            StateView(state: presenter.state.targets) { data in
-                let targets = data.cast(LinkOpenDefaultsPresenter.Target.self)
-                ForEach(targets, id: \.id) { target in
-                    LinkOpenDefaultSettingsMenu(
-                        target: target,
-                        state: presenter.state
-                    )
+        List {
+            Section {
+                StateView(state: presenter.state.targets) { data in
+                    let targets = data.cast(LinkOpenDefaultsPresenter.Target.self)
+                    ForEach(targets, id: \.id) { target in
+                        LinkOpenDefaultSettingsMenu(
+                            target: target,
+                            state: presenter.state
+                        )
+                    }
+                } loadingContent: {
+                    EmptyView()
                 }
-            } loadingContent: {
-                EmptyView()
+            }
+        }
+        .overlay {
+            if case .success(let targets) = onEnum(of: presenter.state.targets), targets.data.count == 0 {
+                ListEmptyView("link_open_defaults_empty", icon: .globe)
             }
         }
     }
@@ -361,7 +368,7 @@ private struct LinkOpenDefaultSelectedOptionLabel: View {
     var body: some View {
         if let account = option.account {
             StateView(state: account.profile) { user in
-                Text(user.handle.canonical)
+                Text(user.handle.display)
             } errorContent: { error in
                 Text(error.message ?? "Unknown error")
             } loadingContent: {
@@ -393,7 +400,7 @@ private struct LinkOpenDefaultAccountRow: View {
     var body: some View {
         StateView(state: account.profile) { user in
             Label {
-                Text(user.handle.canonical)
+                Text(user.handle.display)
             } icon: {
                 AvatarView(data: user.avatar)
             }

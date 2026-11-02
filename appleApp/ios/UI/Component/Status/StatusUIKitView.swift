@@ -690,7 +690,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             let avatarView = resolvedAvatarView()
             avatarView.avatarShape = appearance.avatarShape
             avatarView.set(media: user.avatar)
-            avatarView.accessibilityLabel = openProfileAccessibilityLabel(handle: user.handle.canonical)
+            avatarView.accessibilityLabel = openProfileAccessibilityLabel(handle: user.handle.display)
             if avatarView.superview !== self { addSubview(avatarView) }
         } else if avatarViewStorage?.superview === self {
             avatarViewStorage?.removeFromSuperview()
@@ -1016,7 +1016,8 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
                 postActionLayout: appearance.postActionLayout,
                 postActionFixedWidth: appearance.postActionFixedWidth,
                 showNumbers: appearance.showNumbers,
-                isDetail: isDetail
+                isDetail: isDetail,
+                postKey: String(describing: data.statusKey)
             )
             if actionsView.hasVisibleActions {
                 let actionsContainer = resolvedActionsContainer()

@@ -184,7 +184,7 @@ public struct StatusView: View {
                         .frame(width: 44, height: 44)
                         .accessibilityLabel(
                             Text(
-                                verbatim: openProfileAccessibilityLabel(handle: user.handle.canonical)
+                                verbatim: openProfileAccessibilityLabel(handle: user.handle.display)
                             )
                         )
                         .onTapGesture {
@@ -458,7 +458,7 @@ public struct StatusView: View {
                         }
 
                         if (postActionStyle != .hidden || isDetail) && !forceHideActions {
-                            StatusActionsView(data: actions, useText: false, topPadding: 8)
+                            StatusActionsView(data: actions, useText: false, topPadding: 8, isDetail: isDetail, postKey: String(describing: data.statusKey))
                             #if os(macOS)
                                 .font(isDetail ? .body : .callout)
                             #else

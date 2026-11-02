@@ -29,7 +29,7 @@ public struct TranslationConfigSettingsSections: View {
 
 @Observable
 private final class TranslationConfigSettingsState {
-    let presenter = KotlinPresenter(presenter: AiConfigPresenter())
+    let presenter = KotlinPresenter(presenter: AiConfigPresenter(agentConfig: false))
     let imageTranslation = ImageTranslationSettingsState()
     let aiTranslationTestPresenter = KotlinPresenter(presenter: AiTranslationTestPresenter())
     var editingField: TranslationConfigEditableField?
@@ -353,6 +353,11 @@ private struct TranslationExcludedLanguagesSheet: View {
     var body: some View {
         NavigationStack {
             languageList
+            .overlay {
+                if state.filteredLanguageOptions.isEmpty {
+                    ListEmptyView("translation_languages_empty", icon: .language)
+                }
+            }
             #if os(iOS)
             .environment(\.editMode, .constant(.active))
             #endif
