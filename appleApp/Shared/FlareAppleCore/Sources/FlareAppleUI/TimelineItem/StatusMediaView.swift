@@ -15,6 +15,8 @@ struct StatusMediaView: View {
     let carouselLeadingPadding: CGFloat
     let carouselTrailingPadding: CGFloat
     @Environment(\.timelineAppearance.expandMediaSize) private var expandMediaSize
+    @Environment(\.timelineAppearance.limitSingleMediaHeight) private var limitSingleMediaHeight
+    @Environment(\.timelineMediaViewportHeight) private var timelineMediaViewportHeight
     @Environment(\.timelineAppearance.mediaLayout) private var mediaLayout
     @Environment(\.timelineAppearance.limitMediaGridToNine) private var limitMediaGridToNine
     @Environment(\.timelineMediaActionHandler) private var timelineMediaActionHandler
@@ -80,7 +82,8 @@ struct StatusMediaView: View {
                     .accessibilityLabel(
                         Text("show_sensitive_media", bundle: FlareAppleUILocalization.bundle)
                     )
-                    .padding()
+                    .fixedSize()
+                    .mediaBadgePadding(16)
                 } else {
                     Button {
                         withAnimation {
@@ -94,7 +97,8 @@ struct StatusMediaView: View {
                     .accessibilityLabel(
                         Text("hide_sensitive_media", bundle: FlareAppleUILocalization.bundle)
                     )
-                    .padding()
+                    .fixedSize()
+                    .mediaBadgePadding(16)
                 }
             } else {
                 EmptyView()
@@ -112,13 +116,14 @@ struct StatusMediaView: View {
                 self.activeCarouselIndex = nil
             }
         }
-        .onGeometryChange(for: CGFloat.self) { geometry in
-            geometry.bounds(of: .scrollView(axis: .vertical))?.minY ?? 0
-        } action: { offset in
+        .onGeometryChange(for: CGFloat?.self) { geometry in
             if #unavailable(iOS 18.0, macOS 15.0) {
-                if let verticalOffset, verticalOffset != offset {
-                    playback?.moved(source: "vertical", vertical: true)
-                }
+                return geometry.bounds(of: .scrollView(axis: .vertical))?.minY
+            }
+            return nil
+        } action: { offset in
+            if let verticalOffset, verticalOffset != offset {
+                playback?.moved(source: "vertical", vertical: true)
             }
             verticalOffset = offset
         }
@@ -233,7 +238,12 @@ struct StatusMediaView: View {
         let overflowCount = data.count - visibleData.count
         return AdaptiveGrid(
             singleFollowsImageAspect: expandMediaSize,
-            singleViewAspectRatio: data.first?.aspectRatio,
+            singleViewAspectRatio: singleExpandedMedia.map {
+                CGFloat(TimelineSingleMediaLayout.shared.aspectRatio(
+                    sourceAspectRatio: Float($0.carouselLayoutAspectRatio ?? 0), cropTallMedia: !($0 is UiMediaVideo)))
+            } ?? data.first?.aspectRatio,
+            singleMediaMaxHeight: singleExpandedMedia == nil ? nil : CGFloat(
+                TimelineSingleMediaLayout.shared.maximumHeight(viewportHeight: Float(timelineMediaViewportHeight ?? 0))),
             spacing: 4,
             maxColumns: 3,
         ) {
@@ -248,13 +258,20 @@ struct StatusMediaView: View {
         }
     }
 
+    private var singleExpandedMedia: (any UiMedia)? {
+        guard expandMediaSize, limitSingleMediaHeight, post.images.count == 1, data.count == 1,
+              !(data[0] is UiMediaAudio) else { return nil }
+        return data[0]
+    }
+
     private func mediaItem(
         _ item: any UiMedia,
         index: Int,
         overflowCount: Int,
         allowsAutoplay: Bool
     ) -> some View {
-        MediaView(data: item, allowsAutoplay: allowsAutoplay)
+        MediaView(data: item, allowsAutoplay: allowsAutoplay,
+                  contentMode: singleExpandedMedia is UiMediaVideo ? .fit : .fill)
             .environment(\.timelineCarouselItem, TimelineCarouselItem(
                 groupID: carouselID, isSelected: !usesCarousel || index == (activeCarouselIndex ?? 0), isCarousel: usesCarousel
             ))
@@ -405,9 +422,10 @@ struct AltTextOverlay: View {
         } label: {
             Text("ALT", bundle: FlareAppleUILocalization.bundle)
         }
-        .padding()
         .backport
         .glassButtonStyle(fallbackStyle: .bordered)
+        .fixedSize()
+        .mediaBadgePadding(16)
         .accessibilityLabel(
             Text("media_view_alt_text", bundle: FlareAppleUILocalization.bundle)
         )

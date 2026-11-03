@@ -118,6 +118,7 @@ public struct StatusShareReplyPicker: View {
             }
         }
         .listStyle(.plain)
+        .timelineMediaViewport()
     }
 
     private var selectionCount: some View {
@@ -164,6 +165,7 @@ private extension TimelineAppearance {
             showSensitiveContent: showSensitiveContent,
             expandContentWarning: true,
             expandMediaSize: expandMediaSize,
+            limitSingleMediaHeight: limitSingleMediaHeight,
             mediaLayout: mediaLayout,
             limitMediaGridToNine: limitMediaGridToNine,
             videoAutoplay: .never,
