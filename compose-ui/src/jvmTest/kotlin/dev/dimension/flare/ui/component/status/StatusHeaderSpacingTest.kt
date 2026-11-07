@@ -7,6 +7,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -73,9 +75,18 @@ class StatusHeaderSpacingTest {
 
     @Test
     fun bodyAndReplyUseTwoDpWithoutAddingToContentWarningPadding() {
+        assertBodyAndReplySpacing(isQuote = false)
+    }
+
+    @Test
+    fun quotedBodyAndReplyUseTwoDpWithoutAddingToContentWarningPadding() {
+        assertBodyAndReplySpacing(isQuote = true)
+    }
+
+    private fun assertBodyAndReplySpacing(isQuote: Boolean) {
         val sample = samplePost()
         var post by mutableStateOf(sample)
-        showPost { post }
+        showPost(isQuote = isQuote) { post }
         for (warning in listOf(false, true)) {
             for (reply in listOf(false, true)) {
                 compose.runOnIdle {
@@ -85,7 +96,7 @@ class StatusHeaderSpacingTest {
                             replyToHandle = if (reply) "@someone@example.org" else null,
                         )
                 }
-                val header = compose.onNodeWithText("Reader", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+                val header = headerBounds()
                 val preceding =
                     if (reply) {
                         val prompt =
@@ -128,6 +139,15 @@ class StatusHeaderSpacingTest {
 
     @Test
     fun mediaOnlyPostKeepsItsExistingEightDpGap() {
+        assertMediaSpacing(isQuote = false)
+    }
+
+    @Test
+    fun quotedMediaOnlyPostKeepsItsExistingEightDpGap() {
+        assertMediaSpacing(isQuote = true)
+    }
+
+    private fun assertMediaSpacing(isQuote: Boolean) {
         val image = Files.createTempFile("header-spacing-", ".png").toFile().apply { deleteOnExit() }
         ImageIO.write(BufferedImage(200, 200, BufferedImage.TYPE_INT_RGB), "png", image)
         val url = image.toPath().toUri().toString()
@@ -136,14 +156,14 @@ class StatusHeaderSpacingTest {
                 content = UiTranslatableText("".toUiPlainText()),
                 images = persistentListOf(UiMedia.Video(url, url, "Preview", height = 200f, width = 200f)),
             )
-        showPost { post }
+        showPost(isQuote = isQuote) { post }
         compose.waitUntil(5_000) {
             compose
                 .onAllNodesWithContentDescription("Preview", substring = true, useUnmergedTree = true)
                 .fetchSemanticsNodes()
                 .any { it.boundsInRoot.height > 100 }
         }
-        val header = compose.onNodeWithText("Reader", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val header = headerBounds()
         val media =
             compose
                 .onAllNodesWithContentDescription("Preview", substring = true, useUnmergedTree = true)
@@ -153,13 +173,33 @@ class StatusHeaderSpacingTest {
         assertEquals(8f, media.top - header.bottom, 0.1f)
     }
 
+    private fun headerBounds(): Rect {
+        var coordinates =
+            compose
+                .onNodeWithText("Reader", useUnmergedTree = true)
+                .fetchSemanticsNode()
+                .layoutInfo.coordinates
+        val timestamp =
+            compose
+                .onNodeWithText("5m", useUnmergedTree = true)
+                .fetchSemanticsNode()
+                .boundsInRoot.center
+        while (!coordinates.boundsInRoot().contains(timestamp)) {
+            coordinates = checkNotNull(coordinates.parentLayoutCoordinates)
+        }
+        return coordinates.boundsInRoot()
+    }
+
     private fun samplePost() =
         createSampleStatus(createSampleUser().copy(nameInternal = "Reader".toUiPlainText(), avatar = null)).copy(
             content = UiTranslatableText("Body".toUiPlainText()),
             actions = persistentListOf(),
         )
 
-    private fun showPost(post: () -> UiTimelineV2.Post) {
+    private fun showPost(
+        isQuote: Boolean,
+        post: () -> UiTimelineV2.Post,
+    ) {
         compose.setContent {
             FluentTheme {
                 CompositionLocalProvider(
@@ -174,7 +214,7 @@ class StatusHeaderSpacingTest {
                     LocalDensity provides Density(1f),
                 ) {
                     Box(Modifier.width(360.dp)) {
-                        CommonStatusComponent(post(), isClickable = false)
+                        CommonStatusComponent(post(), isQuote = isQuote, isClickable = false)
                     }
                 }
             }

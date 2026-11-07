@@ -812,7 +812,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             showOriginalWithTranslation: appearance.showOriginalWithTranslation
         )
         let hasCW = contentWarnings.contains { !$0.text.isEmpty }
-        let bodyTopSpacing: CGFloat = showAsFullWidth && !hasCW && data.user != nil ? 2 : 0
+        let bodyTopSpacing: CGFloat = (showAsFullWidth || isQuote) && !hasCW && data.user != nil ? 2 : 0
 
         // reply-to
         if let replyToHandle = data.replyToHandle {

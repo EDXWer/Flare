@@ -387,7 +387,7 @@ public fun CommonStatusComponent(
                     }
                 }
                 item.replyToHandle?.let { replyHandle ->
-                    Spacer(modifier = Modifier.height(if (showAsFullWidth) 2.dp else 4.dp))
+                    Spacer(modifier = Modifier.height(if (showAsFullWidth || isQuote) 2.dp else 4.dp))
                     StatusReplyComponent(
                         replyHandle = replyHandle,
                     )
@@ -411,7 +411,7 @@ public fun CommonStatusComponent(
                         maxLines = maxLines,
                         showExpandButton = showExpandButton,
                         translationDisplayed = item.translationDisplayState == TranslationDisplayState.Translated,
-                        topSpacing = if (showAsFullWidth && (item.user != null || item.replyToHandle != null)) 2.dp else 0.dp,
+                        topSpacing = if ((showAsFullWidth || isQuote) && (item.user != null || item.replyToHandle != null)) 2.dp else 0.dp,
                     )
                 }
 

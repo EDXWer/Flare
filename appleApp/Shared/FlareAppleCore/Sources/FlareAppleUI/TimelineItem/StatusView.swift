@@ -259,7 +259,7 @@ public struct StatusView: View {
                                         }
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                        .padding(.top, showAsFullWidth ? 2 : 4)
+                                        .padding(.top, showAsFullWidth || isQuote ? 2 : 4)
                                     }
                                     if !contentWarningIsEmpty {
                                         VStack(alignment: .leading, spacing: 4) {
@@ -334,7 +334,7 @@ public struct StatusView: View {
                                         }
                                         .padding(
                                             .top,
-                                            showAsFullWidth && contentWarningIsEmpty &&
+                                            (showAsFullWidth || isQuote) && contentWarningIsEmpty &&
                                                 (user != nil || replyToHandle != nil) && contents.contains { !$0.isEmpty } ? 2 : 0
                                         )
                                     }
