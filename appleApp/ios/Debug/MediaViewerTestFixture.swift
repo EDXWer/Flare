@@ -138,7 +138,7 @@ struct MediaViewerTestFixture: View {
 
     private func makeMedia(index: Int = 0) async -> any UiMedia {
         let image = UIGraphicsImageRenderer(size: CGSize(width: 320, height: 240)).image { context in
-            UIColor.systemTeal.setFill()
+            (index == 0 ? UIColor.systemTeal : UIColor.systemOrange).setFill()
             context.fill(CGRect(x: 0, y: 0, width: 320, height: 240))
         }
         let imageURL = FileManager.default.temporaryDirectory.appendingPathComponent("media-fixture-\(index).png")

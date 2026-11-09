@@ -189,6 +189,8 @@ struct MediaViewerScreen: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .ignoresSafeArea()
+            // Window recognizers handle input; the SwiftUI host must not block the pager on iOS 17.
+            .allowsHitTesting(false)
 
             // The clear view only gives the bar a top edge. The bar itself slides by its height.
             ZStack(alignment: .top) {
@@ -395,11 +397,13 @@ struct MediaViewerScreen: View {
         action: @escaping () -> Void,
         @ViewBuilder label: () -> Label
     ) -> some View {
-        Button(action: action, label: label)
-            .frame(width: width, height: 44)
-            .font(.body)
-            .imageScale(.large)
-            .contentShape(Rectangle())
+        Button(action: action) {
+            label()
+                .frame(width: width, height: 44)
+                .contentShape(Rectangle())
+        }
+        .font(.body)
+        .imageScale(.large)
     }
 
     @ViewBuilder
