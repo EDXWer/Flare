@@ -922,4 +922,8 @@
     <string name="settings_ai_config_agent_api">API protocol</string>
     <string name="settings_ai_config_agent_api_auto">Auto</string>
     <string name="settings_ai_config_agent_server_url_requirement">Enter the API base URL, such as https://api.openai.com/v1. The Agent appends the selected API path.</string>
+    <string name="plugin_large_repository_title">Download large repository?</string>
+    <string name="plugin_large_repository_message">This repository download exceeds 20 MiB and will use more data and storage. Continue downloading?</string>
+    <string name="plugin_continue_download">Continue download</string>
+    <string name="plugin_github_path_hint">For a plugin in a subdirectory, add ?path=/plugins/example to the URL.</string>
 </resources>

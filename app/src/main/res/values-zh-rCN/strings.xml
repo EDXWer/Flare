@@ -963,4 +963,8 @@
     <string name="settings_ai_config_agent_api">API 协议</string>
     <string name="settings_ai_config_agent_api_auto">自动</string>
     <string name="settings_ai_config_agent_server_url_requirement">请输入 API 基础 URL，例如 https://api.openai.com/v1。Agent 会附加所选协议的路径。</string>
+    <string name="plugin_large_repository_title">下载较大的仓库？</string>
+    <string name="plugin_large_repository_message">此仓库下载超过 20 MiB，会使用更多流量和存储空间。是否继续下载？</string>
+    <string name="plugin_continue_download">继续下载</string>
+    <string name="plugin_github_path_hint">安装子目录中的插件时，在链接末尾添加 ?path=/plugins/example。</string>
 </resources>
