@@ -304,6 +304,7 @@ jobs:
             -only-testing:TimelineControllerTests/TimelineRefreshAnimationTests \
             -only-testing:TimelineControllerTests/FlareTextColorTests \
             -only-testing:TimelineControllerTests/FlareTextColorIntegrationTests \
+            -only-testing:TimelineControllerTests/StatusShareTests \
             -only-testing:TimelineControllerTests/TimelineMediaPreviewTests/testSwiftUIMediaKeepsItsInitialHeightWhenLazyRowsAppearAndReturn \
             -only-testing:TimelineControllerTests/TimelineMediaPreviewTests/testSwiftUIMediaIgnoresPlaybackViewportAndChromeInsetsButRespondsToResize \
             -only-testing:iOSTests/VideoPlaybackSessionTests \
