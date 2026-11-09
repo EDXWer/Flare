@@ -36,7 +36,7 @@ final class ProxyPlaybackLifecycleTests: XCTestCase {
             VideoPlaybackSession.releaseIdleBuffer()
         }
         session.play(media: UiMediaVideo(url: server.url, thumbnailUrl: "", description: nil, height: 0, width: 0,
-                                        customHeaders: headers, proxy: ProxyRef.System.shared, downloadUrl: nil))
+                                        customHeaders: headers, proxy: ProxyRef.System.shared, downloadUrl: nil, kind: .video))
         try await eventually { session.isPlaying && server.servedBytes.count == bytes.count }
         let player = try XCTUnwrap(session.player)
         server.stop()
@@ -270,7 +270,7 @@ final class ProxyPlaybackLifecycleTests: XCTestCase {
 
     private func media(_ url: String, proxy: ProxyRef = ProxyRef.Global.shared) -> UiMediaVideo {
         UiMediaVideo(url: url, thumbnailUrl: "", description: nil, height: 0, width: 0,
-                     customHeaders: nil, proxy: proxy, downloadUrl: nil)
+                     customHeaders: nil, proxy: proxy, downloadUrl: nil, kind: .video)
     }
 
     private func select(_ mode: ProxyMode, account: MicroBlogKey? = nil,

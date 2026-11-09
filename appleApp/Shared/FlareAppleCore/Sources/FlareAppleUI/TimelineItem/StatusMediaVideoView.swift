@@ -14,6 +14,8 @@ public struct VideoControlView: View {
     @Binding private var currentTime: CMTime
     private let videoState: VideoState
     private let playbackRate: Float
+    private let selectedSpeed: VideoPlaybackSpeed
+    private let onSpeedSelected: ((VideoPlaybackSpeed) -> Void)?
     @State private var sliderValue: Double = 0
     @State private var lastKnownDuration: Double = 0
     @State private var isSeeking = false
@@ -31,12 +33,16 @@ public struct VideoControlView: View {
         isPlaying: Binding<Bool>,
         currentTime: Binding<CMTime>,
         videoState: VideoState,
-        playbackRate: Float
+        playbackRate: Float,
+        selectedSpeed: VideoPlaybackSpeed,
+        onSpeedSelected: ((VideoPlaybackSpeed) -> Void)?
     ) {
         self._isPlaying = isPlaying
         self._currentTime = currentTime
         self.videoState = videoState
         self.playbackRate = playbackRate
+        self.selectedSpeed = selectedSpeed
+        self.onSpeedSelected = onSpeedSelected
     }
 
     public var body: some View {
@@ -50,10 +56,10 @@ public struct VideoControlView: View {
     @ViewBuilder
     private var controlContent: some View {
         VStack(spacing: 8) {
-            if playbackRate > 1 {
+            if playbackRate != selectedSpeed.rate {
                 HStack(spacing: 6) {
                     Image(systemName: "forward.fill")
-                    Text(verbatim: "\(formatRate(playbackRate))x")
+                    Text(verbatim: VideoPlaybackSpeed.companion.fromRate(rate: playbackRate).label)
                 }
                 .font(.caption.weight(.semibold))
                 .monospacedDigit()
@@ -82,6 +88,8 @@ public struct VideoControlView: View {
                 )
                 .backport
                 .glassButtonStyle(fallbackStyle: .plain)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
 
                 Text(formatTime(sliderValue))
                     .font(.caption)
@@ -108,6 +116,32 @@ public struct VideoControlView: View {
                 Text(formatTime(duration))
                     .font(.caption)
                     .monospacedDigit()
+
+                if let onSpeedSelected {
+                    Menu {
+                        Picker(selection: Binding(get: { selectedSpeed }, set: onSpeedSelected)) {
+                            ForEach(VideoPlaybackSpeed.allCases, id: \.self) { speed in
+                                Text(verbatim: speed.label).tag(speed)
+                            }
+                        } label: {
+                            Text("media_playback_speed", bundle: FlareAppleUILocalization.bundle)
+                        }
+                    } label: {
+                        Text(verbatim: selectedSpeed.label)
+                            .font(.caption.weight(.semibold))
+                            .monospacedDigit()
+                            .frame(minWidth: 44)
+                            .frame(height: 24)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel(Text("media_playback_speed", bundle: FlareAppleUILocalization.bundle))
+                    .accessibilityValue(Text(verbatim: selectedSpeed.label))
+                    .accessibilityIdentifier("video-playback-speed")
+                    .backport
+                    .glassButtonStyle(fallbackStyle: .plain)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                }
             }
         }
         .onAppear {
@@ -189,13 +223,6 @@ public struct VideoControlView: View {
         let remainingSeconds = seconds % 60
         return String(format: "%d:%02d", minutes, remainingSeconds)
     }
-
-    private func formatRate(_ rate: Float) -> String {
-        if rate.rounded() == rate {
-            return String(format: "%.0f", rate)
-        }
-        return String(format: "%.1f", rate)
-    }
 }
 
 public struct StatusMediaVideoView: View {
@@ -215,7 +242,7 @@ public struct StatusMediaVideoView: View {
     @State private var session = VideoPlaybackSession()
     private let data: UiMediaVideo
     private let seekInterval: Double = 5
-    private let normalPlaybackRate: Float = 1
+    private let normalPlaybackRate: Float
     private let fastPlaybackRate: Float = 2
 
     public init(
@@ -223,13 +250,15 @@ public struct StatusMediaVideoView: View {
         play: Binding<Bool>,
         videoState: Binding<VideoState>,
         time: Binding<CMTime>,
-        playbackRate: Binding<Float>
+        playbackRate: Binding<Float>,
+        normalPlaybackRate: Float = 1
     ) {
         self.data = data
         self._play = play
         self._videoState = videoState
         self._time = time
         self._playbackRate = playbackRate
+        self.normalPlaybackRate = normalPlaybackRate
     }
 
     public var body: some View {
@@ -259,6 +288,7 @@ public struct StatusMediaVideoView: View {
             }
         }
         .onAppear {
+            playbackRate = normalPlaybackRate
             if presentation == nil {
                 fallbackPresentation.setSuspended(scenePhase != .active)
                 fallbackPresentation.begin()
@@ -267,9 +297,13 @@ public struct StatusMediaVideoView: View {
         }
         .onChange(of: play) { _, _ in updatePlayback() }
         .onChange(of: scenePhase) { _, phase in
+            if phase != .active { endFastPlayback() }
             if presentation == nil { fallbackPresentation.setSuspended(phase != .active) }
         }
         .onChange(of: playbackRate) { _, _ in updatePlayback() }
+        .onChange(of: normalPlaybackRate) { _, rate in
+            if !isFastPlaybackActive { playbackRate = rate }
+        }
         .onChange(of: data.url) { _, _ in
             session.detach()
             updatePlayback()
@@ -585,7 +619,9 @@ private struct VideoGestureOverlay: UIViewRepresentable {
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
         ) -> Bool {
-            true
+            // A held press must not also toggle the viewer controls when released.
+            !((gestureRecognizer is UILongPressGestureRecognizer && otherGestureRecognizer is UITapGestureRecognizer)
+                || (gestureRecognizer is UITapGestureRecognizer && otherGestureRecognizer is UILongPressGestureRecognizer))
         }
 
         private func localLocation(

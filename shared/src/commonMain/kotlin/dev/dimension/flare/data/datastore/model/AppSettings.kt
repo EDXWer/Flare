@@ -16,6 +16,7 @@ public data class AppSettings(
     val homeTimelineAutoRefreshInterval: TimelineAutoRefreshInterval = TimelineAutoRefreshInterval.DISABLED,
     val rememberHomeTimelinePosition: Boolean = false,
     val imageTranslationConfig: ImageTranslationConfig = ImageTranslationConfig(),
+    val videoPlaybackSpeed: Float = 1f,
 ) {
     public companion object {
         // for SwiftUI environment defaults

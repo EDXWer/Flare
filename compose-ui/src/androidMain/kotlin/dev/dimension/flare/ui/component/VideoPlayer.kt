@@ -21,6 +21,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -86,6 +87,7 @@ public fun VideoPlayer(
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
     autoPlay: Boolean = true,
+    playbackSpeed: Float = 1f,
     remainingTimeContent: @Composable (BoxScope.(Long) -> Unit)? = null,
     loadingPlaceholder: @Composable BoxScope.() -> Unit = {
         if (media.preview != null) {
@@ -169,7 +171,7 @@ public fun VideoPlayer(
         remember(media, route) {
             VideoRequest(media = media, routeKey = route?.getOrNull()?.key.orEmpty())
         }
-    val binding = rememberSurfaceBinding(request, playback, muted)
+    val binding = rememberSurfaceBinding(request, playback, muted, playbackSpeed)
     val player = binding.first
 
     LifecycleResumeEffect(binding.second) {
@@ -223,13 +225,15 @@ private fun rememberSurfaceBinding(
     request: VideoRequest,
     playback: TimelinePlaybackCoordinator,
     muted: Boolean,
+    playbackSpeed: Float,
 ): Pair<ExoPlayer?, SurfaceBindingManager.Binding> {
     val manager: SurfaceBindingManager = koinInject()
     var player by remember(request, manager, playback, muted) { mutableStateOf<ExoPlayer?>(null) }
     val binding =
         remember(request, manager, playback, muted) {
-            manager.register(request, playback, muted) { player = it }
+            manager.register(request, playback, muted) { player = it }.apply { setPlaybackSpeed(playbackSpeed) }
         }
+    SideEffect { binding.setPlaybackSpeed(playbackSpeed) }
     DisposableEffect(binding, playback) {
         playback.register(binding, binding::setActive)
         onDispose {
@@ -278,6 +282,8 @@ public class SurfaceBindingManager(
     public fun playerFor(media: UiMedia): ExoPlayer? = if (activeBinding != null && activeRequest?.media == media) player else null
 
     public interface Binding {
+        public fun setPlaybackSpeed(speed: Float)
+
         public fun setActive(active: Boolean)
 
         public fun dispose()
@@ -293,6 +299,13 @@ public class SurfaceBindingManager(
     ): Binding {
         playback.onClose(this) { release(playback) }
         return object : Binding {
+            private var playbackSpeed = 1f
+
+            override fun setPlaybackSpeed(speed: Float) {
+                playbackSpeed = speed
+                if (activeBinding === this) player.setPlaybackSpeed(speed)
+            }
+
             override fun setActive(active: Boolean) {
                 if (active) {
                     if (!foreground) {
@@ -318,7 +331,7 @@ public class SurfaceBindingManager(
                         player.prepare()
                         activeRequest = request
                     }
-                    player.setPlaybackSpeed(1f)
+                    player.setPlaybackSpeed(playbackSpeed)
                     player.volume = 0f
                     player.setAudioAttributes(audioAttributes, false)
                     player.play()

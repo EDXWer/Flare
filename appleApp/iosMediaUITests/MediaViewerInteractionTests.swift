@@ -262,6 +262,65 @@ final class MediaViewerInteractionTests: XCTestCase {
     }
 
     @MainActor
+    func testVideoSpeedPersistsAcrossViewerAndApplicationRelaunch() {
+        let app = openMedia(video: true, withoutPost: true)
+        defer { app.terminate() }
+        let speed = app.buttons["video-playback-speed"]
+        XCTAssertTrue(speed.waitForExistence(timeout: 10))
+        app.buttons["Pause"].tap()
+        XCTAssertEqual(speed.frame.height, app.buttons["Play"].frame.height, accuracy: 1)
+        speed.tap()
+        app.buttons["1.25×"].tap()
+        let selected = NSPredicate(format: "value == %@", "1.25×")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: selected, object: speed)], timeout: 5), .completed)
+        let control = XCTAttachment(screenshot: app.screenshot())
+        control.name = "ios-video-speed-control"
+        control.lifetime = .keepAlways
+        add(control)
+        speed.tap()
+        XCTAssertTrue(app.buttons["0.75×"].waitForExistence(timeout: 5))
+        let menu = XCTAttachment(screenshot: app.screenshot())
+        menu.name = "ios-video-speed-menu"
+        menu.lifetime = .keepAlways
+        add(menu)
+        app.buttons["1.25×"].tap()
+        app.buttons["Close"].tap()
+        app.buttons["media-fixture-open"].tap()
+        XCTAssertTrue(speed.waitForExistence(timeout: 10))
+        XCTAssertEqual(speed.value as? String, "1.25×")
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["media-fixture-open"].waitForExistence(timeout: 15))
+        app.buttons["media-fixture-open"].tap()
+        XCTAssertTrue(speed.waitForExistence(timeout: 10))
+        XCTAssertEqual(speed.value as? String, "1.25×")
+        app.buttons["Pause"].tap()
+        speed.tap()
+        app.buttons["0.75×"].tap()
+        XCTAssertTrue(app.buttons["Play"].waitForExistence(timeout: 5))
+        let center = app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+        center.press(forDuration: 0.8)
+        XCTAssertTrue(app.buttons["Play"].waitForExistence(timeout: 5))
+        XCTAssertEqual(speed.value as? String, "0.75×")
+        speed.tap()
+        app.buttons["1×"].tap()
+    }
+
+    @MainActor
+    func testAnimatedVideosDoNotOfferPlaybackSpeed() {
+        for kind in ["--live-photo", "--gif-video"] {
+            let app = XCUIApplication()
+            app.launchArguments = ["--media-viewer-test", "--video", "--without-post", kind, "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+            app.launch()
+            XCTAssertTrue(app.buttons["media-fixture-open"].waitForExistence(timeout: 15))
+            app.buttons["media-fixture-open"].tap()
+            XCTAssertTrue(app.buttons["Pause"].waitForExistence(timeout: 10))
+            XCTAssertFalse(app.buttons["video-playback-speed"].exists)
+            app.terminate()
+        }
+    }
+
+    @MainActor
     func testVideoDoesNotOfferImageTranslation() {
         let app = openMedia(video: true, withoutPost: true)
         defer { app.terminate() }

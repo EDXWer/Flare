@@ -102,7 +102,7 @@ final class LivePhotoPlaybackFileTests: XCTestCase {
         XCTAssertEqual((item.asset as? AVURLAsset)?.url, url)
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
         let media = UiMediaVideo(url: source.url, thumbnailUrl: "", description: nil, height: 0, width: 0,
-                                customHeaders: nil, proxy: ProxyRef.System.shared, downloadUrl: nil)
+                                customHeaders: nil, proxy: ProxyRef.System.shared, downloadUrl: nil, kind: .video)
         do {
             let reused = try await SharedVideoPlayer.shared.prepareLivePhoto(media, source: source)
             XCTAssertEqual(reused?.url, url, "Handoff must reuse the prepared file without another download")
