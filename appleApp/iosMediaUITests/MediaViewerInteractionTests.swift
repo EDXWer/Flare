@@ -383,6 +383,54 @@ final class MediaViewerInteractionTests: XCTestCase {
     @MainActor func testVideoSwipeUpWithSummary() { assertDismisses(upward: true, video: true) }
 
     @MainActor
+    func testImagePagingAndCloseWithSummary() {
+        assertImagePagingAndClose(withoutPost: false)
+    }
+
+    @MainActor
+    func testImagePagingAndCloseWithoutPost() {
+        assertImagePagingAndClose(withoutPost: true)
+    }
+
+    @MainActor
+    private func assertImagePagingAndClose(withoutPost: Bool) {
+        let app = openMedia(withoutPost: withoutPost, indicator: true)
+        defer { app.terminate() }
+        let left = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.45))
+        let right = app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.45))
+        for (start, end, orange) in [(right, left, true), (left, right, false)] {
+            start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .fast, thenHoldForDuration: 0)
+            let displayed = NSPredicate { _, _ in
+                self.fixtureImageMatches(in: app.screenshot(), orange: orange)
+            }
+            XCTAssertEqual(
+                XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: displayed, object: nil)], timeout: 3),
+                .completed,
+                "Horizontal swipes must change the rendered image in both directions"
+            )
+        }
+        // Tap inside the 44pt button but outside the small custom symbol.
+        app.buttons["Close"].coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.5)).tap()
+        XCTAssertTrue(app.staticTexts["Media dismissed"].waitForExistence(timeout: 4))
+    }
+
+    @MainActor
+    private func fixtureImageMatches(in screenshot: XCUIScreenshot, orange: Bool) -> Bool {
+        guard let image = screenshot.image.cgImage else { return false }
+        var pixel = [UInt8](repeating: 0, count: 4)
+        return pixel.withUnsafeMutableBytes { buffer in
+            guard let context = CGContext(
+                data: buffer.baseAddress, width: 1, height: 1,
+                bitsPerComponent: 8, bytesPerRow: 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+            ) else { return false }
+            context.draw(image, in: CGRect(x: -image.width / 2, y: -image.height / 2, width: image.width, height: image.height))
+            return orange ? Int(buffer[0]) > Int(buffer[2]) + 80 : Int(buffer[2]) > Int(buffer[0]) + 80
+        }
+    }
+
+    @MainActor
     func testCancelledImageDragsWithSummary() throws {
         try assertCancelledImageDragsRestorePosition()
     }
