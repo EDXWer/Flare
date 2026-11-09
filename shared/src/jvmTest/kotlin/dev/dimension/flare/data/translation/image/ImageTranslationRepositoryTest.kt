@@ -53,6 +53,8 @@ import java.io.IOException
 import java.net.URI
 import java.nio.file.Files
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import javax.imageio.ImageIO
 import kotlin.test.Test
 import kotlin.test.assertContains
@@ -134,6 +136,14 @@ class ImageTranslationRepositoryTest {
 
         override fun close() {
             client.close()
+            // Presenter disposal can outlive the Molecule scope's cancelAndJoin.
+            runBlocking {
+                withTimeout(10_000) {
+                    while (!fs.listOrNull(root / "image_translation_sessions").isNullOrEmpty()) {
+                        delay(1)
+                    }
+                }
+            }
             fs.deleteRecursively(root)
         }
     }
@@ -519,7 +529,30 @@ class ImageTranslationRepositoryTest {
     fun displayFailureKeepsRegenerationInFlightAndRetainsFallback() =
         runBlocking {
             withTimeout(10_000) {
-                fixture().use { f ->
+                val rootDeletion = CountDownLatch(1)
+                val fileSystem =
+                    object : ForwardingFileSystem(FileSystem.SYSTEM) {
+                        override fun deleteRecursively(
+                            fileOrDirectory: Path,
+                            mustExist: Boolean,
+                        ) {
+                            if (fileOrDirectory.parent?.name == "image_translation_sessions") {
+                                // Hold cleanup briefly so premature root deletion is observable.
+                                rootDeletion.await(1, TimeUnit.SECONDS)
+                            } else if (fileOrDirectory.name.startsWith("image-translation")) {
+                                try {
+                                    assertTrue(
+                                        listOrNull(fileOrDirectory / "image_translation_sessions").isNullOrEmpty(),
+                                        "Session cleanup must finish before the fixture deletes its root",
+                                    )
+                                } finally {
+                                    rootDeletion.countDown()
+                                }
+                            }
+                            super.deleteRecursively(fileOrDirectory, mustExist)
+                        }
+                    }
+                fixture(fileSystem).use { f ->
                     val repository = f.repository()
                     val store = AppDataStore(f.storage)
                     store.appSettingsStore.updateData { it.copy(imageTranslationConfig = config) }
