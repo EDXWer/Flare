@@ -314,3 +314,8 @@ For subsequent releases:
 The **Plugin SDK** workflow runs validation on relevant pull requests. Its manual
 **Run workflow** action also validates only, even when a tag is selected; publishing
 requires a push of a matching `plugin-sdk-v*` tag. Updating a PR never publishes npm.
+
+For actions on existing built-in accounts, use the
+[platform extension contract](skill/flare-plugin/references/platform-extensions.md)
+and [Weibo session-check example](skill/flare-plugin/examples/platform-extension/README.md).
+Account authorization and daily foreground execution are controlled by Flare.
