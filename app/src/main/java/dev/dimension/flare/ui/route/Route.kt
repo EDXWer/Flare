@@ -209,6 +209,11 @@ internal sealed interface Route : NavKey {
     @Serializable
     data object Home : Route
 
+    @Serializable
+    data class TimelinePage(
+        val page: DeeplinkRoute.Timeline.Page,
+    ) : Route
+
     data class Timeline(
         val tabItem: UiTimelineTabItem,
     ) : Route
@@ -548,6 +553,10 @@ internal sealed interface Route : NavKey {
 
         public fun from(deeplinkRoute: DeeplinkRoute): Route? {
             return when (deeplinkRoute) {
+                is DeeplinkRoute.Timeline.Page -> {
+                    TimelinePage(deeplinkRoute)
+                }
+
                 is DeeplinkRoute.Timeline.Source -> {
                     TimelineDeepLinkRouteResolver.resolve(deeplinkRoute)?.let(Route::Timeline)
                 }
