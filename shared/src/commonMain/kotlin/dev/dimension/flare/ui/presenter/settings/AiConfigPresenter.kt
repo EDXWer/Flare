@@ -15,7 +15,9 @@ import dev.dimension.flare.data.datastore.AppDataStore
 import dev.dimension.flare.data.datastore.model.AgentOpenAIApi
 import dev.dimension.flare.data.datastore.model.AppSettings
 import dev.dimension.flare.data.network.ai.OpenAIService
+import dev.dimension.flare.data.translation.PluginTranslationProvider
 import dev.dimension.flare.data.translation.canonicalTranslationLanguage
+import dev.dimension.flare.data.translation.pluginTranslationServiceOrNull
 import dev.dimension.flare.di.koinInject
 import dev.dimension.flare.ui.model.UiState
 import dev.dimension.flare.ui.presenter.PresenterBase
@@ -26,6 +28,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -52,6 +55,7 @@ public enum class AiReasoningEffortOption(
 }
 
 public enum class TranslateProviderOption {
+    Plugin,
     AI,
     GoogleWeb,
     DeepL,
@@ -80,6 +84,16 @@ public class AiConfigPresenter(
         public val openAIReasoningEffort: AiReasoningEffortOption
         public val openAIContextWindow: String
         public val openAIExtraBody: String
+
+        @WebIgnore
+        public val pluginTranslateProviders: List<PluginTranslationProvider> get() = emptyList()
+
+        @WebIgnore
+        public val selectedTranslationPluginId: String? get() = null
+
+        @WebIgnore
+        public fun selectTranslationPlugin(pluginId: String) {}
+
         public val translateProvider: TranslateProviderOption
         public val deepLApiKey: String
         public val deepLUsePro: Boolean
@@ -159,6 +173,11 @@ public class AiConfigPresenter(
     @OptIn(FlowPreview::class)
     @Composable
     override fun body(): State {
+        val pluginProviders by remember {
+            pluginTranslationServiceOrNull()
+                ?.providers
+                ?: MutableStateFlow(emptyList())
+        }.collectAsState()
         val scope = rememberCoroutineScope()
         val appSettings by remember { appDataStore.appSettingsStore.data }
             .collectAsState(AppSettings(version = ""))
@@ -276,8 +295,19 @@ public class AiConfigPresenter(
                     AppSettings.AiConfig.Type.OnDevice -> AiTypeOption.OnDevice
                     is AppSettings.AiConfig.Type.OpenAI -> AiTypeOption.OpenAI
                 }
+            override val pluginTranslateProviders = pluginProviders
+            override val selectedTranslationPluginId =
+                (appSettings.translateConfig.provider as? AppSettings.TranslateConfig.Provider.Plugin)
+                    ?.pluginId
+
+            override fun selectTranslationPlugin(pluginId: String) {
+                require(pluginProviders.any { it.pluginId == pluginId }) { "Translation plugin is unavailable" }
+                updateTranslateConfig { copy(provider = AppSettings.TranslateConfig.Provider.Plugin(pluginId)) }
+            }
+
             override val translateProvider: TranslateProviderOption =
                 when (appSettings.translateConfig.provider) {
+                    is AppSettings.TranslateConfig.Provider.Plugin -> TranslateProviderOption.Plugin
                     AppSettings.TranslateConfig.Provider.AI -> TranslateProviderOption.AI
                     AppSettings.TranslateConfig.Provider.GoogleWeb -> TranslateProviderOption.GoogleWeb
                     is AppSettings.TranslateConfig.Provider.DeepL -> TranslateProviderOption.DeepL
@@ -484,6 +514,11 @@ public class AiConfigPresenter(
                     copy(
                         provider =
                             when (value) {
+                                TranslateProviderOption.Plugin -> {
+                                    provider as? AppSettings.TranslateConfig.Provider.Plugin
+                                        ?: error("Choose a translation plugin")
+                                }
+
                                 TranslateProviderOption.AI -> {
                                     AppSettings.TranslateConfig.Provider.AI
                                 }
@@ -530,6 +565,11 @@ public class AiConfigPresenter(
                     copy(
                         provider =
                             when (type) {
+                                TranslateProviderOption.Plugin -> {
+                                    provider as? AppSettings.TranslateConfig.Provider.Plugin
+                                        ?: error("Choose a translation plugin")
+                                }
+
                                 TranslateProviderOption.AI -> {
                                     AppSettings.TranslateConfig.Provider.AI
                                 }
