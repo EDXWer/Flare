@@ -94,11 +94,13 @@ class XQTRenderTest {
                     listOf(
                         createPhotoMedia("img-1", "https://pbs.twimg.com/media/image.jpg", 1200, 800),
                         createVideoMedia("vid-1", "https://pbs.twimg.com/media/video.jpg", "https://video.twimg.com/video.mp4", 1920, 1080),
+                        createVideoMedia("gif-1", "https://pbs.twimg.com/media/gif.jpg", "https://video.twimg.com/gif.mp4", 640, 480)
+                            .copy(type = Media.Type.animatedGif),
                     ),
             )
 
         val rendered = rootPostOf(status.render(accountKey))
-        assertEquals(2, rendered.images.size)
+        assertEquals(3, rendered.images.size)
 
         val image = assertIs<UiMedia.Image>(rendered.images[0])
         assertEquals("https://pbs.twimg.com/media/image.jpg?name=orig", image.url)
@@ -107,6 +109,8 @@ class XQTRenderTest {
         assertEquals(800f, image.height)
 
         val video = assertIs<UiMedia.Video>(rendered.images[1])
+        assertEquals(UiMedia.Video.Kind.Video, video.kind)
+        assertEquals(UiMedia.Video.Kind.Gif, assertIs<UiMedia.Video>(rendered.images[2]).kind)
         assertEquals("https://video.twimg.com/video.mp4", video.url)
         assertEquals("https://pbs.twimg.com/media/video.jpg", video.thumbnailUrl)
         assertEquals(1920f, video.width)

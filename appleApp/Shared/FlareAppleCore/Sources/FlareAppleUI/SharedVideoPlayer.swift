@@ -131,16 +131,24 @@ final class SharedVideoPlayer {
     }
 
     private func makeItem(url: URL) -> AVPlayerItem {
+        let item: AVPlayerItem
         #if os(iOS)
         if usesVideoCache,
            let loaderURL = URL(string: "loader-" + url.absoluteString) {
             // shortcut: GSPlayer's loader- convention is internal; recheck it when upgrading GSPlayer.
             let asset = AVURLAsset(url: loaderURL)
             asset.resourceLoader.setDelegate(VideoLoadManager.shared, queue: .main)
-            return AVPlayerItem(asset: asset)
+            item = AVPlayerItem(asset: asset)
+        } else {
+            item = AVPlayerItem(url: url)
         }
+        #else
+        item = AVPlayerItem(url: url)
         #endif
-        return AVPlayerItem(url: url)
+        #if os(iOS)
+        item.audioTimePitchAlgorithm = .timeDomain
+        #endif
+        return item
     }
 
     func canCache(_ source: MediaPlaybackSource) async -> Bool {

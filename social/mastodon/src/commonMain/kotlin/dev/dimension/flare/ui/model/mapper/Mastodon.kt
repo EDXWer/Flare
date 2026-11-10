@@ -894,6 +894,7 @@ private fun Attachment.toUi(sensitive: Boolean): UiMedia? =
                 description = description,
                 width = meta?.width?.toFloat() ?: meta?.original?.width?.toFloat() ?: 0f,
                 height = meta?.height?.toFloat() ?: meta?.original?.height?.toFloat() ?: 0f,
+                kind = UiMedia.Video.Kind.Gif,
             )
         }
 

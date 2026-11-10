@@ -4,6 +4,7 @@ import FlareAppleUI
 import SwiftUI
 import UIKit
 import XCTest
+import KotlinSharedUI
 
 @MainActor
 final class VideoControlViewTests: XCTestCase {
@@ -116,7 +117,8 @@ final class VideoControlViewTests: XCTestCase {
 
         var body: some View {
             VideoControlView(isPlaying: $state.isPlaying, currentTime: $state.time,
-                             videoState: state.videoState, playbackRate: 1)
+                             videoState: state.videoState, playbackRate: 1,
+                             selectedSpeed: .normal, onSpeedSelected: { _ in })
                 .id(state.mediaID)
                 .padding()
         }

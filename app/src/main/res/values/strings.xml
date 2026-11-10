@@ -499,6 +499,8 @@
     <string name="media_play">Play</string>
     <string name="media_pause">Pause</string>
     <string name="media_playback_position">Playback position</string>
+    <string name="media_playback_speed">Playback speed</string>
+    <string name="media_playback_speed_save_error">Could not save playback speed. Please try again.</string>
     <string name="media_page_position">Media position</string>
     <string name="media_page_of">%1$d of %2$d</string>
     <string name="media_is_downloading">Media is still downloading. Try again in a moment.</string>

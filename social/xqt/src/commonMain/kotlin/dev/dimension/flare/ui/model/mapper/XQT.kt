@@ -670,6 +670,7 @@ internal fun Tweet.renderStatus(
                                 height = media.originalInfo.height.toFloat(),
                                 width = media.originalInfo.width.toFloat(),
                                 description = media.ext_alt_text,
+                                kind = if (media.type == Media.Type.animatedGif) UiMedia.Video.Kind.Gif else UiMedia.Video.Kind.Video,
                             )
                         }
                     }

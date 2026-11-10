@@ -9,6 +9,39 @@ import UIKit
 
 final class VideoPlaybackSessionTests: XCTestCase {
     @MainActor
+    func testViewerSpeedSurvivesPauseAndHandsBackToNormalTimelineSpeed() async throws {
+        let url = try await makeVideo()
+        let timeline = VideoPlaybackSession()
+        let viewer = VideoPlaybackSession()
+        defer {
+            timeline.detach()
+            viewer.detach()
+            try? FileManager.default.removeItem(at: url)
+        }
+        timeline.play(media: testVideo(url.absoluteString))
+        let player = try XCTUnwrap(timeline.player)
+        try await waitUntilReady(player)
+        viewer.play(media: testVideo(url.absoluteString), muted: false, rate: 1.25)
+        XCTAssertTrue(viewer.player === player)
+        XCTAssertEqual(player.rate, 1.25)
+        XCTAssertEqual(player.currentItem?.audioTimePitchAlgorithm, .timeDomain)
+        viewer.setPlaying(false, rate: 0.75)
+        XCTAssertEqual(player.rate, 0)
+        viewer.setPlaying(true, rate: 0.75)
+        XCTAssertEqual(player.rate, 0.75)
+        let highRates: [Float] = [4, 8, 16]
+        for rate in highRates {
+            viewer.setPlaying(true, rate: rate)
+            XCTAssertEqual(player.rate, rate)
+            viewer.setPlaying(false, rate: rate)
+            XCTAssertEqual(player.rate, 0)
+        }
+        timeline.play(media: testVideo(url.absoluteString))
+        XCTAssertTrue(timeline.player === player)
+        XCTAssertEqual(player.rate, 1)
+    }
+
+    @MainActor
     func testFramePlaybackStopsForViewerAndResumesOnReturn() {
         let arbiter = VideoPlaybackArbiter()
         let gallery = VideoPlaybackPresentation(arbiter: arbiter)
@@ -359,5 +392,5 @@ final class VideoPlaybackSessionTests: XCTestCase {
 
 @MainActor
 func testVideo(_ url: String) -> UiMediaVideo {
-    UiMediaVideo(url: url, thumbnailUrl: "", description: nil, height: 0, width: 0, customHeaders: nil, proxy: ProxyRef.System.shared, downloadUrl: nil)
+    UiMediaVideo(url: url, thumbnailUrl: "", description: nil, height: 0, width: 0, customHeaders: nil, proxy: ProxyRef.System.shared, downloadUrl: nil, kind: .video)
 }

@@ -177,6 +177,7 @@ class VVORenderTest {
         assertEquals(800f, image.height)
 
         val video = assertIs<UiMedia.Video>(rendered.images[1])
+        assertEquals(UiMedia.Video.Kind.Video, video.kind)
         assertEquals("https://video.weibo.com/stream.mp4", video.url)
         assertEquals("https://wx1.sinaimg.cn/video-thumb.jpg", video.thumbnailUrl)
         assertEquals(1920f, video.width)
@@ -220,6 +221,7 @@ class VVORenderTest {
         assertEquals(4, post.images.size)
         assertEquals("https://media.example.test/first.jpg", assertIs<UiMedia.Image>(post.images[0]).url)
         val livePhoto = assertIs<UiMedia.Video>(post.images[1])
+        assertEquals(UiMedia.Video.Kind.LivePhoto, livePhoto.kind)
         assertEquals(playbackUrl, livePhoto.url)
         assertEquals("https://media.example.test/live-preview.jpg", livePhoto.thumbnailUrl)
         assertEquals(600f, livePhoto.width)
@@ -227,6 +229,7 @@ class VVORenderTest {
         assertEquals(ProxyRef.Account(accountKey), livePhoto.proxy)
         assertEquals("https://media.example.test/last.jpg", assertIs<UiMedia.Image>(post.images[2]).url)
         assertEquals(signedUrl, assertIs<UiMedia.Video>(post.images[3]).url)
+        assertEquals(UiMedia.Video.Kind.LivePhoto, assertIs<UiMedia.Video>(post.images[3]).kind)
 
         val repost =
             createStatus("repost", createUser(1L, "reposter"), "repost", retweetedStatus = status)

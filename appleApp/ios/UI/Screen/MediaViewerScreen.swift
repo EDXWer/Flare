@@ -30,6 +30,7 @@ struct MediaViewerScreen: View {
     let quotes: [UiTimelineV2.Post]
 
     @State private var imageTranslation: KotlinPresenter<ImageTranslationPresenterState>
+    @State private var playbackSettings = KotlinPresenter(presenter: VideoPlaybackSettingsPresenter())
     @State private var selectedIndex: Int
     @State private var isPlaying: Bool = true
     @State private var videoState: VideoState = .idle
@@ -219,6 +220,7 @@ struct MediaViewerScreen: View {
         .ugoiraExportStatus()
         .onAppear {
             applyInitialSelectionIfNeeded()
+            playbackRate = selectedPlaybackSpeed?.rate ?? 1
         }
         .onChange(of: mediaSignature) { _, _ in
             applyInitialSelectionIfNeeded()
@@ -226,7 +228,7 @@ struct MediaViewerScreen: View {
         .onChange(of: selectedIndex) { _, _ in
             isPlaying = true
             videoState = .idle
-            playbackRate = 1
+            playbackRate = selectedPlaybackSpeed?.rate ?? 1
         }
         .onChange(of: isLandscapeViewing) { _, newValue in
             MediaOrientationController.setLandscape(newValue)
@@ -281,6 +283,12 @@ struct MediaViewerScreen: View {
         .background(.black.opacity(opacity))
         .background(ClearFullScreenBackground())
         .toolbar(.hidden, for: .navigationBar)
+        .alert(
+            Text("media_playback_speed_save_error", bundle: .main),
+            isPresented: Binding(get: { playbackSettings.state.saveFailed }, set: { if !$0 { playbackSettings.state.clearError() } })
+        ) {
+            Button("OK", role: .cancel) { playbackSettings.state.clearError() }
+        }
     }
 
     @ViewBuilder
@@ -298,13 +306,15 @@ struct MediaViewerScreen: View {
                 }
             )
         case .video(let video):
-            if medias.indices.contains(selectedIndex), medias[selectedIndex].url == video.url {
+            if medias.indices.contains(selectedIndex), medias[selectedIndex].url == video.url,
+               let selectedSpeed = playbackSettings.state.speedFor(media: video) {
                 StatusMediaVideoView(
                     data: video,
                     play: $isPlaying,
                     videoState: $videoState,
                     time: timeBinding(for: video.url),
-                    playbackRate: $playbackRate
+                    playbackRate: $playbackRate,
+                    normalPlaybackRate: selectedSpeed.rate
                 )
             } else {
                 NetworkImage(data: video.preview)
@@ -435,12 +445,14 @@ struct MediaViewerScreen: View {
                 }
             }
 
-            if let selectedMedia, case .video = onEnum(of: selectedMedia) {
+            if let selectedMedia, case .video(let video) = onEnum(of: selectedMedia), let selectedSpeed = selectedPlaybackSpeed {
                 VideoControlView(
                     isPlaying: $isPlaying,
                     currentTime: timeBinding(for: selectedMedia.url),
                     videoState: videoState,
-                    playbackRate: playbackRate
+                    playbackRate: playbackRate,
+                    selectedSpeed: selectedSpeed,
+                    onSpeedSelected: video.kind == .video ? { playbackSettings.state.selectSpeed(speed: $0) } : nil
                 )
                 .id(selectedMedia.url)
             }
@@ -621,6 +633,11 @@ struct MediaViewerScreen: View {
 
     private var mediaSignature: String {
         medias.map { $0.url }.joined(separator: "\n")
+    }
+
+    private var selectedPlaybackSpeed: VideoPlaybackSpeed? {
+        guard let selectedMedia, case .video(let video) = onEnum(of: selectedMedia) else { return nil }
+        return playbackSettings.state.speedFor(media: video)
     }
 
     private func applyInitialSelectionIfNeeded() {
