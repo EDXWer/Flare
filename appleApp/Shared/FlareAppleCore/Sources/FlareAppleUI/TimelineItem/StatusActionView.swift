@@ -362,18 +362,14 @@ private struct StatusActionBarLabel: View {
     let state: StatusActionAnimationState
     let metrics: StatusActionLayoutMetrics
     let reservesNumberWidth: Bool
-    #if os(iOS)
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isVisible = false
     @State private var motion: StatusActionMotion?
-    #endif
 
     var body: some View {
-        #if os(iOS)
         let activeMotion = motion?.target == state ? motion : nil
         let animateIcon = activeMotion.map { $0.effects.icon != .none } ?? false
         let animateNumber = activeMotion.map { $0.effects.number != .none } ?? false
-        #endif
         StatusActionContentLayout(metrics: metrics,
                                   preferredSize: metrics.size(titleWidth: state.text.map(metrics.textWidth), reservesNumberWidth: reservesNumberWidth, expanded: false)) {
             Group {
@@ -387,26 +383,25 @@ private struct StatusActionBarLabel: View {
                 #endif
             }
             .optionalForegroundStyle(state.color?.swiftColor)
-            #if os(iOS)
             .opacity(animateIcon ? 0 : 1)
             .transaction { $0.animation = nil; $0.disablesAnimations = true }
             .overlay {
                 if let activeMotion, animateIcon {
                     StatusActionIconMotion(motion: activeMotion)
+                        #if os(iOS)
                         .scaleEffect(metrics.iconScale(imageWidth: metrics.iconImage(state.icon ?? .more)?.size.width ?? 0))
+                        #endif
                         .transition(.identity)
                         .accessibilityHidden(true)
                         .allowsHitTesting(false)
                 }
             }
-            #endif
             .frame(width: StatusActionLayoutMetrics.iconWidth, height: metrics.iconHeight)
             if let text = state.text {
                 Text(text)
                     .actionForeground(state.color?.swiftColor)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    #if os(iOS)
                     .opacity(animateNumber ? 0 : 1)
                     .transaction { $0.animation = nil; $0.disablesAnimations = true }
                     .overlay(alignment: .leading) {
@@ -417,14 +412,12 @@ private struct StatusActionBarLabel: View {
                                 .allowsHitTesting(false)
                         }
                     }
-                    #endif
             } else if reservesNumberWidth {
                 Color.clear.accessibilityHidden(true)
             }
         }
         .padding(StatusActionLayoutMetrics.padding)
         .contentShape(Rectangle())
-        #if os(iOS)
         .onAppear {
             resetAnimations()
             isVisible = true
@@ -445,17 +438,13 @@ private struct StatusActionBarLabel: View {
                 motion = StatusActionMotion(previous: previous, target: newState, effects: effects)
             }
         }
-        #endif
     }
 
-    #if os(iOS)
     private func resetAnimations() {
         if motion != nil { motion = nil }
     }
-    #endif
 }
 
-#if os(iOS)
 private struct StatusActionMotion {
     let eventID = UUID()
     let previous: StatusActionAnimationState
@@ -561,7 +550,6 @@ private struct StatusActionNumberMotion: View {
         .onChange(of: motion.eventID) { _, _ in trigger += 1 }
     }
 }
-#endif
 
 private struct StatusActionContentLayout: Layout {
     let metrics: StatusActionLayoutMetrics
