@@ -119,6 +119,7 @@ internal fun UiTimelineV2.applyTranslation(
                         }
                 val displayState =
                     when {
+                        displayMode == TranslationDisplayMode.Original -> TranslationDisplayState.Hidden
                         translation?.status == TranslationStatus.Completed && shouldShowTranslated -> TranslationDisplayState.Translated
                         translation?.status == TranslationStatus.Completed -> TranslationDisplayState.Hidden
                         else -> translation.toDisplayState()

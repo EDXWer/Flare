@@ -323,4 +323,32 @@ class TranslationDisplayTest {
         assertEquals("translated", displayed.content.translation?.raw)
         assertEquals(TranslationDisplayState.Hidden, displayed.translationDisplayState)
     }
+
+    @Test
+    fun originalChoiceHidesInFlightTranslationAndCanBeReenabled() {
+        val post = createSampleStatus(createSampleUser()).copy(content = UiTranslatableText("original".toUiPlainText()))
+        val payload = requireNotNull(post.translationPayload())
+        val options = TranslationDisplayOptions(true, true, "ai")
+        for (status in listOf(TranslationStatus.Pending, TranslationStatus.Translating)) {
+            val translation =
+                DbTranslation(
+                    entityType = TranslationEntityType.Status,
+                    entityKey = "post",
+                    targetLanguage = Locale.language,
+                    sourceHash = payload.sourceHash("ai"),
+                    status = status,
+                    displayMode = TranslationDisplayMode.Original,
+                    updatedAt = 1,
+                )
+            val original = post.applyTranslation(options, listOf(translation)) as UiTimelineV2.Post
+            assertEquals("original", original.content.original.raw)
+            assertEquals(TranslationDisplayState.Hidden, original.translationDisplayState)
+            val enabled =
+                post.applyTranslation(
+                    options,
+                    listOf(translation.copy(displayMode = TranslationDisplayMode.Translated)),
+                ) as UiTimelineV2.Post
+            assertEquals(TranslationDisplayState.Translating, enabled.translationDisplayState)
+        }
+    }
 }

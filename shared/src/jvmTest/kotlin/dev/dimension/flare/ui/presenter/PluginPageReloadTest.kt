@@ -248,13 +248,21 @@ class PluginPageReloadTest {
         withFixture {
             attach(Source("first"))
             val state = observe(ArticlePresenter(accountType, contentKey))
-            state.await { it.article.takeSuccess()?.title == "first" && it.comments.firstTitle() == "first" }
+            state.await {
+                it.article.takeSuccess()?.title == "first" &&
+                    it.translation?.article?.title == "first" &&
+                    it.comments.firstTitle() == "first"
+            }
 
             attach(object : MicroblogDataSource by UnavailableMicroblogDataSource {})
-            state.await { it.article is UiState.Error && it.comments is PagingState.Error }
+            state.await { it.article is UiState.Error && it.translation == null && it.comments is PagingState.Error }
 
             attach(Source("restored"))
-            state.await { it.article.takeSuccess()?.title == "restored" && it.comments.firstTitle() == "restored" }
+            state.await {
+                it.article.takeSuccess()?.title == "restored" &&
+                    it.translation?.article?.title == "restored" &&
+                    it.comments.firstTitle() == "restored"
+            }
         }
 
     @Test

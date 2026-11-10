@@ -15,11 +15,18 @@ import kotlin.time.Instant
 
 class UiArticleTest {
     @Test
+    fun articlesWithoutLanguageMetadataStillDecode() {
+        val decoded = Json.decodeFromString<UiArticle>("""{"key":"article","title":"Title","content":{}}""")
+        assertEquals(emptyList(), decoded.sourceLanguages)
+    }
+
+    @Test
     fun serializes_article_content_blocks() {
         val article =
             UiArticle(
                 key = "article:1",
                 title = "Title",
+                sourceLanguages = persistentListOf("ja"),
                 cover =
                     UiMedia.Image(
                         url = "https://example.com/cover.jpg",
@@ -101,6 +108,7 @@ class UiArticleTest {
         val decoded = Json.decodeFromString<UiArticle>(Json.encodeToString(article))
 
         assertEquals(article.key, decoded.key)
+        assertEquals(listOf("ja"), decoded.sourceLanguages)
         assertEquals("https://example.com/cover.jpg", decoded.cover?.url)
         assertEquals(1200f / 630f, decoded.cover?.aspectRatio)
         assertEquals(Instant.parse("2024-01-02T03:04:05Z"), decoded.publishDate?.value)

@@ -27,6 +27,7 @@ public data class UiArticle public constructor(
     val author: UiArticleAuthor? = null,
     val sourceUrl: String? = null,
     val pluginId: String? = null,
+    val sourceLanguages: SerializableImmutableList<String> = persistentListOf(),
 )
 
 @Serializable

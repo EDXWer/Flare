@@ -64,6 +64,7 @@ import dev.dimension.flare.ui.component.ErrorContent
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.FlareScrollBar
 import dev.dimension.flare.ui.component.GalleryMedia
+import dev.dimension.flare.ui.component.GalleryTranslationButton
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
 import dev.dimension.flare.ui.component.NetworkImage
 import dev.dimension.flare.ui.component.RichText
@@ -619,6 +620,7 @@ private fun GalleryAuthorCard(
                     )
                 }
             }
+            GalleryTranslationButton(detail)
             StatusActionButton(
                 icon =
                     if (detail.isBookmarked) {
