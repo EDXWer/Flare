@@ -56,6 +56,7 @@ import dev.dimension.flare.ui.component.FlareDropdownMenu
 import dev.dimension.flare.ui.component.FlareLargeFlexibleTopAppBar
 import dev.dimension.flare.ui.component.FlareScaffold
 import dev.dimension.flare.ui.component.RichText
+import dev.dimension.flare.ui.component.resolveText
 import dev.dimension.flare.ui.component.status.ListEmptyView
 import dev.dimension.flare.ui.model.UiState
 import dev.dimension.flare.ui.model.onError
@@ -838,7 +839,17 @@ internal fun TranslationConfigScreen(onBack: () -> Unit) {
                             },
                         ) {
                             Text(
-                                text = translateProviderOptionLabel(state.translateProvider),
+                                text =
+                                    state.pluginTranslateProviders
+                                        .firstOrNull { it.pluginId == state.selectedTranslationPluginId }
+                                        ?.name
+                                        ?.resolveText()
+                                        ?: state.selectedTranslationPluginId?.let {
+                                            "$it (${stringResource(
+                                                R.string.plugin_operation_failed,
+                                            )})"
+                                        }
+                                        ?: translateProviderOptionLabel(state.translateProvider),
                             )
                         }
                         FlareDropdownMenu(
@@ -857,6 +868,12 @@ internal fun TranslationConfigScreen(onBack: () -> Unit) {
                                         state.selectTranslateProvider(provider)
                                     },
                                 )
+                            }
+                            state.pluginTranslateProviders.forEach { plugin ->
+                                DropdownMenuItem(text = { Text(plugin.name.resolveText()) }, onClick = {
+                                    state.setShowProviderDropdown(false)
+                                    state.selectTranslationPlugin(plugin.pluginId)
+                                })
                             }
                         }
                     }
@@ -1196,7 +1213,7 @@ internal fun TranslationConfigScreen(onBack: () -> Unit) {
                             )
                         }
 
-                        TranslateProviderOption.GoogleWeb -> {}
+                        TranslateProviderOption.GoogleWeb, TranslateProviderOption.Plugin -> {}
                     }
                 }
             }
@@ -1285,6 +1302,7 @@ private enum class TranslationEditField {
 @Composable
 private fun translateProviderOptionLabel(provider: TranslateProviderOption): String =
     when (provider) {
+        TranslateProviderOption.Plugin -> stringResource(R.string.settings_plugins_title)
         TranslateProviderOption.AI -> stringResource(id = R.string.settings_ai_config_translate_provider_ai)
         TranslateProviderOption.GoogleWeb -> stringResource(id = R.string.settings_ai_config_translate_provider_google_web)
         TranslateProviderOption.DeepL -> stringResource(id = R.string.settings_ai_config_translate_provider_deepl)
