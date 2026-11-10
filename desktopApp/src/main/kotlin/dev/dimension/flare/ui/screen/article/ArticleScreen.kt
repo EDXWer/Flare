@@ -1,5 +1,6 @@
 package dev.dimension.flare.ui.screen.article
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -32,11 +34,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.awt.ComposeWindow
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import compose.icons.FontAwesomeIcons
 import compose.icons.fontawesomeicons.Brands
 import compose.icons.fontawesomeicons.Solid
@@ -64,6 +69,7 @@ import dev.dimension.flare.ui.component.DateTimeText
 import dev.dimension.flare.ui.component.ErrorContent
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.FavIcon
+import dev.dimension.flare.ui.component.FlareDividerDefaults
 import dev.dimension.flare.ui.component.FlareScrollBar
 import dev.dimension.flare.ui.component.NetworkImage
 import dev.dimension.flare.ui.component.RichText
@@ -87,8 +93,8 @@ import dev.dimension.flare.ui.render.UiDateTime
 import dev.dimension.flare.ui.route.Route
 import dev.dimension.flare.ui.screen.media.VideoItem
 import dev.dimension.flare.ui.theme.LocalComposeWindow
-import dev.dimension.flare.ui.theme.screenHorizontalPadding
 import io.github.composefluent.FluentTheme
+import io.github.composefluent.LocalTextStyle
 import io.github.composefluent.component.AccentButton
 import io.github.composefluent.component.ListItemSeparator
 import io.github.composefluent.component.ProgressBar
@@ -134,7 +140,7 @@ internal fun ArticleScreen(
             start = windowPadding.calculateStartPadding(layoutDirection),
             top = windowPadding.calculateTopPadding() + 16.dp,
             end = windowPadding.calculateEndPadding(layoutDirection),
-            bottom = windowPadding.calculateBottomPadding() + 16.dp,
+            bottom = windowPadding.calculateBottomPadding() + 24.dp,
         )
 
     Box(
@@ -150,7 +156,6 @@ internal fun ArticleScreen(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = contentPadding,
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     article?.let { currentArticle ->
                         currentArticle.sourceUrl?.takeIf { it.isNotBlank() }?.let { sourceUrl ->
@@ -328,7 +333,7 @@ private fun LazyListScope.articleComments(
                 count = 3,
                 key = { "article_comment_placeholder_$it" },
             ) { index ->
-                ArticleBodyContainer {
+                ArticleBodyContainer(contentPadding = PaddingValues(0.dp)) {
                     AdaptiveCard(
                         index = index,
                         totalCount = 3,
@@ -360,7 +365,7 @@ private fun LazyListScope.articleComments(
                 key = comments.itemKey { item -> item.itemKey ?: item.hashCode() },
                 contentType = comments.itemContentType { item -> item.itemType },
             ) { index ->
-                ArticleBodyContainer {
+                ArticleBodyContainer(contentPadding = PaddingValues(0.dp)) {
                     AdaptiveCard(
                         index = index,
                         totalCount = comments.itemCount,
@@ -403,11 +408,28 @@ private fun LazyListScope.articleComments(
 
 private fun LazyListScope.articleCommentsTitle() {
     item(key = "article_comments_title") {
-        ArticleBodyContainer {
-            Text(
-                text = "Comments",
-                style = FluentTheme.typography.bodyStrong,
-            )
+        ArticleBodyContainer(contentPadding = PaddingValues(vertical = 8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Comments",
+                    style = FluentTheme.typography.bodyStrong.copy(fontSize = 16.sp, lineHeight = 24.sp),
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+                val dividerColor = FlareDividerDefaults.color
+                Canvas(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(FlareDividerDefaults.thickness),
+                ) {
+                    val thickness = FlareDividerDefaults.thickness.toPx()
+                    drawLine(
+                        color = dividerColor,
+                        strokeWidth = thickness,
+                        start = Offset(0f, thickness / 2),
+                        end = Offset(size.width, thickness / 2),
+                    )
+                }
+            }
         }
     }
 }
@@ -439,12 +461,20 @@ private fun ArticleHeader(
     onProfileClick: (MicroBlogKey) -> Unit,
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
             text = article.title,
-            style = FluentTheme.typography.title,
+            style =
+                FluentTheme.typography.title.copy(
+                    fontSize = 22.sp,
+                    lineHeight = 28.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
         )
         when (val author = article.author) {
             is UiArticleAuthor.Profile -> {
@@ -569,7 +599,6 @@ private fun ArticleBlock(
                 text = block.richText,
                 modifier = Modifier.fillMaxWidth(),
                 overflow = TextOverflow.Clip,
-                textStyle = FluentTheme.typography.body,
             )
         }
 
@@ -676,7 +705,7 @@ private fun ArticleFileBlock(
             ) {
                 Text(
                     text = block.name,
-                    style = FluentTheme.typography.body,
+                    style = FluentTheme.typography.body.copy(fontSize = 16.sp, lineHeight = 24.sp),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -749,7 +778,7 @@ private fun ArticleEmbedBlockContent(block: UiArticleBlock.Embed) {
         ) {
             Text(
                 text = block.title ?: block.url ?: block.htmlFallback.orEmpty(),
-                style = FluentTheme.typography.body,
+                style = FluentTheme.typography.body.copy(fontSize = 16.sp, lineHeight = 24.sp),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -808,11 +837,11 @@ private fun ArticleContentGateBlock(
             ) {
                 Text(
                     text = stringResource(Res.string.article_content_gate_subscription_title),
-                    style = FluentTheme.typography.bodyStrong,
+                    style = FluentTheme.typography.bodyStrong.copy(fontSize = 16.sp, lineHeight = 24.sp),
                 )
                 Text(
                     text = description,
-                    style = FluentTheme.typography.body,
+                    style = FluentTheme.typography.body.copy(fontSize = 16.sp, lineHeight = 24.sp),
                     color = FluentTheme.colors.text.text.secondary,
                 )
                 block.actionUrl?.takeIf { it.isNotBlank() }?.let { url ->
@@ -839,7 +868,7 @@ private fun LazyListScope.articleLoadingItems() {
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .height(36.dp)
+                            .height(28.dp)
                             .placeholder(true),
                 )
                 Row(
@@ -901,7 +930,10 @@ private fun LazyListScope.articleLoadingItems() {
 }
 
 @Composable
-private fun ArticleBodyContainer(content: @Composable () -> Unit) {
+private fun ArticleBodyContainer(
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+    content: @Composable () -> Unit,
+) {
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.TopCenter,
@@ -909,12 +941,16 @@ private fun ArticleBodyContainer(content: @Composable () -> Unit) {
         Box(
             modifier =
                 Modifier
+                    .widthIn(max = 712.dp)
                     .fillMaxWidth()
-                    .widthIn(max = 600.dp)
-                    .padding(horizontal = screenHorizontalPadding),
+                    .padding(contentPadding),
             contentAlignment = Alignment.TopStart,
         ) {
-            content()
+            CompositionLocalProvider(
+                LocalTextStyle provides FluentTheme.typography.body.copy(fontSize = 16.sp, lineHeight = 24.sp),
+            ) {
+                content()
+            }
         }
     }
 }
