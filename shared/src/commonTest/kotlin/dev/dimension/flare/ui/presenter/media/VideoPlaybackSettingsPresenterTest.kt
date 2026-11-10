@@ -53,15 +53,15 @@ class VideoPlaybackSettingsPresenterTest : RobolectricTest() {
                 val states = moleculeFlow(RecompositionMode.Immediate) { presenter.body() }.stateIn(viewerScope)
                 val initial = states.first { it.speed != null }
                 assertEquals(VideoPlaybackSpeed.NORMAL, initial.speed)
-                initial.selectSpeed(VideoPlaybackSpeed.HALF)
-                initial.selectSpeed(VideoPlaybackSpeed.ONE_AND_QUARTER)
-                initial.selectSpeed(VideoPlaybackSpeed.ONE_AND_THREE_QUARTERS)
+                initial.selectSpeed(VideoPlaybackSpeed.FOUR_TIMES)
+                initial.selectSpeed(VideoPlaybackSpeed.EIGHT_TIMES)
+                initial.selectSpeed(VideoPlaybackSpeed.SIXTEEN_TIMES)
                 viewerScope.cancel()
 
-                store.appSettingsStore.data.first { it.videoPlaybackSpeed == 1.75f }
+                store.appSettingsStore.data.first { it.videoPlaybackSpeed == 16f }
                 val reopened = VideoPlaybackSettingsPresenter()
                 val restored = moleculeFlow(RecompositionMode.Immediate) { reopened.body() }.first { it.speed != null }
-                assertEquals(VideoPlaybackSpeed.ONE_AND_THREE_QUARTERS, restored.speed)
+                assertEquals(VideoPlaybackSpeed.SIXTEEN_TIMES, restored.speed)
                 val video = UiMedia.Video("file:///clip.mp4", "", null, 1f, 1f)
                 assertEquals(restored.speed, restored.speedFor(video))
                 assertEquals(VideoPlaybackSpeed.NORMAL, restored.speedFor(video.copy(kind = UiMedia.Video.Kind.Gif)))

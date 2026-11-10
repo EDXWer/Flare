@@ -11,6 +11,9 @@ public enum class VideoPlaybackSpeed(
     ONE_AND_HALF(1.5f, "1.5×"),
     ONE_AND_THREE_QUARTERS(1.75f, "1.75×"),
     DOUBLE(2f, "2×"),
+    FOUR_TIMES(4f, "4×"),
+    EIGHT_TIMES(8f, "8×"),
+    SIXTEEN_TIMES(16f, "16×"),
     ;
 
     public companion object {

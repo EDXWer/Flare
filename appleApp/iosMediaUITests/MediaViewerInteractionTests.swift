@@ -269,10 +269,12 @@ final class MediaViewerInteractionTests: XCTestCase {
         XCTAssertTrue(speed.waitForExistence(timeout: 10))
         app.buttons["Pause"].tap()
         XCTAssertEqual(speed.frame.height, app.buttons["Play"].frame.height, accuracy: 1)
-        speed.tap()
-        app.buttons["1.25×"].tap()
-        let selected = NSPredicate(format: "value == %@", "1.25×")
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: selected, object: speed)], timeout: 5), .completed)
+        for label in ["4×", "8×", "16×"] {
+            speed.tap()
+            app.buttons[label].tap()
+            let selected = NSPredicate(format: "value == %@", label)
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: selected, object: speed)], timeout: 5), .completed)
+        }
         let control = XCTAttachment(screenshot: app.screenshot())
         control.name = "ios-video-speed-control"
         control.lifetime = .keepAlways
@@ -283,17 +285,17 @@ final class MediaViewerInteractionTests: XCTestCase {
         menu.name = "ios-video-speed-menu"
         menu.lifetime = .keepAlways
         add(menu)
-        app.buttons["1.25×"].tap()
+        app.buttons["16×"].tap()
         app.buttons["Close"].tap()
         app.buttons["media-fixture-open"].tap()
         XCTAssertTrue(speed.waitForExistence(timeout: 10))
-        XCTAssertEqual(speed.value as? String, "1.25×")
+        XCTAssertEqual(speed.value as? String, "16×")
         app.terminate()
         app.launch()
         XCTAssertTrue(app.buttons["media-fixture-open"].waitForExistence(timeout: 15))
         app.buttons["media-fixture-open"].tap()
         XCTAssertTrue(speed.waitForExistence(timeout: 10))
-        XCTAssertEqual(speed.value as? String, "1.25×")
+        XCTAssertEqual(speed.value as? String, "16×")
         app.buttons["Pause"].tap()
         speed.tap()
         app.buttons["0.75×"].tap()

@@ -45,6 +45,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.ui.compose.PlayerSurface
 import androidx.media3.ui.compose.modifiers.resizeWithContentScale
 import androidx.media3.ui.compose.state.rememberPresentationState
@@ -303,7 +304,20 @@ public class SurfaceBindingManager(
 
             override fun setPlaybackSpeed(speed: Float) {
                 playbackSpeed = speed
-                if (activeBinding === this) player.setPlaybackSpeed(speed)
+                if (activeBinding === this) applyPlaybackSpeed()
+            }
+
+            private fun applyPlaybackSpeed() {
+                // shortcut: disable audio above Media3's speed limit until its sink supports higher rates.
+                val disableAudio = playbackSpeed > DefaultAudioSink.MAX_PLAYBACK_SPEED
+                if (player.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_AUDIO) != disableAudio) {
+                    player.trackSelectionParameters =
+                        player.trackSelectionParameters
+                            .buildUpon()
+                            .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, disableAudio)
+                            .build()
+                }
+                player.setPlaybackSpeed(playbackSpeed)
             }
 
             override fun setActive(active: Boolean) {
@@ -331,7 +345,7 @@ public class SurfaceBindingManager(
                         player.prepare()
                         activeRequest = request
                     }
-                    player.setPlaybackSpeed(playbackSpeed)
+                    applyPlaybackSpeed()
                     player.volume = 0f
                     player.setAudioAttributes(audioAttributes, false)
                     player.play()

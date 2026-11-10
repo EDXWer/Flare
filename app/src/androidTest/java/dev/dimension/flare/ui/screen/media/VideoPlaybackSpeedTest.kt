@@ -2,6 +2,7 @@ package dev.dimension.flare.ui.screen.media
 
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
+import android.os.SystemClock
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
@@ -18,11 +19,14 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
+import androidx.media3.common.C
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.dimension.flare.R
 import dev.dimension.flare.data.model.ProxyRef
@@ -94,6 +98,18 @@ class VideoPlaybackSpeedTest {
             }
         }
 
+        fun awaitAudio(enabled: Boolean) {
+            compose.waitUntil(10_000) {
+                var selected = false
+                instrumentation.runOnMainSync {
+                    selected =
+                        manager.player.currentTracks.groups
+                            .any { it.type == C.TRACK_TYPE_AUDIO && it.isSelected }
+                }
+                selected == enabled
+            }
+        }
+
         fun awaitControl(description: String) {
             compose.waitUntil(10_000) {
                 compose.onAllNodesWithContentDescription(description).fetchSemanticsNodes().isNotEmpty()
@@ -140,42 +156,59 @@ class VideoPlaybackSpeedTest {
             awaitSpeed(1f)
             instrumentation.runOnMainSync { manager.player.pause() }
             awaitControl(context.getString(R.string.media_playback_speed))
+            awaitAudio(true)
             compose.onNodeWithText(" / ", substring = true).assertIsDisplayed()
             val speedButton = compose.onNodeWithContentDescription(context.getString(R.string.media_playback_speed))
-            speedButton.performClick()
-            compose.onNodeWithText("1.25×").performClick()
-            awaitSpeed(1.25f)
-            compose.onNodeWithText("1.25×").assertIsDisplayed()
+            for ((rate, label) in listOf(4f to "4×", 8f to "8×", 16f to "16×")) {
+                speedButton.performClick()
+                compose.onNodeWithText(label).performScrollTo().performClick()
+                awaitSpeed(rate)
+                awaitAudio(rate != 16f)
+            }
+            instrumentation.runOnMainSync { manager.player.play() }
+            SystemClock.sleep(500)
+            instrumentation.runOnMainSync {
+                assertEquals(16f, manager.player.playbackParameters.speed)
+                assertEquals(null, manager.player.playerError)
+                manager.player.pause()
+            }
+            awaitControl(context.getString(R.string.media_play))
+            compose.onNodeWithText("16×").assertIsDisplayed()
             screenshot("android-video-speed-control")
             speedButton.performClick()
             compose.onNodeWithText("0.75×").assertIsDisplayed()
             screenshot("android-video-speed-menu")
-            compose.onAllNodesWithText("1.25×").onLast().performClick()
+            compose
+                .onAllNodesWithText("16×")
+                .onLast()
+                .performScrollTo()
+                .performClick()
 
             compose.onNodeWithContentDescription(context.getString(R.string.navigate_back)).performClick()
             awaitSpeed(1f)
-            assertEquals(1.25f, runBlocking { repository.appSettings.first().videoPlaybackSpeed })
+            awaitAudio(true)
+            assertEquals(16f, runBlocking { repository.appSettings.first().videoPlaybackSpeed })
             compose.onNodeWithText("Open video").performClick()
-            awaitSpeed(1.25f)
+            awaitSpeed(16f)
             instrumentation.runOnMainSync { manager.player.pause() }
             awaitControl(context.getString(R.string.media_play))
-            speedButton.performClick()
-            compose.onNodeWithText("0.75×").performClick()
-            awaitSpeed(0.75f)
             compose.runOnIdle { assertEquals(false, manager.player.playWhenReady) }
-            compose.onNodeWithContentDescription("Fixture video").performTouchInput { down(center) }
+            compose.onAllNodesWithContentDescription("Fixture video").onFirst().performTouchInput { down(center) }
             awaitSpeed(2f)
-            compose.onNodeWithContentDescription("Fixture video").performTouchInput { up() }
-            awaitSpeed(0.75f)
+            awaitAudio(true)
+            compose.onAllNodesWithContentDescription("Fixture video").onFirst().performTouchInput { up() }
+            awaitSpeed(16f)
+            awaitAudio(false)
             compose.runOnIdle { assertEquals(false, manager.player.playWhenReady) }
-            assertEquals(0.75f, runBlocking { repository.appSettings.first().videoPlaybackSpeed })
+            assertEquals(16f, runBlocking { repository.appSettings.first().videoPlaybackSpeed })
             for (kind in listOf(UiMedia.Video.Kind.Gif, UiMedia.Video.Kind.LivePhoto)) {
                 compose.runOnIdle { media = media.copy(kind = kind) }
                 awaitSpeed(1f)
                 instrumentation.runOnMainSync { manager.player.pause() }
                 awaitControl(context.getString(R.string.media_play))
                 speedButton.assertDoesNotExist()
-                assertEquals(0.75f, runBlocking { repository.appSettings.first().videoPlaybackSpeed })
+                awaitAudio(true)
+                assertEquals(16f, runBlocking { repository.appSettings.first().videoPlaybackSpeed })
             }
         } finally {
             compose.runOnIdle { visible = false }

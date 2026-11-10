@@ -34,7 +34,7 @@ class VideoPlaybackSpeedTest {
 
     @Test
     fun unsupportedAndNonFiniteSpeedsFallBackToNormal() {
-        listOf(0f, -1f, 3f, Float.NaN, Float.POSITIVE_INFINITY).forEach {
+        listOf(0f, -1f, 3f, 32f, Float.NaN, Float.POSITIVE_INFINITY).forEach {
             assertEquals(VideoPlaybackSpeed.NORMAL, VideoPlaybackSpeed.fromRate(it))
         }
         assertEquals(VideoPlaybackSpeed.ONE_AND_QUARTER, VideoPlaybackSpeed.fromRate(1.25f))
@@ -44,8 +44,12 @@ class VideoPlaybackSpeedTest {
     @Test
     fun oldSettingsDefaultToNormalAndProtobufPreservesSelectedSpeed() {
         assertEquals(1f, Json.decodeFromString<AppSettings>("""{"version":"old"}""").videoPlaybackSpeed)
-        val settings = AppSettings(version = "test", videoPlaybackSpeed = 1.75f)
-        val encoded = ProtoBuf.encodeToByteArray(AppSettings.serializer(), settings)
-        assertEquals(settings, ProtoBuf.decodeFromByteArray(AppSettings.serializer(), encoded))
+        for (rate in listOf(1.75f, 4f, 8f, 16f)) {
+            val settings = AppSettings(version = "test", videoPlaybackSpeed = rate)
+            val encoded = ProtoBuf.encodeToByteArray(AppSettings.serializer(), settings)
+            val restored = ProtoBuf.decodeFromByteArray(AppSettings.serializer(), encoded)
+            assertEquals(settings, restored)
+            assertEquals(rate, VideoPlaybackSpeed.fromRate(restored.videoPlaybackSpeed).rate)
+        }
     }
 }
