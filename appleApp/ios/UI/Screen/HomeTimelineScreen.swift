@@ -188,6 +188,7 @@ struct HomeTimelineScreen: View {
                                                             .scaledToFit()
                                                     }
                                                     .labelStyle(.titleAndIcon)
+                                                    .opacity(tab.id == item.id ? 1 : 0.65)
                                                 }
                                                 .safeAreaInset(edge: .bottom, spacing: 3) {
                                                     if tab.id == item.id {
@@ -206,6 +207,8 @@ struct HomeTimelineScreen: View {
                                         .padding(.horizontal)
                                         .animation(.spring(response: 0.25, dampingFraction: 0.85), value: selectedTabId)
                                     }
+                                    .scrollIndicators(.hidden)
+                                    .clipped()
                                 }
                                 if #available(iOS 26.0, *) {
                                     ToolbarSpacer()
