@@ -48,7 +48,7 @@ private final class TimelineScrollMeasurements: NSObject {
         controller.view.subviews.compactMap { $0 as? TimelineCollectionView }.first!
     }
     private let label = UILabel()
-    private var previous: (offset: CGFloat, pan: CGFloat, frames: [String: CGRect])?
+    private var previous: (offset: CGFloat, pan: CGFloat?, frames: [String: CGRect])?
     private var samples = 0
     private var maxError: CGFloat = 0
     private var maxHeightChange: CGFloat = 0
@@ -110,7 +110,9 @@ private final class TimelineScrollMeasurements: NSObject {
         minTopInset = min(minTopInset, list.safeAreaInsets.top)
         maxTopInset = max(maxTopInset, list.safeAreaInsets.top)
         let offset = list.contentOffset.y
-        let pan = list.panGestureRecognizer.translation(in: controller.view).y
+        let recognizer = list.panGestureRecognizer
+        // isDragging can remain true during deceleration after the pan ends.
+        let pan = recognizer.state == .changed ? recognizer.translation(in: controller.view).y : nil
         let frames = Dictionary(uniqueKeysWithValues: list.visibleCells.compactMap { cell -> (String, CGRect)? in
             guard let path = list.indexPath(for: cell), let id = list.readingItemID?(path) else { return nil }
             return (id, cell.frame)
@@ -120,10 +122,12 @@ private final class TimelineScrollMeasurements: NSObject {
         guard let old = previous, offset > 30, old.offset > 30 else { return }
         for (id, frame) in frames {
             guard let oldFrame = old.frames[id] else { continue }
-            let movement = frame.minY - offset - (oldFrame.minY - old.offset)
-            maxError = max(maxError, abs(movement - (pan - old.pan)))
+            if let pan, let oldPan = old.pan {
+                let movement = frame.minY - offset - (oldFrame.minY - old.offset)
+                maxError = max(maxError, abs(movement - (pan - oldPan)))
+                samples += 1
+            }
             maxHeightChange = max(maxHeightChange, abs(frame.height - oldFrame.height))
-            samples += 1
         }
     }
 

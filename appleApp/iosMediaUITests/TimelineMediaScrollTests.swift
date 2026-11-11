@@ -69,7 +69,6 @@ final class TimelineMediaScrollTests: XCTestCase {
         let values = try measurements(in: app)
         XCTAssertGreaterThan(try XCTUnwrap(values["samples"]), 30, raw)
         XCTAssertGreaterThan(try XCTUnwrap(values["topInsetRange"]), 20, "The navigation bar must actually animate: \(raw)")
-        // Allow the final pan sample to straddle touch-up at high velocity.
         XCTAssertLessThan(try XCTUnwrap(values["maxError"]), 20, raw)
         XCTAssertLessThanOrEqual(try XCTUnwrap(values["maxHeightChange"]), 1, raw)
     }
