@@ -132289,6 +132289,17 @@
         }
       }
     },
+    "pixiv_ranking_day_ai_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI Daily Ranking"
+          }
+        }
+      }
+    },
     "pixiv_ranking_day_female_title" : {
       "comment" : "Title of the ranking of female artists on the pixiv app.",
       "extractionState" : "stale",
@@ -132847,6 +132858,28 @@
         }
       }
     },
+    "pixiv_ranking_day_r18_ai_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "R-18 AI Daily Ranking"
+          }
+        }
+      }
+    },
+    "pixiv_ranking_day_r18_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "R-18 Daily Ranking"
+          }
+        }
+      }
+    },
     "pixiv_ranking_month_title" : {
       "comment" : "Title of the monthly ranking of the pixiv ranking.",
       "extractionState" : "stale",
@@ -133215,6 +133248,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "原創排名"
+          }
+        }
+      }
+    },
+    "pixiv_ranking_week_r18_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "R-18 Weekly Ranking"
           }
         }
       }

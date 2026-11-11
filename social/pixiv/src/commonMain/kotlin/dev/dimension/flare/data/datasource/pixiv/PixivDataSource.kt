@@ -164,6 +164,17 @@ internal class PixivDataSource(
         )
     }
 
+    override val addableTimelineTabs: ImmutableList<TimelineCandidate<*>> by lazy {
+        val data = TimelineSpec.AccountBasedData(accountKey)
+        buildList {
+            addAll(builtInTimelineTabs)
+            add(PixivPlatformSpec.rankingDayAiTimelineSpec.galleryCandidate(data))
+            add(PixivPlatformSpec.rankingDayR18TimelineSpec.galleryCandidate(data))
+            add(PixivPlatformSpec.rankingWeekR18TimelineSpec.galleryCandidate(data))
+            add(PixivPlatformSpec.rankingDayR18AiTimelineSpec.galleryCandidate(data))
+        }.toImmutableList()
+    }
+
     override val shortcuts: ImmutableList<ShortcutSpec> by lazy {
         persistentListOf(
             ShortcutSpec(

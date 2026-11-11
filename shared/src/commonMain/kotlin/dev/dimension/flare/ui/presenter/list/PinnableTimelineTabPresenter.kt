@@ -53,7 +53,7 @@ public class PinnableTimelineTabPresenter(
     private val accountRepository: AccountRepository by koinInject()
 
     private data class Sections(
-        val builtInTabs: ImmutableList<TimelineCandidate<*>>,
+        val addableTabs: ImmutableList<TimelineCandidate<*>>,
         val pinnableTabs: List<PinnableTimelineTabSection>,
     )
 
@@ -64,10 +64,10 @@ public class PinnableTimelineTabPresenter(
         ).map { service ->
             val tabCatalog = service.capabilities.tabCatalog
             Sections(
-                builtInTabs =
+                addableTabs =
                     tabCatalog
                         ?.configuration
-                        ?.builtInTimelineTabs
+                        ?.addableTimelineTabs
                         ?: persistentListOf(),
                 pinnableTabs =
                     tabCatalog
@@ -86,14 +86,14 @@ public class PinnableTimelineTabPresenter(
         val tabs =
             sections.map { sections ->
                 val defaultSection =
-                    if (sections.builtInTabs.isEmpty()) {
+                    if (sections.addableTabs.isEmpty()) {
                         null
                     } else {
                         PinnableTimelineTab(
                             title = UiStrings.Default.asText(),
                             data =
                                 PagingState.Success.ImmutableSuccess(
-                                    sections.builtInTabs
+                                    sections.addableTabs
                                         .map<TimelineCandidate<*>, UiTimelineTabItem> { it.toUiTimelineTabItem() }
                                         .toImmutableList(),
                                 ),

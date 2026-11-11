@@ -9,5 +9,7 @@ import kotlin.native.HiddenFromObjC
 public interface TimelineTabConfigurationDataSource {
     public val defaultTabs: ImmutableList<TimelineCandidate<*>>
     public val builtInTimelineTabs: ImmutableList<TimelineCandidate<*>>
+    public val addableTimelineTabs: ImmutableList<TimelineCandidate<*>>
+        get() = builtInTimelineTabs
     public val shortcuts: ImmutableList<ShortcutSpec>
 }

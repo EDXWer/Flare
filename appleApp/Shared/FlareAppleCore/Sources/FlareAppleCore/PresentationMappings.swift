@@ -204,6 +204,14 @@ public extension UiStrings {
             localizedPresentationString("pixiv_ranking_week_rookie_title", fallback: "Rookie Ranking")
         case .pixivRankingDayManga:
             localizedPresentationString("pixiv_ranking_day_manga_title", fallback: "Manga Ranking")
+        case .pixivRankingDayAi:
+            localizedPresentationString("pixiv_ranking_day_ai_title", fallback: "AI Daily Ranking")
+        case .pixivRankingDayR18:
+            localizedPresentationString("pixiv_ranking_day_r18_title", fallback: "R-18 Daily Ranking")
+        case .pixivRankingWeekR18:
+            localizedPresentationString("pixiv_ranking_week_r18_title", fallback: "R-18 Weekly Ranking")
+        case .pixivRankingDayR18Ai:
+            localizedPresentationString("pixiv_ranking_day_r18_ai_title", fallback: "R-18 AI Daily Ranking")
         case .pixivPrivateFollowing:
             localizedPresentationString("pixiv_private_following_title", fallback: "Private Following")
         case .pixivPrivateBookmarks, .pixivPrivateFavourites:
