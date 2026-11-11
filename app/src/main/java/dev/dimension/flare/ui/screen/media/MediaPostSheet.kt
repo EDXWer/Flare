@@ -139,7 +139,7 @@ internal fun MediaPostSheet(
                     when {
                         postTransitionState.currentState == postTransitionState.targetState &&
                             fraction == (if (postTransitionState.currentState) 1f else 0f) -> {
-                            Unit
+                            return@collect
                         }
 
                         offset == collapsedOffset.toFloat() && !settling -> {

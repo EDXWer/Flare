@@ -34,6 +34,7 @@ if (project.file("google-services.json").exists()) {
 
 kotlin {
     compilerOptions {
+        allWarningsAsErrors.set(true)
         optIn.add("androidx.compose.material3.ExperimentalMaterial3ExpressiveApi")
     }
 }
