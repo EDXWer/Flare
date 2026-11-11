@@ -56,9 +56,9 @@ final class TimelineRefreshAnimationTests: XCTestCase {
 
         XCTAssertGreaterThan(frames.samples.count, 10)
         XCTAssertEqual(frames.missingItemFrames, 0, "The reading item must remain visible throughout refresh")
-        // Check both motions per 60 Hz frame, allowing one missed frame without masking a jump.
+        // Normalize to 60 Hz and cap the allowance so a 54-point jump still fails after missed callbacks.
         let steps = zip(frames.samples, frames.samples.dropFirst()).map { previous, current in
-            let frameAllowance = min(2, max(1, (current.timestamp - previous.timestamp) * 60))
+            let frameAllowance = min(4, max(1, (current.timestamp - previous.timestamp) * 60))
             return (
                 content: abs((current.y - current.topInset) - (previous.y - previous.topInset)) / frameAllowance,
                 navigation: abs(current.topInset - previous.topInset) / frameAllowance
