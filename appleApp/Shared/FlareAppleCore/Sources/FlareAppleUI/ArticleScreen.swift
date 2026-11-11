@@ -136,7 +136,7 @@ private struct ArticleContentView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 16) {
+            LazyVStack(spacing: 0) {
                 if let cover = article.cover {
                     ArticleCoverView(
                         cover: cover,
@@ -198,11 +198,15 @@ private struct ArticleContentView: View {
     }
 
     private var articleCommentsTitle: some View {
-        Text("Comments", bundle: FlareAppleUILocalization.bundle)
-            .flarePrimaryText()
-            .font(.headline)
-            .frame(maxWidth: 680, alignment: .leading)
-            .padding(.horizontal)
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Comments", bundle: FlareAppleUILocalization.bundle)
+                .flarePrimaryText()
+                .font(.headline)
+                .padding(.horizontal, 16)
+            Divider()
+        }
+        .padding(.vertical, 8)
+        .frame(maxWidth: 712, alignment: .leading)
     }
 
     private var articleCommentsContent: some View {
@@ -210,7 +214,7 @@ private struct ArticleContentView: View {
             data: comments,
             detailStatusKey: articleKey,
             loadingCount: 3,
-            contentMaxWidth: 680,
+            contentMaxWidth: 712,
             contentHorizontalPadding: 0
         )
     }

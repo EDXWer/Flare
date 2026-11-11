@@ -34,6 +34,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -53,8 +54,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import compose.icons.FontAwesomeIcons
 import compose.icons.fontawesomeicons.Brands
 import compose.icons.fontawesomeicons.Solid
@@ -76,13 +79,13 @@ import dev.dimension.flare.ui.component.DateTimeText
 import dev.dimension.flare.ui.component.ErrorContent
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.FavIcon
+import dev.dimension.flare.ui.component.FlareDividerDefaults
 import dev.dimension.flare.ui.component.FlareScaffold
 import dev.dimension.flare.ui.component.FlareTopAppBar
 import dev.dimension.flare.ui.component.NetworkImage
 import dev.dimension.flare.ui.component.RichText
 import dev.dimension.flare.ui.component.VideoPlayer
 import dev.dimension.flare.ui.component.accessibleDescription
-import dev.dimension.flare.ui.component.ignoreHorizontalParentPadding
 import dev.dimension.flare.ui.component.placeholder
 import dev.dimension.flare.ui.component.status.AdaptiveCard
 import dev.dimension.flare.ui.component.status.CommonStatusHeaderComponent
@@ -104,7 +107,6 @@ import dev.dimension.flare.ui.route.DeeplinkRoute
 import dev.dimension.flare.ui.route.Route
 import dev.dimension.flare.ui.route.toUri
 import dev.dimension.flare.ui.theme.isLightTheme
-import dev.dimension.flare.ui.theme.screenHorizontalPadding
 import io.ktor.http.Url
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
@@ -389,14 +391,13 @@ private fun ArticleSuccessContent(
                     0.dp
                 },
             end = contentPadding.calculateEndPadding(layoutDirection),
-            bottom = contentPadding.calculateBottomPadding(),
+            bottom = contentPadding.calculateBottomPadding() + 24.dp,
         )
     SelectionContainer {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = listContentPadding,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             article.cover?.let { cover ->
                 item(key = ARTICLE_COVER_KEY) {
@@ -457,9 +458,8 @@ private fun LazyListScope.articleComments(
                 count = 3,
                 key = { "article_comment_placeholder_$it" },
             ) { index ->
-                ArticleBodyContainer {
+                ArticleBodyContainer(contentPadding = PaddingValues(0.dp)) {
                     AdaptiveCard(
-                        modifier = Modifier.ignoreHorizontalParentPadding(screenHorizontalPadding),
                         index = index,
                         totalCount = 3,
                         respectTimelineMode = true,
@@ -490,9 +490,8 @@ private fun LazyListScope.articleComments(
                 key = comments.itemKey { item -> item.stableItemKey },
                 contentType = comments.itemContentType { item -> item.itemType },
             ) { index ->
-                ArticleBodyContainer {
+                ArticleBodyContainer(contentPadding = PaddingValues(0.dp)) {
                     AdaptiveCard(
-                        modifier = Modifier.ignoreHorizontalParentPadding(screenHorizontalPadding),
                         index = index,
                         totalCount = comments.itemCount,
                         respectTimelineMode = true,
@@ -534,14 +533,16 @@ private fun LazyListScope.articleComments(
 
 private fun LazyListScope.articleCommentsTitle() {
     item(key = "article_comments_title") {
-        ArticleBodyContainer {
-            Column {
+        ArticleBodyContainer(contentPadding = PaddingValues(vertical = 8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = stringResource(R.string.gallery_detail_comments_title),
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                    modifier = Modifier.padding(horizontal = 16.dp),
                 )
                 HorizontalDivider(
-                    modifier = Modifier.ignoreHorizontalParentPadding(screenHorizontalPadding),
+                    thickness = FlareDividerDefaults.thickness,
+                    color = FlareDividerDefaults.color,
                 )
             }
         }
@@ -575,12 +576,15 @@ private fun ArticleHeader(
     onTitleMeasured: (Int) -> Unit,
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
             text = article.title,
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
             modifier =
                 Modifier.onSizeChanged {
                     onTitleMeasured(it.height)
@@ -832,7 +836,7 @@ private fun ArticleFileBlock(
             ) {
                 Text(
                     text = block.name,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyLarge,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -905,7 +909,7 @@ private fun ArticleEmbedBlockContent(block: UiArticleBlock.Embed) {
         ) {
             Text(
                 text = block.title ?: block.url ?: block.htmlFallback.orEmpty(),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyLarge,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -990,7 +994,7 @@ private fun ArticleContentGateBlock(
                 )
                 Text(
                     text = description,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 block.actionUrl?.takeIf { it.isNotBlank() }?.let { url ->
@@ -1016,7 +1020,6 @@ private fun ArticleLoadingContent(
         state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = contentPadding,
-        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item(key = "loading-header") {
             ArticleBodyContainer {
@@ -1027,7 +1030,7 @@ private fun ArticleLoadingContent(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .height(36.dp)
+                                .height(28.dp)
                                 .placeholder(true),
                     )
                     Row(
@@ -1090,7 +1093,10 @@ private fun ArticleLoadingContent(
 }
 
 @Composable
-private fun ArticleBodyContainer(content: @Composable () -> Unit) {
+private fun ArticleBodyContainer(
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+    content: @Composable () -> Unit,
+) {
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.TopCenter,
@@ -1098,12 +1104,14 @@ private fun ArticleBodyContainer(content: @Composable () -> Unit) {
         Box(
             modifier =
                 Modifier
+                    .widthIn(max = 712.dp)
                     .fillMaxWidth()
-                    .widthIn(max = 600.dp)
-                    .padding(horizontal = screenHorizontalPadding),
+                    .padding(contentPadding),
             contentAlignment = Alignment.TopStart,
         ) {
-            content()
+            ProvideTextStyle(MaterialTheme.typography.bodyLarge.copy(letterSpacing = 0.sp)) {
+                content()
+            }
         }
     }
 }
