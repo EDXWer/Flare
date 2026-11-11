@@ -2,6 +2,7 @@ package dev.dimension.flare.ui.presenter.article
 
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.moleculeFlow
+import dev.dimension.flare.RobolectricTest
 import dev.dimension.flare.data.datastore.model.AppSettings
 import dev.dimension.flare.ui.model.UiArticle
 import dev.dimension.flare.ui.model.UiArticleBlock
@@ -27,7 +28,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class ArticleTranslatePresenterTest {
+class ArticleTranslatePresenterTest : RobolectricTest() {
     private val source = article("Original")
     private val translated = article("译文")
 
