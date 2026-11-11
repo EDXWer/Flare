@@ -114,6 +114,14 @@ export function localizedUiString(value: UiStrings): string {
 			return 'Rookie Ranking';
 		case 'PixivRankingDayManga':
 			return 'Manga Ranking';
+		case 'PixivRankingDayAi':
+			return 'AI Daily Ranking';
+		case 'PixivRankingDayR18':
+			return 'R-18 Daily Ranking';
+		case 'PixivRankingWeekR18':
+			return 'R-18 Weekly Ranking';
+		case 'PixivRankingDayR18Ai':
+			return 'R-18 AI Daily Ranking';
 		case 'Illustrations':
 			return m.illustrationsTitle();
 		case 'Manga':

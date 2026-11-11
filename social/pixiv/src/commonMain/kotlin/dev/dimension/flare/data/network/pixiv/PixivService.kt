@@ -329,6 +329,10 @@ internal enum class PixivRankingMode(
     WeekOriginal("week_original"),
     WeekRookie("week_rookie"),
     DayManga("day_manga"),
+    DayAi("day_ai"),
+    DayR18("day_r18"),
+    WeekR18("week_r18"),
+    DayR18Ai("day_r18_ai"),
 }
 
 internal enum class PixivSearchSort(
