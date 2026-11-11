@@ -73,6 +73,8 @@ import dev.dimension.flare.ui.component.FlareDividerDefaults
 import dev.dimension.flare.ui.component.FlareScrollBar
 import dev.dimension.flare.ui.component.NetworkImage
 import dev.dimension.flare.ui.component.RichText
+import dev.dimension.flare.ui.component.TranslationButton
+import dev.dimension.flare.ui.component.TranslationRetryButton
 import dev.dimension.flare.ui.component.accessibleDescription
 import dev.dimension.flare.ui.component.listCard
 import dev.dimension.flare.ui.component.placeholder
@@ -88,6 +90,7 @@ import dev.dimension.flare.ui.model.UiState
 import dev.dimension.flare.ui.model.UiTimelineV2
 import dev.dimension.flare.ui.model.takeSuccess
 import dev.dimension.flare.ui.presenter.article.ArticlePresenter
+import dev.dimension.flare.ui.presenter.article.ArticleTranslatePresenter
 import dev.dimension.flare.ui.presenter.invoke
 import dev.dimension.flare.ui.render.UiDateTime
 import dev.dimension.flare.ui.route.Route
@@ -133,7 +136,7 @@ internal fun ArticleScreen(
     val scope = rememberCoroutineScope()
     val window = LocalComposeWindow.current
     val downloadManager: DesktopDownloadManager = koinInject()
-    val article = state.article.takeSuccess()
+    val article = state.translation?.article ?: state.article.takeSuccess()
     val windowPadding = LocalWindowPadding.current
     val contentPadding =
         PaddingValues(
@@ -158,14 +161,14 @@ internal fun ArticleScreen(
                     contentPadding = contentPadding,
                 ) {
                     article?.let { currentArticle ->
-                        currentArticle.sourceUrl?.takeIf { it.isNotBlank() }?.let { sourceUrl ->
-                            item(key = "toolbar") {
-                                ArticleBodyContainer {
-                                    ArticleToolbar(
-                                        sourceUrl = sourceUrl,
-                                        article = currentArticle,
-                                        onOpenUrl = uriHandler::openUri,
-                                        onShare = {
+                        item(key = "toolbar") {
+                            ArticleBodyContainer {
+                                ArticleToolbar(
+                                    article = currentArticle,
+                                    translation = state.translation,
+                                    onOpenUrl = uriHandler::openUri,
+                                    onShare = { sharedArticle ->
+                                        sharedArticle.sourceUrl?.let { sourceUrl ->
                                             navigate(
                                                 Route.StatusShareSheet(
                                                     accountType = accountType,
@@ -173,16 +176,17 @@ internal fun ArticleScreen(
                                                     shareUrl = sourceUrl,
                                                 ),
                                             )
-                                        },
-                                    )
-                                }
+                                        }
+                                    },
+                                )
                             }
                         }
                     }
                     when (val articleState = state.article) {
                         is UiState.Success -> {
                             articleSuccessItems(
-                                article = articleState.data,
+                                article = state.translation?.article ?: articleState.data,
+                                translation = state.translation,
                                 accountType = accountType,
                                 navigate = navigate,
                                 onOpenUrl = uriHandler::openUri,
@@ -227,8 +231,8 @@ internal fun ArticleScreen(
 
 @Composable
 private fun ArticleToolbar(
-    sourceUrl: String,
     article: UiArticle,
+    translation: ArticleTranslatePresenter.State?,
     onOpenUrl: (String) -> Unit,
     onShare: (UiArticle) -> Unit,
 ) {
@@ -238,33 +242,39 @@ private fun ArticleToolbar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Spacer(modifier = Modifier.weight(1f))
-        SubtleButton(
-            onClick = {
-                onOpenUrl(sourceUrl)
-            },
-            iconOnly = true,
-        ) {
-            FAIcon(
-                FontAwesomeIcons.Brands.Chrome,
-                contentDescription = stringResource(Res.string.rss_detail_open_in_browser),
-            )
+        article.sourceUrl?.takeIf { it.isNotBlank() }?.let { sourceUrl ->
+            SubtleButton(
+                onClick = {
+                    onOpenUrl(sourceUrl)
+                },
+                iconOnly = true,
+            ) {
+                FAIcon(
+                    FontAwesomeIcons.Brands.Chrome,
+                    contentDescription = stringResource(Res.string.rss_detail_open_in_browser),
+                )
+            }
+            SubtleButton(
+                onClick = {
+                    onShare(article)
+                },
+                iconOnly = true,
+            ) {
+                FAIcon(
+                    FontAwesomeIcons.Solid.ShareNodes,
+                    contentDescription = stringResource(Res.string.status_share),
+                )
+            }
         }
-        SubtleButton(
-            onClick = {
-                onShare(article)
-            },
-            iconOnly = true,
-        ) {
-            FAIcon(
-                FontAwesomeIcons.Solid.ShareNodes,
-                contentDescription = stringResource(Res.string.status_share),
-            )
+        translation?.let {
+            TranslationButton(it.showTranslation, it::toggleTranslation)
         }
     }
 }
 
 private fun LazyListScope.articleSuccessItems(
     article: UiArticle,
+    translation: ArticleTranslatePresenter.State?,
     accountType: AccountType,
     navigate: (Route) -> Unit,
     onOpenUrl: (String) -> Unit,
@@ -299,6 +309,16 @@ private fun LazyListScope.articleSuccessItems(
     item(key = "divider") {
         ArticleBodyContainer {
             ListItemSeparator(Modifier.fillMaxWidth())
+        }
+    }
+    if (translation?.isTranslating == true) {
+        item(key = "translation-loading") {
+            ArticleBodyContainer { ProgressBar(modifier = Modifier.fillMaxWidth()) }
+        }
+    }
+    if (translation?.error != null) {
+        item(key = "translation-error") {
+            ArticleBodyContainer { TranslationRetryButton(translation::retry) }
         }
     }
     items(

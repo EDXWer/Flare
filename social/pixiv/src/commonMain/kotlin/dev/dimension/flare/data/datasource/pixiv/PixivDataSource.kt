@@ -1,14 +1,12 @@
 package dev.dimension.flare.data.datasource.pixiv
 
 import dev.dimension.flare.common.Cacheable
-import dev.dimension.flare.data.datasource.microblog.ActionMenu
 import dev.dimension.flare.data.datasource.microblog.AuthenticatedMicroblogDataSource
 import dev.dimension.flare.data.datasource.microblog.DatabaseUpdater
 import dev.dimension.flare.data.datasource.microblog.PostEvent
 import dev.dimension.flare.data.datasource.microblog.ProfileTab
 import dev.dimension.flare.data.datasource.microblog.datasource.GalleryDataSource
 import dev.dimension.flare.data.datasource.microblog.datasource.GalleryDetail
-import dev.dimension.flare.data.datasource.microblog.datasource.GalleryOrientation
 import dev.dimension.flare.data.datasource.microblog.datasource.PinnableTimelineTabDataSource
 import dev.dimension.flare.data.datasource.microblog.datasource.PinnableTimelineTabSection
 import dev.dimension.flare.data.datasource.microblog.datasource.PostDataSource
@@ -39,7 +37,6 @@ import dev.dimension.flare.media.UgoiraFrame
 import dev.dimension.flare.media.UgoiraMetadata
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.MicroBlogKey
-import dev.dimension.flare.ui.model.ClickEvent
 import dev.dimension.flare.ui.model.UiHashtag
 import dev.dimension.flare.ui.model.UiIcon
 import dev.dimension.flare.ui.model.UiProfile
@@ -343,51 +340,7 @@ internal class PixivDataSource(
     override fun galleryDetail(statusKey: MicroBlogKey): Cacheable<GalleryDetail> =
         postHandler.post(statusKey).map {
             val post = it.contentPostOrNull() ?: error("Gallery detail should be a post")
-            val actionItems = post.actions.filterIsInstance<ActionMenu.Item>()
-            val favouriteAction =
-                actionItems.firstOrNull { action ->
-                    val text = action.text as? ActionMenu.Item.Text.Localized
-                    text?.type == ActionMenu.Item.Text.Localized.Type.Favorite ||
-                        text?.type == ActionMenu.Item.Text.Localized.Type.UnFavorite
-                }
-            val favouriteText = favouriteAction?.text as? ActionMenu.Item.Text.Localized
-            val favourited = favouriteText?.type == ActionMenu.Item.Text.Localized.Type.UnFavorite
-            val favouriteCount = favouriteAction?.count?.value ?: 0L
-            GalleryDetail(
-                orientation = GalleryOrientation.Vertical,
-                statusKey = post.statusKey,
-                accountType = post.accountType,
-                url = "https://www.pixiv.net/artworks/${post.statusKey.id}",
-                images = post.images,
-                title =
-                    post.contentWarning
-                        ?.original
-                        ?.raw
-                        .orEmpty(),
-                author = post.user,
-                createdAt = post.createdAt,
-                content = post.content.original.takeUnless { content -> content.isEmpty },
-                isBookmarked = favourited,
-                bookmarkAction =
-                    ClickEvent.event(
-                        accountKey = accountKey,
-                        postEvent =
-                            PostEvent.Pixiv.Bookmark(
-                                postKey = post.statusKey,
-                                bookmarked = favourited,
-                                count = favouriteCount,
-                                accountKey = accountKey,
-                            ),
-                    ),
-                matrix =
-                    actionItems
-                        .mapNotNull { action ->
-                            GalleryDetail.Matrix(
-                                icon = action.icon ?: return@mapNotNull null,
-                                count = action.count?.value ?: return@mapNotNull null,
-                            )
-                        }.toImmutableList(),
-            )
+            post.toGalleryDetail(accountKey)
         } as Cacheable<GalleryDetail>
 
     override fun galleryComments(statusKey: MicroBlogKey): RemoteLoader<UiTimelineV2> =

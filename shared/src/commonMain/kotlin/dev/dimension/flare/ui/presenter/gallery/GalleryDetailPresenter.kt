@@ -2,6 +2,7 @@ package dev.dimension.flare.ui.presenter.gallery
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -16,8 +17,8 @@ import dev.dimension.flare.data.datasource.microblog.capabilities
 import dev.dimension.flare.data.datasource.microblog.datasource.GalleryDetail
 import dev.dimension.flare.data.datasource.microblog.paging.toTimelinePagingSource
 import dev.dimension.flare.data.datasource.microblog.pagingConfig
-import dev.dimension.flare.data.repository.AccountRepository
-import dev.dimension.flare.data.repository.accountServiceFlow
+import dev.dimension.flare.data.datastore.AppDataStore
+import dev.dimension.flare.data.repository.AccountService
 import dev.dimension.flare.di.koinInject
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.MicroBlogKey
@@ -25,24 +26,28 @@ import dev.dimension.flare.ui.model.UiState
 import dev.dimension.flare.ui.model.UiTimelineV2
 import dev.dimension.flare.ui.model.flatMapLatestUiState
 import dev.dimension.flare.ui.model.flattenUiState
+import dev.dimension.flare.ui.model.map
 import dev.dimension.flare.ui.model.toUi
 import dev.dimension.flare.ui.presenter.PresenterBase
 import dev.dimension.flare.ui.presenter.status.LogStatusHistoryPresenter
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 
 @OptIn(ExperimentalCoroutinesApi::class)
 public class GalleryDetailPresenter(
     private val accountType: AccountType,
     private val statusKey: MicroBlogKey,
 ) : PresenterBase<GalleryDetailPresenter.State>() {
-    private val accountRepository: AccountRepository by koinInject()
+    private val accountService: AccountService by koinInject()
+    private val appDataStore: AppDataStore by koinInject()
+
+    private val bilingualFlow by lazy {
+        appDataStore.appSettingsStore.data.map { it.translateConfig.showOriginalWithTranslation }
+    }
 
     private val serviceFlow by lazy {
-        accountServiceFlow(
-            accountType = accountType,
-            repository = accountRepository,
-        )
+        accountService.accountServiceFlow(accountType)
     }
 
     private val detailCacheFlow by lazy {
@@ -95,6 +100,8 @@ public class GalleryDetailPresenter(
     override fun body(): State {
         val scope = rememberCoroutineScope()
         val detail by detailCacheFlow.flattenUiState()
+        val showOriginal by bilingualFlow.collectAsState(false)
+        val displayedDetail = remember(detail, showOriginal) { detail.map { it.withTranslation(showOriginal) } }
         val comments =
             remember(commentsFlow, scope) {
                 commentsFlow.cachedIn(scope)
@@ -109,7 +116,7 @@ public class GalleryDetailPresenter(
         remember { LogStatusHistoryPresenter(accountType = accountType, statusKey = statusKey) }.body()
 
         return object : State {
-            override val detail: UiState<GalleryDetail> = detail
+            override val detail: UiState<GalleryDetail> = displayedDetail
             override val comments: PagingState<UiTimelineV2> = comments
             override val recommendations: PagingState<UiTimelineV2> = recommendations
         }

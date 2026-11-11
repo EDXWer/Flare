@@ -243,6 +243,25 @@ class PlatformTranslationServiceTest : RobolectricTest() {
         }
 
     @Test
+    fun switchingBackToCompletedTranslationReusesTheProviderResult() =
+        runTest {
+            startService()
+            val post = post()
+            val saved = save(post)
+            service.enqueueStatuses(listOf(saved))
+            val completed = awaitTranslation(post) { it.status == TranslationStatus.Completed }
+            service.setStatusDisplayMode(post.accountType, post.statusKey, TranslationDisplayMode.Original)
+            awaitTranslation(post) { it.displayMode == TranslationDisplayMode.Original }
+            service.retryStatus(post.accountType, post.statusKey)
+            val restored = awaitTranslation(post) { it.displayMode == TranslationDisplayMode.Translated }
+            runCurrent()
+            assertEquals(completed.payload, restored.payload)
+            assertEquals(completed.attemptCount, restored.attemptCount)
+            assertEquals(listOf(saved.id), requests)
+            assertDisplayed(post, "source sentence (translated)")
+        }
+
+    @Test
     fun completedProviderWorkKeepsTheLatestShowOriginalChoice() =
         runTest {
             val worker = CompletableDeferred<Job>()
@@ -256,6 +275,13 @@ class PlatformTranslationServiceTest : RobolectricTest() {
             val post = post()
             service.enqueueStatuses(listOf(save(post)))
             val job = withTimeout(5_000) { worker.await() }
+            service.setStatusDisplayMode(post.accountType, post.statusKey, TranslationDisplayMode.Original)
+            awaitTranslation(post) { it.displayMode == TranslationDisplayMode.Original }
+            assertDisplayed(post, null, TranslationDisplayState.Hidden)
+            service.retryStatus(post.accountType, post.statusKey)
+            awaitTranslation(post) { it.displayMode == TranslationDisplayMode.Translated }
+            assertDisplayed(post, null, TranslationDisplayState.Translating)
+            assertEquals(1, requests.size)
             service.setStatusDisplayMode(post.accountType, post.statusKey, TranslationDisplayMode.Original)
             awaitTranslation(post) { it.displayMode == TranslationDisplayMode.Original }
             release.complete(Unit)
@@ -371,7 +397,7 @@ class PlatformTranslationServiceTest : RobolectricTest() {
 
     private suspend fun assertDisplayed(
         post: UiTimelineV2.Post,
-        text: String,
+        text: String?,
         state: TranslationDisplayState = TranslationDisplayState.Translated,
     ) {
         val options = TranslationSettingsSupport.displayOptions(appDataStore.appSettingsStore.data.first())

@@ -79,6 +79,7 @@ public class ArticlePresenter(
     public interface State {
         public val article: UiState<UiArticle>
         public val comments: PagingState<UiTimelineV2>
+        public val translation: ArticleTranslatePresenter.State?
     }
 
     @Composable
@@ -110,9 +111,14 @@ public class ArticlePresenter(
                     )
                 }
         }
+        val translation =
+            articleState.takeSuccess()?.let { article ->
+                remember(article) { ArticleTranslatePresenter(article) }.body()
+            }
         return object : State {
             override val article: UiState<UiArticle> = articleState
             override val comments: PagingState<UiTimelineV2> = comments
+            override val translation: ArticleTranslatePresenter.State? = translation
         }
     }
 }

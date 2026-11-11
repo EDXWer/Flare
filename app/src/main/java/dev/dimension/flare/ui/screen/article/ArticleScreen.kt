@@ -84,6 +84,8 @@ import dev.dimension.flare.ui.component.FlareScaffold
 import dev.dimension.flare.ui.component.FlareTopAppBar
 import dev.dimension.flare.ui.component.NetworkImage
 import dev.dimension.flare.ui.component.RichText
+import dev.dimension.flare.ui.component.TranslationButton
+import dev.dimension.flare.ui.component.TranslationRetryButton
 import dev.dimension.flare.ui.component.VideoPlayer
 import dev.dimension.flare.ui.component.accessibleDescription
 import dev.dimension.flare.ui.component.placeholder
@@ -101,6 +103,7 @@ import dev.dimension.flare.ui.model.UiState
 import dev.dimension.flare.ui.model.UiTimelineV2
 import dev.dimension.flare.ui.model.takeSuccess
 import dev.dimension.flare.ui.presenter.article.ArticlePresenter
+import dev.dimension.flare.ui.presenter.article.ArticleTranslatePresenter
 import dev.dimension.flare.ui.presenter.invoke
 import dev.dimension.flare.ui.render.UiDateTime
 import dev.dimension.flare.ui.route.DeeplinkRoute
@@ -149,7 +152,7 @@ internal fun ArticleScreen(
     val context = LocalContext.current
     val downloadScope = koinInject<CoroutineScope>()
     val mediaDownloadManager = koinInject<AndroidDownloadManager>()
-    val article = state.article.takeSuccess()
+    val article = state.translation?.article ?: state.article.takeSuccess()
     val articleTitle = article?.title
     var titleHeightPx by remember(article?.key) { mutableIntStateOf(0) }
     val sourceUrl = article?.sourceUrl?.takeIf { it.isNotBlank() }
@@ -291,6 +294,9 @@ internal fun ArticleScreen(
                                 contentDescription = stringResource(R.string.rss_detail_share),
                             )
                         }
+                        state.translation?.let { translation ->
+                            TranslationButton(translation.showTranslation, translation::toggleTranslation)
+                        }
                     }
                 },
             )
@@ -299,7 +305,8 @@ internal fun ArticleScreen(
         when (val articleState = state.article) {
             is UiState.Success -> {
                 ArticleSuccessContent(
-                    article = articleState.data,
+                    article = state.translation?.article ?: articleState.data,
+                    translation = state.translation,
                     articleKey = articleKey,
                     comments = state.comments,
                     contentPadding = contentPadding,
@@ -370,6 +377,7 @@ internal fun ArticleScreen(
 @Composable
 private fun ArticleSuccessContent(
     article: UiArticle,
+    translation: ArticleTranslatePresenter.State?,
     articleKey: MicroBlogKey,
     comments: PagingState<UiTimelineV2>,
     contentPadding: PaddingValues,
@@ -420,6 +428,16 @@ private fun ArticleSuccessContent(
             item(key = "divider") {
                 ArticleBodyContainer {
                     HorizontalDivider()
+                }
+            }
+            if (translation?.isTranslating == true) {
+                item(key = "translation-loading") {
+                    ArticleBodyContainer { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) }
+                }
+            }
+            if (translation?.error != null) {
+                item(key = "translation-error") {
+                    ArticleBodyContainer { TranslationRetryButton(translation::retry) }
                 }
             }
             items(

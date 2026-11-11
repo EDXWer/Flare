@@ -35,7 +35,8 @@ public struct ArticleScreen: View {
     public var body: some View {
         StateView(state: presenter.state.article) { article in
             ArticleContentView(
-                article: article,
+                article: presenter.state.translation?.article ?? article,
+                translation: presenter.state.translation,
                 accountType: accountType,
                 articleKey: articleKey,
                 comments: presenter.state.comments,
@@ -102,6 +103,20 @@ public struct ArticleScreen: View {
                 }
                 #endif
             }
+            if let translation = presenter.state.translation {
+                ToolbarItem {
+                    Button {
+                        translation.toggleTranslation()
+                    } label: {
+                        Image(fontAwesome: .language)
+                    }
+                    .accessibilityLabel(Text(translation.showTranslation ? "Show original" : "Translate", bundle: FlareAppleUILocalization.bundle))
+                    .accessibilityIdentifier("article-translation-toggle")
+                    #if os(macOS)
+                    .help(Text(translation.showTranslation ? "Show original" : "Translate", bundle: FlareAppleUILocalization.bundle))
+                    #endif
+                }
+            }
         }
     }
 
@@ -122,6 +137,7 @@ public struct ArticleScreen: View {
 
 private struct ArticleContentView: View {
     let article: UiArticle
+    let translation: ArticleTranslatePresenterState?
     let accountType: AccountType
     let articleKey: MicroBlogKey
     let comments: PagingState<UiTimelineV2>
@@ -153,6 +169,21 @@ private struct ArticleContentView: View {
                     )
 
                     Divider()
+
+                    if let translation {
+                        if translation.isTranslating {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                        }
+                        if translation.error != nil {
+                            Button {
+                                translation.retry()
+                            } label: {
+                                Text("Retry translation", bundle: FlareAppleUILocalization.bundle)
+                            }
+                            .accessibilityIdentifier("article-translation-retry")
+                        }
+                    }
 
                     ForEach(blocks, id: \.key) { block in
                         ArticleBlockView(

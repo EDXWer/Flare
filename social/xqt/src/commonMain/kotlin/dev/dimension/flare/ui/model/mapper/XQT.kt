@@ -1457,6 +1457,7 @@ internal fun Tweet.renderArticle(accountKey: MicroBlogKey): UiArticle? {
         key = statusKey.toString(),
         title = title,
         content = article.renderArticleContent(accountKey),
+        sourceLanguages = listOfNotNull(legacy?.lang).toPersistentList(),
         cover = article.coverMedia.toUiCardImage(),
         publishDate = legacy?.createdAt?.let { parseXQTCustomDateTime(it)?.toUi() },
         author = UiArticleAuthor.Profile(profile),

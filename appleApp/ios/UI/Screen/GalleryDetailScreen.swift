@@ -56,6 +56,9 @@ struct GalleryDetailScreen: View {
             }
 
             ToolbarItemGroup(placement: .primaryAction) {
+                if case .success(let success) = onEnum(of: presenter.state.detail) {
+                    GalleryTranslationButton(detail: success.data)
+                }
                 Button {
                     switch onEnum(of: presenter.state.detail) {
                     case .success(let success):
@@ -88,6 +91,7 @@ struct GalleryDetailScreen: View {
                         Image(fontAwesome: .chevronDown)
                     }
                     .accessibilityLabel(Text("show_gallery_info"))
+                    .accessibilityIdentifier("gallery-info")
                     .disabled({
                         switch onEnum(of: presenter.state.detail) {
                         case .success:
@@ -147,6 +151,11 @@ struct GalleryDetailScreen: View {
                     .padding(.vertical, 16)
                 }
                 .timelineMediaViewport()
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) {
+                        GalleryTranslationButton(detail: detail)
+                    }
+                }
                 .navigationTitle("Info")
                 .navigationBarTitleDisplayMode(.inline)
             }
@@ -450,6 +459,7 @@ private struct GalleryMetadataRow: View {
                         Text(item.humanizedCount)
                     }
                 }
+                .fixedSize(horizontal: true, vertical: false)
                 .font(.caption)
                 .flareSecondaryText()
                 .accessibilityLabel(

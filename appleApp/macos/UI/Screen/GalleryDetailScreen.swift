@@ -37,6 +37,11 @@ struct GalleryDetailScreen: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 if case .success(let success) = onEnum(of: presenter.state.detail) {
+                    GalleryTranslationButton(detail: success.data)
+                }
+            }
+            ToolbarItem(placement: .primaryAction) {
+                if case .success(let success) = onEnum(of: presenter.state.detail) {
                     let detail = success.data
                     MacStatusShareMenu(
                         data: MacStatusShareData(
