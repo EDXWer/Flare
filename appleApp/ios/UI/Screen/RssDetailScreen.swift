@@ -22,45 +22,22 @@ Maecenas fringilla vitae leo sit amet lacinia. Donec in dui a ex hendrerit volut
 """
     
     @State private var presenter: KotlinPresenter<RssDetailPresenterState>
-    @Environment(\.translateConfig) private var translateConfig
     @Environment(\.openURL) private var openURL
     let url: String
     @State private var showTLDR = false
-    @State private var showTranslate = false
-    
-    private var shouldTranslate: Bool {
-        translateConfig.preTranslate || showTranslate
-    }
     
     var body: some View {
         StateView(state: presenter.state.data) { document in
-            if shouldTranslate {
-                RssTranslateProvider(document: document) { translatedTitle, translatedHtml, isTranslating in
-                    RssArticleContentView(
-                        document: document,
-                        url: url,
-                        showTLDR: $showTLDR,
-                        showTranslate: $showTranslate,
-                        webViewHeight: $webViewHeight,
-                        translatedTitle: translatedTitle,
-                        translatedHtml: translatedHtml,
-                        isTranslating: isTranslating,
-                        showTranslateButton: false
-                    )
-                }
-            } else {
+            RssTranslateProvider(document: document) { translation in
                 RssArticleContentView(
                     document: document,
                     url: url,
                     showTLDR: $showTLDR,
-                    showTranslate: $showTranslate,
                     webViewHeight: $webViewHeight,
-                    translatedTitle: nil,
-                    translatedHtml: nil,
-                    isTranslating: false,
-                    showTranslateButton: true
+                    translation: translation
                 )
             }
+            .id(document)
         } errorContent: { _ in
             Text("rss_detail_unavailable")
         } loadingContent: {
@@ -102,62 +79,34 @@ Maecenas fringilla vitae leo sit amet lacinia. Donec in dui a ex hendrerit volut
 
 // MARK: - Thin wrapper that owns the translate presenter and passes results to content
 private struct RssTranslateProvider<Content: View>: View {
-    @State private var translatePresenter: KotlinPresenter<RssDetailTranslatePresenterState>
-    let document: DocumentData
-    let content: (_ translatedTitle: String?, _ translatedHtml: String?, _ isTranslating: Bool) -> Content
-    
+    @State private var presenter: KotlinPresenter<RssDetailTranslatePresenterState>
+    let content: (RssDetailTranslatePresenterState) -> Content
+
     init(
         document: DocumentData,
-        @ViewBuilder content: @escaping (_ translatedTitle: String?, _ translatedHtml: String?, _ isTranslating: Bool) -> Content
+        @ViewBuilder content: @escaping (RssDetailTranslatePresenterState) -> Content
     ) {
-        self.document = document
         self.content = content
-        self._translatePresenter = .init(wrappedValue: .init(
+        self._presenter = .init(wrappedValue: .init(
             presenter: RssDetailTranslatePresenter(
                 htmlContent: document.content,
                 title: document.title,
-                targetLanguage: Locale.current.language.languageCode?.identifier ?? "en"
+                sourceLanguage: document.lang
             )
         ))
     }
-    
-    private var translatedTitle: String? {
-        switch onEnum(of: translatePresenter.state.translatedTitle) {
-        case .success(let data): return String(data.data)
-        case .loading, .error: return nil
-        }
-    }
-    
-    private var translatedHtml: String? {
-        switch onEnum(of: translatePresenter.state.translatedHtml) {
-        case .success(let data): return String(data.data)
-        case .loading, .error: return nil
-        }
-    }
-    
-    private var isTranslating: Bool {
-        switch onEnum(of: translatePresenter.state.translatedHtml) {
-        case .loading: return true
-        case .success, .error: return false
-        }
-    }
-    
+
     var body: some View {
-        content(translatedTitle, translatedHtml, isTranslating)
+        content(presenter.state)
     }
 }
 
-// MARK: - Single article content view used in both translated and untranslated modes
 private struct RssArticleContentView: View {
     let document: DocumentData
     let url: String
     @Binding var showTLDR: Bool
-    @Binding var showTranslate: Bool
     @Binding var webViewHeight: CGFloat
-    let translatedTitle: String?
-    let translatedHtml: String?
-    let isTranslating: Bool
-    let showTranslateButton: Bool
+    let translation: RssDetailTranslatePresenterState
 
     @Environment(\.openURL) private var openURL
     
@@ -167,7 +116,13 @@ private struct RssArticleContentView: View {
                 VStack(
                     spacing: 16
                 ) {
-                    Text(translatedTitle ?? document.title)
+                    if translation.showOriginalWithTranslation, translation.translatedTitle != nil {
+                        Text(document.title)
+                            .font(.title2)
+                            .bold()
+                            .textSelection(.enabled)
+                    }
+                    Text(translation.translatedTitle ?? document.title)
                         .font(.title2)
                         .bold()
                         .textSelection(.enabled)
@@ -208,16 +163,20 @@ private struct RssArticleContentView: View {
                         Divider()
                     }
                     
-                    if isTranslating {
+                    if translation.isTranslating {
                         ProgressView()
                             .padding(.vertical, 4)
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
                     
+                    if translation.error != nil {
+                        Button("Retry translation") { translation.retry() }
+                            .accessibilityIdentifier("rss-translation-retry")
+                    }
                     ProxyWebContent { route in
                         HtmlWebView(
                             dynamicHeight: $webViewHeight,
-                            htmlString: translatedHtml ?? document.content,
+                            htmlString: translation.displayHtml,
                             baseURL: .init(string: url),
                             onOpenURL: { url in self.openURL(url) },
                             route: route
@@ -245,14 +204,13 @@ private struct RssArticleContentView: View {
                 }
             }
             ToolbarItem {
-                if showTranslateButton {
-                    Button {
-                        showTranslate = true
-                    } label: {
-                        Image(fontAwesome: .language)
-                    }
-                    .accessibilityLabel(Text("status_translate"))
+                Button {
+                    translation.toggleTranslation()
+                } label: {
+                    Image(fontAwesome: .language)
                 }
+                .accessibilityLabel(Text(translation.showTranslation ? "Show original" : "Translate"))
+                .accessibilityIdentifier("rss-translation-toggle")
             }
             ToolbarItem {
                 Button {

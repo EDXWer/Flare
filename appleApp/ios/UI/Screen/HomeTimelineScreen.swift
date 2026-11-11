@@ -188,6 +188,7 @@ struct HomeTimelineScreen: View {
                                                             .scaledToFit()
                                                     }
                                                     .labelStyle(.titleAndIcon)
+                                                    .opacity(tab.id == item.id ? 1 : 0.65)
                                                 }
                                                 .safeAreaInset(edge: .bottom, spacing: 3) {
                                                     if tab.id == item.id {
@@ -206,6 +207,8 @@ struct HomeTimelineScreen: View {
                                         .padding(.horizontal)
                                         .animation(.spring(response: 0.25, dampingFraction: 0.85), value: selectedTabId)
                                     }
+                                    .scrollIndicators(.hidden)
+                                    .clipped()
                                 }
                                 if #available(iOS 26.0, *) {
                                     ToolbarSpacer()
@@ -315,7 +318,7 @@ private struct ChangeLogNotice: View {
                 .font(.headline)
             Text("changelog_message")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .flareSecondaryText()
             Text(message)
                 .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
@@ -324,6 +327,7 @@ private struct ChangeLogNotice: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
+        .flareTextBackground(nil)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
         .overlay {
             RoundedRectangle(cornerRadius: 16)

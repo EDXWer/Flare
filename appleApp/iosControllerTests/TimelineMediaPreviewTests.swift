@@ -169,7 +169,7 @@ final class TimelineMediaPreviewTests: XCTestCase {
         XCTAssertEqual(grid.fittingWidth(for: 360), 360)
         let video = UiMediaVideo(url: "https://timeline-preview.invalid/movie.mp4",
             thumbnailUrl: "https://timeline-preview.invalid/thumbnail.png", description: nil, height: 1_800, width: 360,
-            customHeaders: nil, proxy: ProxyRef.Global.shared, downloadUrl: nil)
+            customHeaders: nil, proxy: ProxyRef.Global.shared, downloadUrl: nil, kind: .video)
         configure([video])
         XCTAssertEqual(grid.fittingWidth(for: 360), 40, accuracy: 0.01, "Tall videos retain their original ratio")
         let audio = UiMediaAudio(url: "https://timeline-preview.invalid/audio.mp3", description: nil,
@@ -181,7 +181,7 @@ final class TimelineMediaPreviewTests: XCTestCase {
     func testSingleVideoToggleUpdatesExistingThumbnailAndPlayer() throws {
         let video = UiMediaVideo(url: "https://timeline-preview.invalid/tall.mp4",
             thumbnailUrl: "https://timeline-preview.invalid/tall.png", description: nil, height: 1_800, width: 360,
-            customHeaders: nil, proxy: ProxyRef.Global.shared, downloadUrl: nil)
+            customHeaders: nil, proxy: ProxyRef.Global.shared, downloadUrl: nil, kind: .video)
         let status = StatusUIKitView()
         let post = singleMediaPost(video, sensitive: true)
         func update(limited: Bool) {
@@ -321,7 +321,7 @@ final class TimelineMediaPreviewTests: XCTestCase {
         let view = fixture.view
         let video = UiMediaVideo(url: "https://timeline-preview.invalid/movie.mp4",
             thumbnailUrl: "https://timeline-preview.invalid/thumbnail.png", description: nil,
-            height: 1_800, width: 360, customHeaders: nil, proxy: ProxyRef.Global.shared, downloadUrl: nil)
+            height: 1_800, width: 360, customHeaders: nil, proxy: ProxyRef.Global.shared, downloadUrl: nil, kind: .video)
         view.set(media: video, cornerRadius: 12, fitsMedia: true)
         var retries = 0
         for width: CGFloat in [40, 16, 180] {
@@ -359,7 +359,7 @@ final class TimelineMediaPreviewTests: XCTestCase {
             let description = "Description for width \(width)"
             let video = UiMediaVideo(url: "https://timeline-preview.invalid/movie.mp4",
                 thumbnailUrl: "https://timeline-preview.invalid/thumbnail.png", description: description,
-                height: 1_000, width: width, customHeaders: nil, proxy: ProxyRef.Global.shared, downloadUrl: nil)
+                height: 1_000, width: width, customHeaders: nil, proxy: ProxyRef.Global.shared, downloadUrl: nil, kind: .video)
             grid.configure(data: [video], sensitive: false, cornerRadius: 12,
                            singleFollowsImageAspect: true, limitMediaGridToNine: true,
                            mediaLayout: .grid, carouselLeadingPadding: 0, carouselTrailingPadding: 0)
@@ -413,7 +413,7 @@ final class TimelineMediaPreviewTests: XCTestCase {
             for width: Float in [80, 200, 900] {
                 let video = UiMediaVideo(url: "https://timeline-preview.invalid/movie.mp4",
                     thumbnailUrl: "https://timeline-preview.invalid/thumbnail.png", description: nil,
-                    height: 1_000, width: width, customHeaders: nil, proxy: ProxyRef.Global.shared, downloadUrl: nil)
+                    height: 1_000, width: width, customHeaders: nil, proxy: ProxyRef.Global.shared, downloadUrl: nil, kind: .video)
                 media.configure(data: [video], sensitive: true, cornerRadius: 12,
                                 singleFollowsImageAspect: true, limitMediaGridToNine: true,
                                 mediaLayout: .grid, carouselLeadingPadding: 0, carouselTrailingPadding: 0)
@@ -455,7 +455,7 @@ final class TimelineMediaPreviewTests: XCTestCase {
             let video = UiMediaVideo(url: "https://timeline-preview.invalid/movie.mp4",
                 thumbnailUrl: "https://timeline-preview.invalid/thumbnail.png", description: nil,
                 height: 1_000, width: width, customHeaders: ["X-Preview-Test": "fixture"],
-                proxy: ProxyRef.Global.shared, downloadUrl: nil)
+                proxy: ProxyRef.Global.shared, downloadUrl: nil, kind: .video)
             return StatusMediaView(post: singleMediaPost(video, sensitive: true), data: [video], sensitive: sensitive,
                 cornerRadius: 12, allowsCarousel: false, carouselLeadingPadding: 0, carouselTrailingPadding: 0,
                 onMediaClicked: { _, _ in })
@@ -555,7 +555,7 @@ final class TimelineMediaPreviewTests: XCTestCase {
             let video = UiMediaVideo(url: "https://timeline-preview.invalid/movie.mp4",
                 thumbnailUrl: "https://timeline-preview.invalid/thumbnail.png", description: nil,
                 height: 1_000, width: width, customHeaders: ["X-Preview-Test": "fixture"],
-                proxy: ProxyRef.Global.shared, downloadUrl: nil)
+                proxy: ProxyRef.Global.shared, downloadUrl: nil, kind: .video)
             return StatusMediaView(post: singleMediaPost(video), data: [video], sensitive: false,
                 cornerRadius: 12, allowsCarousel: false, carouselLeadingPadding: 0, carouselTrailingPadding: 0,
                 onMediaClicked: { _, _ in })
@@ -634,7 +634,7 @@ final class TimelineMediaPreviewTests: XCTestCase {
                 thumbnailUrl: "https://timeline-preview.invalid/thumbnail.png",
                 description: "A tall video with an accessible description",
                 height: 1_000, width: width, customHeaders: ["X-Preview-Test": "fixture"],
-                proxy: ProxyRef.Global.shared, downloadUrl: nil)
+                proxy: ProxyRef.Global.shared, downloadUrl: nil, kind: .video)
             return StatusMediaView(post: singleMediaPost(video), data: [video], sensitive: false,
                 cornerRadius: 12, allowsCarousel: false, carouselLeadingPadding: 0, carouselTrailingPadding: 0,
                 onMediaClicked: { _, _ in })
@@ -1114,7 +1114,7 @@ final class TimelineMediaPreviewTests: XCTestCase {
         XCTAssertEqual(retries, 1, "Image reuse must clear the old retry callback")
         let video = UiMediaVideo(url: "https://timeline-preview.invalid/movie.mp4",
             thumbnailUrl: "https://timeline-preview.invalid/thumbnail.png", description: nil,
-            height: 768, width: 1_024, customHeaders: nil, proxy: ProxyRef.Global.shared, downloadUrl: nil)
+            height: 768, width: 1_024, customHeaders: nil, proxy: ProxyRef.Global.shared, downloadUrl: nil, kind: .video)
         view.set(media: video, cornerRadius: 12)
         view.layoutIfNeeded()
         XCTAssertEqual(view.videoURL?.absoluteString, video.url)
@@ -1420,7 +1420,7 @@ final class TimelineMediaPreviewTests: XCTestCase {
         fixture.view.frame.size = CGSize(width: 180, height: 135)
         let video = UiMediaVideo(url: "https://timeline-preview.invalid/movie.mp4",
             thumbnailUrl: "https://timeline-preview.invalid/thumbnail.png", description: nil,
-            height: 768, width: 1_024, customHeaders: ["X-Preview-Test": "fixture"], proxy: ProxyRef.Global.shared, downloadUrl: nil)
+            height: 768, width: 1_024, customHeaders: ["X-Preview-Test": "fixture"], proxy: ProxyRef.Global.shared, downloadUrl: nil, kind: .video)
         fixture.view.set(media: video, cornerRadius: 0)
         fixture.view.layoutIfNeeded()
         _ = try await fixture.loadedImage(width: 540)

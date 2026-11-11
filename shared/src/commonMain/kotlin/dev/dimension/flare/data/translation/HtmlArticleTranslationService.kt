@@ -11,6 +11,7 @@ import dev.dimension.flare.ui.render.TranslationDocument
 import dev.dimension.flare.ui.render.TranslationToken
 import dev.dimension.flare.ui.render.TranslationTokenKind
 import dev.dimension.flare.ui.render.parseHtml
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -32,6 +33,7 @@ public class HtmlArticleTranslationService internal constructor(
             runCatching {
                 appDataStore.appSettingsStore.data.first()
             }.getOrElse {
+                if (it is CancellationException) throw it
                 return UiState.Error<String>(it) to UiState.Error<String>(it)
             }
 
@@ -82,7 +84,10 @@ public class HtmlArticleTranslationService internal constructor(
             }
         }.fold(
             onSuccess = { UiState.Success(it) },
-            onFailure = { UiState.Error(it) },
+            onFailure = {
+                if (it is CancellationException) throw it
+                UiState.Error(it)
+            },
         )
 
     private suspend fun translateHtmlContent(
@@ -122,20 +127,14 @@ public class HtmlArticleTranslationService internal constructor(
                         prompt = prompt,
                     )
 
-                if (result != null) {
-                    val cleaned = TranslationResponseSanitizer.clean(result)
-                    val translatedDoc =
-                        runCatching {
-                            translationJson.decodeFromString(TranslationDocument.serializer(), cleaned)
-                        }.getOrNull()
-                    if (translatedDoc != null) {
-                        val translationMap = buildTranslationMap(doc, translatedDoc)
-                        textNodes.forEach { node ->
-                            val original = node.text()
-                            translationMap[original]?.let { translated ->
-                                node.replaceWith(TextNode(translated))
-                            }
-                        }
+                val cleaned = TranslationResponseSanitizer.clean(requireNotNull(result) { "Translation returned empty response" })
+                val translatedDoc = translationJson.decodeFromString(TranslationDocument.serializer(), cleaned)
+                val translationMap = buildTranslationMap(doc, translatedDoc)
+                require(translationMap.keys.containsAll(uniqueTexts)) { "Translation is missing article text" }
+                textNodes.forEach { node ->
+                    val original = node.text()
+                    translationMap[original]?.let { translated ->
+                        node.replaceWith(TextNode(translated))
                     }
                 }
             }
@@ -143,7 +142,10 @@ public class HtmlArticleTranslationService internal constructor(
             element.html()
         }.fold(
             onSuccess = { UiState.Success(it) },
-            onFailure = { UiState.Error(it) },
+            onFailure = {
+                if (it is CancellationException) throw it
+                UiState.Error(it)
+            },
         )
 
     private companion object {

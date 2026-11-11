@@ -51,6 +51,29 @@ class TranslationJsonUiRichTextTest {
     }
 
     @Test
+    fun applyTranslationJson_keepsDuplicateBlocksSeparate() {
+        val text = "Same".toUiPlainText().renderRuns.single()
+        val source =
+            uiRichTextOf(
+                listOf(text, RenderContent.BlockImage("https://example.com/image.jpg", null), "".toUiPlainText().renderRuns.single(), text),
+            )
+        val translated =
+            source.applyTranslationDocument(
+                TranslationDocument(
+                    blocks =
+                        listOf(
+                            TranslationBlock(0, listOf(TranslationToken(0, TranslationTokenKind.Translatable, "First"))),
+                            TranslationBlock(1, listOf(TranslationToken(0, TranslationTokenKind.Translatable, "Second"))),
+                        ),
+                ),
+            )
+        assertEquals("First", assertIs<RenderContent.Text>(translated.renderRuns.first()).plainText())
+        assertEquals("Second", assertIs<RenderContent.Text>(translated.renderRuns.last()).plainText())
+        assertEquals(source.renderRuns[1], translated.renderRuns[1])
+        assertEquals(source.renderRuns[2], translated.renderRuns[2])
+    }
+
+    @Test
     fun applyTranslationJson_rejects_modified_locked_tokens() {
         val richText = "Hello @alice".toUiPlainText()
 

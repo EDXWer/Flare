@@ -670,6 +670,7 @@ internal fun Tweet.renderStatus(
                                 height = media.originalInfo.height.toFloat(),
                                 width = media.originalInfo.width.toFloat(),
                                 description = media.ext_alt_text,
+                                kind = if (media.type == Media.Type.animatedGif) UiMedia.Video.Kind.Gif else UiMedia.Video.Kind.Video,
                             )
                         }
                     }
@@ -1456,6 +1457,7 @@ internal fun Tweet.renderArticle(accountKey: MicroBlogKey): UiArticle? {
         key = statusKey.toString(),
         title = title,
         content = article.renderArticleContent(accountKey),
+        sourceLanguages = listOfNotNull(legacy?.lang).toPersistentList(),
         cover = article.coverMedia.toUiCardImage(),
         publishDate = legacy?.createdAt?.let { parseXQTCustomDateTime(it)?.toUi() },
         author = UiArticleAuthor.Profile(profile),

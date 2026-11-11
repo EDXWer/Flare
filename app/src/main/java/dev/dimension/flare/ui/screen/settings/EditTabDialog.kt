@@ -277,6 +277,14 @@ private val UiStrings.androidStringRes: Int
 
             UiStrings.PixivRankingDayManga -> R.string.pixiv_ranking_day_manga_title
 
+            UiStrings.PixivRankingDayAi -> R.string.pixiv_ranking_day_ai_title
+
+            UiStrings.PixivRankingDayR18 -> R.string.pixiv_ranking_day_r18_title
+
+            UiStrings.PixivRankingWeekR18 -> R.string.pixiv_ranking_week_r18_title
+
+            UiStrings.PixivRankingDayR18Ai -> R.string.pixiv_ranking_day_r18_ai_title
+
             UiStrings.Illustrations -> R.string.illustrations_title
 
             UiStrings.Manga -> R.string.manga_title

@@ -32,7 +32,6 @@ import compose.icons.FontAwesomeIcons
 import compose.icons.fontawesomeicons.Brands
 import compose.icons.fontawesomeicons.Solid
 import compose.icons.fontawesomeicons.brands.Chrome
-import compose.icons.fontawesomeicons.solid.Language
 import compose.icons.fontawesomeicons.solid.ShareNodes
 import dev.dimension.flare.LocalWindowPadding
 import dev.dimension.flare.Res
@@ -43,7 +42,6 @@ import dev.dimension.flare.data.repository.SettingsRepository
 import dev.dimension.flare.rss_detail_open_in_browser
 import dev.dimension.flare.rss_detail_tldr
 import dev.dimension.flare.rss_detail_tldr_error
-import dev.dimension.flare.rss_detail_translate
 import dev.dimension.flare.rss_detail_unavailable
 import dev.dimension.flare.status_share
 import dev.dimension.flare.ui.component.ComposeInAppNotification
@@ -52,14 +50,16 @@ import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.FavIcon
 import dev.dimension.flare.ui.component.FlareScrollBar
 import dev.dimension.flare.ui.component.RssRichText
+import dev.dimension.flare.ui.component.TranslationButton
+import dev.dimension.flare.ui.component.TranslationRetryButton
 import dev.dimension.flare.ui.component.listCard
-import dev.dimension.flare.ui.model.UiState
 import dev.dimension.flare.ui.model.collectAsUiState
 import dev.dimension.flare.ui.model.flatMap
 import dev.dimension.flare.ui.model.isSuccess
 import dev.dimension.flare.ui.model.onError
 import dev.dimension.flare.ui.model.onLoading
 import dev.dimension.flare.ui.model.onSuccess
+import dev.dimension.flare.ui.model.takeSuccess
 import dev.dimension.flare.ui.model.takeSuccessOr
 import dev.dimension.flare.ui.presenter.home.rss.RssDetailPresenter
 import dev.dimension.flare.ui.presenter.home.rss.RssDetailTranslatePresenter
@@ -145,17 +145,8 @@ internal fun RssDetailScreen(
                                         contentDescription = stringResource(Res.string.status_share),
                                     )
                                 }
-                                AnimatedVisibility(state.data.isSuccess && !state.isAutoTranslate && !state.enableTranslate) {
-                                    SubtleButton(
-                                        onClick = {
-                                            state.setEnableTranslate(true)
-                                        },
-                                    ) {
-                                        FAIcon(
-                                            FontAwesomeIcons.Solid.Language,
-                                            contentDescription = stringResource(Res.string.rss_detail_translate),
-                                        )
-                                    }
+                                state.translateState?.let { translation ->
+                                    TranslationButton(translation.showTranslation, translation::toggleTranslation)
                                 }
                                 AnimatedVisibility(
                                     state.data.isSuccess &&
@@ -172,19 +163,16 @@ internal fun RssDetailScreen(
                                     }
                                 }
                             }
-                            val displayTitle =
-                                state.translateState?.translatedTitle?.let { titleState ->
-                                    when (titleState) {
-                                        is UiState.Success -> titleState.data
-                                        else -> data.title
-                                    }
-                                } ?: data.title
+                            val translation = state.translateState
+                            if (translation?.showOriginalWithTranslation == true && translation.translatedTitle != null) {
+                                SelectionContainer {
+                                    Text(data.title, style = FluentTheme.typography.subtitle)
+                                }
+                            }
+                            val displayTitle = translation?.translatedTitle ?: data.title
                             if (displayTitle.isNotEmpty()) {
                                 SelectionContainer {
-                                    Text(
-                                        text = displayTitle,
-                                        style = FluentTheme.typography.subtitle,
-                                    )
+                                    Text(displayTitle, style = FluentTheme.typography.subtitle)
                                 }
                             }
                             if (data.siteName != null || data.byline != null || data.publishDateTime != null) {
@@ -300,35 +288,16 @@ internal fun RssDetailScreen(
                                     }
                                 }
                             }
-                            state.translateState?.translatedHtml?.onLoading {
-                                ProgressBar(
-                                    modifier =
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = screenHorizontalPadding),
-                                )
+                            if (state.translateState?.isTranslating == true) {
+                                ProgressBar(modifier = Modifier.fillMaxWidth())
                             }
                             SelectionContainer {
-                                val displayData =
-                                    state.translateState?.translatedHtml?.let { htmlState ->
-                                        when (htmlState) {
-                                            is UiState.Success -> data.copy(content = htmlState.data)
-                                            else -> data
-                                        }
-                                    } ?: data
-                                RssRichText(
-                                    element = displayData.element,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
+                                val html = state.translateState?.displayHtml ?: data.content
+                                val displayData = remember(data, html) { data.copy(content = html) }
+                                RssRichText(element = displayData.element, modifier = Modifier.fillMaxWidth())
                             }
-                            state.translateState?.translatedHtml?.onError {
-                                Text(
-                                    text = it.message ?: "Translation failed",
-                                    modifier =
-                                        Modifier
-                                            .padding(horizontal = screenHorizontalPadding)
-                                            .clickable { state.refreshTranslate() },
-                                )
+                            state.translateState?.let { translation ->
+                                if (translation.error != null) TranslationRetryButton(translation::retry)
                             }
                         }
                 }
@@ -365,13 +334,8 @@ private fun presenter(
     val enableTldr by remember {
         settingsRepository.appSettings.map { it.aiConfig.tldr }
     }.collectAsUiState()
-    val preTranslate by remember {
-        settingsRepository.appSettings.map { it.translateConfig.preTranslate }
-    }.collectAsUiState()
     var showTldr by remember { mutableStateOf(false) }
     var tldrRefreshKey by remember { mutableIntStateOf(0) }
-    var enableTranslate by remember { mutableStateOf(false) }
-    var translateRefreshKey by remember { mutableIntStateOf(0) }
     val tldrState =
         if (showTldr) {
             key(tldrRefreshKey, state.data) {
@@ -385,38 +349,21 @@ private fun presenter(
         } else {
             null
         }
-    val isAutoTranslate =
-        preTranslate is UiState.Success && (preTranslate as UiState.Success<Boolean>).data
-    val shouldTranslate = isAutoTranslate || enableTranslate
-    val translateState: RssDetailTranslatePresenter.State? =
-        if (shouldTranslate) {
-            when (val dataState = state.data) {
-                is UiState.Success -> {
-                    key(translateRefreshKey) {
-                        remember(dataState.data.content, dataState.data.title) {
-                            RssDetailTranslatePresenter(
-                                htmlContent = dataState.data.content,
-                                title = dataState.data.title,
-                                targetLanguage = Locale.current.toLanguageTag(),
-                            )
-                        }.invoke()
-                    }
-                }
-
-                else -> {
-                    null
-                }
-            }
-        } else {
-            null
+    val translateState =
+        state.data.takeSuccess()?.let { document ->
+            remember(document.content, document.title, document.lang) {
+                RssDetailTranslatePresenter(
+                    htmlContent = document.content,
+                    title = document.title,
+                    sourceLanguage = document.lang,
+                )
+            }.invoke()
         }
     object : RssDetailPresenter.State by state {
         val enableTldr = enableTldr
-        val isAutoTranslate = isAutoTranslate
         val tldrState = tldrState
         val showTldr = showTldr
         val translateState = translateState
-        val enableTranslate = enableTranslate
 
         fun setShowTldr(value: Boolean) {
             showTldr = value
@@ -424,14 +371,6 @@ private fun presenter(
 
         fun refreshTldr() {
             tldrRefreshKey++
-        }
-
-        fun setEnableTranslate(value: Boolean) {
-            enableTranslate = value
-        }
-
-        fun refreshTranslate() {
-            translateRefreshKey++
         }
     }
 }

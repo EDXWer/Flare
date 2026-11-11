@@ -1,5 +1,6 @@
 package dev.dimension.flare.ui.screen.article
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -32,11 +34,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.awt.ComposeWindow
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import compose.icons.FontAwesomeIcons
 import compose.icons.fontawesomeicons.Brands
 import compose.icons.fontawesomeicons.Solid
@@ -64,9 +69,12 @@ import dev.dimension.flare.ui.component.DateTimeText
 import dev.dimension.flare.ui.component.ErrorContent
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.FavIcon
+import dev.dimension.flare.ui.component.FlareDividerDefaults
 import dev.dimension.flare.ui.component.FlareScrollBar
 import dev.dimension.flare.ui.component.NetworkImage
 import dev.dimension.flare.ui.component.RichText
+import dev.dimension.flare.ui.component.TranslationButton
+import dev.dimension.flare.ui.component.TranslationRetryButton
 import dev.dimension.flare.ui.component.accessibleDescription
 import dev.dimension.flare.ui.component.listCard
 import dev.dimension.flare.ui.component.placeholder
@@ -82,13 +90,14 @@ import dev.dimension.flare.ui.model.UiState
 import dev.dimension.flare.ui.model.UiTimelineV2
 import dev.dimension.flare.ui.model.takeSuccess
 import dev.dimension.flare.ui.presenter.article.ArticlePresenter
+import dev.dimension.flare.ui.presenter.article.ArticleTranslatePresenter
 import dev.dimension.flare.ui.presenter.invoke
 import dev.dimension.flare.ui.render.UiDateTime
 import dev.dimension.flare.ui.route.Route
 import dev.dimension.flare.ui.screen.media.VideoItem
 import dev.dimension.flare.ui.theme.LocalComposeWindow
-import dev.dimension.flare.ui.theme.screenHorizontalPadding
 import io.github.composefluent.FluentTheme
+import io.github.composefluent.LocalTextStyle
 import io.github.composefluent.component.AccentButton
 import io.github.composefluent.component.ListItemSeparator
 import io.github.composefluent.component.ProgressBar
@@ -127,14 +136,14 @@ internal fun ArticleScreen(
     val scope = rememberCoroutineScope()
     val window = LocalComposeWindow.current
     val downloadManager: DesktopDownloadManager = koinInject()
-    val article = state.article.takeSuccess()
+    val article = state.translation?.article ?: state.article.takeSuccess()
     val windowPadding = LocalWindowPadding.current
     val contentPadding =
         PaddingValues(
             start = windowPadding.calculateStartPadding(layoutDirection),
             top = windowPadding.calculateTopPadding() + 16.dp,
             end = windowPadding.calculateEndPadding(layoutDirection),
-            bottom = windowPadding.calculateBottomPadding() + 16.dp,
+            bottom = windowPadding.calculateBottomPadding() + 24.dp,
         )
 
     Box(
@@ -150,17 +159,16 @@ internal fun ArticleScreen(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = contentPadding,
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     article?.let { currentArticle ->
-                        currentArticle.sourceUrl?.takeIf { it.isNotBlank() }?.let { sourceUrl ->
-                            item(key = "toolbar") {
-                                ArticleBodyContainer {
-                                    ArticleToolbar(
-                                        sourceUrl = sourceUrl,
-                                        article = currentArticle,
-                                        onOpenUrl = uriHandler::openUri,
-                                        onShare = {
+                        item(key = "toolbar") {
+                            ArticleBodyContainer {
+                                ArticleToolbar(
+                                    article = currentArticle,
+                                    translation = state.translation,
+                                    onOpenUrl = uriHandler::openUri,
+                                    onShare = { sharedArticle ->
+                                        sharedArticle.sourceUrl?.let { sourceUrl ->
                                             navigate(
                                                 Route.StatusShareSheet(
                                                     accountType = accountType,
@@ -168,16 +176,17 @@ internal fun ArticleScreen(
                                                     shareUrl = sourceUrl,
                                                 ),
                                             )
-                                        },
-                                    )
-                                }
+                                        }
+                                    },
+                                )
                             }
                         }
                     }
                     when (val articleState = state.article) {
                         is UiState.Success -> {
                             articleSuccessItems(
-                                article = articleState.data,
+                                article = state.translation?.article ?: articleState.data,
+                                translation = state.translation,
                                 accountType = accountType,
                                 navigate = navigate,
                                 onOpenUrl = uriHandler::openUri,
@@ -222,8 +231,8 @@ internal fun ArticleScreen(
 
 @Composable
 private fun ArticleToolbar(
-    sourceUrl: String,
     article: UiArticle,
+    translation: ArticleTranslatePresenter.State?,
     onOpenUrl: (String) -> Unit,
     onShare: (UiArticle) -> Unit,
 ) {
@@ -233,33 +242,39 @@ private fun ArticleToolbar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Spacer(modifier = Modifier.weight(1f))
-        SubtleButton(
-            onClick = {
-                onOpenUrl(sourceUrl)
-            },
-            iconOnly = true,
-        ) {
-            FAIcon(
-                FontAwesomeIcons.Brands.Chrome,
-                contentDescription = stringResource(Res.string.rss_detail_open_in_browser),
-            )
+        article.sourceUrl?.takeIf { it.isNotBlank() }?.let { sourceUrl ->
+            SubtleButton(
+                onClick = {
+                    onOpenUrl(sourceUrl)
+                },
+                iconOnly = true,
+            ) {
+                FAIcon(
+                    FontAwesomeIcons.Brands.Chrome,
+                    contentDescription = stringResource(Res.string.rss_detail_open_in_browser),
+                )
+            }
+            SubtleButton(
+                onClick = {
+                    onShare(article)
+                },
+                iconOnly = true,
+            ) {
+                FAIcon(
+                    FontAwesomeIcons.Solid.ShareNodes,
+                    contentDescription = stringResource(Res.string.status_share),
+                )
+            }
         }
-        SubtleButton(
-            onClick = {
-                onShare(article)
-            },
-            iconOnly = true,
-        ) {
-            FAIcon(
-                FontAwesomeIcons.Solid.ShareNodes,
-                contentDescription = stringResource(Res.string.status_share),
-            )
+        translation?.let {
+            TranslationButton(it.showTranslation, it::toggleTranslation)
         }
     }
 }
 
 private fun LazyListScope.articleSuccessItems(
     article: UiArticle,
+    translation: ArticleTranslatePresenter.State?,
     accountType: AccountType,
     navigate: (Route) -> Unit,
     onOpenUrl: (String) -> Unit,
@@ -296,6 +311,16 @@ private fun LazyListScope.articleSuccessItems(
             ListItemSeparator(Modifier.fillMaxWidth())
         }
     }
+    if (translation?.isTranslating == true) {
+        item(key = "translation-loading") {
+            ArticleBodyContainer { ProgressBar(modifier = Modifier.fillMaxWidth()) }
+        }
+    }
+    if (translation?.error != null) {
+        item(key = "translation-error") {
+            ArticleBodyContainer { TranslationRetryButton(translation::retry) }
+        }
+    }
     items(
         items = article.content.blocks,
         key = UiArticleBlock::key,
@@ -328,7 +353,7 @@ private fun LazyListScope.articleComments(
                 count = 3,
                 key = { "article_comment_placeholder_$it" },
             ) { index ->
-                ArticleBodyContainer {
+                ArticleBodyContainer(contentPadding = PaddingValues(0.dp)) {
                     AdaptiveCard(
                         index = index,
                         totalCount = 3,
@@ -360,7 +385,7 @@ private fun LazyListScope.articleComments(
                 key = comments.itemKey { item -> item.itemKey ?: item.hashCode() },
                 contentType = comments.itemContentType { item -> item.itemType },
             ) { index ->
-                ArticleBodyContainer {
+                ArticleBodyContainer(contentPadding = PaddingValues(0.dp)) {
                     AdaptiveCard(
                         index = index,
                         totalCount = comments.itemCount,
@@ -403,11 +428,28 @@ private fun LazyListScope.articleComments(
 
 private fun LazyListScope.articleCommentsTitle() {
     item(key = "article_comments_title") {
-        ArticleBodyContainer {
-            Text(
-                text = "Comments",
-                style = FluentTheme.typography.bodyStrong,
-            )
+        ArticleBodyContainer(contentPadding = PaddingValues(vertical = 8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Comments",
+                    style = FluentTheme.typography.bodyStrong.copy(fontSize = 16.sp, lineHeight = 24.sp),
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+                val dividerColor = FlareDividerDefaults.color
+                Canvas(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(FlareDividerDefaults.thickness),
+                ) {
+                    val thickness = FlareDividerDefaults.thickness.toPx()
+                    drawLine(
+                        color = dividerColor,
+                        strokeWidth = thickness,
+                        start = Offset(0f, thickness / 2),
+                        end = Offset(size.width, thickness / 2),
+                    )
+                }
+            }
         }
     }
 }
@@ -439,12 +481,20 @@ private fun ArticleHeader(
     onProfileClick: (MicroBlogKey) -> Unit,
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
             text = article.title,
-            style = FluentTheme.typography.title,
+            style =
+                FluentTheme.typography.title.copy(
+                    fontSize = 22.sp,
+                    lineHeight = 28.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
         )
         when (val author = article.author) {
             is UiArticleAuthor.Profile -> {
@@ -569,7 +619,6 @@ private fun ArticleBlock(
                 text = block.richText,
                 modifier = Modifier.fillMaxWidth(),
                 overflow = TextOverflow.Clip,
-                textStyle = FluentTheme.typography.body,
             )
         }
 
@@ -676,7 +725,7 @@ private fun ArticleFileBlock(
             ) {
                 Text(
                     text = block.name,
-                    style = FluentTheme.typography.body,
+                    style = FluentTheme.typography.body.copy(fontSize = 16.sp, lineHeight = 24.sp),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -749,7 +798,7 @@ private fun ArticleEmbedBlockContent(block: UiArticleBlock.Embed) {
         ) {
             Text(
                 text = block.title ?: block.url ?: block.htmlFallback.orEmpty(),
-                style = FluentTheme.typography.body,
+                style = FluentTheme.typography.body.copy(fontSize = 16.sp, lineHeight = 24.sp),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -808,11 +857,11 @@ private fun ArticleContentGateBlock(
             ) {
                 Text(
                     text = stringResource(Res.string.article_content_gate_subscription_title),
-                    style = FluentTheme.typography.bodyStrong,
+                    style = FluentTheme.typography.bodyStrong.copy(fontSize = 16.sp, lineHeight = 24.sp),
                 )
                 Text(
                     text = description,
-                    style = FluentTheme.typography.body,
+                    style = FluentTheme.typography.body.copy(fontSize = 16.sp, lineHeight = 24.sp),
                     color = FluentTheme.colors.text.text.secondary,
                 )
                 block.actionUrl?.takeIf { it.isNotBlank() }?.let { url ->
@@ -839,7 +888,7 @@ private fun LazyListScope.articleLoadingItems() {
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .height(36.dp)
+                            .height(28.dp)
                             .placeholder(true),
                 )
                 Row(
@@ -901,7 +950,10 @@ private fun LazyListScope.articleLoadingItems() {
 }
 
 @Composable
-private fun ArticleBodyContainer(content: @Composable () -> Unit) {
+private fun ArticleBodyContainer(
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+    content: @Composable () -> Unit,
+) {
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.TopCenter,
@@ -909,12 +961,16 @@ private fun ArticleBodyContainer(content: @Composable () -> Unit) {
         Box(
             modifier =
                 Modifier
+                    .widthIn(max = 712.dp)
                     .fillMaxWidth()
-                    .widthIn(max = 600.dp)
-                    .padding(horizontal = screenHorizontalPadding),
+                    .padding(contentPadding),
             contentAlignment = Alignment.TopStart,
         ) {
-            content()
+            CompositionLocalProvider(
+                LocalTextStyle provides FluentTheme.typography.body.copy(fontSize = 16.sp, lineHeight = 24.sp),
+            ) {
+                content()
+            }
         }
     }
 }

@@ -7,11 +7,15 @@ import dev.dimension.flare.data.network.pixiv.model.PixivMetaPage
 import dev.dimension.flare.data.network.pixiv.model.PixivMetaSinglePage
 import dev.dimension.flare.data.network.pixiv.model.PixivUser
 import dev.dimension.flare.model.MicroBlogKey
+import dev.dimension.flare.ui.model.TranslationDisplayState
 import dev.dimension.flare.ui.model.UiIcon
 import dev.dimension.flare.ui.model.UiMedia
+import dev.dimension.flare.ui.model.UiTranslatableText
+import dev.dimension.flare.ui.render.toUiPlainText
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertSame
 
 class PixivMapperTest {
     @Test
@@ -92,6 +96,37 @@ class PixivMapperTest {
         val image = assertIs<UiMedia.Image>(post.single())
         assertEquals("https://example.com/page-0-original.png", image.url)
         assertEquals("https://example.com/page-0-medium.jpg", image.previewUrl)
+    }
+
+    @Test
+    fun galleryDetailPreservesBothTextsAndTheCachedDisplayChoice() {
+        val account = MicroBlogKey("viewer", "pixiv.net")
+        val post =
+            pixivIllust(PixivImageUrls(medium = "poster.jpg")).toUiTimeline(account).copy(
+                contentWarning = UiTranslatableText("Original title".toUiPlainText(), "Translated title".toUiPlainText()),
+                content = UiTranslatableText("Original caption".toUiPlainText(), "Translated caption".toUiPlainText()),
+                translationDisplayState = TranslationDisplayState.Translated,
+            )
+        val detail = post.toGalleryDetail(account)
+        assertEquals("Original title", detail.title)
+        assertEquals("Original caption", detail.content?.raw)
+        assertEquals("Translated title", detail.translation?.title)
+        assertEquals("Translated caption", detail.translation?.content?.raw)
+        assertEquals(TranslationDisplayState.Translated, detail.translation?.state)
+        assertSame(post.images, detail.images)
+        val original = post.copy(translationDisplayState = TranslationDisplayState.Hidden).toGalleryDetail(account)
+        assertEquals(TranslationDisplayState.Hidden, original.translation?.state)
+        assertEquals("Translated caption", original.translation?.content?.raw)
+    }
+
+    @Test
+    fun untranslatedGalleryStillExposesManualTranslation() {
+        val account = MicroBlogKey("viewer", "pixiv.net")
+        val post = pixivIllust(PixivImageUrls(medium = "poster.jpg")).toUiTimeline(account)
+        val detail = post.toGalleryDetail(account)
+        assertEquals(TranslationDisplayState.Hidden, detail.translation?.state)
+        assertEquals(null, detail.translation?.content)
+        assertEquals(post.contentWarning?.original?.raw, detail.title)
     }
 
     private fun pixivIllust(

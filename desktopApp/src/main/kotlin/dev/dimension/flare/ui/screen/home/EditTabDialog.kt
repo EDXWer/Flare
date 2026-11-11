@@ -57,11 +57,15 @@ import dev.dimension.flare.mixed_timeline_title
 import dev.dimension.flare.ok
 import dev.dimension.flare.pixiv_private_favourites_title
 import dev.dimension.flare.pixiv_private_following_title
+import dev.dimension.flare.pixiv_ranking_day_ai_title
 import dev.dimension.flare.pixiv_ranking_day_female_title
 import dev.dimension.flare.pixiv_ranking_day_male_title
 import dev.dimension.flare.pixiv_ranking_day_manga_title
+import dev.dimension.flare.pixiv_ranking_day_r18_ai_title
+import dev.dimension.flare.pixiv_ranking_day_r18_title
 import dev.dimension.flare.pixiv_ranking_month_title
 import dev.dimension.flare.pixiv_ranking_week_original_title
+import dev.dimension.flare.pixiv_ranking_week_r18_title
 import dev.dimension.flare.pixiv_ranking_week_rookie_title
 import dev.dimension.flare.pixiv_ranking_week_title
 import dev.dimension.flare.posts_title
@@ -332,6 +336,14 @@ private val UiStrings.desktopStringResource: StringResource
             UiStrings.PixivRankingWeekRookie -> Res.string.pixiv_ranking_week_rookie_title
 
             UiStrings.PixivRankingDayManga -> Res.string.pixiv_ranking_day_manga_title
+
+            UiStrings.PixivRankingDayAi -> Res.string.pixiv_ranking_day_ai_title
+
+            UiStrings.PixivRankingDayR18 -> Res.string.pixiv_ranking_day_r18_title
+
+            UiStrings.PixivRankingWeekR18 -> Res.string.pixiv_ranking_week_r18_title
+
+            UiStrings.PixivRankingDayR18Ai -> Res.string.pixiv_ranking_day_r18_ai_title
 
             UiStrings.Illustrations -> Res.string.illustrations_title
 

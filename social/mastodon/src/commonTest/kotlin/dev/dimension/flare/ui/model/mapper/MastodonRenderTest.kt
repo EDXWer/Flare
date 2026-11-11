@@ -60,11 +60,15 @@ class MastodonRenderTest {
                             description = "image alt",
                             meta = Meta(width = 1200, height = 800),
                         ),
+                        Attachment(id = "att-2", type = MediaType.GifV, url = "https://mastodon.social/media/animation.mp4"),
+                        Attachment(id = "att-3", type = MediaType.Video, url = "https://mastodon.social/media/video.mp4"),
                     ),
             )
 
         val rendered = rootPostOf(status.render(host = accountKey.host, accountKey = accountKey))
-        assertEquals(1, rendered.images.size)
+        assertEquals(3, rendered.images.size)
+        assertEquals(UiMedia.Video.Kind.Gif, assertIs<UiMedia.Video>(rendered.images[1]).kind)
+        assertEquals(UiMedia.Video.Kind.Video, assertIs<UiMedia.Video>(rendered.images[2]).kind)
         val image = assertIs<UiMedia.Image>(rendered.images.first())
         assertEquals("https://mastodon.social/media/full.jpg", image.url)
         assertEquals("https://mastodon.social/media/preview.jpg", image.previewUrl)

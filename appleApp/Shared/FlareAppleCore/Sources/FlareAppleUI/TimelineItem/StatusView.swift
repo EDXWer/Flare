@@ -258,8 +258,8 @@ public struct StatusView: View {
                                             Text("Reply to \(replyToHandle)", bundle: FlareAppleUILocalization.bundle)
                                         }
                                         .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .padding(.top, 4)
+                                        .flareSecondaryText()
+                                        .padding(.top, showAsFullWidth || isQuote ? 2 : 4)
                                     }
                                     if !contentWarningIsEmpty {
                                         VStack(alignment: .leading, spacing: 4) {
@@ -332,6 +332,11 @@ public struct StatusView: View {
                                                 StatusPollView(data: poll)
                                             }
                                         }
+                                        .padding(
+                                            .top,
+                                            (showAsFullWidth || isQuote) && contentWarningIsEmpty &&
+                                                (user != nil || replyToHandle != nil) && contents.contains { !$0.isEmpty } ? 2 : 0
+                                        )
                                     }
 
                                     if isDetail, showTranslate {
@@ -440,7 +445,7 @@ public struct StatusView: View {
                                             Text(sourceChannelName)
                                         }
                                         .font(.footnote)
-                                        .foregroundStyle(.secondary)
+                                        .flareSecondaryText()
                                     }
                                     if hasEmojiReactions {
                                         StatusReactionView(data: emojiReactions, isDetail: isDetail)
@@ -453,7 +458,7 @@ public struct StatusView: View {
                         if isDetail {
                             DateTimeText(data: createdAt, fullTime: true)
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .flareSecondaryText()
                                 .padding(.top, 8)
                         }
 
@@ -515,17 +520,17 @@ public struct StatusView: View {
             if let visibility {
                 StatusVisibilityView(data: visibility)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .flareSecondaryText()
             }
             if translationDisplayState != .hidden {
                 TranslateStatusComponent(data: translationDisplayState)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .flareSecondaryText()
             }
             if showPlatformLogo {
                 TabIcon(icon: platformIcon, size: 14)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .flareSecondaryText()
                     .accessibilityLabel(
                         Text(
                             verbatim: String(
@@ -541,7 +546,7 @@ public struct StatusView: View {
             if !isDetail {
                 DateTimeText(data: createdAt)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .flareSecondaryText()
             }
             if agentEnabled, !isQuote {
                 Button {
@@ -555,7 +560,7 @@ public struct StatusView: View {
                 } label: {
                     Image(fontAwesome: .robot)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .flareSecondaryText()
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text("status_insight_title", bundle: FlareAppleUILocalization.bundle))

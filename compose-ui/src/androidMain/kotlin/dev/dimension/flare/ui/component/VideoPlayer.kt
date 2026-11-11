@@ -21,6 +21,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -44,6 +45,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.ui.compose.PlayerSurface
 import androidx.media3.ui.compose.modifiers.resizeWithContentScale
 import androidx.media3.ui.compose.state.rememberPresentationState
@@ -86,6 +88,7 @@ public fun VideoPlayer(
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
     autoPlay: Boolean = true,
+    playbackSpeed: Float = 1f,
     remainingTimeContent: @Composable (BoxScope.(Long) -> Unit)? = null,
     loadingPlaceholder: @Composable BoxScope.() -> Unit = {
         if (media.preview != null) {
@@ -169,7 +172,7 @@ public fun VideoPlayer(
         remember(media, route) {
             VideoRequest(media = media, routeKey = route?.getOrNull()?.key.orEmpty())
         }
-    val binding = rememberSurfaceBinding(request, playback, muted)
+    val binding = rememberSurfaceBinding(request, playback, muted, playbackSpeed)
     val player = binding.first
 
     LifecycleResumeEffect(binding.second) {
@@ -223,13 +226,15 @@ private fun rememberSurfaceBinding(
     request: VideoRequest,
     playback: TimelinePlaybackCoordinator,
     muted: Boolean,
+    playbackSpeed: Float,
 ): Pair<ExoPlayer?, SurfaceBindingManager.Binding> {
     val manager: SurfaceBindingManager = koinInject()
     var player by remember(request, manager, playback, muted) { mutableStateOf<ExoPlayer?>(null) }
     val binding =
         remember(request, manager, playback, muted) {
-            manager.register(request, playback, muted) { player = it }
+            manager.register(request, playback, muted) { player = it }.apply { setPlaybackSpeed(playbackSpeed) }
         }
+    SideEffect { binding.setPlaybackSpeed(playbackSpeed) }
     DisposableEffect(binding, playback) {
         playback.register(binding, binding::setActive)
         onDispose {
@@ -278,6 +283,8 @@ public class SurfaceBindingManager(
     public fun playerFor(media: UiMedia): ExoPlayer? = if (activeBinding != null && activeRequest?.media == media) player else null
 
     public interface Binding {
+        public fun setPlaybackSpeed(speed: Float)
+
         public fun setActive(active: Boolean)
 
         public fun dispose()
@@ -293,6 +300,26 @@ public class SurfaceBindingManager(
     ): Binding {
         playback.onClose(this) { release(playback) }
         return object : Binding {
+            private var playbackSpeed = 1f
+
+            override fun setPlaybackSpeed(speed: Float) {
+                playbackSpeed = speed
+                if (activeBinding === this) applyPlaybackSpeed()
+            }
+
+            private fun applyPlaybackSpeed() {
+                // shortcut: disable audio above Media3's speed limit until its sink supports higher rates.
+                val disableAudio = playbackSpeed > DefaultAudioSink.MAX_PLAYBACK_SPEED
+                if (player.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_AUDIO) != disableAudio) {
+                    player.trackSelectionParameters =
+                        player.trackSelectionParameters
+                            .buildUpon()
+                            .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, disableAudio)
+                            .build()
+                }
+                player.setPlaybackSpeed(playbackSpeed)
+            }
+
             override fun setActive(active: Boolean) {
                 if (active) {
                     if (!foreground) {
@@ -318,7 +345,7 @@ public class SurfaceBindingManager(
                         player.prepare()
                         activeRequest = request
                     }
-                    player.setPlaybackSpeed(1f)
+                    applyPlaybackSpeed()
                     player.volume = 0f
                     player.setAudioAttributes(audioAttributes, false)
                     player.play()

@@ -86,7 +86,7 @@ internal fun UiRichText.applyTranslationJson(json: String): UiRichText =
 
 internal fun UiRichText.applyTranslationDocument(document: TranslationDocument): UiRichText {
     val projection = toProjectionBlocks()
-    val projectedBlocksByContent = projection.associateBy { it.content }
+    val projectedBlocksByIndex = projection.associateBy { it.contentIndex }
     val blocksById = document.blocks.associateBy { it.id }
     if (blocksById.size != projection.size) {
         throw TranslationFormatException(
@@ -95,7 +95,7 @@ internal fun UiRichText.applyTranslationDocument(document: TranslationDocument):
     }
 
     val translatedContents =
-        renderRuns.map { content ->
+        renderRuns.mapIndexed { index, content ->
             when (content) {
                 is RenderContent.BlockImage -> {
                     content
@@ -103,8 +103,8 @@ internal fun UiRichText.applyTranslationDocument(document: TranslationDocument):
 
                 is RenderContent.Text -> {
                     val projectedBlock =
-                        projectedBlocksByContent[content]
-                            ?: return@map content
+                        projectedBlocksByIndex[index]
+                            ?: return@mapIndexed content
                     val translatedBlock =
                         blocksById[projectedBlock.id]
                             ?: throw TranslationFormatException("Missing block ${projectedBlock.id}")
@@ -174,6 +174,7 @@ private fun applyTranslatedBlock(
 
 private data class TranslationProjectionBlock(
     val id: Int,
+    val contentIndex: Int,
     val content: RenderContent.Text,
     val pieces: List<TranslationProjectionPiece>,
 )
@@ -197,7 +198,7 @@ private val protectedTranslationPattern =
 private fun UiRichText.toProjectionBlocks(): List<TranslationProjectionBlock> =
     buildList {
         var nextBlockId = 0
-        renderRuns.forEach { content ->
+        renderRuns.forEachIndexed { index, content ->
             when (content) {
                 is RenderContent.BlockImage -> {}
 
@@ -207,6 +208,7 @@ private fun UiRichText.toProjectionBlocks(): List<TranslationProjectionBlock> =
                         add(
                             TranslationProjectionBlock(
                                 id = nextBlockId,
+                                contentIndex = index,
                                 content = content,
                                 pieces = pieces,
                             ),

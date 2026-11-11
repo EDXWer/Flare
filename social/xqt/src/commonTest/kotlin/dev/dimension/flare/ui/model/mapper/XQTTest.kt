@@ -202,6 +202,7 @@ class XQTTest {
 
         assertEquals("tweet-456@example.com", article.key)
         assertEquals("Longform title", article.title)
+        assertEquals(listOf("en"), article.sourceLanguages)
         assertEquals("https://example.com/flare_dev/status/tweet-456", article.sourceUrl)
         assertEquals(Instant.parse("2018-10-10T20:19:24Z"), article.publishDate?.value)
         assertEquals("https://pbs.twimg.com/article/cover.jpg", article.cover?.url)

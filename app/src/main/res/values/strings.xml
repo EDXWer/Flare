@@ -499,6 +499,8 @@
     <string name="media_play">Play</string>
     <string name="media_pause">Pause</string>
     <string name="media_playback_position">Playback position</string>
+    <string name="media_playback_speed">Playback speed</string>
+    <string name="media_playback_speed_save_error">Could not save playback speed. Please try again.</string>
     <string name="media_page_position">Media position</string>
     <string name="media_page_of">%1$d of %2$d</string>
     <string name="media_is_downloading">Media is still downloading. Try again in a moment.</string>
@@ -600,6 +602,10 @@
     <string name="pixiv_ranking_week_original_title">Original Ranking</string>
     <string name="pixiv_ranking_week_rookie_title">Rookie Ranking</string>
     <string name="pixiv_ranking_day_manga_title">Manga Ranking</string>
+    <string name="pixiv_ranking_day_ai_title">AI Daily Ranking</string>
+    <string name="pixiv_ranking_day_r18_title">R-18 Daily Ranking</string>
+    <string name="pixiv_ranking_week_r18_title">R-18 Weekly Ranking</string>
+    <string name="pixiv_ranking_day_r18_ai_title">R-18 AI Daily Ranking</string>
     <string name="pixiv_private_following_title">Private Following</string>
     <string name="pixiv_private_bookmarks_title">Private Bookmarks</string>
     <string name="pixiv_private_favourites_title">Private Favorites</string>

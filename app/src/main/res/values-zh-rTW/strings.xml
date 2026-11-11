@@ -826,4 +826,6 @@
     <string name="empty_languages">沒有符合的語言</string>
     <string name="empty_search_history">搜尋貼文或使用者，開始探索。</string>
     <string name="empty_media">暫無可顯示的媒體</string>
+    <string name="media_playback_speed">播放速度</string>
+    <string name="media_playback_speed_save_error">無法儲存播放速度，請重試。</string>
 </resources>

@@ -95,6 +95,7 @@ private fun Status.renderStatusV2(accountKey: MicroBlogKey): UiTimelineV2 {
                     width = it.large?.geoValue?.widthValue ?: it.geoValue?.widthValue ?: 0f,
                     height = it.large?.geoValue?.heightValue ?: it.geoValue?.heightValue ?: 0f,
                     description = null,
+                    kind = if (it.type == "livephoto") UiMedia.Video.Kind.LivePhoto else UiMedia.Video.Kind.Video,
                 )
             } else {
                 UiMedia.Image(

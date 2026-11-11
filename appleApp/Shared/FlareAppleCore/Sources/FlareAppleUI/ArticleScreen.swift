@@ -35,7 +35,8 @@ public struct ArticleScreen: View {
     public var body: some View {
         StateView(state: presenter.state.article) { article in
             ArticleContentView(
-                article: article,
+                article: presenter.state.translation?.article ?? article,
+                translation: presenter.state.translation,
                 accountType: accountType,
                 articleKey: articleKey,
                 comments: presenter.state.comments,
@@ -48,6 +49,7 @@ public struct ArticleScreen: View {
             ContentUnavailableView {
                 Label {
                     Text("Failed to load article", bundle: FlareAppleUILocalization.bundle)
+                        .flarePrimaryText()
                 } icon: {
                     Image(systemName: "exclamationmark.triangle")
                 }
@@ -57,6 +59,7 @@ public struct ArticleScreen: View {
         } loadingContent: {
             ArticleLoadingView()
         }
+        .flareTextBackground(.flareSystemBackground)
         .articleNavigationBarTitleDisplayMode()
         .toolbar {
             if let article = loadedArticle,
@@ -100,6 +103,20 @@ public struct ArticleScreen: View {
                 }
                 #endif
             }
+            if let translation = presenter.state.translation {
+                ToolbarItem {
+                    Button {
+                        translation.toggleTranslation()
+                    } label: {
+                        Image(fontAwesome: .language)
+                    }
+                    .accessibilityLabel(Text(translation.showTranslation ? "Show original" : "Translate", bundle: FlareAppleUILocalization.bundle))
+                    .accessibilityIdentifier("article-translation-toggle")
+                    #if os(macOS)
+                    .help(Text(translation.showTranslation ? "Show original" : "Translate", bundle: FlareAppleUILocalization.bundle))
+                    #endif
+                }
+            }
         }
     }
 
@@ -120,6 +137,7 @@ public struct ArticleScreen: View {
 
 private struct ArticleContentView: View {
     let article: UiArticle
+    let translation: ArticleTranslatePresenterState?
     let accountType: AccountType
     let articleKey: MicroBlogKey
     let comments: PagingState<UiTimelineV2>
@@ -134,7 +152,7 @@ private struct ArticleContentView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 16) {
+            LazyVStack(spacing: 0) {
                 if let cover = article.cover {
                     ArticleCoverView(
                         cover: cover,
@@ -151,6 +169,21 @@ private struct ArticleContentView: View {
                     )
 
                     Divider()
+
+                    if let translation {
+                        if translation.isTranslating {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                        }
+                        if translation.error != nil {
+                            Button {
+                                translation.retry()
+                            } label: {
+                                Text("Retry translation", bundle: FlareAppleUILocalization.bundle)
+                            }
+                            .accessibilityIdentifier("article-translation-retry")
+                        }
+                    }
 
                     ForEach(blocks, id: \.key) { block in
                         ArticleBlockView(
@@ -196,10 +229,15 @@ private struct ArticleContentView: View {
     }
 
     private var articleCommentsTitle: some View {
-        Text("Comments", bundle: FlareAppleUILocalization.bundle)
-            .font(.headline)
-            .frame(maxWidth: 680, alignment: .leading)
-            .padding(.horizontal)
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Comments", bundle: FlareAppleUILocalization.bundle)
+                .flarePrimaryText()
+                .font(.headline)
+                .padding(.horizontal, 16)
+            Divider()
+        }
+        .padding(.vertical, 8)
+        .frame(maxWidth: 712, alignment: .leading)
     }
 
     private var articleCommentsContent: some View {
@@ -207,7 +245,7 @@ private struct ArticleContentView: View {
             data: comments,
             detailStatusKey: articleKey,
             loadingCount: 3,
-            contentMaxWidth: 680,
+            contentMaxWidth: 712,
             contentHorizontalPadding: 0
         )
     }
@@ -266,6 +304,7 @@ private struct ArticleHeaderView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(article.title)
+                .flarePrimaryText()
                 .font(.title2)
                 .fontWeight(.semibold)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -280,7 +319,7 @@ private struct ArticleHeaderView: View {
                                 if let publishDate = article.publishDate {
                                     DateTimeText(data: publishDate, fullTime: true)
                                         .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .flareSecondaryText()
                                 }
                             }
                         },
@@ -299,7 +338,7 @@ private struct ArticleHeaderView: View {
             } else if let publishDate = article.publishDate {
                 DateTimeText(data: publishDate, fullTime: true)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .flareSecondaryText()
             }
         }
     }
@@ -329,7 +368,7 @@ private struct ArticleRssAuthorView: View {
                         }
                         Text(siteName)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .flareSecondaryText()
                     }
                 }
 
@@ -337,14 +376,14 @@ private struct ArticleRssAuthorView: View {
                     if let byline = author.byline {
                         Text(byline)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .flareSecondaryText()
                             .lineLimit(1)
                     }
                     Spacer(minLength: 8)
                     if let publishDate {
                         DateTimeText(data: publishDate, fullTime: true)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .flareSecondaryText()
                     }
                 }
             }
@@ -472,28 +511,30 @@ private struct ArticleFileBlockView: View {
         HStack(spacing: 12) {
             Image(systemName: "doc.fill")
                 .font(.title3)
-                .foregroundStyle(.secondary)
+                .flareSecondaryText()
                 .frame(width: 28, height: 28)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(block.name)
+                    .flarePrimaryText()
                     .font(.body)
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if let extensionName {
                     Text(extensionName)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .flareSecondaryText()
                 }
             }
 
             if canDownload {
                 Image(fontAwesome: .download)
-                    .foregroundStyle(.secondary)
+                    .flareSecondaryText()
                     .frame(width: 18, height: 18)
             }
         }
         .padding(12)
+        .flareTextBackground(.flareSecondarySystemGroupedBackground)
         .background(Color.flareSecondarySystemGroupedBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .articleCardBlockOutline()
         .contentShape(Rectangle())
@@ -528,19 +569,20 @@ private struct ArticleEmbedBlockView: View {
             } else {
                 Image(fontAwesome: .globe)
                     .font(.title3)
-                    .foregroundStyle(.secondary)
+                    .flareSecondaryText()
                     .frame(width: 28, height: 28)
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(block.title ?? block.url ?? block.htmlFallback ?? "")
+                    .flarePrimaryText()
                     .font(.body)
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if let description = block.description_ {
                     Text(description)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .flareSecondaryText()
                         .lineLimit(3)
                 }
                 if let url = block.url {
@@ -552,6 +594,7 @@ private struct ArticleEmbedBlockView: View {
             }
         }
         .padding(12)
+        .flareTextBackground(.flareSecondarySystemGroupedBackground)
         .background(Color.flareSecondarySystemGroupedBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .articleCardBlockOutline()
         .contentShape(Rectangle())
@@ -571,10 +614,11 @@ private struct ArticleContentGateBlockView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Subscription required", bundle: FlareAppleUILocalization.bundle)
+                    .flarePrimaryText()
                     .font(.body.weight(.semibold))
                 Text(descriptionText)
                     .font(.body)
-                    .foregroundStyle(.secondary)
+                    .flareSecondaryText()
 
                 if let actionUrl = block.actionUrl, !actionUrl.isEmpty {
                     Button {
@@ -588,6 +632,7 @@ private struct ArticleContentGateBlockView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(16)
+        .flareTextBackground(.flareSecondarySystemGroupedBackground)
         .background(Color.flareSecondarySystemGroupedBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .articleCardBlockOutline()
     }

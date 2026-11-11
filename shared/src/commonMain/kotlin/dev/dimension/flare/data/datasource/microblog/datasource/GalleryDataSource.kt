@@ -10,6 +10,8 @@ import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.humanizer.Formatter.humanize
 import dev.dimension.flare.ui.model.ClickContext
 import dev.dimension.flare.ui.model.ClickEvent
+import dev.dimension.flare.ui.model.DeeplinkEvent
+import dev.dimension.flare.ui.model.TranslationDisplayState
 import dev.dimension.flare.ui.model.UiIcon
 import dev.dimension.flare.ui.model.UiMedia
 import dev.dimension.flare.ui.model.UiProfile
@@ -46,10 +48,39 @@ public data class GalleryDetail(
     val isBookmarked: Boolean,
     val bookmarkAction: ClickEvent,
     val matrix: SerializableImmutableList<Matrix>,
+    val translation: Translation? = null,
 ) {
     val onBookmark: ClickContext.() -> Unit by lazy {
         bookmarkAction.onClicked
     }
+
+    val onTranslate: ClickContext.() -> Unit
+        get() = translationAction.onClicked
+
+    internal val translationAction: ClickEvent
+        get() {
+            val accountKey = (accountType as? AccountType.Specific)?.accountKey ?: return ClickEvent.Noop
+            val state = translation?.state ?: return ClickEvent.Noop
+            val event =
+                when (state) {
+                    TranslationDisplayState.Translating,
+                    TranslationDisplayState.Translated,
+                    -> DeeplinkEvent.TranslationEvent.ShowOriginal(statusKey)
+
+                    TranslationDisplayState.Failed -> DeeplinkEvent.TranslationEvent.RetryTranslation(statusKey)
+
+                    TranslationDisplayState.Hidden -> DeeplinkEvent.TranslationEvent.Translate(statusKey)
+                }
+            return ClickEvent.Deeplink(DeeplinkEvent(accountKey = accountKey, translationEvent = event))
+        }
+
+    @Serializable
+    @Immutable
+    public data class Translation(
+        val title: String?,
+        val content: UiRichText?,
+        val state: TranslationDisplayState,
+    )
 
     @Serializable
     @Immutable

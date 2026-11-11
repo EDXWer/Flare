@@ -97,7 +97,16 @@ public sealed interface UiMedia {
         override val customHeaders: SerializableImmutableMap<String, String>? = null,
         @Transient override val proxy: ProxyRef = ProxyRef.Unbound,
         override val downloadUrl: String? = null,
+        // shortcut: legacy cached media defaults to video until the next source refresh restores its kind.
+        val kind: Kind = Kind.Video,
     ) : UiMedia {
+        @Serializable
+        public enum class Kind {
+            Video,
+            Gif,
+            LivePhoto,
+        }
+
         val aspectRatio: Float
             get() = (width / (height.takeUnless { it == 0f } ?: 1f)).takeUnless { it == 0f } ?: 1f
     }

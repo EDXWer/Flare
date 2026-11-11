@@ -957,4 +957,6 @@
     <string name="empty_languages">没有匹配的语言</string>
     <string name="empty_search_history">搜索帖子或用户，开始探索。</string>
     <string name="empty_media">暂无可显示的媒体</string>
+    <string name="media_playback_speed">播放速度</string>
+    <string name="media_playback_speed_save_error">无法保存播放速度，请重试。</string>
 </resources>

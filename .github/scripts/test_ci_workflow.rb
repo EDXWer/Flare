@@ -163,10 +163,14 @@ expected_selectors = %w[
   TimelineControllerTests/WebViewProxyTests
   TimelineControllerTests/LoginCookieSnapshotTests
   TimelineControllerTests/UgoiraPlaybackTests
+  TimelineControllerTests/VideoControlViewTests
   TimelineControllerTests/TimelineControllerIntegrationTests/testSingleMediaLimitUsesStableWindowAndEmbeddedViewportGeometry
   TimelineControllerTests/TimelineControllerIntegrationTests/testViewportHeightChangeResizesSingleMediaAndPreservesReadingPosition
   TimelineControllerTests/TimelineControllerIntegrationTests/testSingleMediaLimitSwitchKeepsReadingPosition
   TimelineControllerTests/TimelineRefreshAnimationTests
+  TimelineControllerTests/FlareTextColorTests
+  TimelineControllerTests/FlareTextColorIntegrationTests
+  TimelineControllerTests/StatusShareTests
   TimelineControllerTests/TimelineMediaPreviewTests/testSwiftUIMediaKeepsItsInitialHeightWhenLazyRowsAppearAndReturn
   TimelineControllerTests/TimelineMediaPreviewTests/testSwiftUIMediaIgnoresPlaybackViewportAndChromeInsetsButRespondsToResize
   iOSTests/VideoPlaybackSessionTests
@@ -176,10 +180,11 @@ expected_selectors = %w[
   iOSTests/StateViewTests
   iOSTests/TimelineCollectionViewTests/testRefreshCollapseAppliesAPendingPrependBookmarkBeforeAnimating
   MediaViewerInteractionTests/TimelineMediaScrollTests
+  MediaViewerInteractionTests/MediaViewerInteractionTests/testVideoSummaryControlsStayBelowGrabberWithZeroHeightProposal
   MediaViewerInteractionTests/MediaViewerInteractionTests/testTranslationErrorDetailsAreOnlyAccessibleFromFailureAlertWithPost
   MediaViewerInteractionTests/MediaViewerInteractionTests/testTranslationErrorDetailsAreOnlyAccessibleFromFailureAlertWithoutPost
 ]
-check(ios.scan(/-only-testing:([^\s]+)/).flatten.to_set == expected_selectors.to_set, 'iOS regression coverage must remain unchanged')
+check(ios.scan(/-only-testing:([^\s]+)/).flatten.to_set == expected_selectors.to_set, 'iOS CI must select the expected regressions')
 check(ios.scan('xcodebuild build-for-testing').size == 1, 'iOS regression targets must be built once')
 check(ios.scan('xcodebuild test-without-building').size == 3 && !ios.match?(/xcodebuild test\s/), 'iOS regressions must reuse the built products')
 check(ios.scan('-scheme CI-iOS').size == 4, 'iOS builds and tests must use the same scheme')

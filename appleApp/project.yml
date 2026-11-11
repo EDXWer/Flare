@@ -295,6 +295,14 @@ targets:
     dependencies:
       - target: FlareAppleCore
       - target: FlareAppleUI
+      - target: FlareAppleResource
+        embed: true
+        link: false
+        copy:
+          destination: resources
+      - package: Kingfisher
+      - package: iOS-Backports
+        product: SwiftUIBackports
       - package: Firebase
         product: FirebaseCrashlytics
     settings:
@@ -569,5 +577,7 @@ schemes:
         MacTimelineTests: all
     test:
       config: Debug
+      environmentVariables:
+        CFFIXED_USER_HOME: "$(TEMP_DIR)/MacTimelineTestsHome"
       targets:
         - MacTimelineTests

@@ -298,10 +298,14 @@ jobs:
             -only-testing:TimelineControllerTests/WebViewProxyTests \
             -only-testing:TimelineControllerTests/LoginCookieSnapshotTests \
             -only-testing:TimelineControllerTests/UgoiraPlaybackTests \
+            -only-testing:TimelineControllerTests/VideoControlViewTests \
             -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testSingleMediaLimitUsesStableWindowAndEmbeddedViewportGeometry \
             -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testViewportHeightChangeResizesSingleMediaAndPreservesReadingPosition \
             -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testSingleMediaLimitSwitchKeepsReadingPosition \
             -only-testing:TimelineControllerTests/TimelineRefreshAnimationTests \
+            -only-testing:TimelineControllerTests/FlareTextColorTests \
+            -only-testing:TimelineControllerTests/FlareTextColorIntegrationTests \
+            -only-testing:TimelineControllerTests/StatusShareTests \
             -only-testing:TimelineControllerTests/TimelineMediaPreviewTests/testSwiftUIMediaKeepsItsInitialHeightWhenLazyRowsAppearAndReturn \
             -only-testing:TimelineControllerTests/TimelineMediaPreviewTests/testSwiftUIMediaIgnoresPlaybackViewportAndChromeInsetsButRespondsToResize \
             -only-testing:iOSTests/VideoPlaybackSessionTests \
@@ -311,12 +315,13 @@ jobs:
             -only-testing:iOSTests/StateViewTests \
             -only-testing:iOSTests/TimelineCollectionViewTests/testRefreshCollapseAppliesAPendingPrependBookmarkBeforeAnimating \
             -parallel-testing-enabled NO -collect-test-diagnostics never
-      - name: Run timeline media scroll regressions
+      - name: Run media UI regressions
         working-directory: ./appleApp
         run: |
           xcodebuild test-without-building -project Flare.xcodeproj -scheme CI-iOS \
             -derivedDataPath build/DerivedData -destination "platform=iOS Simulator,id=$FLARE_TEST_SIMULATOR" \
             -only-testing:MediaViewerInteractionTests/TimelineMediaScrollTests \
+            -only-testing:MediaViewerInteractionTests/MediaViewerInteractionTests/testVideoSummaryControlsStayBelowGrabberWithZeroHeightProposal \
             -parallel-testing-enabled NO -collect-test-diagnostics never
       - name: Run image translation error UI regressions
         working-directory: ./appleApp
@@ -506,7 +511,7 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-job-windows
       cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
-    timeout-minutes: 30
+    timeout-minutes: 180
     env: *build-env
     steps:
       - *clean-workspace

@@ -109,6 +109,18 @@ class SettingsImportExportPresenterTest : RobolectricTest() {
     }
 
     @Test
+    fun exportAndImportPreserveVideoPlaybackSpeed() =
+        runTest {
+            settingsRepository.updateAppSettings { copy(videoPlaybackSpeed = 16f) }
+            val exported = ExportSettingsPresenter().export()
+            settingsRepository.updateAppSettings { copy(videoPlaybackSpeed = 1f) }
+
+            ImportSettingsPresenter(exported).import()
+
+            assertEquals(16f, settingsRepository.appSettings.first().videoPlaybackSpeed)
+        }
+
+    @Test
     fun exportAndImportPreserveIndependentAgentConfiguration() =
         runTest {
             val config =

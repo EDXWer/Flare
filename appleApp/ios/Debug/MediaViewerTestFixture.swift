@@ -138,7 +138,7 @@ struct MediaViewerTestFixture: View {
 
     private func makeMedia(index: Int = 0) async -> any UiMedia {
         let image = UIGraphicsImageRenderer(size: CGSize(width: 320, height: 240)).image { context in
-            UIColor.systemTeal.setFill()
+            (index == 0 ? UIColor.systemTeal : UIColor.systemOrange).setFill()
             context.fill(CGRect(x: 0, y: 0, width: 320, height: 240))
         }
         let imageURL = FileManager.default.temporaryDirectory.appendingPathComponent("media-fixture-\(index).png")
@@ -172,7 +172,8 @@ struct MediaViewerTestFixture: View {
         } catch {
             assertionFailure("Could not create video fixture: \(error)")
         }
-        return UiMediaVideo(url: videoURL.absoluteString, thumbnailUrl: imageURL.absoluteString, description: "Fixture video", height: 240, width: 320, customHeaders: nil, proxy: ProxyRef.Unbound.shared, downloadUrl: nil)
+        return UiMediaVideo(url: videoURL.absoluteString, thumbnailUrl: imageURL.absoluteString, description: "Fixture video", height: 240, width: 320, customHeaders: nil, proxy: ProxyRef.Unbound.shared, downloadUrl: nil,
+                            kind: ProcessInfo.processInfo.arguments.contains("--live-photo") ? .livePhoto : ProcessInfo.processInfo.arguments.contains("--gif-video") ? .gif : .video)
     }
 
     private func richText(_ text: String) -> UiRichText {
@@ -184,6 +185,21 @@ struct MediaViewerTestFixture: View {
         let profile = UiProfile(key: MicroBlogKey(id: "reader", host: "example.invalid"), handle: UiHandle(raw: "reader", host: "example.invalid", displayOverride: nil), avatar: nil as UiMediaImage?, nameInternal: richText("Media Test User"), platformId: "mastodon", platformIcon: IconType.Material(icon: .world), clickEvent: ClickEventNoop.shared, banner: nil, description: nil, sourceLanguages: [], translationDisplayState: .hidden, matrices: UiProfile.Matrices(fansCount: 0, followsCount: 0, statusesCount: 0, platformFansCount: nil), mark: [], bottomContent: nil, pluginId: nil)
         let action = ActionMenu.Item(updateKey: "like", icon: .like, text: nil, count: UiNumber(value: 1), color: .contentColor, clickEvent: ClickEventNoop.shared, actionFamily: .like, enabled: true)
         return UiTimelineV2.Post(platformId: "mastodon", images: medias, sensitive: false, contentWarning: nil, user: profile, platformIcon: IconType.Material(icon: .world), sourceLanguages: [], translationDisplayState: .hidden, content: UiTranslatableText(original: richText(String(repeating: "Post details for the native media sheet. ", count: 40)), translation: nil), actions: [action], poll: nil, statusKey: MicroBlogKey(id: "media-fixture", host: "example.invalid"), card: nil, createdAt: KotlinInstant.companion.fromEpochMilliseconds(epochMilliseconds: 0).toUi(), emojiReactions: [], sourceChannel: nil, visibility: nil, replyToHandle: nil, references: [], clickEvent: ClickEventNoop.shared, mediaClickPolicy: .openStatusMedia, accountType: AccountType.Guest.shared, itemKey: "media-fixture", pluginId: nil, authorSubtitleInternal: nil)
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func mediaViewerTestSheetLayout(isCompact: Bool) -> some View {
+        if isCompact,
+           ProcessInfo.processInfo.arguments.contains("--media-viewer-test"),
+           ProcessInfo.processInfo.arguments.contains("--zero-height-media-summary") {
+            // Simulate a zero-height layout proposal while keeping the native sheet at its measured detent.
+            frame(height: 0)
+                .frame(maxHeight: .infinity, alignment: .top)
+        } else {
+            self
+        }
     }
 }
 #endif
