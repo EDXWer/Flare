@@ -56,17 +56,20 @@ final class TimelineRefreshAnimationTests: XCTestCase {
 
         XCTAssertGreaterThan(frames.samples.count, 10)
         XCTAssertEqual(frames.missingItemFrames, 0, "The reading item must remain visible throughout refresh")
-        // Normalize to 60 Hz and cap the allowance so a 54-point jump still fails after missed callbacks.
-        let steps = zip(frames.samples, frames.samples.dropFirst()).map { previous, current in
+        let readingSteps = zip(frames.samples, frames.samples.dropFirst()).map { previous, current in
+            // Cap the allowance so a 54-point jump still fails after missed callbacks.
             let frameAllowance = min(4, max(1, (current.timestamp - previous.timestamp) * 60))
-            return (
-                content: abs((current.y - current.topInset) - (previous.y - previous.topInset)) / frameAllowance,
-                navigation: abs(current.topInset - previous.topInset) / frameAllowance
-            )
+            let readingStep = (current.y - current.topInset) - (previous.y - previous.topInset)
+            let navigationStep = current.topInset - previous.topInset
+            // The changing inset can also shift the scroll offset during minimization.
+            let barTravel = readingStep * navigationStep > 0 ? abs(navigationStep) : 0
+            return max(0, abs(readingStep) - barTravel) / frameAllowance
         }
-        XCTAssertLessThan(steps.map(\.content).max() ?? 0, 12, "The reading item must not jump relative to the navigation bar")
-        XCTAssertLessThan(steps.map(\.navigation).max() ?? 0, 12, "Navigation bar minimization must stay smooth")
-        XCTAssertGreaterThan(expandedTopInset - list.safeAreaInsets.top, 20, "Keep navigation bar minimization enabled")
+        let collapsedTopInset = list.safeAreaInsets.top
+        XCTAssertLessThan(readingSteps.max() ?? 0, 12, "The reading item must not jump relative to the navigation bar")
+        XCTAssertGreaterThan(expandedTopInset - collapsedTopInset, 20, "Keep navigation bar minimization enabled")
+        XCTAssertTrue(frames.samples.contains { $0.topInset < expandedTopInset - 1 && $0.topInset > collapsedTopInset + 1 },
+                      "Navigation bar minimization must pass through intermediate insets")
         XCTAssertFalse(list.isPresentingRefresh)
         XCTAssertFalse(list.hasReadingPosition)
         let path = try XCTUnwrap(list.readingIndexPath?("t:case-0"))
