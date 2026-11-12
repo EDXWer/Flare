@@ -199,7 +199,10 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         guard contentWarningToggle.actions(forTarget: nil, forControlEvent: .touchUpInside)?.isEmpty ?? true else { return }
         contentWarningToggle.contentHorizontalAlignment = .leading
         contentWarningToggle.addAction(
-            UIAction { [weak self] _ in self?.toggleExpand() },
+            UIAction { [weak self] _ in
+                guard let self else { return }
+                self.setExpanded(!self.expand)
+            },
             for: .touchUpInside
         )
     }
@@ -209,7 +212,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         expandMoreButton.contentHorizontalAlignment = .leading
         expandMoreButton.setTitle(String(localized: "mastodon_item_show_more"), for: .normal)
         expandMoreButton.addAction(
-            UIAction { [weak self] _ in self?.expandOnly() },
+            UIAction { [weak self] _ in self?.setExpanded(true) },
             for: .touchUpInside
         )
     }
@@ -873,6 +876,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             }
             for content in contents where !content.text.isEmpty {
                 let bodyText = content.cacheKeyOffset == 0 ? resolvedBodyText() : resolvedBodyTranslationText()
+                bodyText.clipsToVisibleHeight = expand
                 bodyText.configure(
                     text: content.text,
                     lineLimit: bodyLineLimit,
@@ -1276,27 +1280,37 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         user.onClicked(ClickContext(launcher: makeLauncher()))
     }
 
-    private func toggleExpand() {
-        UIView.animate(withDuration: 0.25) { [weak self] in
-            guard let self = self else { return }
-            self.expand.toggle()
-            self.rebuild()
-            self.notifyLocalHeightInvalidated()
-            self.layoutIfNeeded()
-        } completion: { [weak self] _ in
-            self?.invalidateContainingCollectionLayout()
+    private func setExpanded(_ expanded: Bool) {
+        guard expand != expanded else { return }
+        layoutIfNeeded()
+        let hiddenBodyTop = contentColumnLayoutItems.first { $0.view === contentWarningToggleStorage }
+            .map { $0.view.frame.maxY + $0.spacingAfter }
+        expand = expanded
+        UIView.performWithoutAnimation {
+            rebuild()
+            if expanded {
+                let width = fittingContentColumnWidth(for: bounds.width)
+                // Lay out the full text before animating its clipped viewport.
+                for case let body as RichTextUIView in contentColumnChildren
+                    where body === bodyTextStorage || body === bodyTranslationTextStorage {
+                    if let hiddenBodyTop {
+                        body.frame = CGRect(x: bounds.width - width, y: hiddenBodyTop, width: width, height: 0)
+                    }
+                    body.prepareForFitting(width: width)
+                    body.layoutIfNeeded()
+                }
+            }
         }
-    }
 
-    private func expandOnly() {
-        UIView.animate(withDuration: 0.25) { [weak self] in
-            guard let self = self else { return }
-            self.expand = true
-            self.rebuild()
+        let cell = onLocalHeightInvalidated == nil ? nil : firstSuperview(of: UICollectionViewCell.self)
+        let timeline = cell?.firstSuperview(of: TimelineCollectionView.self)
+        UIView.animate(withDuration: UIAccessibility.isReduceMotionEnabled ? 0 : 0.25,
+                       delay: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
             self.notifyLocalHeightInvalidated()
             self.layoutIfNeeded()
+            if let cell { timeline?.layoutAfterLocalHeightChange(in: cell) }
         } completion: { [weak self] _ in
-            self?.invalidateContainingCollectionLayout()
+            if timeline == nil { self?.invalidateContainingCollectionLayout() }
         }
     }
 
