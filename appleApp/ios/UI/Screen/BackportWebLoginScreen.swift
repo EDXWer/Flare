@@ -6,47 +6,38 @@ import FlareAppleCore
 
 struct BackportWebLoginScreen: View {
     @Environment(\.dismiss) var dismiss
-    @State private var viewModel: BackportWebLoginViewModel?
-    private let onCookie: ([HTTPCookie]) -> Void
-    let url: String
-    init(
-        onCookie: @escaping ([HTTPCookie]) -> Void,
-        url: String
-    ) {
-        self.url = url
-        self.onCookie = onCookie
-    }
+    let session: WebLoginSession
+    private var viewModel: BackportWebLoginViewModel? { session.viewModel as? BackportWebLoginViewModel }
 
     var body: some View {
+        let initialOrigin = webLoginHTTPSOrigin(URL(string: session.url))
         NavigationStack {
-            ProxyWebContent { route in
+            ProxyWebContent.content(proxy: session.proxy) { route in
                 Group {
                     if let viewModel, viewModel.route === route {
-                        BackportWebView(url: URL(string: url), configuration: viewModel.configuration) { webView in
-                            webView.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1"
-                            webView.navigationDelegate = viewModel.delegate
-                            route.bind(webView)
-                        }
-                        .task { await viewModel.pollCookies() }
+                        BackportWebView(webView: viewModel.webView)
+                            .task { await viewModel.pollCookies() }
                     } else {
                         ProgressView()
                     }
                 }
-                .task(id: route.key) {
-                    guard viewModel?.route !== route else { return }
-                    viewModel = BackportWebLoginViewModel(onCookie: onCookie, url: url, route: route)
+                .task(id: ObjectIdentifier(route)) { [session] in
+                    let viewModel = session.viewModel as? BackportWebLoginViewModel
+                    guard route.isValid, viewModel?.route !== route else { return }
+                    session.viewModel = BackportWebLoginViewModel(onCookie: { [weak session] cookies in
+                        session?.checkCookies(cookies)
+                    }, url: session.url, route: route)
                 }
             }
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    WebLoginOriginLabel(current: viewModel?.currentOrigin ?? webLoginHTTPSOrigin(URL(string: url)) ?? "", initial: webLoginHTTPSOrigin(URL(string: url)))
+                    WebLoginOriginLabel(current: viewModel?.currentOrigin ?? initialOrigin ?? "", initial: initialOrigin)
                 }
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Label("Cancel", systemImage: "xmark") }
                 }
             }
         }
-        .onDisappear { viewModel?.clearCookie() }
     }
 }
 
@@ -87,12 +78,12 @@ class WKDelegate: NSObject, WKNavigationDelegate {
 }
 
 @Observable
-final class BackportWebLoginViewModel {
+final class BackportWebLoginViewModel: WebLoginPageModel {
     let route: WebViewProxyRoute
     let url: String
     let onCookie: ([HTTPCookie]) -> Void
     var currentOrigin: String
-    @ObservationIgnored lazy var delegate: WKDelegate = {
+    @ObservationIgnored private lazy var delegate: WKDelegate = {
         let delegate = WKDelegate(route: route) { [weak self] in
             guard let self else { return }
             route.dataStore.httpCookieStore.getAllCookies { cookies in
@@ -105,6 +96,21 @@ final class BackportWebLoginViewModel {
         }
         return delegate
     }()
+    @ObservationIgnored private(set) lazy var webView: WKWebView = {
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = route.dataStore
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = true
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1"
+        webView.navigationDelegate = delegate
+        route.onStop { [weak webView] in webView?.navigationDelegate = nil }
+        route.bind(webView)
+        if route.isValid, let requestURL = URL(string: url), webLoginHTTPSOrigin(requestURL) != nil {
+            webView.load(URLRequest(url: requestURL))
+        }
+        return webView
+    }()
+
     init(
         onCookie: @escaping ([HTTPCookie]) -> Void,
         url: String,
@@ -114,15 +120,6 @@ final class BackportWebLoginViewModel {
         self.onCookie = onCookie
         self.url = url
         self.currentOrigin = webLoginHTTPSOrigin(URL(string: url)) ?? ""
-    }
-    var configuration: WKWebViewConfiguration {
-        let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = route.dataStore
-        configuration.defaultWebpagePreferences.allowsContentJavaScript = true
-        return configuration
-    }
-    func clearCookie() {
-        clearWebLoginDataStore(dataStore: route.dataStore)
     }
 
     func getCookies() {
