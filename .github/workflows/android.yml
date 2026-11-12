@@ -302,6 +302,9 @@ jobs:
             -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testSingleMediaLimitUsesStableWindowAndEmbeddedViewportGeometry \
             -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testViewportHeightChangeResizesSingleMediaAndPreservesReadingPosition \
             -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testSingleMediaLimitSwitchKeepsReadingPosition \
+            -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testLongPostExpandsDownwardFromItsPreview \
+            -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testContentWarningRevealsTextDownward \
+            -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testLongPostExpansionKeepsTimelineColumns \
             -only-testing:TimelineControllerTests/TimelineRefreshAnimationTests \
             -only-testing:TimelineControllerTests/FlareTextColorTests \
             -only-testing:TimelineControllerTests/FlareTextColorIntegrationTests \

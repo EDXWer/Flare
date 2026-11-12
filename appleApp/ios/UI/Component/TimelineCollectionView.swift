@@ -16,6 +16,7 @@ final class TimelineCollectionView: UICollectionView {
     var prepareVisibleCells: (() -> Bool)?
     var onReadingLayoutChanged: (() -> Void)?
     private var isPreparingVisibleCells = false
+    private var localHeightChangeIndexPath: IndexPath?
     private var isExternalScrollInteractionActive = false
     var isScrollInteractionActive: Bool { hasScrollGesture || isProgrammaticScrolling || isExternalScrollInteractionActive }
     var onProgrammaticScrollBegan: (() -> Void)?
@@ -450,26 +451,48 @@ final class TimelineCollectionView: UICollectionView {
         }
     }
 
+    func layoutAfterLocalHeightChange(in cell: UICollectionViewCell) {
+        // The button's touch can still be tracked when it delivers its action.
+        if !isDragging && !isDecelerating && !isProgrammaticScrolling && !isExternalScrollInteractionActive && !isPresentingRefresh {
+            localHeightChangeIndexPath = indexPath(for: cell)
+        }
+        defer { localHeightChangeIndexPath = nil }
+        setNeedsLayout()
+        layoutIfNeeded()
+    }
+
+    fileprivate func animatesLocalHeightChange(at indexPaths: [IndexPath]?) -> Bool {
+        guard let localHeightChangeIndexPath else { return false }
+        return indexPaths == [localHeightChangeIndexPath]
+    }
+
     /// Apply measured geometry without moving content under an active gesture.
     /// Publish heights after capturing the old anchor, outside cell measurement.
     /// Layouts triggered by offset compensation must see the same committed batch.
     func invalidateMeasuredHeights(at indexPaths: [IndexPath]? = nil, applying measurements: () -> Bool = { true }) {
+        func applyMeasurements() {
+            guard measurements() else {
+                // Discarding an obsolete batch can make an existing bookmark
+                // ready without invalidating any item geometry.
+                if hasReadingPosition { setNeedsLayout() }
+                return
+            }
+            if let indexPaths, let layout = collectionViewLayout as? TimelineWaterfallLayout {
+                layout.invalidateMeasuredItems(at: indexPaths)
+            } else {
+                collectionViewLayout.invalidateLayout()
+            }
+            layoutIfNeeded()
+        }
+
+        if animatesLocalHeightChange(at: indexPaths) {
+            applyMeasurements()
+            return
+        }
+
         prepareForLayoutChange(preferringVisibleTop: true)
         UIView.performWithoutAnimation {
-            performUpdatesPreservingReadingPosition(preferringVisibleTop: true) {
-                guard measurements() else {
-                    // Discarding an obsolete batch can make an existing bookmark
-                    // ready without invalidating any item geometry.
-                    if hasReadingPosition { setNeedsLayout() }
-                    return
-                }
-                if let indexPaths, let layout = collectionViewLayout as? TimelineWaterfallLayout {
-                    layout.invalidateMeasuredItems(at: indexPaths)
-                } else {
-                    collectionViewLayout.invalidateLayout()
-                }
-                layoutIfNeeded()
-            }
+            performUpdatesPreservingReadingPosition(preferringVisibleTop: true, applyMeasurements)
         }
     }
 
@@ -811,6 +834,7 @@ final class TimelineWaterfallLayout: CHTCollectionViewWaterfallLayout {
             guard sections[section].frames.count == collectionView.numberOfItems(inSection: section) else { return false }
         }
         let paths = measuredItems.sorted()
+        let keepsColumns = (collectionView as? TimelineCollectionView)?.animatesLocalHeightChange(at: paths) == true
         var heights: [CGFloat] = []
         for path in paths {
             guard sections.indices.contains(path.section), sections[path.section].frames.indices.contains(path.item) else { return false }
@@ -839,6 +863,7 @@ final class TimelineWaterfallLayout: CHTCollectionViewWaterfallLayout {
                 switch itemRenderDirection {
                 case .leftToRight: column = item % geometry.columns
                 case .rightToLeft: column = geometry.columns - 1 - item % geometry.columns
+                case .shortestFirst where keepsColumns: column = geometry.column(of: geometry.frames[item])
                 default: column = columns.indices.min { columns[$0] < columns[$1] } ?? 0
                 }
                 geometry.frames[item].origin = CGPoint(x: geometry.left + (geometry.width + geometry.columnSpacing) * CGFloat(column),
