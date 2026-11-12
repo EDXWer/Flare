@@ -1,11 +1,11 @@
 # Capability and UI contract
 
-Each ID below has prefix `flare.datasource.` and suffix `/v1`, except compose
-which uses `/v2`; use the full ID
-in the manifest and negotiated login result. JavaScript methods live under
+Each ID below has the prefix `flare.datasource.`. Append `/v1` to entries that
+omit a version. Use the full ID in the manifest and negotiated login result.
+JavaScript methods live under
 `defineFlareSocialPlugin({ capabilities: { <service>: ... } })`.
 
-| ID middle | Service | Required operations | Additional operations | Host surface / dependency |
+| ID after prefix | Service | Required operations | Additional operations | Host surface / dependency |
 | --- | --- | --- | --- | --- |
 | `timeline-page` | `timelinePage` | `load` | None | API v2 temporary native lists; no home timeline or tabCatalog required |
 | `account-http` | `accountHttp` | `authenticate` | None | API v2 account-only authentication for platform extensions; explicit authOrigins; no displayable entry |
@@ -15,7 +15,8 @@ in the manifest and negotiated login result. JavaScript methods live under
 | `profile` | `profile` | `byId`, `byHandle` | `timeline`, `following`, `followers` | Profile lookup; tabs additionally require `timeline` and profileTabs |
 | `post` | `post` | `detail` | `context`, `delete`, `mutate` | Internal post detail, thread context, and supported actions |
 | `relation` | `relation` | `state`, `mutate` | None | Follow/block/mute controls; nonempty static relationActions |
-| `compose` | `compose` | `publish` | None | Composer; requires composeDefaults.supportedTypes and an account; Reply/Quote actions and editor send honour the supported modes |
+| `compose/v1` | `compose` | `publish` | None | Legacy new posts and replies via `replyTo`. Requires `composeDefaults` and an account. |
+| `compose/v2` | `compose` | `publish` | None | Typed reply and quote references. Requires `composeDefaults.supportedTypes` and an account. |
 | `compose/v3` | `composeV3` | `publish` | None | Composer with friends and selfOnly visibility. Requires composeDefaultsV3 and account negotiation. |
 | `notification` | `notification` | At least one of `page`, `badge` | Both may be declared | `page` supplies the list and requires notificationFilters; badge alone is not a displayable login capability |
 | `list` | `list` | `page`, `detail`, `create`, `update`, `delete`, `timeline`, `members`, `memberships`, `addMember`, `removeMember` | None | List browsing and management |

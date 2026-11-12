@@ -7,7 +7,7 @@ repository root. Each selected directory contains a complete plugin:
 
 ```text
 manifest.json
-plugin.js             # required for platform or translation declarations
+plugin.js             # required for platform, translation or platformExtension
 assets/icon.png
 locales/en.json       # optional; other BCP-47 catalogs as needed
 settings/             # optional offline page and all its dependencies
@@ -19,10 +19,10 @@ The package must contain exactly one `assets/icon.<extension>`: `png`, `jpg`,
 The icon is kept unchanged, limited to 2 MiB and 1024×1024 pixels. SVG is not
 supported. PNG remains the default in the templates.
 
-Translation and settings use the unreleased Host API v2 with a matching SDK.
-A settings-only package can omit the background script, social platform and
-login methods. See [storage, translation and settings](storage-and-settings.md)
-for the feature declarations and minimal package.
+Translation, offline settings and platform extensions require Host API v2.
+Use the SDK for the target Flare build. A settings-only package can omit the
+background script, social platform and login methods. See [Flare and SDK versions](../README.md#match-flare-and-the-sdk)
+and [the settings-only manifest](storage-and-settings.md#settings-only-package).
 
 Development files may coexist in the repository. Flare selects the plugin files;
 it does not run a package manager, build script, or client-side bundler. Commit
@@ -51,8 +51,8 @@ Existing root installations keep using the repository root.
 
 1. Verify the advertised features, using verified endpoints for network features. Replace the
    name, description, and placeholder icon before publication. For manual template
-   copies, replace the example plugin/platform IDs; keep the unique IDs generated
-   by `npx flare-plugin-sdk@next init my-plugin` stable.
+   copies, replace the example plugin/platform IDs. Keep the unique IDs generated
+   by the SDK initializer stable.
    Keep real tokens, Cookies, passwords, and private fixtures out of Git history.
 2. Put the required files in the selected plugin directory and check that a clean
    checkout contains them.
@@ -102,6 +102,11 @@ removes temporary downloads. Keep node_modules and build caches out of Git. See
 [limits](troubleshooting.md#limits).
 
 ## Updates and compatibility
+
+Follow the [V1 migration steps](../ABI.md#migrate-an-api-v1-plugin) when adding
+V2 features. GitHub selects the repository's latest stable tag and then reads
+the selected plugin path. A snapshot that declares `apiVersion: 2` requires a V2
+Host. V1 Hosts keep their installed package if the update fails validation.
 
 Increment the changed plugin's manifest.version and publish a newer repository
 snapshot tag. Preserve plugin ID, any previously owned platform ID, repository identity, and directory
@@ -195,7 +200,7 @@ and all packaged `settings/` resources into it,
 preserving those paths. From the project root:
 
 ```sh
-npx --package=flare-plugin-sdk@next flare-plugin-pack ./dist ../my-plugin.fpp
+node ./node_modules/flare-plugin-sdk/skill/flare-plugin/pack.mjs ./dist ../my-plugin.fpp
 ```
 
 The complete skill also includes the standard-library-only packer for use without

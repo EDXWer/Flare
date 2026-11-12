@@ -2,8 +2,18 @@
 
 These local references match the running Flare build. Read them with
 `read_plugin_sdk(path, startLine, lineCount)`; an empty path lists available files.
-Paths in links are relative to their document. Only read the contracts relevant
-to the requested work instead of loading every document into the conversation.
+Resolve links relative to their document and pass the file path before any `#`
+fragment. Use line ranges to read the sections needed for the requested work.
+
+## Choose the Host API
+
+Use `schemaVersion: 1` for both Host API versions. The social starter uses
+`apiVersion: 1`. Choose `apiVersion: 2` for HTTP session features, storage,
+translation, offline settings, platform actions, account HTTP providers or
+temporary timeline pages. Select compose capability and interface versions
+separately. Read the [version requirements](references/manifest.md#host-api-versions)
+and follow the [V1 migration steps](ABI.md#migrate-an-api-v1-plugin) when adding
+a V2 feature to an existing plugin.
 
 For operations on existing built-in or plugin-provided accounts and daily foreground tasks, read
 [platform extensions](references/platform-extensions.md). Verify the website protocol

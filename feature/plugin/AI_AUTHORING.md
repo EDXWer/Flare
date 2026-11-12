@@ -14,15 +14,13 @@ plugin, including after a restart. Different requests can create multiple plugin
 with the same display name. Tools list and manage only editable local plugins;
 imported and GitHub-installed plugins are outside their scope.
 
-With a matching Host API v2 build, ask for any combination of a social adapter,
-text translation and an offline settings page, including a settings-only plugin.
-Those standalone features need no social account or invented website/login.
-Background code uses `defineFlareSocialPlugin` for social services and
-`defineFlareTranslatePlugin` for translation; combined packages call each once.
-Settings pages run on iOS, Android and native macOS; Compose Desktop has no
-settings page integration. The assistant can submit packaged HTML, JS/MJS, CSS
-and JSON text files and the page SDK alongside background code. See the
-[v2 developer contract](sdk/skill/flare-plugin/references/storage-and-settings.md).
+The Agent uses the SDK bundled with the running Flare build. In a build with
+Host API v2, ask for social services, text translation, offline settings or
+actions for existing accounts. A settings-only plugin can provide just its page
+and metadata. Settings pages and Plugin tasks are available on iOS, Android and
+native macOS. The assistant can submit packaged HTML, JS/MJS, CSS and JSON text
+files with the settings SDK. See the [v2 developer contract](sdk/skill/flare-plugin/references/storage-and-settings.md)
+and [Flare and SDK versions](sdk/skill/flare-plugin/README.md#match-flare-and-the-sdk).
 
 An external package cannot replace an editable local plugin with the same ID;
 delete the local plugin first to install that package. Creation also rejects IDs

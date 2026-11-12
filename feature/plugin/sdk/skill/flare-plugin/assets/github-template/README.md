@@ -6,9 +6,9 @@ Adapt the paths, authentication, and mapping to your website before publishing.
 No demonstration server is included. Tests in Flare exercise this template with
 fixture HTTP responses through the real QuickJS runtime.
 
-The starter remains a social adapter. To add API v2 translation or an offline
-settings page, use the matching Host/SDK revision and follow the
-[storage, translation and settings contract](https://github.com/flaresocialapp/Flare/blob/feature/plugin-v2/feature/plugin/sdk/skill/flare-plugin/references/storage-and-settings.md).
+For API v2 features, [match Flare and the SDK](https://github.com/flaresocialapp/Flare/blob/master/feature/plugin/sdk/skill/flare-plugin/README.md#match-flare-and-the-sdk)
+before installing dependencies. For translation or offline settings, follow the
+[storage, translation and settings contract](https://github.com/flaresocialapp/Flare/blob/master/feature/plugin/sdk/skill/flare-plugin/references/storage-and-settings.md).
 Keep ready-to-load HTML/CSS/JS and all page dependencies in `settings/`; the
 starter's build/package commands copy that directory but do not compile page
 TypeScript or resolve browser imports. Bundle the page SDK before packaging.
@@ -17,23 +17,24 @@ the standalone packer accepts that layout without this starter's build pipeline.
 
 ## 1. Adapt the plugin
 
-If you created this project with `npx flare-plugin-sdk@next init my-plugin`, work
+If you created this project with the SDK initializer, work
 inside `my-plugin` and keep its generated plugin/platform IDs. If you copied the
 template manually, first copy its contents to your plugin directory and replace
 the example `manifest.id`, `platform.id`, and names. Keep IDs stable for updates.
 For manual copies, also rename `_gitignore` to `.gitignore`; `init` does this for you.
 
-The generated manifest's `$schema` is pinned to the SDK version that created it.
+The initializer pins the manifest's `$schema` URL to its SDK version. For a
+source SDK, set `$schema` to the schema in the installed package.
 Open `manifest.json` in VS Code or another JSON Schema editor for completion,
 field descriptions, enum choices and static errors. Flare treats the URL as
 metadata and never downloads it; actual registration and behavior are checked in
-Flare. See the [manifest editor guide](https://github.com/flaresocialapp/Flare/blob/feature/plugin-v2/feature/plugin/sdk/skill/flare-plugin/references/manifest.md#json-schema-and-editor-support)
+Flare. See the [manifest editor guide](https://github.com/flaresocialapp/Flare/blob/master/feature/plugin/sdk/skill/flare-plugin/references/manifest.md#json-schema-and-editor-support)
 for offline use and older Flare builds that reject `$schema`.
 
 1. Update the description, login methods, and declared capabilities in
    `manifest.json`. Replace the one-pixel placeholder PNG with your own icon.
 2. Adapt `src/plugin.ts` using the
-   [developer guide](https://github.com/flaresocialapp/Flare/tree/feature/plugin-v2/feature/plugin/sdk/skill/flare-plugin)
+   [developer guide](https://github.com/flaresocialapp/Flare/tree/master/feature/plugin/sdk/skill/flare-plugin)
    and your website's API evidence.
    It currently verifies an imported bearer token with `/api/me`, then reads
    `/api/posts`. It registers no detector, so choose the platform explicitly.
@@ -93,7 +94,7 @@ Keep the plugin directory selected in Flare. Edit TS source, not the generated
 `plugin.js`; `npm run build` checks types before rebuilding it. Commit that built
 script at the plugin directory root, even when that directory is nested in a
 larger repository, so GitHub installation works without running npm on the device.
-See [development and testing details](https://github.com/flaresocialapp/Flare/blob/feature/plugin-v2/feature/plugin/sdk/skill/flare-plugin/references/testing.md#develop-locally-in-desktop)
+See [development and testing details](https://github.com/flaresocialapp/Flare/blob/master/feature/plugin/sdk/skill/flare-plugin/references/testing.md#develop-locally-in-desktop)
 for reload restrictions, credential changes, and platform acceptance checks.
 
 ## 3. Publish and install through GitHub (recommended)
@@ -151,7 +152,7 @@ plugin platform, HTTPS API origin, and real access token to verify it on each ta
 device. For later updates, increment `manifest.version`, commit/push, and publish
 a newer stable repository snapshot tag while preserving IDs and directory.
 Check for updates in Flare and review/confirm the new version. See the
-[publication and update rules](https://github.com/flaresocialapp/Flare/blob/feature/plugin-v2/feature/plugin/sdk/skill/flare-plugin/references/publishing.md).
+[publication and update rules](https://github.com/flaresocialapp/Flare/blob/master/feature/plugin/sdk/skill/flare-plugin/references/publishing.md).
 
 Several plugins can share one repository. Each directory must contain a complete
 plugin with unique plugin/platform IDs. Install a subdirectory using

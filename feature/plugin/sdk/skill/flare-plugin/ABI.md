@@ -22,9 +22,10 @@ The package must contain exactly one `assets/icon.<extension>`: `png`, `jpg`,
 The icon is kept unchanged, limited to 2 MiB and 1024×1024 pixels. SVG is not
 supported. PNG remains the default in the templates.
 
-Declare at least one of `platform`, `translation`, `platformExtension` or `settings`. Translation and
-settings require the unreleased Host API v2; use a matching Host and SDK revision.
-Settings-only packages can omit `plugin.js` and all social/login declarations.
+Declare at least one of `platform`, `translation`, `platformExtension` or
+`settings`. Use `apiVersion: 2` for translation, platform extensions and
+settings. Settings-only packages can omit `plugin.js` and all social/login
+declarations. See [Host API requirements](references/manifest.md#host-api-versions).
 
 When present, `plugin.js` is one self-contained classic background script. Static modules, dynamic
 imports, remote code, filesystem access, and native access are unavailable.
@@ -74,11 +75,12 @@ branch tracking, client-side builds, and automatic installation are unsupported.
 
 ## Registration
 
-The background script registers each provided type once, synchronously. Use
-`defineFlareSocialPlugin` for social detection, login and capability services; use
-`defineFlareTranslatePlugin` for the two text-translation handlers. A combined
-package calls both in either order. Each definition is frozen, and registration
-closes when script initialization finishes. The social example is:
+The background script registers each declared type once, synchronously.
+`defineFlareSocialPlugin` registers social detection, login and capabilities.
+`defineFlareTranslatePlugin` registers text translation. `defineFlarePlatformExtensionPlugin`
+registers [existing-account actions](references/platform-extensions.md).
+A combined package calls each applicable entrypoint in any order. Registration
+freezes each definition and closes when script initialization finishes.
 
 ```js
 defineFlareSocialPlugin({
@@ -114,15 +116,19 @@ operations is omitted; an explicitly empty known declaration remains invalid.
 Login and snapshot operation lists retain Set semantics, including deduplication
 before the limit of 32 distinct operation names is checked.
 
-Current method paths are:
+The following services live under `capabilities` in the social definition.
 
 | Capability | Service operations |
 | --- | --- |
+| `flare.datasource.account-capabilities/v1` | `accountCapabilities.negotiate` |
+| `flare.datasource.account-http/v1` | `accountHttp.authenticate` |
+| `flare.datasource.timeline-page/v1` | `timelinePage.load` |
 | `flare.datasource.timeline/v1` | `timeline.page` |
 | `flare.datasource.search/v1` | `search.posts`, `profiles`, `discoverPosts`, `discoverProfiles`, `discoverHashtags` |
 | `flare.datasource.profile/v1` | `profile.byId`, `byHandle`, `timeline`, `following`, `followers` |
 | `flare.datasource.post/v1` | `post.detail`, `context`, `delete`, `mutate` |
 | `flare.datasource.relation/v1` | `relation.state`, `mutate` |
+| `flare.datasource.compose/v1` | `compose.publish` |
 | `flare.datasource.compose/v2` | `compose.publish` |
 | `flare.datasource.compose/v3` | `composeV3.publish` |
 | `flare.datasource.notification/v1` | `notification.page`, `badge` |
@@ -179,8 +185,8 @@ limits are described in [Runtime and HTTP](references/runtime-http.md).
 Every method receives immutable request and context values. JavaScript globals
 are disposable cache only. Plugins have no lifecycle or migration hooks.
 
-Runtime scopes are detector attempt, login flow, account, guest origin, and plugin.
-Translation uses plugin scope, without an account origin or account credentials.
+Runtime scopes cover detector attempts, login flows, accounts, guest origins,
+plugin translation and authorized extensions. See [invocation context](references/runtime-http.md#invocation-context).
 Calls in one Runtime serialize. A fatal JavaScript error, timeout, cancellation,
 out-of-memory condition, or invalid Wire result retires that Runtime.
 
@@ -266,11 +272,8 @@ upgraded; a newer plugin cannot retrofit compatibility into them.
 
 Declare `apiVersion: 2` for application response headers (including Set-Cookie),
 manual redirects, versioned credential updates, and WebCookie pending state and
-Cookie metadata. The same unreleased v2 also provides storage, translation and
-offline settings; it does not introduce a global v3. New Hosts keep API v1
-support; older Hosts reject API v2. The manifest schema remains 1, and capability
-versions are independent of the Host API version. Shared `V1` type names
-continue to describe both APIs; fields marked v2 require the v2 manifest.
+Cookie metadata. Shared `V1` type names describe both Host API versions. Fields
+marked v2 require a v2 manifest. See [Host API requirements](references/manifest.md#host-api-versions).
 
 API v2 exposes headers only from requests the plugin explicitly makes to approved
 origins. It does not read browser traffic or maintain a Cookie jar. The plugin
@@ -279,16 +282,43 @@ Native Apple can fold repeated headers; Set-Cookie is normalized into separate
 cookie-pair values, but raw header-line fidelity is unavailable. Native retries
 are platform dependent; see [HTTP behavior](references/runtime-http.md#http-request-and-response).
 
+## Migrate an API v1 plugin
+
+1. Validate the current V1 package and an existing account on the target Flare
+   build. Use the [timeline item contract](#timeline-contract) for legacy preview
+   scripts that return bare posts or old notification envelopes.
+2. Preserve `manifest.id` and the social `platform.id` for an in-place upgrade.
+   Use `schemaVersion: 1` and set `apiVersion: 2` when adding a V2 feature.
+   Apply the feature's registration, manifest and handler changes together.
+   For session changes, see the [V2 HTTP recipe](references/recipes.md#api-v2-http-session-state).
+3. Keep `credentialSchemaVersion` if the new script can read the saved credential
+   JSON. The Host adds V2 session metadata while preserving that payload.
+   For a V2 refresh, read with `flare.credential.read({ withRevision: true })`
+   and pass the revision as `expectedRevision` to `flare.credential.replace`.
+   Increment `credentialSchemaVersion` for an incompatible payload and have the user
+   sign in again with the same account identity. See [credential updates](references/runtime-http.md#credentials-crypto-and-locale).
+4. Keep `compose/v1` and `replyTo` for legacy publishing. When adopting
+   `compose/v2`, declare `supportedTypes` and read `request.reference`. Existing
+   accounts keep their negotiated publish access and restrictions. Use
+   `account-capabilities/v1` to negotiate newly supported Quote, `compose/v3`
+   or `account-http` for saved accounts, or have the user sign in again. Follow the
+   [renegotiation contract](references/authentication.md#account-capability-renegotiation).
+5. Test the upgrade with the saved account, including the applicable login,
+   credential refresh, new operations and timeline or publishing behavior.
+   Follow the [upgrade rules](references/publishing.md#updates-and-compatibility)
+   for changes to permissions, timeline identity or plugin storage.
+
 ## Host API
 
-The frozen `flare` object exposes:
+The frozen `flare` object exposes these methods.
 
-- `flare.http.request`: JSON, text, form, and streaming multipart HTTP;
-- `flare.storage.open(namespace).read/write`: plugin-owned storage, API v2;
-- `flare.credential.read/replace`: the current account credential only;
-- `flare.crypto.randomHex/uuid/sha256/md5`;
-- `flare.locale.current`;
-- `flare.error`: marks a typed error safe to cross the ABI.
+- `flare.http.request` sends JSON, text, form and streaming multipart HTTP.
+- `flare.account.http.request` sends authenticated HTTP for [authorized platform actions](references/platform-extensions.md#authorization-and-http) in API v2.
+- `flare.storage.open(namespace).read/write` accesses plugin-owned storage in API v2.
+- `flare.credential.read/replace` accesses the current account credential.
+- `flare.crypto.randomHex/uuid/sha256/md5` provides randomness and hashing.
+- `flare.locale.current` returns the current Host locale.
+- `flare.error` marks a typed error safe to cross the ABI.
 
 Authentication is structured:
 
@@ -442,8 +472,8 @@ All five authentication interactions are covered in [authentication](references/
 All timeline lists, including notification.page, return PageV1<TimelineItemV1>:
 post, feed, user, userList or message. Post detail returns `{ post, presentation? }`;
 publish/updatedPost continue to use PostV1. Reposts are in presentation.repost.
-There is no bare-post or old-notification fallback. SDK beta.10 changes this preview
-contract; update scripts and the SDK together.
+Convert old bare posts and notification envelopes to these item shapes before
+installing a legacy preview script on a Host that uses this contract.
 
 The Host reuses its current timeline UI and cache, supplies viewer identity and
 navigation, and owns pagination gaps. Poll/reaction mutations use post.mutate;
@@ -461,7 +491,9 @@ keep their original selection and completion behavior.
 
 ## Storage, translation and settings
 
-Host API v2 adds independent `translation` and offline `settings` declarations and generic plugin-scoped storage. Read [storage, translation and settings](references/storage-and-settings.md) for the exact contract, namespace revision dependencies, page SDK and lifecycle. API v1 social plugins keep their behavior; the unreleased v2 also includes its HTTP/session extensions. Background code registers each provided type with `defineFlareSocialPlugin` or `defineFlareTranslatePlugin`.
+Host API v2 adds independent `translation` and offline `settings` declarations
+and plugin-scoped storage. Read [storage, translation and settings](references/storage-and-settings.md)
+for namespace revision dependencies, the page SDK and lifecycle.
 
 For actions on existing built-in or plugin-provided accounts, use `defineFlarePlatformExtensionPlugin`.
 Read the [platform extension contract](references/platform-extensions.md) for account

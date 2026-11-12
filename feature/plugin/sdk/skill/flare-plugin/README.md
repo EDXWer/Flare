@@ -1,18 +1,48 @@
 # Flare Plugin SDK and skill
 
 Use this directory as the `flare-plugin` skill to build a website adapter with an
-AI coding agent, or read the same references directly. All material describes
-Flare Plugin API v1/v2 in the accompanying Flare source. Use a Flare build that
-includes this subsystem; this directory does not promise a minimum public app
-release. The module targets Android, JVM Desktop, iOS, and native macOS, not Web.
+AI coding agent, or read the same references directly. The SDK describes Plugin
+API v1 and v2. The runtime targets Android, JVM Desktop, iOS and native macOS.
+Offline settings pages and Plugin tasks have UI on Android, iOS and native macOS.
 
-For text translation, generic storage or offline settings, use the
-[v2 contract](references/storage-and-settings.md) and
-[complete offline example](examples/translation-settings/README.md) with matching
-Host/SDK source revisions. Host API v2 is unreleased; these source documents do
-not promise a published SDK/app version. Settings pages support iOS, Android and
-native macOS. The CLI starter and social-adapter walkthrough below remain useful
-for the social branch; a settings-only plugin needs no social platform or login.
+## Match Flare and the SDK
+
+Choose the Flare build that will run the plugin, then select the SDK and skill
+for that build. Check the feature's [Host API requirements](references/manifest.md#host-api-versions).
+
+| Target build | SDK and skill |
+| --- | --- |
+| [Flare 1.8.0](https://github.com/flaresocialapp/Flare/releases/tag/1.8.0) | Host API v1. Pin `flare-plugin-sdk@0.1.0-beta.10` and use the [skill from that SDK tag](https://github.com/flaresocialapp/Flare/tree/plugin-sdk-v0.1.0-beta.10/feature/plugin/sdk/skill/flare-plugin). |
+| Flare build with Host API v2 | Use the SDK and skill from the Flare tag or commit used to build the app. V2 is included on `master` starting with the [V2 merge commit](https://github.com/flaresocialapp/Flare/commit/85c82a46d7738cb4010bda6a9bd09e4e50bb6e68). |
+
+`npm view flare-plugin-sdk dist-tags --json` shows which version `@next` resolves
+to. The published `0.1.0-beta.10` package has a V1-only schema. Install a source
+SDK by tarball path because the checkout can share its version number with a
+published package. To use a published SDK with V2, pin a version whose schema
+accepts `apiVersion: 2` and whose types and references cover the features you
+intend to use on the target build.
+
+### Use the SDK from a Flare checkout
+
+With Node 22 or newer, run these commands from the Flare revision used for your
+target build. They create a social starter in a sibling directory and install
+the SDK from that checkout.
+
+```sh
+flare_sdk_dir="$PWD/feature/plugin/sdk"
+node "$flare_sdk_dir/bin/cli.mjs" init ../my-plugin
+cd ../my-plugin
+mkdir -p .sdk
+flare_sdk_archive="$(npm pack "$flare_sdk_dir" --pack-destination .sdk --silent)"
+npm install --save-dev "./.sdk/$flare_sdk_archive"
+```
+
+For an existing plugin, set `flare_sdk_dir` to the matching SDK directory and
+run the last three commands from the plugin root. In `manifest.json`, set
+`$schema` to `./node_modules/flare-plugin-sdk/skill/flare-plugin/manifest.schema.json`.
+Record the Flare commit and keep the tarball available at the same project path
+for other developers running `npm ci`. Keep `.sdk/` outside the runtime package.
+For an existing V1 plugin, follow the [V1 migration steps](ABI.md#migrate-an-api-v1-plugin).
 
 ## Install the skill
 
@@ -31,32 +61,30 @@ your plugin project; Node is needed for the documented syntax and package checks
 
 ### Install from GitHub with Codex
 
-The [development source](https://github.com/flaresocialapp/Flare/tree/feature/plugin-v2/feature/plugin/sdk/skill/flare-plugin)
-is on the `feature/plugin-v2` branch of `flaresocialapp/Flare`. It is a development
-branch, not a released SDK version. For reproducible installation, select the
-full commit SHA containing the skill in GitHub and use it in place of the branch.
+The [development source](https://github.com/flaresocialapp/Flare/tree/master/feature/plugin/sdk/skill/flare-plugin)
+is on `master` in `flaresocialapp/Flare`. For a specific Flare build, use its
+commit SHA or the corresponding SDK tag in place of `master`.
 
 Ask Codex's built-in installer:
 
 ```text
 $skill-installer Install the flare-plugin skill from repository flaresocialapp/Flare,
-ref feature/plugin-v2, path feature/plugin/sdk/skill/flare-plugin.
+ref master, path feature/plugin/sdk/skill/flare-plugin.
 Copy the complete skill directory, including its supporting files.
 ```
 
-Give the repository, ref, and path separately: this ref contains a slash. If you
-use the installer's Python CLI directly, the equivalent arguments are
-`--repo flaresocialapp/Flare --ref feature/plugin-v2 --path feature/plugin/sdk/skill/flare-plugin`.
+The installer's Python CLI takes
+`--repo flaresocialapp/Flare --ref master --path feature/plugin/sdk/skill/flare-plugin`.
 Record the resolved commit SHA when you need to reproduce an installation. If a
 skill already exists, follow [Update or remove](#update-or-remove) first.
 
 ### Install from a local checkout
 
-Check out a revision that contains this directory. For example, clone the
-development branch into a new directory, then enter its repository root:
+Clone the repository and enter its root. For a specific target build, check
+out its matching revision before copying the skill.
 
 ```sh
-git clone --branch feature/plugin-v2 --single-branch https://github.com/flaresocialapp/Flare.git
+git clone https://github.com/flaresocialapp/Flare.git
 cd Flare
 ```
 
@@ -169,20 +197,22 @@ cases matter. It should identify gaps rather than invent website endpoints.
 
 ## Start a plugin repository
 
-1. With Node 22 or newer, create the starter:
+1. With Node 22 or newer, create the social starter with the SDK you selected.
+   For Flare 1.8.0, use the published V1 SDK.
 
    ```sh
-   npx flare-plugin-sdk@next init my-plugin
+   npx flare-plugin-sdk@0.1.0-beta.10 init my-plugin
    cd my-plugin
+   npm install
    ```
 
-   It generates a TS project with SDK types and unique plugin/platform IDs. A
-   prebuilt root `plugin.js` makes it installable before dependencies are installed.
-   Run `npm install`, edit `src/plugin.ts`, and use `npm run dev` while developing;
-   `npm run build` checks types before rebuilding the root script. For manual copies of
-   [assets/github-template](assets/github-template/README.md), replace its example
-   IDs and names first and rename `_gitignore` to `.gitignore`. The example API needs adaptation; no demonstration server
-   is provided.
+   For a V2 source build, [install from the matching checkout](#use-the-sdk-from-a-flare-checkout).
+   Both workflows generate a TS project with unique plugin/platform IDs and a
+   prebuilt root `plugin.js`. Edit `src/plugin.ts` and use `npm run dev` while
+   developing. `npm run build` checks types before rebuilding the root script.
+   For manual copies of [assets/github-template](assets/github-template/README.md),
+   replace the example IDs and names, rename `_gitignore` to `.gitignore`, and
+   install the SDK for the target build. The example API needs adaptation.
 2. Keep the generated IDs stable, replace the placeholder icon, and adapt
    authentication and data mapping to your website. See [manifest](references/manifest.md)
    and [authentication](references/authentication.md).
@@ -212,6 +242,7 @@ Flare reads the selected directory in the latest stable repository snapshot. Add
 | Need | Reference |
 | --- | --- |
 | Agent workflow | [SKILL.md](SKILL.md) |
+| Host and SDK versions, existing V1 plugins | [Version pairing](#match-flare-and-the-sdk), [V1 migration](ABI.md#migrate-an-api-v1-plugin) |
 | Boundary contract and registration | [ABI.md](ABI.md) |
 | Exact JavaScript signatures and field comments | [flare-plugin.d.ts](flare-plugin.d.ts) |
 | Manifest fields, defaults, enums, and validation | [Manifest](references/manifest.md) |

@@ -19,9 +19,8 @@ Engine versions on Apple and Android follow the OS/provider. Use portable
 JavaScript and test on each target; newer syntax, `Intl` data, stack traces and
 engine-specific globals are not a cross-platform compatibility guarantee.
 
-Register each provided type once, synchronously: `defineFlareSocialPlugin` for
-social services and `defineFlareTranslatePlugin` for text translation. A combined
-package calls both in either order. Use standard JavaScript data handling
+Call the [registration entrypoint](../ABI.md#registration) for each declared
+background type once, synchronously. Use standard JavaScript data handling
 and the frozen `flare` Host facade. Browser/Node facilities (`fetch`, DOM,
 `localStorage`, `require`, `process`, `Buffer`, browser URL helpers, timers) are
 not part of the plugin contract. Do not assume them from your build environment.
@@ -35,7 +34,6 @@ Define constants/functions and register synchronously at top level. HTTP,
 storage, credential, crypto, and locale calls belong inside registered invocations.
 Requests and contexts are deeply frozen. Copy data before modifying it.
 
-Runtime scopes are detector attempt, login flow, account, guest origin, and plugin.
 Calls in one runtime serialize. Globals may cache derived data but are not
 persistent storage. Login begin/resume can use different runtime generations;
 OAuth state that your code needs belongs in `pendingPayload`; API v2 WebCookie
@@ -81,14 +79,18 @@ and persistent state in plugin storage or the account credential API as appropri
 ## Invocation context
 
 `pluginId`, `platformId`, and `packageHash` identify the running package.
-`scope` is `detector`, `login`, `account`, `guest`, or `plugin`. In social scopes,
-`origin` is the normalized selected HTTPS origin. In plugin scope, `origin` is
-an empty string and there is no account identity, credential access or asset
-handle; `platformId` is empty when no social platform is declared. Use an
-explicit approved URL for translation HTTP. `accountId` is supplied only for
-account invocations. `locale`, `approvedOrigins`, `credentialAvailable`, and
-`assetHandles` describe this call. Treat them as Host-owned values; do not
-construct a different account identity or widen permissions from remote data.
+`scope` is `detector`, `login`, `account`, `guest`, `plugin` or `extension`. In
+social scopes, `origin` is the normalized selected HTTPS origin. The `account`
+scope supplies the saved account ID. The `plugin` scope uses an empty `origin`
+and an explicit approved URL for translation HTTP. `platformId` is empty when
+the package declares no social platform.
+
+In `extension` scope, `accountId` is the opaque grant handle for this plugin,
+`targetPlatformId` identifies the account's platform, and `origin` contains the
+target provider's account origin when available. See [platform extension authorization](platform-extensions.md#authorization-and-http).
+
+Treat `locale`, `approvedOrigins`, `credentialAvailable`, and `assetHandles` as
+Host-owned metadata for the current call.
 
 ## Origins and permissions
 
@@ -100,6 +102,8 @@ construct a different account identity or widen permissions from remote data.
 | Account | Verified account origin + httpOrigins | Current account only | Account |
 | Guest | Selected guest origin + httpOrigins | Unavailable | Global |
 | Plugin translation / settings HTTP | httpOrigins only | Unavailable | Global |
+| Extension `flare.http.request` | httpOrigins only | Unavailable | Target account |
+| Extension `flare.account.http.request` | Origins approved by the account grant, with Host authentication | Unavailable | Target account |
 
 Supply absolute HTTPS request URLs without URL credentials or fragments. Same
 hostname with a different scheme/port is a different origin. Declare an API or
@@ -111,10 +115,10 @@ origins do not grant authorization-page, Cookie-probe, or Deep Link access.
 { "permissions": { "httpOrigins": ["https://api.example.org", "https://cdn.example.org"] } }
 ```
 
-The Host never automatically attaches account credentials to these requests.
-Supply structured authorization or Cookies explicitly for the destination that
-needs them; omit them for public resources. HTTP-origin permission allows sending
-data to that website and does not restrict the contents of a URL, header, or body.
+With `flare.http.request`, supply structured authorization or Cookies explicitly
+for destinations that need them. Host-managed authentication uses the separate
+`flare.account.http.request` channel. HTTP-origin permission allows sending data
+to that website and does not restrict the contents of a URL, header, or body.
 Account identity and proxy routing still use the selected account origin.
 `context.approvedOrigins` contains the effective HTTP allowlist for this call.
 Older Hosts ignore the new manifest field and continue rejecting extra origins;
