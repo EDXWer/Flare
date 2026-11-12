@@ -22,7 +22,7 @@ lifecycle-runtime-ktx = "2.11.0"
 activity-compose = "1.13.0"
 compose-bom = "2026.09.00"
 ksp = "2.3.13"
-koog = "1.3.0-SNAPSHOT"
+koog = "1.3.0"
 nucleus = "1.15.7"
 paging = "3.5.3"
 kotlinx-datetime = "0.8.0"
@@ -89,9 +89,9 @@ androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version
 androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidx-test-runner" }
 espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso-core" }
 ksoup = { group = "com.fleeksoft.ksoup", name = "ksoup", version.ref = "ksoup" }
-koog-agents = { module = "moe.tlaster:koog-agents", version.ref = "koog" }
-koog-agents-features-memory = { module = "moe.tlaster:agents-features-memory", version.ref = "koog" }
-koog-http-client-ktor = { module = "moe.tlaster:http-client-ktor", version.ref = "koog" }
+koog-agents = { module = "moe.tlaster.koog:koog-agents", version.ref = "koog" }
+koog-agents-features-memory = { module = "moe.tlaster.koog:agents-features-memory", version.ref = "koog" }
+koog-http-client-ktor = { module = "moe.tlaster.koog:http-client-ktor", version.ref = "koog" }
 lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle-runtime-ktx" }
 lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle-runtime-ktx" }
 activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activity-compose" }
