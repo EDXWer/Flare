@@ -243,6 +243,25 @@ final class TimelineCollectionView: UICollectionView {
         if refreshInset <= 0.5 { isEndingRefresh = false }
     }
 
+    func scrollToTopFromTabBar(shouldScroll: () -> Bool = { true }) {
+        guard isVisibleInKeyWindow, shouldScroll() else { return }
+        setContentOffset(CGPoint(x: contentOffset.x, y: -restingAdjustedTopInset), animated: true)
+    }
+
+    private var isVisibleInKeyWindow: Bool {
+        guard let window, window.isKeyWindow, !isHidden else { return false }
+        var visibleBounds = window.bounds.intersection(convert(bounds, to: window))
+        var ancestor = superview
+        while let view = ancestor, view !== window, !visibleBounds.isEmpty {
+            guard !view.isHidden else { return false }
+            if view.clipsToBounds {
+                visibleBounds = visibleBounds.intersection(view.convert(view.bounds, to: window))
+            }
+            ancestor = view.superview
+        }
+        return !visibleBounds.isEmpty
+    }
+
     override func setContentOffset(_ contentOffset: CGPoint, animated: Bool) {
         // SwiftUI tab reselection uses this entry directly, without calling
         // scrollViewShouldScrollToTop. Explicit navigation supersedes bookmarks.

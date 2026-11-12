@@ -142,12 +142,32 @@ private final class TimelineTestController: UIViewController, CHTCollectionViewD
     }
 
     private func checkScrollToTop() async {
+        let viewport = UIView(frame: CGRect(x: 0, y: 0, width: 80, height: 80))
+        viewport.clipsToBounds = true
+        let clipped = TimelineCollectionView(
+            frame: CGRect(x: 96, y: 0, width: 80, height: 80),
+            collectionViewLayout: UICollectionViewFlowLayout()
+        )
+        view.addSubview(viewport)
+        viewport.addSubview(clipped)
+        check(clipped.window?.isKeyWindow == true, "clipped timeline fixture was not attached to the key window")
+        clipped.scrollToTopFromTabBar {
+            check(false, "a fully clipped timeline handled the tab reselection")
+            return false
+        }
+        clipped.frame.origin.x = 72
+        var handled = false
+        clipped.scrollToTopFromTabBar {
+            handled = true
+            return false
+        }
+        check(handled, "a partially visible timeline ignored the tab reselection")
+        viewport.removeFromSuperview()
+
         jump(to: 3_000)
         await settle(100)
-        // SwiftUI's tab reselection calls the animated setter directly. It does
-        // not use the status-bar scrollViewShouldScrollToTop delegate entry.
         list.prepareForLayoutChange()
-        list.setContentOffset(CGPoint(x: 0, y: -list.restingAdjustedTopInset), animated: true)
+        list.scrollToTopFromTabBar()
         await settle(100)
         check(list.contentOffset.y > 100, "scroll animation did not start")
         heights[0] = 220

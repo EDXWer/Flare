@@ -8,7 +8,24 @@ import SwiftUIIntrospect
 import UIKit
 
 extension Notification.Name {
+    static let tabTapped = Notification.Name("tabTapped")
     static let tabDoubleTapped = Notification.Name("tabDoubleTapped")
+}
+
+extension EnvironmentValues {
+    @Entry var tabBarNotificationCenter: NotificationCenter? = nil
+}
+
+@MainActor
+final class TabBarScrollToTopObserver {
+    private weak var center: NotificationCenter?
+    private var subscription: AnyCancellable?
+
+    func observe(_ center: NotificationCenter?, scrollToTop: @escaping () -> Void) {
+        guard self.center !== center else { return }
+        self.center = center
+        subscription = center?.publisher(for: .tabTapped).sink { _ in scrollToTop() }
+    }
 }
 
 @available(iOS 18.0, *)
@@ -74,9 +91,9 @@ struct FlareRoot: View {
                 }
             }
             .modifier(IPadCompactTabBarModifier(primaryTabIDs: items.map(\.name)))
-            .modifier(TabBarDoubleTapModifier {
+            .modifier(TabBarTapModifier(onDoubleTap: {
                 NotificationCenter.default.post(name: .tabDoubleTapped, object: selectedTab)
-            })
+            }))
             .tabViewStyle(.sidebarAdaptable)
             .backport
             .tabBarMinimizeBehavior(.onScrollDown)
@@ -143,17 +160,21 @@ struct BackportFlareRoot: View {
     @State private var homeTabsPresenter = KotlinPresenter(presenter: HomeTabsPresenter())
     @State private var notificationBadgePresenter = KotlinPresenter(presenter: AllNotificationBadgePresenter())
     @State private var inAppNotification = SwiftInAppNotification.shared
+    @State private var tabBarNotifications = NotificationCenter()
     @State var selectedTab: String?
     @State private var reloginRoute: Route?
     
     var body: some View {
         StateView(state: homeTabsPresenter.state.tabs) { tabs in
             let items = tabs.cast(HomeTabsPresenterStateHomeTabs.self)
+            let activeTab = items.first { homeTabKey($0) == selectedTab }.map(homeTabKey) ?? items.first.map(homeTabKey)
             TabView(selection: $selectedTab) {
                 ForEach(items, id: \.name) { tab in
                     Router { onNavigate in
                         homeTabRoute(tab).view(onNavigate: onNavigate, goBack: {})
                     }
+                    .environment(\.tabBarNotificationCenter, homeTabKey(tab) == activeTab ? tabBarNotifications : nil)
+                    .toolbarBackground(.visible, for: .tabBar)
                     .tabItem {
                         Label {
                             Text(homeTabTitle(tab))
@@ -166,9 +187,10 @@ struct BackportFlareRoot: View {
                     .tag(homeTabKey(tab))
                 }
             }
-            .modifier(TabBarDoubleTapModifier {
-                NotificationCenter.default.post(name: .tabDoubleTapped, object: selectedTab)
-            })
+            .modifier(TabBarTapModifier(
+                onTap: { tabBarNotifications.post(name: .tabTapped, object: nil) },
+                onDoubleTap: { tabBarNotifications.post(name: .tabDoubleTapped, object: activeTab) }
+            ))
             .background(Color(.systemGroupedBackground))
             .sheet(item: $reloginRoute) { route in
                 NavigationStack {
@@ -190,28 +212,67 @@ struct BackportFlareRoot: View {
 }
 
 @MainActor
-private final class TabBarDoubleTapTarget: NSObject, UIGestureRecognizerDelegate {
-    private var action: () -> Void = {}
+private final class TabBarTapTarget: NSObject, UIGestureRecognizerDelegate {
+    private var onTap: (() -> Void)?
+    private var onDoubleTap: () -> Void = {}
+    private weak var tappedItem: UIView?
+    private weak var doubleTappedItem: UIView?
+    private lazy var doubleTap = makeRecognizer(taps: 2, action: #selector(handleDoubleTap))
+    private lazy var singleTap: UITapGestureRecognizer = {
+        let recognizer = makeRecognizer(taps: 1, action: #selector(handleTap))
+        recognizer.require(toFail: doubleTap)
+        return recognizer
+    }()
 
-    private lazy var recognizer: UITapGestureRecognizer = {
-        let recognizer = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTap))
-        recognizer.numberOfTapsRequired = 2
+    private func makeRecognizer(taps: Int, action: Selector) -> UITapGestureRecognizer {
+        let recognizer = UITapGestureRecognizer(target: self, action: action)
+        recognizer.numberOfTapsRequired = taps
         recognizer.cancelsTouchesInView = false
         recognizer.delaysTouchesEnded = false
         recognizer.delegate = self
         return recognizer
-    }()
+    }
 
-    func install(on tabBar: UITabBar, action: @escaping () -> Void) {
-        self.action = action
-        guard recognizer.view !== tabBar else { return }
-        tabBar.addGestureRecognizer(recognizer)
+    func install(on tabBar: UITabBar, onTap: (() -> Void)?, onDoubleTap: @escaping () -> Void) {
+        self.onTap = onTap
+        self.onDoubleTap = onDoubleTap
+        if doubleTap.view !== tabBar { tabBar.addGestureRecognizer(doubleTap) }
+        if onTap != nil, singleTap.view !== tabBar { tabBar.addGestureRecognizer(singleTap) }
+    }
+
+    @objc private func handleTap() {
+        guard isSelected(tappedItem, on: singleTap) else { return }
+        onTap?()
     }
 
     @objc private func handleDoubleTap() {
-        DispatchQueue.main.async { [weak self] in
-            self?.action()
+        DispatchQueue.main.async { [weak self, weak item = doubleTappedItem] in
+            guard let self, onTap == nil || isSelected(item, on: doubleTap) else { return }
+            onDoubleTap()
         }
+    }
+
+    private func isSelected(_ item: UIView?, on recognizer: UITapGestureRecognizer) -> Bool {
+        guard let item, let bar = recognizer.view, item.isDescendant(of: bar) else { return false }
+        return item.accessibilityTraits.contains(.selected)
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        guard onTap != nil else { return true }
+        // iOS 17 tab buttons expose their selection through accessibility traits.
+        var hitView = touch.view
+        while let view = hitView, view !== gestureRecognizer.view {
+            if view.accessibilityTraits.contains(.selected) {
+                if gestureRecognizer === singleTap {
+                    tappedItem = view
+                } else {
+                    doubleTappedItem = view
+                }
+                return true
+            }
+            hitView = view.superview
+        }
+        return false
     }
 
     func gestureRecognizer(
@@ -222,13 +283,14 @@ private final class TabBarDoubleTapTarget: NSObject, UIGestureRecognizerDelegate
     }
 }
 
-private struct TabBarDoubleTapModifier: ViewModifier {
-    @State private var target = TabBarDoubleTapTarget()
-    let action: () -> Void
+private struct TabBarTapModifier: ViewModifier {
+    @State private var target = TabBarTapTarget()
+    var onTap: (() -> Void)? = nil
+    let onDoubleTap: () -> Void
 
     func body(content: Content) -> some View {
         content.introspect(.tabView, on: .iOS(.v17, .v18, .v26, .v27)) { tabBarController in
-            target.install(on: tabBarController.tabBar, action: action)
+            target.install(on: tabBarController.tabBar, onTap: onTap, onDoubleTap: onDoubleTap)
         }
     }
 }

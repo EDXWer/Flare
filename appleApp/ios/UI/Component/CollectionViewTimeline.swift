@@ -33,6 +33,7 @@ struct UITimelineCollectionView: UIViewControllerRepresentable {
     @Environment(\.openURL) private var openURL
     @Environment(\.refresh) private var refreshAction: RefreshAction?
     @Environment(\.timelineReading) private var reading
+    @Environment(\.tabBarNotificationCenter) private var tabBarNotificationCenter
 
     init(
         data: PagingState<UiTimelineV2>? = nil,
@@ -58,6 +59,8 @@ struct UITimelineCollectionView: UIViewControllerRepresentable {
         self.onIsAtTopChanged = onIsAtTopChanged
     }
 
+    func makeCoordinator() -> TabBarScrollToTopObserver { TabBarScrollToTopObserver() }
+
     func makeUIViewController(context: Context) -> UITimelineCollectionViewController {
         let controller = UITimelineCollectionViewController(detailStatusKey: detailStatusKey)
         configure(controller)
@@ -66,6 +69,9 @@ struct UITimelineCollectionView: UIViewControllerRepresentable {
 
     func updateUIViewController(_ controller: UITimelineCollectionViewController, context: Context) {
         configure(controller)
+        context.coordinator.observe(tabBarNotificationCenter) { [weak controller] in
+            controller?.scrollToTop()
+        }
     }
 
     private func configure(_ controller: UITimelineCollectionViewController) {
@@ -2113,6 +2119,13 @@ final class UITimelineCollectionViewController: UIViewController, UICollectionVi
 
     func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
         endScrollInteraction()
+    }
+
+    func scrollToTop() {
+        guard let collectionView else { return }
+        collectionView.scrollToTopFromTabBar {
+            reading == nil || scrollViewShouldScrollToTop(collectionView)
+        }
     }
 
     func scrollViewShouldScrollToTop(_ scrollView: UIScrollView) -> Bool {
