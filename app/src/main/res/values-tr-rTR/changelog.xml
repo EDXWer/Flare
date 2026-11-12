@@ -3,11 +3,10 @@
     <string name="changelog_current"><![CDATA[
             <span>Sürüm %1$s:</span>
             <ul>
-                <li>Görsel çevirisi eklendi. Bir çeviri hizmeti yapılandırdıktan sonra özgün görsel ile çevirisi arasında geçiş yapabilir, sonucu kaydedebilir veya paylaşabilirsiniz.</li>
-                <li>Bir gönderiyi görsel olarak paylaşırken yanıtları ve alt yanıtları seçebilirsiniz. Uzun görseller oluşturma da desteklenir.</li>
-                <li>Weibo grup, arkadaş çevresi ve gizli takip zaman akışları, gönderi görünürlüğü ayarları ve Live Photo oynatma eklendi. IP konumu gösterimi geri getirildi.</li>
-                <li>HTTPS ve SOCKS5 desteğiyle genel ve hesaba özel vekil sunucu ayarları eklendi.</li>
-                <li>Bazı görsel yükleme hataları, galerideki yer imi işlemleri ve FANBOX bağlantılarının açılması düzeltildi. Karma zaman akışları, çeviri gösterimi ve hesap seçiminin hatırlanması iyileştirildi.</li>
+                <li>Videolar oynatma hızınızı hatırlıyor ve 16 kata kadar yeni seçenekler sunuyor.</li>
+                <li>Makalelerde, RSS öğelerinde ve galeri ayrıntılarında özgün metin ile çeviri arasında geçiş yapabilirsiniz.</li>
+                <li>Arama ve Keşfet yalnızca seçili hesabın desteklediği bölümleri gösteriyor.</li>
+                <li>Web üzerinden girişte yaşanan bazı sorunlar giderildi.</li>
             </ul>
         ]]></string>
     <string name="changelog_title">Tekrar hoş geldiniz!</string>

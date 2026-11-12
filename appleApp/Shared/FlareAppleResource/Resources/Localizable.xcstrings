@@ -36254,181 +36254,181 @@
         "af" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Weergawe %@:\n• Prentvertaling is bygevoeg. Stel ’n vertaaldiens op om tussen die oorspronklike en vertaalde prent te wissel en die resultaat te stoor of te deel.\n• Kies antwoorde en subantwoorde om in te sluit wanneer jy ’n plasing as ’n prent deel. Oortollige witruimte in uitgevoerde prente is reggestel.\n• Weibo het nou tydlyne vir groepe, vriendekringe en private volglyste, instellings vir plasingsigbaarheid en Live Photo-afspeel. IP-liggingetikette is herstel.\n• Globale instellings en instellings per rekening vir HTTPS- en SOCKS5-instaanbedieners is bygevoeg.\n• Tydlynblaai en die prentkyker se swiep-om-te-sluit-, zoem- en blaai-gebare is verbeter. Plasingaksie-animasies is bygevoeg, en omvalle tydens heraanmelding en Pixiv-prentvertoning is reggestel."
+            "value" : "Weergawe %@:\n• Video’s onthou jou afspeelspoed, met nuwe opsies tot 16×.\n• Wissel tussen die oorspronklike en vertaalde teks in artikels, RSS-inskrywings en galerybesonderhede.\n• Tik in iOS 17 op die gekose oortjie om na bo te blaai. Op iPad bly die tuistydlyn se oortjies binne die nutsbalk.\n• Swiep en sluit in die mediakyker is op iOS 17 reggestel. Die videoskuifbalk en Weibo Live Photo-afspeel is verbeter."
           }
         },
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "الإصدار %@:\n• إضافة ترجمة الصور. بعد إعداد خدمة الترجمة، يمكنك التبديل بين الصورة الأصلية والمترجمة وحفظ النتيجة أو مشاركتها.\n• يمكنك اختيار الردود والردود المتفرعة لتضمينها عند مشاركة المنشور كصورة. إصلاح المساحات الفارغة الزائدة في الصور المصدّرة.\n• إضافة خطوط زمنية لمجموعات Weibo ودائرة الأصدقاء والمتابعات الخاصة، وإعدادات ظهور المنشورات وتشغيل Live Photo. استعادة عرض الموقع المرتبط بعنوان IP.\n• إضافة إعدادات وكيل عامة ولكل حساب، مع دعم HTTPS وSOCKS5.\n• تحسين تمرير الخط الزمني والسحب لإغلاق عارض الصور والتكبير والتنقل بين الصور. إضافة حركات لأزرار المنشورات وإصلاح التعطل عند إعادة تسجيل الدخول ومشكلات عرض صور Pixiv."
+            "value" : "الإصدار %@:\n• تتذكر مقاطع الفيديو سرعة التشغيل التي اخترتها، مع خيارات جديدة تصل إلى 16×.\n• بدّل بين النص الأصلي والمترجم في المقالات وعناصر RSS وتفاصيل المعرض.\n• في iOS 17، اضغط على علامة التبويب المحددة للانتقال إلى الأعلى. تبقى علامات تبويب الخط الزمني للرئيسية داخل شريط الأدوات على iPad.\n• إصلاح التنقل بالسحب وإغلاق عارض الوسائط على iOS 17، وتحسين شريط تقدم الفيديو وتشغيل Weibo Live Photo."
           }
         },
         "bg" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Версия %@:\n• Добавен е превод на изображения. След настройване на услуга за превод можете да превключвате между оригинала и превода и да запазвате или споделяте резултата.\n• Можете да избирате отговори и вложени отговори при споделяне на публикация като изображение. Поправени са излишните празни полета в експортираните изображения.\n• Добавени са хронологии за групи, приятелски кръг и частни следвания в Weibo, настройки за видимост на публикациите и възпроизвеждане на Live Photo. Възстановено е показването на местоположението по IP.\n• Добавени са глобални настройки за прокси и отделни настройки за всеки акаунт с поддръжка на HTTPS и SOCKS5.\n• Подобрени са превъртането на хронологията и затварянето с плъзгане, мащабирането и прелистването в прегледа на изображения. Добавени са анимации за действията с публикации и са поправени сривове при повторно влизане и проблеми с изображенията от Pixiv."
+            "value" : "Версия %@:\n• Видеоклиповете запомнят избраната скорост на възпроизвеждане, с нови опции до 16×.\n• Превключвайте между оригиналния и преведения текст в статии, RSS записи и подробности в галерията.\n• В iOS 17 докоснете избрания раздел, за да се върнете най-горе. На iPad разделите на началната хронология остават в лентата с инструменти.\n• Поправени са прелистването и затварянето на медийния преглед в iOS 17. Подобрени са превъртането на видео и възпроизвеждането на Weibo Live Photo."
           }
         },
         "ca" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Versió %@:\n• S’ha afegit la traducció d’imatges. Després de configurar un servei de traducció, podeu alternar entre l’original i la traducció i desar o compartir el resultat.\n• Podeu triar respostes i respostes imbricades en compartir una publicació com a imatge. S’han corregit els espais en blanc sobrants de les imatges exportades.\n• S’han afegit fils de grups, cercle d’amics i seguiments privats de Weibo, opcions de visibilitat de publicacions i reproducció de Live Photo. S’ha recuperat la ubicació segons l’adreça IP.\n• S’han afegit opcions de servidor intermediari globals i per compte, amb compatibilitat amb HTTPS i SOCKS5.\n• S’han millorat el desplaçament del fil i els gestos per tancar, ampliar i passar imatges al visor. S’han afegit animacions a les accions de les publicacions i s’han corregit tancaments inesperats en tornar a iniciar sessió i problemes amb les imatges de Pixiv."
+            "value" : "Versió %@:\n• Els vídeos recorden la velocitat de reproducció, amb noves opcions fins a 16×.\n• Alterneu entre el text original i el traduït en articles, entrades RSS i detalls de la galeria.\n• A iOS 17, toqueu la pestanya seleccionada per tornar a dalt. A l’iPad, les pestanyes del fil d’inici es mantenen dins la barra d’eines.\n• S’han corregit el gest per passar de fitxer i el tancament del visor a iOS 17. S’han millorat la barra de progrés del vídeo i la reproducció de Live Photos de Weibo."
           }
         },
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Verze %@:\n• Přidán překlad obrázků. Po nastavení překladové služby můžete přepínat mezi originálem a překladem a výsledek uložit nebo sdílet.\n• Při sdílení příspěvku jako obrázku můžete vybrat odpovědi i vnořené odpovědi. Opraveny nadbytečné prázdné okraje exportovaných obrázků.\n• Přidány časové osy skupin, okruhu přátel a soukromého sledování na Weibo, nastavení viditelnosti příspěvků a přehrávání Live Photo. Obnoveno zobrazení polohy podle IP.\n• Přidáno globální nastavení proxy i samostatné nastavení pro jednotlivé účty s podporou HTTPS a SOCKS5.\n• Vylepšeno posouvání časové osy a zavírání tahem, přibližování a procházení v prohlížeči obrázků. Přidány animace akcí příspěvků a opraveny pády při opětovném přihlášení a zobrazení obrázků Pixiv."
+            "value" : "Verze %@:\n• Videa si pamatují zvolenou rychlost přehrávání a nabízejí nové možnosti až do 16×.\n• Přepínejte mezi původním a přeloženým textem v článcích, položkách RSS a detailech galerie.\n• V iOS 17 se klepnutím na vybranou kartu vrátíte nahoru. Na iPadu zůstávají karty domovské časové osy uvnitř panelu nástrojů.\n• Opraveno přepínání přejetím a zavírání prohlížeče médií v iOS 17. Vylepšen posun ve videu a přehrávání Weibo Live Photo."
           }
         },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Version %@:\n• Tilføjet billedoversættelse. Når en oversættelsestjeneste er konfigureret, kan du skifte mellem originalen og oversættelsen samt gemme eller dele resultatet.\n• Vælg svar og undersvar, der skal medtages, når du deler et opslag som et billede. Rettet for meget tom plads i eksporterede billeder.\n• Tilføjet tidslinjer for Weibo-grupper, vennekreds og privat fulgte konti, indstillinger for opslags synlighed og afspilning af Live Photo. Visning af IP-placering er gendannet.\n• Tilføjet globale proxyindstillinger og separate indstillinger for hver konto med understøttelse af HTTPS og SOCKS5.\n• Forbedret rulning på tidslinjen samt billedfremviserens bevægelser til at lukke, zoome og skifte billede. Tilføjet animationer til opslagshandlinger og rettet nedbrud ved fornyet login og visning af Pixiv-billeder."
+            "value" : "Version %@:\n• Videoer husker din afspilningshastighed, med nye valgmuligheder op til 16×.\n• Skift mellem original og oversat tekst i artikler, RSS-indlæg og gallerioplysninger.\n• Tryk på den valgte fane i iOS 17 for at rulle til toppen. På iPad bliver fanerne på hjemmetidslinjen inden for værktøjslinjen.\n• Rettet problemer med at bladre og lukke mediefremviseren i iOS 17. Forbedret spoling i videoer og afspilning af Weibo Live Photo."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Version %@:\n• Bildübersetzung hinzugefügt. Nach dem Einrichten eines Übersetzungsdienstes kannst du zwischen Original und Übersetzung wechseln und das Ergebnis speichern oder teilen.\n• Beim Teilen eines Beitrags als Bild kannst du Antworten und Unterantworten auswählen. Überflüssige Ränder in exportierten Bildern wurden entfernt.\n• Weibo bietet jetzt Timelines für Gruppen, den Freundeskreis und privat gefolgte Konten sowie Sichtbarkeitseinstellungen für Beiträge und Live-Photo-Wiedergabe. Die IP-Standortanzeige wurde wiederhergestellt.\n• Globale Proxy-Einstellungen und separate Einstellungen pro Konto mit Unterstützung für HTTPS und SOCKS5 hinzugefügt.\n• Das Scrollen in Timelines sowie Wischen zum Schließen, Zoomen und Blättern im Bildbetrachter verbessert. Animationen für Beitragsaktionen hinzugefügt und Abstürze bei erneuter Anmeldung sowie die Anzeige von Pixiv-Bildern korrigiert."
+            "value" : "Version %@:\n• Videos merken sich die gewählte Wiedergabegeschwindigkeit. Neue Optionen reichen bis 16×.\n• Wechsle bei Artikeln, RSS-Einträgen und Galeriedetails zwischen Originaltext und Übersetzung.\n• Tippe unter iOS 17 auf den ausgewählten Tab, um nach oben zu scrollen. Auf dem iPad bleiben die Tabs der Start-Timeline innerhalb der Symbolleiste.\n• Wischen und Schließen im Medienbetrachter unter iOS 17 wurden korrigiert. Das Springen im Video und die Wiedergabe von Weibo Live Photos wurden verbessert."
           }
         },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Έκδοση %@:\n• Προστέθηκε μετάφραση εικόνων. Αφού ρυθμίσετε μια υπηρεσία μετάφρασης, μπορείτε να εναλλάσσεστε μεταξύ πρωτότυπου και μετάφρασης και να αποθηκεύετε ή να κοινοποιείτε το αποτέλεσμα.\n• Επιλέξτε απαντήσεις και υποαπαντήσεις για συμπερίληψη όταν κοινοποιείτε μια ανάρτηση ως εικόνα. Διορθώθηκαν τα περιττά κενά περιθώρια στις εξαγόμενες εικόνες.\n• Προστέθηκαν χρονολόγια ομάδων, κύκλου φίλων και ιδιωτικών ακολουθήσεων στο Weibo, ρυθμίσεις ορατότητας αναρτήσεων και αναπαραγωγή Live Photo. Επανήλθε η εμφάνιση τοποθεσίας βάσει IP.\n• Προστέθηκαν καθολικές ρυθμίσεις διακομιστή μεσολάβησης και ξεχωριστές ρυθμίσεις ανά λογαριασμό, με υποστήριξη HTTPS και SOCKS5.\n• Βελτιώθηκαν η κύλιση του χρονολογίου και το κλείσιμο με σάρωση, το ζουμ και η εναλλαγή εικόνων στην προβολή εικόνων. Προστέθηκαν κινούμενα εφέ για ενέργειες αναρτήσεων και διορθώθηκαν καταρρεύσεις κατά την επανασύνδεση και προβλήματα εμφάνισης εικόνων Pixiv."
+            "value" : "Έκδοση %@:\n• Τα βίντεο θυμούνται την ταχύτητα αναπαραγωγής σας, με νέες επιλογές έως 16×.\n• Εναλλάξτε το πρωτότυπο και το μεταφρασμένο κείμενο σε άρθρα, καταχωρίσεις RSS και λεπτομέρειες συλλογής.\n• Στο iOS 17, πατήστε την επιλεγμένη καρτέλα για να επιστρέψετε στην κορυφή. Στο iPad, οι καρτέλες του αρχικού χρονολογίου παραμένουν μέσα στη γραμμή εργαλείων.\n• Διορθώθηκαν η εναλλαγή με σάρωση και το κλείσιμο της προβολής πολυμέσων στο iOS 17. Βελτιώθηκαν η μετακίνηση μέσα στο βίντεο και η αναπαραγωγή Weibo Live Photo."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Version %@:\n• Added image translation. After configuring a translation service, switch between the original and translated image, then save or share the result.\n• Choose replies and nested replies to include when sharing a post as an image. Fixed excess padding in exported images.\n• Added Weibo group, Friends Circle, and Private Following timelines, post visibility settings, and Live Photo playback. Restored IP location labels.\n• Added global and per-account proxy settings, with HTTPS and SOCKS5 support.\n• Improved timeline scrolling and media-viewer swipe-to-dismiss, zooming, and paging. Added post-action animations and fixed re-login crashes and Pixiv image display."
+            "value" : "Version %@:\n• Videos remember your playback speed, with new options up to 16×.\n• Switch between original and translated text in articles, RSS entries, and gallery details.\n• Tap the selected tab on iOS 17 to scroll to the top. On iPad, Home timeline tabs stay within the toolbar.\n• Fixed swiping between items and closing the media viewer on iOS 17. Improved video scrubbing and Weibo Live Photo playback."
           }
         },
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Versio %@:\n• Lisätty kuvien kääntäminen. Kun käännöspalvelu on määritetty, voit vaihtaa alkuperäisen ja käännetyn kuvan välillä sekä tallentaa tai jakaa tuloksen.\n• Voit valita vastaukset ja niiden alavastaukset jakaessasi julkaisun kuvana. Korjattu vietyjen kuvien ylimääräiset tyhjät reunukset.\n• Lisätty Weibon ryhmien, ystäväpiirin ja yksityisesti seurattujen tilien aikajanat, julkaisujen näkyvyysasetukset ja Live Photo -toisto. IP-sijainnin näyttö on palautettu.\n• Lisätty yleiset ja tilikohtaiset välityspalvelinasetukset sekä HTTPS- ja SOCKS5-tuki.\n• Parannettu aikajanan vieritystä sekä kuvankatselun sulkemista pyyhkäisemällä, zoomausta ja kuvien vaihtamista. Lisätty julkaisutoimintojen animaatiot ja korjattu uudelleenkirjautumisen kaatumisia sekä Pixiv-kuvien näyttöä."
+            "value" : "Versio %@:\n• Videot muistavat valitun toistonopeuden, ja uusilla asetuksilla nopeus voi olla jopa 16×.\n• Vaihda alkuperäisen ja käännetyn tekstin välillä artikkeleissa, RSS-syötteen julkaisuissa ja gallerian tietonäkymissä.\n• iOS 17:ssä voit palata ylös napauttamalla valittua välilehteä. iPadilla kotiaikajanan välilehdet pysyvät työkalurivin sisällä.\n• Korjattu median vaihtaminen pyyhkäisemällä ja katseluikkunan sulkeminen iOS 17:ssä. Parannettu videossa siirtymistä ja Weibo Live Photo -toistoa."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Version %@ :\n• Ajout de la traduction d’images. Après avoir configuré un service de traduction, alternez entre l’original et sa traduction, puis enregistrez ou partagez le résultat.\n• Choisissez les réponses et sous-réponses à inclure lorsque vous partagez une publication sous forme d’image. Correction des marges excessives dans les images exportées.\n• Ajout des fils Weibo de groupes, du cercle d’amis et des abonnements privés, des réglages de visibilité des publications et de la lecture des Live Photos. Rétablissement de la localisation par IP.\n• Ajout de réglages de proxy globaux et par compte, avec prise en charge de HTTPS et SOCKS5.\n• Amélioration du défilement des fils et des gestes de fermeture, de zoom et de navigation dans la visionneuse. Ajout d’animations pour les actions des publications et correction des plantages à la reconnexion et de l’affichage des images Pixiv."
+            "value" : "Version %@ :\n• Les vidéos mémorisent votre vitesse de lecture, avec de nouvelles options jusqu’à 16×.\n• Basculez entre le texte original et sa traduction dans les articles, les entrées RSS et les détails de la galerie.\n• Sur iOS 17, touchez l’onglet sélectionné pour revenir en haut. Sur iPad, les onglets du fil d’accueil restent dans la barre d’outils.\n• Sur iOS 17, correction du balayage entre les médias et de la fermeture de la visionneuse. Amélioration de la navigation dans les vidéos et de la lecture des Live Photos de Weibo."
           }
         },
         "he" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "גרסה %@:\n• נוספה תמיכה בתרגום תמונות. לאחר הגדרת שירות תרגום, אפשר לעבור בין התמונה המקורית לתמונה המתורגמת ולשמור או לשתף את התוצאה.\n• אפשר לבחור תגובות ותגובות משנה שייכללו בשיתוף פוסט כתמונה. תוקנו שוליים ריקים מיותרים בתמונות שיוצאו.\n• נוספו צירי זמן של קבוצות, מעגל חברים ומעקב פרטי ב־Weibo, הגדרות חשיפה של פוסטים והפעלת Live Photo. הוחזרה הצגת המיקום לפי כתובת IP.\n• נוספו הגדרות שרת מתווך כלליות ולכל חשבון בנפרד, עם תמיכה ב־HTTPS וב־SOCKS5.\n• שופרו גלילת ציר הזמן, סגירה בהחלקה, שינוי גודל ומעבר בין תמונות במציג התמונות. נוספו הנפשות לפעולות בפוסטים ותוקנו קריסות בהתחברות מחדש ותקלות בהצגת תמונות Pixiv."
+            "value" : "גרסה %@:\n• הסרטונים זוכרים את מהירות הניגון שבחרת, עם אפשרויות חדשות עד פי 16.\n• אפשר לעבור בין הטקסט המקורי לתרגום במאמרים, בפריטי RSS ובפרטי הגלריה.\n• ב־iOS 17, הקשה על הלשונית שנבחרה מחזירה לראש הרשימה. ב־iPad, לשוניות ציר הזמן של הבית נשארות בתוך סרגל הכלים.\n• תוקנו המעבר בהחלקה וסגירת מציג המדיה ב־iOS 17. שופרו הדילוג בסרטונים והפעלת Live Photo של Weibo."
           }
         },
         "hu" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ verzió:\n• Képfordítás hozzáadva. A fordítási szolgáltatás beállítása után válthatsz az eredeti és a lefordított kép között, az eredményt pedig mentheted vagy megoszthatod.\n• Kiválaszthatod a válaszokat és az alválaszokat, amikor képként osztasz meg egy bejegyzést. Eltávolítottuk az exportált képek felesleges üres margóit.\n• Új Weibo-idővonalak csoportokhoz, baráti körhöz és privát követésekhez, valamint bejegyzésláthatósági beállítások és Live Photo-lejátszás. Visszaállt az IP-alapú helymegjelenítés.\n• Globális és fiókonkénti proxybeállítások hozzáadva HTTPS- és SOCKS5-támogatással.\n• Javult az idővonal görgetése, valamint a képnézegető bezárása húzással, nagyítása és lapozása. Animációkat adtunk a bejegyzésműveletekhez, és javítottuk az újbóli bejelentkezéskor fellépő összeomlásokat és a Pixiv-képek megjelenítését."
+            "value" : "%@ verzió:\n• A videók megjegyzik a lejátszási sebességet, és már akár 16×-os sebesség is választható.\n• Váltás az eredeti és a lefordított szöveg között a cikkekben, RSS-bejegyzésekben és a galéria részleteinél.\n• iOS 17-en az aktív lapra koppintva visszagörgethetsz a tetejére. iPaden a kezdő idővonal lapjai az eszköztáron belül maradnak.\n• Javítottuk a lapozást és a médianéző bezárását iOS 17-en. Javult a videón belüli tekerés és a Weibo Live Photo lejátszása."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Versione %@:\n• Aggiunta la traduzione delle immagini. Dopo aver configurato un servizio di traduzione, puoi passare dall’originale alla traduzione e salvare o condividere il risultato.\n• Puoi scegliere risposte e risposte secondarie da includere quando condividi un post come immagine. Corretti i margini vuoti eccessivi nelle immagini esportate.\n• Aggiunte le cronologie Weibo di gruppi, cerchia di amici e account seguiti privatamente, le impostazioni di visibilità dei post e la riproduzione delle Live Photo. Ripristinata la posizione basata sull’IP.\n• Aggiunte impostazioni proxy globali e per account, con supporto per HTTPS e SOCKS5.\n• Migliorati lo scorrimento della cronologia e i gesti di chiusura, zoom e navigazione nel visualizzatore di immagini. Aggiunte animazioni alle azioni dei post e corretti gli arresti anomali al nuovo accesso e la visualizzazione delle immagini Pixiv."
+            "value" : "Versione %@:\n• I video ricordano la velocità di riproduzione, con nuove opzioni fino a 16×.\n• Passa dal testo originale alla traduzione negli articoli, negli elementi RSS e nei dettagli della galleria.\n• Su iOS 17, tocca la scheda selezionata per tornare in cima. Su iPad, le schede della cronologia Home restano nella barra degli strumenti.\n• Corretti lo scorrimento tra gli elementi e la chiusura del visualizzatore su iOS 17. Migliorati lo spostamento nei video e la riproduzione delle Live Photo di Weibo."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "バージョン %@:\n• 画像翻訳を追加しました。翻訳サービスを設定すると、原画像と翻訳画像を切り替えて表示し、翻訳結果を保存・共有できます。\n• 投稿を画像として共有する際に、返信とその返信を選んで含められるようになりました。書き出した画像の余分な余白を修正しました。\n• Weibo にグループ、友達の輪、非公開フォローのタイムライン、投稿の公開範囲設定、Live Photo の再生を追加しました。IP 所在地の表示を復元しました。\n• 全体およびアカウントごとのプロキシ設定を追加し、HTTPS・SOCKS5 に対応しました。\n• タイムラインのスクロールと、画像ビューアーのスワイプ終了・ズーム・ページ切り替えを改善しました。投稿操作のアニメーションを追加し、再ログイン時のクラッシュと Pixiv 画像の表示不具合を修正しました。"
+            "value" : "バージョン %@:\n• 動画の再生速度を記憶し、最大16倍速まで選べるようになりました。\n• 記事、RSS項目、ギャラリーの詳細で、原文と翻訳を切り替えられます。\n• iOS 17では選択中のタブをタップすると先頭に戻ります。iPadではホームのタイムラインタブがツールバー内に収まるようになりました。\n• iOS 17でメディアをスワイプで切り替えたりビューアを閉じたりできない問題を修正し、動画のシークとWeiboのLive Photo再生を改善しました。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "버전 %@:\n• 이미지 번역을 추가했습니다. 번역 서비스를 설정하면 원본과 번역 이미지를 전환해서 보고 번역 결과를 저장하거나 공유할 수 있습니다.\n• 게시물을 이미지로 공유할 때 답글과 하위 답글을 선택해서 포함할 수 있습니다. 내보낸 이미지의 불필요한 여백을 수정했습니다.\n• Weibo 그룹, 친구 서클, 비공개 팔로우 타임라인과 게시물 공개 범위 설정, Live Photo 재생을 추가했습니다. IP 위치 표시를 복원했습니다.\n• HTTPS와 SOCKS5를 지원하는 전체 및 계정별 프록시 설정을 추가했습니다.\n• 타임라인 스크롤과 이미지 뷰어의 밀어서 닫기, 확대·축소 및 페이지 전환을 개선했습니다. 게시물 동작 애니메이션을 추가하고, 재로그인 시 충돌과 Pixiv 이미지 표시 문제를 수정했습니다."
+            "value" : "버전 %@:\n• 동영상 재생 속도를 기억하며, 최대 16배속까지 선택할 수 있습니다.\n• 기사, RSS 항목, 갤러리 상세 화면에서 원문과 번역문을 전환할 수 있습니다.\n• iOS 17에서 선택된 탭을 탭하면 맨 위로 이동합니다. iPad에서는 홈 타임라인 탭이 도구 막대 안에 표시됩니다.\n• iOS 17에서 미디어를 넘기거나 뷰어를 닫을 때 발생하던 문제를 수정했습니다. 동영상 탐색과 Weibo Live Photo 재생을 개선했습니다."
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Versjon %@:\n• Lagt til bildeoversettelse. Når en oversettelsestjeneste er konfigurert, kan du bytte mellom originalen og oversettelsen og lagre eller dele resultatet.\n• Velg svar og undersvar som skal tas med når du deler et innlegg som bilde. Rettet for mye tomrom i eksporterte bilder.\n• Lagt til tidslinjer for Weibo-grupper, vennekrets og privat fulgte kontoer, innstillinger for innleggsynlighet og avspilling av Live Photo. Visning av IP-posisjon er gjenopprettet.\n• Lagt til globale proxyinnstillinger og egne innstillinger per konto, med støtte for HTTPS og SOCKS5.\n• Forbedret rulling i tidslinjen og bildeviserens bevegelser for å lukke, zoome og bytte bilde. Lagt til animasjoner for innleggshandlinger og rettet krasj ved ny innlogging og visning av Pixiv-bilder."
+            "value" : "Versjon %@:\n• Videoer husker avspillingshastigheten, med nye valg opptil 16×.\n• Bytt mellom originaltekst og oversettelse i artikler, RSS-oppføringer og galleridetaljer.\n• Trykk på den valgte fanen i iOS 17 for å rulle til toppen. På iPad holder fanene på hjemmetidslinjen seg innenfor verktøylinjen.\n• Rettet sveiping mellom elementer og lukking av medieviseren i iOS 17. Forbedret spoling i videoer og avspilling av Weibo Live Photo."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Versie %@:\n• Afbeeldingsvertaling toegevoegd. Stel een vertaaldienst in om tussen het origineel en de vertaling te wisselen en het resultaat op te slaan of te delen.\n• Kies antwoorden en geneste antwoorden om op te nemen wanneer je een bericht als afbeelding deelt. Overtollige witruimte in geëxporteerde afbeeldingen verholpen.\n• Weibo-tijdlijnen toegevoegd voor groepen, de vriendenkring en privé gevolgde accounts, met zichtbaarheidsinstellingen voor berichten en Live Photo-weergave. IP-locatielabels zijn hersteld.\n• Algemene proxyinstellingen en afzonderlijke instellingen per account toegevoegd, met ondersteuning voor HTTPS en SOCKS5.\n• Scrollen in tijdlijnen en vegen om te sluiten, zoomen en bladeren in de afbeeldingsviewer verbeterd. Animaties voor berichtacties toegevoegd en crashes bij opnieuw inloggen en weergaveproblemen met Pixiv-afbeeldingen verholpen."
+            "value" : "Versie %@:\n• Video’s onthouden je afspeelsnelheid, met nieuwe opties tot 16×.\n• Wissel tussen de oorspronkelijke en vertaalde tekst in artikelen, RSS-items en galerijdetails.\n• Tik in iOS 17 op het geselecteerde tabblad om naar boven te scrollen. Op de iPad blijven de tabbladen van de starttijdlijn binnen de werkbalk.\n• Vegen tussen items en sluiten van de mediaviewer zijn hersteld in iOS 17. Het zoeken binnen video’s en afspelen van Weibo Live Photos zijn verbeterd."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wersja %@:\n• Dodano tłumaczenie obrazów. Po skonfigurowaniu usługi tłumaczenia można przełączać się między oryginałem a tłumaczeniem oraz zapisywać lub udostępniać wynik.\n• Podczas udostępniania wpisu jako obrazu można wybrać odpowiedzi i zagnieżdżone odpowiedzi. Usunięto nadmierne puste marginesy w eksportowanych obrazach.\n• Dodano osie czasu grup, kręgu znajomych i prywatnie obserwowanych kont Weibo, ustawienia widoczności wpisów oraz odtwarzanie Live Photo. Przywrócono wyświetlanie lokalizacji według IP.\n• Dodano globalne ustawienia proxy i osobne ustawienia dla każdego konta z obsługą HTTPS i SOCKS5.\n• Ulepszono przewijanie osi czasu oraz zamykanie gestem, powiększanie i przechodzenie między obrazami w przeglądarce. Dodano animacje działań wpisów i naprawiono awarie przy ponownym logowaniu oraz wyświetlanie obrazów Pixiv."
+            "value" : "Wersja %@:\n• Filmy zapamiętują szybkość odtwarzania, a nowe opcje sięgają 16×.\n• Przełączaj między oryginałem a tłumaczeniem w artykułach, wpisach RSS i szczegółach galerii.\n• W iOS 17 stuknij aktywną kartę, aby przewinąć na górę. Na iPadzie karty głównej osi czasu mieszczą się w pasku narzędzi.\n• Naprawiono przesuwanie między elementami i zamykanie podglądu multimediów w iOS 17. Ulepszono przewijanie filmów i odtwarzanie Weibo Live Photo."
           }
         },
         "pt" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Versão %@:\n• Adicionada a tradução de imagens. Após configurar um serviço de tradução, pode alternar entre o original e a tradução e guardar ou partilhar o resultado.\n• Pode escolher respostas e respostas aninhadas ao partilhar uma publicação como imagem. Corrigidas as margens em branco excessivas nas imagens exportadas.\n• Adicionadas cronologias de grupos, círculo de amigos e contas seguidas em privado do Weibo, definições de visibilidade das publicações e reprodução de Live Photo. Restaurada a localização por IP.\n• Adicionadas definições de proxy globais e por conta, com suporte para HTTPS e SOCKS5.\n• Melhorados o deslocamento da cronologia e os gestos para fechar, ampliar e navegar no visualizador de imagens. Adicionadas animações às ações das publicações e corrigidas falhas ao voltar a iniciar sessão e na apresentação de imagens Pixiv."
+            "value" : "Versão %@:\n• Os vídeos memorizam a velocidade de reprodução, com novas opções até 16×.\n• Alterne entre o texto original e o traduzido em artigos, entradas RSS e detalhes da galeria.\n• No iOS 17, toque no separador selecionado para voltar ao topo. No iPad, os separadores da cronologia inicial mantêm-se dentro da barra de ferramentas.\n• Corrigidos os gestos para alternar entre elementos e fechar o visualizador no iOS 17. Melhoradas a navegação no vídeo e a reprodução de Live Photos do Weibo."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Versão %@:\n• Adicionada a tradução de imagens. Após configurar um serviço de tradução, você pode alternar entre o original e a tradução e salvar ou compartilhar o resultado.\n• Você pode escolher respostas e respostas aninhadas ao compartilhar uma publicação como imagem. Corrigidas as margens em branco excessivas nas imagens exportadas.\n• Adicionadas linhas do tempo de grupos, círculo de amigos e contas seguidas em particular do Weibo, configurações de visibilidade das publicações e reprodução de Live Photo. Restaurada a localização por IP.\n• Adicionadas configurações de proxy globais e por conta, com suporte a HTTPS e SOCKS5.\n• Melhoradas a rolagem da linha do tempo e as ações de deslizar para fechar, ampliar e navegar no visualizador de imagens. Adicionadas animações às ações das publicações e corrigidas falhas ao entrar novamente e na exibição de imagens do Pixiv."
+            "value" : "Versão %@:\n• Os vídeos lembram a velocidade de reprodução, com novas opções de até 16×.\n• Alterne entre o texto original e o traduzido em artigos, itens de RSS e detalhes da galeria.\n• No iOS 17, toque na aba selecionada para voltar ao topo. No iPad, as abas da linha do tempo inicial ficam dentro da barra de ferramentas.\n• Corrigido o gesto de deslizar entre itens e o fechamento do visualizador no iOS 17. Melhorados o controle de progresso dos vídeos e a reprodução de Live Photos do Weibo."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Versiunea %@:\n• Am adăugat traducerea imaginilor. După configurarea unui serviciu de traducere, poți comuta între original și traducere și poți salva sau distribui rezultatul.\n• Poți selecta răspunsuri și răspunsuri secundare când distribui o postare ca imagine. Am eliminat spațiile goale excesive din imaginile exportate.\n• Am adăugat fluxuri Weibo pentru grupuri, cercul de prieteni și conturi urmărite în privat, setări de vizibilitate a postărilor și redare Live Photo. Am restabilit afișarea locației pe baza IP-ului.\n• Am adăugat setări proxy globale și pentru fiecare cont, cu suport pentru HTTPS și SOCKS5.\n• Am îmbunătățit derularea fluxului și închiderea prin glisare, mărirea și navigarea în vizualizatorul de imagini. Am adăugat animații pentru acțiunile postărilor și am remediat blocările la reautentificare și afișarea imaginilor Pixiv."
+            "value" : "Versiunea %@:\n• Videoclipurile rețin viteza de redare, cu opțiuni noi de până la 16×.\n• Comută între textul original și traducere în articole, elemente RSS și detaliile din galerie.\n• În iOS 17, atinge fila selectată pentru a reveni sus. Pe iPad, filele fluxului principal rămân în bara de instrumente.\n• Au fost corectate trecerea între elemente prin glisare și închiderea vizualizatorului în iOS 17. Au fost îmbunătățite derularea videoclipurilor și redarea Weibo Live Photo."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Версия %@:\n• Добавлен перевод изображений. После настройки сервиса перевода можно переключаться между оригиналом и переводом, сохранять результат и делиться им.\n• При отправке публикации в виде изображения можно выбирать ответы и вложенные ответы. Убраны лишние пустые поля в экспортируемых изображениях.\n• Добавлены ленты групп, круга друзей и приватных подписок Weibo, настройки видимости публикаций и воспроизведение Live Photo. Восстановлено отображение местоположения по IP.\n• Добавлены общие настройки прокси и отдельные настройки для каждого аккаунта с поддержкой HTTPS и SOCKS5.\n• Улучшены прокрутка ленты, закрытие смахиванием, масштабирование и перелистывание в просмотрщике изображений. Добавлены анимации действий с публикациями и исправлены сбои при повторном входе и отображении изображений Pixiv."
+            "value" : "Версия %@:\n• Приложение запоминает скорость воспроизведения видео. Доступны новые варианты до 16×.\n• Переключайтесь между оригиналом и переводом в статьях, записях RSS и на страницах галереи.\n• В iOS 17 нажатие на активную вкладку возвращает к началу списка. На iPad вкладки главной ленты помещаются на панели инструментов.\n• В iOS 17 исправлены перелистывание и закрытие окна просмотра медиа. Улучшены перемотка видео и воспроизведение Weibo Live Photo."
           }
         },
         "sr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Верзија %@:\n• Додат је превод слика. Након подешавања услуге превођења можете да прелазите између оригинала и превода и сачувате или поделите резултат.\n• При дељењу објаве као слике можете да изаберете одговоре и пододговоре. Уклоњене су сувишне празне маргине на извезеним сликама.\n• Додате су Weibo временске линије за групе, круг пријатеља и приватна праћења, подешавања видљивости објава и репродукција Live Photo садржаја. Враћен је приказ локације према IP адреси.\n• Додата су општа подешавања проксија и засебна подешавања за сваки налог, уз подршку за HTTPS и SOCKS5.\n• Побољшани су померање временске линије и затварање превлачењем, зумирање и листање у прегледачу слика. Додате су анимације радњи над објавама и исправљени падови при поновном пријављивању и приказ Pixiv слика."
+            "value" : "Верзија %@:\n• Видео снимци памте брзину репродукције, уз нове опције до 16×.\n• Пребацујте се између оригиналног и преведеног текста у чланцима, RSS ставкама и детаљима у галерији.\n• На iOS 17 додирните изабрану картицу да бисте се вратили на врх. На iPad-у картице почетне временске линије остају унутар траке са алаткама.\n• Исправљено је листање превлачењем и затварање прегледача медија на iOS 17. Побољшани су премотавање видеа и репродукција Weibo Live Photo садржаја."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Version %@:\n• Lagt till bildöversättning. När du har konfigurerat en översättningstjänst kan du växla mellan originalet och översättningen och spara eller dela resultatet.\n• Välj svar och undersvar att ta med när du delar ett inlägg som bild. Åtgärdat överflödiga tomma marginaler i exporterade bilder.\n• Lagt till tidslinjer för Weibo-grupper, vänkrets och privat följda konton, inställningar för inläggens synlighet och uppspelning av Live Photo. Visning av IP-plats har återställts.\n• Lagt till globala proxyinställningar och separata inställningar per konto, med stöd för HTTPS och SOCKS5.\n• Förbättrat rullning i tidslinjen samt svep för att stänga, zooma och bläddra i bildvisaren. Lagt till animationer för inläggsåtgärder och åtgärdat krascher vid ny inloggning och visning av Pixiv-bilder."
+            "value" : "Version %@:\n• Videor kommer ihåg uppspelningshastigheten, med nya alternativ upp till 16×.\n• Växla mellan originaltext och översättning i artiklar, RSS-inlägg och galleridetaljer.\n• Tryck på den valda fliken i iOS 17 för att rulla till toppen. På iPad ryms hemtidslinjens flikar inom verktygsfältet.\n• Åtgärdade problem med att svepa mellan objekt och stänga medievisaren i iOS 17. Förbättrade spolning i videor och uppspelning av Weibo Live Photos."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sürüm %@:\n• Görsel çevirisi eklendi. Bir çeviri hizmeti yapılandırdıktan sonra özgün görsel ile çevirisi arasında geçiş yapabilir, sonucu kaydedebilir veya paylaşabilirsiniz.\n• Bir gönderiyi görsel olarak paylaşırken yanıtları ve alt yanıtları seçebilirsiniz. Dışa aktarılan görsellerdeki fazla boşluklar düzeltildi.\n• Weibo grup, arkadaş çevresi ve gizli takip zaman akışları, gönderi görünürlüğü ayarları ve Live Photo oynatma eklendi. IP konumu gösterimi geri getirildi.\n• HTTPS ve SOCKS5 desteğiyle genel ve hesaba özel vekil sunucu ayarları eklendi.\n• Zaman akışında kaydırma ve görsel görüntüleyicide kaydırarak kapatma, yakınlaştırma ve sayfa değiştirme iyileştirildi. Gönderi işlemi animasyonları eklendi; yeniden girişteki çökmeler ve Pixiv görsellerinin gösterimi düzeltildi."
+            "value" : "Sürüm %@:\n• Videolar oynatma hızınızı hatırlıyor ve 16 kata kadar yeni seçenekler sunuyor.\n• Makalelerde, RSS öğelerinde ve galeri ayrıntılarında özgün metin ile çeviri arasında geçiş yapabilirsiniz.\n• iOS 17’de seçili sekmeye dokunarak en üste dönebilirsiniz. iPad’de ana zaman akışı sekmeleri araç çubuğunun içinde kalıyor.\n• iOS 17’de medya öğeleri arasında kaydırma ve görüntüleyiciyi kapatma sorunları giderildi. Videoda ileri geri sarma ve Weibo Live Photo oynatma iyileştirildi."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Версія %@:\n• Додано переклад зображень. Після налаштування сервісу перекладу можна перемикатися між оригіналом і перекладом, зберігати результат і ділитися ним.\n• Під час поширення допису як зображення можна вибирати відповіді та вкладені відповіді. Прибрано зайві порожні поля в експортованих зображеннях.\n• Додано стрічки груп, кола друзів і приватних підписок Weibo, налаштування видимості дописів та відтворення Live Photo. Відновлено показ місцеперебування за IP.\n• Додано загальні налаштування проксі та окремі налаштування для кожного облікового запису з підтримкою HTTPS і SOCKS5.\n• Поліпшено прокручування стрічки, закривання змахуванням, масштабування та гортання в переглядачі зображень. Додано анімації дій із дописами та виправлено збої під час повторного входу й показу зображень Pixiv."
+            "value" : "Версія %@:\n• Застосунок запам’ятовує швидкість відтворення відео й пропонує нові варіанти до 16×.\n• Перемикайтеся між оригіналом і перекладом у статтях, записах RSS і відомостях галереї.\n• В iOS 17 торкніться вибраної вкладки, щоб повернутися на початок. На iPad вкладки головної стрічки вміщуються на панелі інструментів.\n• Виправлено гортання та закриття переглядача медіа в iOS 17. Покращено перемотування відео й відтворення Weibo Live Photo."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Phiên bản %@:\n• Thêm tính năng dịch hình ảnh. Sau khi thiết lập dịch vụ dịch, bạn có thể chuyển giữa ảnh gốc và ảnh đã dịch, rồi lưu hoặc chia sẻ kết quả.\n• Bạn có thể chọn phản hồi và phản hồi con khi chia sẻ bài đăng dưới dạng hình ảnh. Sửa khoảng trắng thừa trong ảnh xuất ra.\n• Thêm dòng thời gian nhóm, vòng bạn bè và theo dõi riêng tư trên Weibo, cài đặt phạm vi hiển thị bài đăng và phát Live Photo. Khôi phục hiển thị vị trí theo IP.\n• Thêm cài đặt proxy chung và riêng cho từng tài khoản, hỗ trợ HTTPS và SOCKS5.\n• Cải thiện cuộn dòng thời gian và thao tác vuốt để đóng, thu phóng, chuyển ảnh trong trình xem ảnh. Thêm hiệu ứng cho thao tác bài đăng, sửa lỗi văng khi đăng nhập lại và lỗi hiển thị ảnh Pixiv."
+            "value" : "Phiên bản %@:\n• Video ghi nhớ tốc độ phát bạn đã chọn, với các tùy chọn mới lên đến 16×.\n• Chuyển đổi giữa văn bản gốc và bản dịch trong bài viết, mục RSS và trang chi tiết thư viện.\n• Trên iOS 17, chạm vào thẻ đang chọn để cuộn lên đầu. Trên iPad, các thẻ dòng thời gian Trang chủ nằm gọn trong thanh công cụ.\n• Đã sửa lỗi vuốt qua lại giữa các mục và đóng trình xem đa phương tiện trên iOS 17. Cải thiện thao tác tua video và phát Weibo Live Photo."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "版本 %@：\n• 新增图片翻译，配置翻译服务后，可切换查看原图和译图，并保存或分享翻译结果。\n• 分享帖子图片时可选择附带回复和子回复，修正导出图片的多余留白。\n• 微博新增分组、好友圈和悄悄关注时间线，支持发帖可见范围设置与 Live Photo 播放，恢复 IP 属地显示。\n• 新增全局和分账号代理设置，支持 HTTPS、SOCKS5 代理。\n• 优化时间线滚动及图片查看器的滑动关闭、缩放和翻页体验，新增帖子操作动画，修复重新登录崩溃及 Pixiv 图片显示异常。"
+            "value" : "版本 %@：\n• 视频会记住上次选择的播放速度，新增最高 16 倍速选项。\n• 文章、RSS 条目和图库详情支持切换原文和译文。\n• 在 iOS 17 上轻点当前标签即可回到顶部。iPad 的首页时间线标签现在会显示在工具栏范围内。\n• 修复 iOS 17 媒体查看器的滑动翻页和关闭问题，改善视频进度拖动与微博 Live Photo 播放。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "版本 %@：\n• 新增圖片翻譯，設定翻譯服務後，可切換查看原圖與譯圖，並儲存或分享翻譯結果。\n• 分享貼文圖片時可選擇附帶回覆與子回覆，修正匯出圖片的多餘留白。\n• 微博新增分組、好友圈與悄悄關注時間軸，支援發文可見範圍設定及 Live Photo 播放，恢復 IP 所在地顯示。\n• 新增全域與個別帳號的代理伺服器設定，支援 HTTPS、SOCKS5 代理伺服器。\n• 改善時間軸捲動及圖片檢視器的滑動關閉、縮放與翻頁體驗，新增貼文操作動畫，修正重新登入時當機及 Pixiv 圖片顯示異常。"
+            "value" : "版本 %@：\n• 影片會記住上次選擇的播放速度，新增最高 16 倍速選項。\n• 文章、RSS 項目與圖庫詳情支援切換原文和譯文。\n• 在 iOS 17 上點一下目前分頁即可回到頂端。iPad 的首頁時間軸分頁現在會顯示在工具列範圍內。\n• 修正 iOS 17 媒體檢視器的滑動切換及關閉問題，改善影片進度拖曳與微博 Live Photo 播放。"
           }
         }
       }
