@@ -1,10 +1,10 @@
 # Storage, text translation and offline settings
 
-Use Host API `apiVersion: 2` for storage, translation and settings. This extends the unreleased v2 contract; API v1 social plugins remain compatible. `platform`, `translation`, `platformExtension` and `settings` are independently optional; provide at least one. Only background capabilities require `plugin.js`. Register social methods with `defineFlareSocialPlugin` and translation methods with `defineFlareTranslatePlugin`, each at most once. A combined package calls both synchronously in either order. For existing-platform actions, also see [platform extensions](platform-extensions.md). Settings-only packages need no registration.
-
-Use matching Host and SDK source revisions; this document does not promise a
-published app/npm version. The translation interface and settings bridge each
-use version 1 independently of Host API v2.
+Use Host API `apiVersion: 2` for storage, translation and settings. The translation
+interface and settings bridge each use version 1. A package may combine these
+features with social services or existing-account actions. Settings-only packages
+use a manifest, an icon and packaged page resources. See [manifest requirements](manifest.md#root-object)
+and [background registration](../ABI.md#registration).
 
 ## Settings-only package
 

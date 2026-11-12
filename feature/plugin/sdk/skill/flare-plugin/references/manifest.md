@@ -16,21 +16,20 @@ choices, required properties, ranges and static login/capability combinations.
 The editor schema deliberately describes this SDK's exact authoring contract,
 so it can flag unknown properties and operations as possible typos even when a
 compatible Host would ignore them.
-`npx flare-plugin-sdk@next init my-plugin` adds a `$schema` URL pinned to that SDK
-version. The source templates use the npm `next` channel.
+The initializer adds a `$schema` URL pinned to its SDK version. For a published
+SDK, use the URL for your installed version. For a source SDK, point to the local
+schema to match the installed types and settings resources.
 
-For an existing project, add this editor hint at the manifest root:
+Set the `$schema` field at the manifest root to use the local SDK.
 
 ```json
 {
-  "$schema": "https://unpkg.com/flare-plugin-sdk@next/skill/flare-plugin/manifest.schema.json"
+  "$schema": "./node_modules/flare-plugin-sdk/skill/flare-plugin/manifest.schema.json"
 }
 ```
 
-Keep the other manifest fields. For reproducible editor behavior, replace `next`
-with your chosen SDK version. For offline authoring, install the SDK as a development
-dependency and use `./node_modules/flare-plugin-sdk/skill/flare-plugin/manifest.schema.json`
-as the `$schema` value; all schema references are local to that file.
+Install the SDK as a development dependency. All schema references are local to
+that file, so editor validation can run offline.
 
 Flare accepts `$schema` as optional editor metadata and never fetches or executes
 it. Older Flare builds that reject it can still use editor assistance: remove
@@ -41,7 +40,7 @@ it. Older Flare builds that reject it can still use editor assistance: remove
 {
   "json.schemas": [{
     "fileMatch": ["/manifest.json"],
-    "url": "https://unpkg.com/flare-plugin-sdk@next/skill/flare-plugin/manifest.schema.json"
+    "url": "./node_modules/flare-plugin-sdk/skill/flare-plugin/manifest.schema.json"
   }]
 }
 ```
@@ -52,13 +51,32 @@ values, referenced timelines, localized catalog keys, relational compose limits,
 actual JavaScript registration and runtime behavior. Some text limits use UTF-16
 length in the Host rather than JSON Schema's Unicode code point count.
 
+## Host API versions
+
+Choose the target Flare build and use its supported capabilities. Both APIs use
+`schemaVersion: 1`. Capability ID suffixes and the plugin's SemVer `version`
+have their own versioning. For example, `compose/v3` can run under either Host
+API on a build that implements the capability.
+
+| Plugin feature | Host `apiVersion` |
+| --- | --- |
+| Social adapter using API v1 features | `1` |
+| Application response headers, manual redirects, credential revisions or V2 WebCookie state and metadata | `2` |
+| Plugin storage, text translation or offline settings | `2` |
+| Existing-account actions or `flare.datasource.account-http/v1` | `2` |
+| Temporary timelines using `flare.datasource.timeline-page/v1` | `2` |
+
+Within Host API v2, `translation.apiVersion`, `platformExtension.apiVersion`
+and `settings.bridgeVersion` are each `1`. See [V1 migration](../ABI.md#migrate-an-api-v1-plugin)
+for existing accounts and upgrade validation.
+
 ## Root object
 
 | Field | Required / default | Contract |
 | --- | --- | --- |
 | `$schema` | Omitted | Editor schema URL/path only; never loaded by Flare |
 | `schemaVersion` | `1` | Manifest schema, currently exactly 1 |
-| `apiVersion` | Required | Host API, 1 or 2; storage, translation, settings, platform actions, header/session extensions and temporary timeline pages require v2 |
+| `apiVersion` | Required | `1` or `2` according to the [Host API requirements](#host-api-versions) |
 | `id` | Required | Stable reverse-domain plugin ID; `[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+` |
 | `version` | Required | Plugin SemVer, independent of the repository snapshot tag and npm SDK version |
 | `defaultLocale` | `"en"` | BCP-47 locale tag |
@@ -66,16 +84,15 @@ length in the Host rather than JSON Schema's Unicode code point count.
 | `description` | Omitted | Manifest text |
 | `permissions` | `{}` | Permission object below |
 | `platform` | Omitted or `null` | One social platform object, when providing social capabilities |
-| `translation` | Omitted or `null` | `{ "apiVersion": 1, "cache": { "storageNamespaces": ["options"] } }`; Host API v2 |
-| `settings` | Omitted or `null` | `{ "entry": "settings/index.html", "bridgeVersion": 1 }`; Host API v2 |
+| `translation` | Omitted or `null` | [Text translation provider](storage-and-settings.md#text-translation) on Host API v2 |
+| `platformExtension` | Omitted or `null` | [Authorized account actions](platform-extensions.md) on Host API v2 |
+| `settings` | Omitted or `null` | [Packaged settings page](storage-and-settings.md#offline-settings-page) on Host API v2 |
 
 Provide at least one of `platform`, `translation`, `platformExtension` or `settings`; any combination
 is allowed. `platform`, `translation` and `platformExtension` require a background `plugin.js`.
 A settings-only package needs no platform, login methods or background registration.
-`translation.apiVersion` and `settings.bridgeVersion` are separate interface
-versions, currently 1 within Host API v2. See the
-[storage, translation and settings contract](storage-and-settings.md) for cache
-dependency semantics, page resource rules and a minimal settings-only manifest.
+See the [storage, translation and settings contract](storage-and-settings.md) for
+cache dependencies, page resources and a minimal settings-only manifest.
 
 Manifest text is either a nonblank string or `{ "key": "plugin.name", "fallback":
 "Example" }`. Every localized key used by the manifest must exist in the default
@@ -87,7 +104,7 @@ runtime `WireTextV1`; see [localization](recipes.md#localization).
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `authOrigins` | `[]` | Up to 16 additional exact HTTPS origins for login, e.g. `https://login.example.org` |
-| `httpOrigins` | `[]` | Up to 16 exact HTTPS origins for plugin-scoped translation/settings HTTP, or additional origins for login/account/guest HTTP |
+| `httpOrigins` | `[]` | Up to 16 exact HTTPS origins for translation, settings and ordinary extension HTTP, or additional origins for login/account/guest HTTP |
 | `mediaNetwork` | `false` | Allows automatic remote media loading, including avatars, HTML images, audio/video, and covers |
 
 Auth and HTTP origins have no paths, trailing slash, query, fragment, wildcard, or URL

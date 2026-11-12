@@ -26,14 +26,14 @@ to the user's plugin repository.
    capability IDs, their required operations, service method paths, and UI entry
    points. Declare only supported behavior, including any required companion
    operations. A function's TypeScript optionality does not relax manifest rules.
-3. Use [flare-plugin.d.ts](flare-plugin.d.ts) for exact signatures and [ABI.md](ABI.md)
-   for the boundary contract. Declare apiVersion 2 when using application response
-   headers, manual redirects, conditional credential updates, or WebCookie pending
-   state/metadata, plugin storage, translation, settings, platform actions or temporary timeline pages. Host API v2 is
-   unreleased; select matching Host/SDK source revisions. Keep v1 manifests within
-   their original behavior. If the target Flare build
-   has a different contract, establish its version before generating code; there
-   is no implied released-app minimum version in this skill.
+3. Identify the target Flare build before scaffolding. Follow [Host and SDK pairing](README.md#match-flare-and-the-sdk)
+   and choose the [manifest API version](references/manifest.md#host-api-versions)
+   for the requested features. For features newer than the published SDK, use
+   the Host's checkout and point `$schema` at the installed source SDK. Follow the
+   [V1 migration steps](ABI.md#migrate-an-api-v1-plugin) for existing plugins.
+   Use the selected SDK's `flare-plugin.d.ts` and `ABI.md` for exact signatures
+   and runtime rules. [Types](flare-plugin.d.ts) and [ABI](ABI.md) in this skill
+   match the SDK revision it ships with.
 
 For operations on existing built-in or plugin-provided accounts and daily foreground tasks, read
 [platform extensions](references/platform-extensions.md). Verify the website protocol
@@ -50,10 +50,11 @@ packages can omit the background entrypoint. Social-only adapters can retain v1/
 
 ## Implement the requested plugin
 
-For a social adapter, start with `npx flare-plugin-sdk@next init my-plugin` and follow the
-[project workflow](assets/github-template/README.md). For manual copies, put the
-**contents** of `assets/github-template/` at root, replace example IDs and rename
-`_gitignore` to `.gitignore`. Install development dependencies, edit `src/plugin.ts`
+For a social adapter, initialize the [social starter](README.md#start-a-plugin-repository)
+with the selected SDK and follow the [project workflow](assets/github-template/README.md).
+For manual copies, put the **contents** of `assets/github-template/` at root,
+replace example IDs and rename `_gitignore` to `.gitignore`. Install the selected
+SDK with the development dependencies, edit `src/plugin.ts`
 using the ambient SDK types, and run `npm run build`. Commit the resulting root
 `plugin.js` with the TS source and lockfile. `npm run dev` watches without type
 checking; `npm run check` and the type-checked build are the release gates.
@@ -82,10 +83,9 @@ Read the references needed for the task:
 | Check the generated files and exercise behavior | [Testing](references/testing.md) |
 | Prepare a GitHub repository, version tag, update, or schema change | [Publishing](references/publishing.md) |
 
-When background code is needed, keep `plugin.js` self-contained. Register social
-services once with `defineFlareSocialPlugin` and text-translation handlers once
-with `defineFlareTranslatePlugin`; a combined package calls both synchronously,
-in either order. Settings-only packages omit background registration. Package page modules and
+When background code is needed, keep `plugin.js` self-contained. Call each
+declared type's [registration entrypoint](ABI.md#registration) once, synchronously.
+Settings-only packages omit background registration. Package page modules and
 dependencies separately under `settings/`; bundle `flare-plugin-sdk/settings`
 for the browser instead of importing it from the background entrypoint.
 Use `flare.http.request` with structured authorization/Cookies; retain credentials
