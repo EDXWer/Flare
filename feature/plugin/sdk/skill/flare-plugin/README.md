@@ -13,14 +13,17 @@ for that build. Check the feature's [Host API requirements](references/manifest.
 | Target build | SDK and skill |
 | --- | --- |
 | [Flare 1.8.0](https://github.com/flaresocialapp/Flare/releases/tag/1.8.0) | Host API v1. Pin `flare-plugin-sdk@0.1.0-beta.10` and use the [skill from that SDK tag](https://github.com/flaresocialapp/Flare/tree/plugin-sdk-v0.1.0-beta.10/feature/plugin/sdk/skill/flare-plugin). |
-| Flare build with Host API v2 | Use the SDK and skill from the Flare tag or commit used to build the app. V2 is included on `master` starting with the [V2 merge commit](https://github.com/flaresocialapp/Flare/commit/85c82a46d7738cb4010bda6a9bd09e4e50bb6e68). |
+| Flare build with Host API v2 | Pin [`flare-plugin-sdk@0.1.0-beta.11`](https://www.npmjs.com/package/flare-plugin-sdk/v/0.1.0-beta.11) and use the [skill from that SDK tag](https://github.com/flaresocialapp/Flare/tree/plugin-sdk-v0.1.0-beta.11/feature/plugin/sdk/skill/flare-plugin). |
 
-`npm view flare-plugin-sdk dist-tags --json` shows which version `@next` resolves
-to. The published `0.1.0-beta.10` package has a V1-only schema. Install a source
-SDK by tarball path because the checkout can share its version number with a
-published package. To use a published SDK with V2, pin a version whose schema
-accepts `apiVersion: 2` and whose types and references cover the features you
-intend to use on the target build.
+Host API v2 is included on `master` starting with the [V2 merge commit](https://github.com/flaresocialapp/Flare/commit/85c82a46d7738cb4010bda6a9bd09e4e50bb6e68).
+SDK `0.1.0-beta.11` includes the V2 schema and the WebView settings module at
+`flare-plugin-sdk/settings`. The settings page runs in a V2 Host with
+`apiVersion: 2` and `settings.bridgeVersion: 1` in the manifest. See the
+[settings page contract](references/storage-and-settings.md#offline-settings-page).
+
+`npm view flare-plugin-sdk dist-tags --json` shows the rolling `next` channel.
+Pin the SDK version for reproducible builds. For features newer than the
+published SDK, use the SDK and skill from the tag or commit used to build Flare.
 
 ### Use the SDK from a Flare checkout
 
@@ -197,16 +200,16 @@ cases matter. It should identify gaps rather than invent website endpoints.
 
 ## Start a plugin repository
 
-1. With Node 22 or newer, create the social starter with the SDK you selected.
-   For Flare 1.8.0, use the published V1 SDK.
+1. With Node 22 or newer, create the social starter for a build with Host API v2.
 
    ```sh
-   npx flare-plugin-sdk@0.1.0-beta.10 init my-plugin
+   npx flare-plugin-sdk@0.1.0-beta.11 init my-plugin
    cd my-plugin
    npm install
    ```
 
-   For a V2 source build, [install from the matching checkout](#use-the-sdk-from-a-flare-checkout).
+   For Flare 1.8.0, use `flare-plugin-sdk@0.1.0-beta.10`. For features newer than
+   the published SDK, [install from the matching checkout](#use-the-sdk-from-a-flare-checkout).
    Both workflows generate a TS project with unique plugin/platform IDs and a
    prebuilt root `plugin.js`. Edit `src/plugin.ts` and use `npm run dev` while
    developing. `npm run build` checks types before rebuilding the root script.

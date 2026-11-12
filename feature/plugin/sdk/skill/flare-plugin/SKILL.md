@@ -28,8 +28,8 @@ to the user's plugin repository.
    operations. A function's TypeScript optionality does not relax manifest rules.
 3. Identify the target Flare build before scaffolding. Follow [Host and SDK pairing](README.md#match-flare-and-the-sdk)
    and choose the [manifest API version](references/manifest.md#host-api-versions)
-   for the requested features. For V2 source builds, install the SDK from the
-   same checkout and point `$schema` at the installed schema. Follow the
+   for the requested features. For features newer than the published SDK, use
+   the Host's checkout and point `$schema` at the installed source SDK. Follow the
    [V1 migration steps](ABI.md#migrate-an-api-v1-plugin) for existing plugins.
    Use the selected SDK's `flare-plugin.d.ts` and `ABI.md` for exact signatures
    and runtime rules. [Types](flare-plugin.d.ts) and [ABI](ABI.md) in this skill

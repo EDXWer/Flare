@@ -13,16 +13,16 @@ For an existing V1 plugin, follow the [migration steps](skill/flare-plugin/ABI.m
 
 ## Create a plugin
 
-With Node 22 or newer, create a social adapter for Flare 1.8.0 with its published
-V1 SDK.
+With Node 22 or newer, create a social starter for a build with Host API v2.
 
 ```sh
-npx flare-plugin-sdk@0.1.0-beta.10 init my-plugin
+npx flare-plugin-sdk@0.1.0-beta.11 init my-plugin
 cd my-plugin
 npm install
 ```
 
-For a V2 source build, [create the starter from the matching checkout](skill/flare-plugin/README.md#use-the-sdk-from-a-flare-checkout).
+For Flare 1.8.0, use `flare-plugin-sdk@0.1.0-beta.10`. For features newer than the
+published SDK, [create the starter from the matching checkout](skill/flare-plugin/README.md#use-the-sdk-from-a-flare-checkout).
 The initializer copies the GitHub template bundled with the selected SDK into
 `my-plugin`.
 
@@ -209,14 +209,14 @@ association in workspace settings instead. See the
 [manifest editor guide](skill/flare-plugin/references/manifest.md#json-schema-and-editor-support)
 and [VS Code schema settings](https://code.visualstudio.com/docs/languages/json#_json-schemas-and-settings).
 
-For an existing project, install the SDK selected for its target Flare build.
-For Flare 1.8.0, use the published V1 package.
+For an existing project targeting Host API v2, install the published SDK.
 
 ```sh
-npm install --save-dev --save-exact flare-plugin-sdk@0.1.0-beta.10
+npm install --save-dev --save-exact flare-plugin-sdk@0.1.0-beta.11
 ```
 
-For a V2 source build, [install the source SDK tarball](skill/flare-plugin/README.md#use-the-sdk-from-a-flare-checkout).
+For Flare 1.8.0, pin `0.1.0-beta.10`. For features newer than the published SDK,
+[install the source SDK tarball](skill/flare-plugin/README.md#use-the-sdk-from-a-flare-checkout).
 Add the package to your TypeScript project's compiler options.
 
 ```json
@@ -230,8 +230,8 @@ Add the package to your TypeScript project's compiler options.
 Append it to any existing `types` list. For JavaScript, enable `checkJs` as well.
 The root declarations provide ambient [registration entrypoints](skill/flare-plugin/ABI.md#registration),
 `flare` and Wire types for background code. Flare supplies those globals.
-Settings pages instead use the `flare-plugin-sdk/settings` module with its own
-browser types/build. Bundle that module into the packaged page; see the
+Settings pages import `connectSettings` from `flare-plugin-sdk/settings`. Bundle
+the module into the packaged page. See the
 [page SDK contract](skill/flare-plugin/references/storage-and-settings.md#offline-settings-page).
 
 ## Use the AI authoring skill
