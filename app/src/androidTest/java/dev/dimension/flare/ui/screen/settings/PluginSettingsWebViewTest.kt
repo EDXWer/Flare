@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import android.view.inspector.WindowInspector
 import android.webkit.WebView
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -114,10 +115,9 @@ class PluginSettingsWebViewTest {
                         if (selected != null) {
                             PluginSettingsScreen(pluginId = selected, onBack = { settingsPluginId = null })
                         } else {
+                            val state by manager.state.collectAsState()
                             PluginItem(
-                                plugin =
-                                    manager.state.value.items
-                                        .single { it.pluginId == ID },
+                                plugin = state.items.single { it.pluginId == ID },
                                 busy = false,
                                 shapesIndex = 0,
                                 shapesCount = 1,
