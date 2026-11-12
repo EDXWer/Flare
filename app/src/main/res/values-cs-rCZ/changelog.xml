@@ -5,11 +5,10 @@
     <string name="changelog_current"><![CDATA[
             <span>Verze %1$s:</span>
             <ul>
-                <li>Přidán překlad obrázků. Po nastavení překladové služby můžete přepínat mezi originálem a překladem a výsledek uložit nebo sdílet.</li>
-                <li>Při sdílení příspěvku jako obrázku můžete vybrat odpovědi i vnořené odpovědi. Podporovány jsou i dlouhé obrázky.</li>
-                <li>Přidány časové osy skupin, okruhu přátel a soukromého sledování na Weibo, nastavení viditelnosti příspěvků a přehrávání Live Photo. Obnoveno zobrazení polohy podle IP.</li>
-                <li>Přidáno globální nastavení proxy i samostatné nastavení pro jednotlivé účty s podporou HTTPS a SOCKS5.</li>
-                <li>Opraveny některé chyby načítání obrázků, přidávání záložek v galerii a otevírání odkazů FANBOX. Vylepšeny smíšené časové osy, zobrazení překladů a zapamatování vybraného účtu.</li>
+                <li>Videa si pamatují zvolenou rychlost přehrávání a nabízejí nové možnosti až do 16×.</li>
+                <li>Přepínejte mezi původním a přeloženým textem v článcích, položkách RSS a detailech galerie.</li>
+                <li>Vyhledávání a objevování zobrazují jen sekce podporované vybraným účtem.</li>
+                <li>Opraveny některé problémy s přihlášením přes web.</li>
             </ul>
         ]]></string>
 </resources>

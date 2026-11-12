@@ -34,11 +34,16 @@ if (project.file("google-services.json").exists()) {
 
 kotlin {
     compilerOptions {
+        allWarningsAsErrors.set(true)
         optIn.add("androidx.compose.material3.ExperimentalMaterial3ExpressiveApi")
     }
 }
 
 android {
+    sourceSets.getByName("androidTest").assets.srcDir(
+        rootProject.file("feature/plugin/sdk/skill/flare-plugin/examples/translation-settings"),
+    )
+
     val fdroid = rootProject.file("fdroid.properties")
     val fdroidProp = Properties()
     fdroidProp.load(fdroid.inputStream())

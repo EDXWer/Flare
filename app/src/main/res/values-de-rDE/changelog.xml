@@ -5,11 +5,10 @@
     <string name="changelog_current"><![CDATA[
             <span>Version %1$s:</span>
             <ul>
-                <li>Bildübersetzung hinzugefügt. Nach dem Einrichten eines Übersetzungsdienstes kannst du zwischen Original und Übersetzung wechseln und das Ergebnis speichern oder teilen.</li>
-                <li>Beim Teilen eines Beitrags als Bild kannst du Antworten und Unterantworten auswählen. Auch lange Bilder werden unterstützt.</li>
-                <li>Weibo bietet jetzt Timelines für Gruppen, den Freundeskreis und privat gefolgte Konten sowie Sichtbarkeitseinstellungen für Beiträge und Live-Photo-Wiedergabe. Die IP-Standortanzeige wurde wiederhergestellt.</li>
-                <li>Globale Proxy-Einstellungen und separate Einstellungen pro Konto mit Unterstützung für HTTPS und SOCKS5 hinzugefügt.</li>
-                <li>Einige Fehler beim Laden von Bildern, bei Lesezeichenaktionen in der Galerie und beim Öffnen von FANBOX-Links behoben. Gemischte Timelines, die Übersetzungsanzeige und das Merken der Kontoauswahl verbessert.</li>
+                <li>Videos merken sich die gewählte Wiedergabegeschwindigkeit. Neue Optionen reichen bis 16×.</li>
+                <li>Wechsle bei Artikeln, RSS-Einträgen und Galeriedetails zwischen Originaltext und Übersetzung.</li>
+                <li>Suche und Entdecken zeigen nur Bereiche an, die das gewählte Konto unterstützt.</li>
+                <li>Einige Probleme bei der Web-Anmeldung wurden behoben.</li>
             </ul>
         ]]></string>
 </resources>

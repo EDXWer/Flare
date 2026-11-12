@@ -3,11 +3,10 @@
     <string name="changelog_current"><![CDATA[
             <span>%1$s verzió:</span>
             <ul>
-                <li>Képfordítás hozzáadva. A fordítási szolgáltatás beállítása után válthatsz az eredeti és a lefordított kép között, az eredményt pedig mentheted vagy megoszthatod.</li>
-                <li>Kiválaszthatod a válaszokat és az alválaszokat, amikor képként osztasz meg egy bejegyzést. Hosszú képek is készíthetők.</li>
-                <li>Új Weibo-idővonalak csoportokhoz, baráti körhöz és privát követésekhez, valamint bejegyzésláthatósági beállítások és Live Photo-lejátszás. Visszaállt az IP-alapú helymegjelenítés.</li>
-                <li>Globális és fiókonkénti proxybeállítások hozzáadva HTTPS- és SOCKS5-támogatással.</li>
-                <li>Javítottunk néhány képbetöltési hibát, a galéria könyvjelzőműveleteit és a FANBOX-hivatkozások megnyitását. Javultak a vegyes idővonalak, a fordítások megjelenítése és a fiókválasztás megjegyzése.</li>
+                <li>A videók megjegyzik a lejátszási sebességet, és már akár 16×-os sebesség is választható.</li>
+                <li>Váltás az eredeti és a lefordított szöveg között a cikkekben, RSS-bejegyzésekben és a galéria részleteinél.</li>
+                <li>A Keresés és a Felfedezés csak a kiválasztott fiók által támogatott szakaszokat mutatja.</li>
+                <li>Javítottunk néhány webes bejelentkezési hibát.</li>
             </ul>
         ]]></string>
     <string name="changelog_title">Üdv újra!</string>

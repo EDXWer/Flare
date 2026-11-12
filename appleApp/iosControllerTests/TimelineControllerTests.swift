@@ -7,6 +7,92 @@ import FlareAppleUI
 
 @MainActor
 final class TimelineControllerIntegrationTests: XCTestCase {
+    func testLongPostExpandsDownwardFromItsPreview() async throws {
+        try await checkDownwardTextExpansion()
+    }
+
+    func testContentWarningRevealsTextDownward() async throws {
+        let warning = try XCTUnwrap(makeTimelineTestRow(-1, mediaCount: 0, textRepeatCount: 0) as? UiTimelineV2.TimelinePostItem)
+        try await checkDownwardTextExpansion(contentWarning: warning.post.content)
+    }
+
+    func testLongPostExpansionKeepsTimelineColumns() async throws {
+        try await checkDownwardTextExpansion(columns: 2)
+    }
+
+    private func checkDownwardTextExpansion(contentWarning: UiTranslatableText? = nil, columns: Int = 1) async throws {
+        try XCTSkipIf(UIAccessibility.isReduceMotionEnabled)
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let previousKeyWindow = scene.windows.first(where: \.isKeyWindow)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        let fixture = await Fixture(columns: columns, initialState: .loaded)
+        window.rootViewController = fixture.controller
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+
+        let longTextRepeatCount = columns == 1 ? 10 : 4
+        fixture.input.items = (0..<12).map { index in
+            .post(makeTimelineTestRow(index, mediaCount: 0, textRepeatCount: index == 0 ? longTextRepeatCount : 1,
+                                      contentWarning: index == 0 ? contentWarning : nil))
+        }
+        await fixture.apply()
+
+        let list = fixture.collection
+        let path = try XCTUnwrap(list.readingIndexPath?("t:case-0"))
+        let cell = try XCTUnwrap(list.cellForItem(at: path))
+        let nextPath = try XCTUnwrap(list.indexPathsForVisibleItems.sorted().first {
+            $0 > path && list.layoutAttributesForItem(at: $0)?.frame.minX == cell.frame.minX
+        })
+        let nextCell = try XCTUnwrap(list.cellForItem(at: nextPath))
+        let status = try XCTUnwrap(descendants(cell).compactMap { $0 as? StatusUIKitView }.first)
+        func postBody() -> RichTextUIView? {
+            status.subviews.compactMap { $0 as? RichTextUIView }.first { $0.text?.raw.hasPrefix("Post 0:") == true }
+        }
+        let button = try XCTUnwrap(status.subviews.compactMap { $0 as? UIButton }.first {
+            !$0.isHidden && $0.title(for: .normal) == String(localized: "mastodon_item_show_more", bundle: Bundle(for: StatusUIKitView.self))
+        })
+        let preview = postBody()?.frame
+        XCTAssertEqual(preview == nil, contentWarning != nil)
+        let nextFrame = nextCell.frame
+        let scrollOffset = list.contentOffset.y
+        button.sendActions(for: .touchUpInside)
+        let body = try XCTUnwrap(postBody())
+        let stack = try XCTUnwrap(body.subviews.first as? UIStackView)
+
+        var samples: [(body: CGRect, text: CGRect, next: CGRect)] = []
+        for _ in 0..<35 {
+            try await Task.sleep(for: .milliseconds(10))
+            guard let bodyLayer = body.layer.presentation(),
+                  let textLayer = stack.arrangedSubviews.first?.layer.presentation(),
+                  let nextLayer = nextCell.layer.presentation() else { continue }
+            samples.append((bodyLayer.frame, textLayer.convert(textLayer.bounds, to: bodyLayer), nextLayer.frame))
+        }
+        let expanded = body.frame
+        let start = preview ?? CGRect(x: expanded.minX, y: expanded.minY, width: expanded.width, height: 0)
+        let expandedNextFrame = try XCTUnwrap(list.layoutAttributesForItem(at: nextPath)?.frame)
+        XCTAssertTrue(body.clipsToBounds)
+        XCTAssertEqual(list.contentOffset.y, scrollOffset, accuracy: 1)
+        XCTAssertGreaterThan(expanded.height, start.height + 40)
+        let intermediate = samples.filter { $0.body.height > start.height + 1 && $0.body.height < expanded.height - 1 }
+        XCTAssertGreaterThan(intermediate.count, 2)
+        for frame in intermediate {
+            XCTAssertEqual(frame.body.minX, start.minX, accuracy: 1)
+            XCTAssertEqual(frame.body.minY, start.minY, accuracy: 1)
+            XCTAssertEqual(frame.body.width, start.width, accuracy: 1)
+            XCTAssertEqual(frame.text.width, start.width, accuracy: 1)
+            XCTAssertEqual(frame.text.minY, 0, accuracy: 1)
+            XCTAssertEqual(frame.next.minX, nextFrame.minX, accuracy: 1)
+        }
+        XCTAssertEqual(expandedNextFrame.minX, nextFrame.minX, accuracy: 1)
+        XCTAssertGreaterThan(expandedNextFrame.minY, nextFrame.minY)
+        XCTAssertTrue(intermediate.contains { $0.next.minY > nextFrame.minY + 1 && $0.next.minY < expandedNextFrame.minY - 1 })
+    }
+
     func testUpcomingMediaRowsUsePrecomputedHeightsAndKeepPrefetchBounded() async throws {
         let fixture = await Fixture(posts: true)
         let helper = TimelinePresentationAppearancePatchHelper.shared

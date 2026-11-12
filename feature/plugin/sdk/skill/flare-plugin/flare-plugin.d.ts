@@ -1,4 +1,4 @@
-/** Flare Social Plugin API v1. Ambient editor types; do not import at runtime.
+/** Flare Plugin API v1/v2. Ambient editor types; do not import at runtime.
  * See ABI.md and references/ for validation, defaults, and operation dependencies.
  * Optional service members do not relax a declared capability's required method set.
  * Compatible Hosts ignore additive fields, unsupported capabilities/operations,
@@ -8,15 +8,20 @@
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 
-/** Deeply frozen per-call Host metadata. Globals are disposable; origin is normalized HTTPS. */
+/** Deeply frozen per-call Host metadata. Globals are disposable; social origin is normalized HTTPS.
+ * Extension origin is the selected account's origin when its provider supplies one; ordinary HTTP permissions stay separate.
+ * Plugin scope has empty platformId/origin when absent.
+ */
 interface PluginInvocationContextV1 {
   readonly pluginId: string;
   readonly platformId: string;
   readonly packageHash: string;
-  readonly scope: "detector" | "login" | "account" | "guest";
+  readonly scope: "detector" | "login" | "account" | "guest" | "plugin" | "extension";
   readonly origin: string;
-  /** Present for account calls; login and guest calls do not expose an account credential. */
+  /** Present for account and extension calls; extension handles are opaque and do not expose credentials. */
   readonly accountId?: string;
+  /** Extension scope: target built-in or plugin-provided platform; accountId is a plugin-scoped opaque grant handle. */
+  readonly targetPlatformId?: string | null;
   readonly locale: string;
   /** HTTP allowlist: httpOrigins expands login/account/guest; authOrigins expands login only. Detector uses its candidate origin only. */
   readonly approvedOrigins: readonly string[];
@@ -24,7 +29,26 @@ interface PluginInvocationContextV1 {
   readonly assetHandles: readonly string[];
 }
 
-/** Register once, synchronously. Run Host API calls only inside these methods.
+interface TranslationTokenV1 { id: number; kind: "Translatable" | "Locked"; text: string }
+interface TranslationBlockV1 { id: number; tokens: TranslationTokenV1[] }
+interface TranslationDocumentV1 { version?: number | null; targetLanguage?: string | null; blocks: TranslationBlockV1[] }
+interface TranslationBatchPayloadV1 {
+  content?: TranslationDocumentV1 | null;
+  contentWarning?: TranslationDocumentV1 | null;
+  title?: TranslationDocumentV1 | null;
+  description?: TranslationDocumentV1 | null;
+}
+interface TranslationBatchItemV1 {
+  entityKey: string;
+  status?: "Completed" | "Skipped";
+  payload?: TranslationBatchPayloadV1 | null;
+  reason?: string | null;
+}
+interface TranslationBatchDocumentV1 { version?: number; targetLanguage?: string; items: TranslationBatchItemV1[] }
+interface TranslationRequestV1 { sourceTemplate: string; sourceJson: string; targetLanguage: string; prompt: string }
+interface BatchTranslationRequestV1 { sourceJson: string; sourceDocument: TranslationBatchDocumentV1; targetLanguage: string; prompt: string }
+
+/** Register each provided type once, synchronously. Run Host API calls only inside these methods.
  * Manifest operation names, registration paths, and login negotiation must agree.
  * Await or return all work whose failure must fail the invocation. The Host drains
  * started Host tasks, but detached Promise rejections do not fail the returned chain.
@@ -32,16 +56,51 @@ interface PluginInvocationContextV1 {
  * or QuickJS (Compose Desktop). No uniform heap/stack cap or busy-loop interruption.
  * @see references/capabilities.md
  */
-interface PluginDefinitionV1 {
+interface TranslatePluginDefinitionV1 {
+  translateDocumentJson(request: TranslationRequestV1, context: PluginInvocationContextV1): MaybePromise<string | null>;
+  translateBatchDocumentJson(request: BatchTranslationRequestV1, context: PluginInvocationContextV1): MaybePromise<string | null>;
+}
+
+interface PlatformExtensionRequestV1 {
+  actionId: string;
+  businessDate: string;
+  trigger: "manual" | "automatic";
+}
+interface PlatformExtensionResultV1 {
+  status: "completed" | "already-completed" | "partial" | "failed" | "authentication-required" | "user-action-required" | "skipped";
+  succeeded?: number;
+  skipped?: number;
+  failed?: number;
+}
+/** API v2 provider callback. Returned headers stay inside the Host. */
+interface AccountHttpAuthenticationRequestV1 {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  /** Exact encoded request bytes, including multipart boundaries. At most 2 MiB before base64 encoding. */
+  bodyBase64?: string | null;
+}
+interface PlatformExtensionPluginDefinitionV1 {
+  actions: Record<string, (request: PlatformExtensionRequestV1, context: PluginInvocationContextV1) => MaybePromise<PlatformExtensionResultV1>>;
+}
+
+interface SocialPluginDefinitionV1 {
   detector?: { detect(request: DetectorRequestV1, context: PluginInvocationContextV1): MaybePromise<DetectorResultV1> };
   login?: Record<string, LoginServiceV1>;
   capabilities?: {
+    /** Optional read-only renegotiation using saved credentials, without invoking login. */
+    accountCapabilities?: { negotiate(request: AccountCapabilitiesRequestV1, context: PluginInvocationContextV1): MaybePromise<AccountCapabilitiesV1> };
+    accountHttp?: { authenticate(request: AccountHttpAuthenticationRequestV1, context: PluginInvocationContextV1): MaybePromise<Record<string, string>> };
+    /** API v2: transient native lists, independent of home timelines and tabCatalog. */
+    timelinePage?: { load(request: TimelinePageLoadRequestV2, context: PluginInvocationContextV1): MaybePromise<PageV1<TimelineItemV1>> };
     timeline?: { page(request: TimelinePageRequestV1, context: PluginInvocationContextV1): MaybePromise<PageV1<TimelineItemV1>> };
     search?: Partial<SearchServiceV1>;
     profile?: Partial<ProfileServiceV1>;
     post?: Partial<PostServiceV1>;
     relation?: Partial<RelationServiceV1>;
-    compose?: { publish(request: ComposeRequestV1, context: PluginInvocationContextV1): MaybePromise<ComposeResultV1> };
+    compose?: { publish(request: ComposeRequestV1 | ComposeRequestV2, context: PluginInvocationContextV1): MaybePromise<ComposeResultV1> };
+    /** Opt-in compose/v3 capability for friends and selfOnly. */
+    composeV3?: { publish(request: ComposeRequestV3, context: PluginInvocationContextV1): MaybePromise<ComposeResultV1> };
     notification?: Partial<NotificationServiceV1>;
     list?: Partial<ListServiceV1>;
     directMessage?: Partial<DirectMessageServiceV1>;
@@ -50,6 +109,9 @@ interface PluginDefinitionV1 {
     tabCatalog?: { page(request: PageRequestV1, context: PluginInvocationContextV1): MaybePromise<PageV1<TimelineSectionV1>> };
   };
 }
+
+/** Social registration shape retained for existing SDK consumers. */
+type PluginDefinitionV1 = SocialPluginDefinitionV1;
 
 /** Key this service by the manifest login method ID.
  * OAuth: begin -> externalBrowser/success, resume -> success.
@@ -169,25 +231,46 @@ interface CookieCheckRequestV1 {
   origin: string;
   flowId: string;
   cookies: { cookies: CookieValueV1[] };
+  /** API v2: latest Pending payload for this flow; survives runtime eviction, not app restart. */
+  pendingPayload?: JsonValue;
 }
 /** sourceUrl is the declared probe URL; do not merge Cookies across probes/origins blindly. */
-interface CookieValueV1 { sourceUrl: string; name: string; value: string }
+interface CookieValueV1 {
+  sourceUrl: string;
+  name: string;
+  value: string;
+  /** API v2: only fields reliably available on this platform; duplicate names are preserved. */
+  attributes?: CookieAttributesV2;
+}
+interface CookieAttributesV2 {
+  domain?: string;
+  hostOnly?: boolean;
+  path?: string;
+  /** Unix epoch milliseconds; absent does not imply a session cookie. */
+  expiresAt?: number;
+  session?: boolean;
+  secure?: boolean;
+  httpOnly?: boolean;
+  sameSite?: "strict" | "lax" | "none";
+}
 type LoginTransitionV1 =
-  | { type: "pending" }
+  | { type: "pending"; /** API v2: whole replacement, omitted/null clears; at most 64 KiB JSON. */ pendingPayload?: JsonValue }
   | { type: "externalBrowser"; url: string; pendingPayload: JsonValue }
   | { type: "webCookie"; startUrl: string }
   | { type: "success"; value: LoginSuccessV1 };
-/** accountId must equal profile.key.id; origin/profile host must match the selected instance.
- * Negotiate declared complete capability sets with at least one displayable capability.
- * The Host persists credential (at most 64 KiB JSON) and the authenticated profile.
- */
-interface LoginSuccessV1 {
+/** Complete current account capability/config snapshot, bounded by the manifest. */
+interface AccountCapabilitiesV1 {
+  capabilities: Record<string, string[]>;
+  composeConfig?: ComposeConfigV1 | ComposeConfigV2;
+  composeConfigV3?: ComposeConfigV3;
+}
+interface AccountCapabilitiesRequestV1 { previous: AccountCapabilitiesV1 }
+/** Identity/profile must match the selected instance. Credential JSON is limited to 64 KiB. */
+interface LoginSuccessV1 extends AccountCapabilitiesV1 {
   accountId: string;
   origin: string;
   credential: JsonValue;
   profile: ProfileV1;
-  capabilities: Record<string, string[]>;
-  composeConfig?: ComposeConfigV1;
 }
 
 /** Stable ID in the selected API namespace; host is an HTTPS authority without scheme/path. */
@@ -211,6 +294,12 @@ interface ProfileV1 {
   fields?: ProfileFieldV1[];
   entityToken?: string;
   actions?: ActionDescriptorV1[];
+  /** Platform-reported badges; false clears a cached badge, omission leaves it unspecified. */
+  verified?: boolean;
+  cat?: boolean;
+  /** Inline formatted text and emoji. Keep displayName as the plain fallback. */
+  displayNameRichText?: RichTextV1;
+  sourceLanguages?: string[];
 }
 type MediaTypeV1 = "image" | "video" | "gif" | "audio" | "ugoira";
 /** HTTPS URLs only; automatic loading requires permissions.mediaNetwork. Preserve alt text. */
@@ -227,11 +316,14 @@ interface MediaV1 {
   /** Ugoira requires an authenticated account and gallery.ugoiraMetadata. */
   ugoiraKey?: EntityKeyV1;
   originalFrameUrl?: string;
+  /** Explicit media headers, shared by the main URL, preview and download. See wire-data.md. */
+  customHeaders?: Record<string, string>;
 }
 type VisibilityV1 = "public" | "unlisted" | "followers" | "direct" | "channel";
+type ExtendedVisibilityV1 = "friends" | "selfOnly";
 type SemanticActionV1 =
   | "Favourite" | "Unfavourite" | "Repost" | "Unrepost" | "Bookmark" | "Unbookmark"
-  | "Delete" | "Reply" | "Follow" | "Unfollow" | "Block" | "Unblock" | "Mute" | "Unmute"
+  | "Delete" | "Reply" | "Quote" | "Follow" | "Unfollow" | "Block" | "Unblock" | "Mute" | "Unmute"
   | "Vote" | "React" | "Unreact" | "AcceptFollowRequest" | "RejectFollowRequest";
 /** Semantic Host control. enabled defaults true; active/count remain meaningful when disabled.
  * actionToken is bounded opaque mutation data, not a page cursor or credential store.
@@ -268,6 +360,10 @@ interface PostV1 {
   actions?: ActionDescriptorV1[];
   /** Omission defaults to "post"; "link" opens url. Unknown strings disable post/cover/grid navigation without a fallback. */
   detailType?: PostDetailTypeV1;
+  /** API v2: overrides navigation only; quote posts use this same field.
+   * Keep the target stable for the same key, including detail/mutation results.
+   */
+  target?: NavigationTargetV1;
   sourceLanguages?: string[];
   replyToHandle?: string;
   references?: PostReferenceV1[];
@@ -275,6 +371,12 @@ interface PostV1 {
   card?: CardV1;
   poll?: PollV1;
   emojiReactions?: EmojiReactionV1[];
+  /** Plain text in the author header. Omission uses the author's handle. */
+  authorSubtitle?: string;
+  /** Defaults to detailType behavior; openMedia requires negotiated post.detail. */
+  mediaClickPolicy?: "openMedia" | "openTarget";
+  /** Omit visibility when supplying this field. Older Hosts display no visibility indicator. */
+  extendedVisibility?: ExtendedVisibilityV1;
 }
 /** All timeline-producing operations use this discriminated union. No bare-post compatibility.
  * Gap/loading/translation state, account identity and callbacks are owned by the Host.
@@ -297,6 +399,7 @@ interface PostPresentationV1 {
   notificationKey?: EntityKeyV1;
 }
 type NavigationTargetV1 =
+  | { type: "timelinePage"; pageId: string; title: WireTextV1; parameters?: Record<string, string> }
   | { type: "post" | "profile" | "article" | "gallery"; key: EntityKeyV1 }
   | { type: "link"; url: string };
 interface FeedV1 {
@@ -387,6 +490,8 @@ interface PageV1<T> {
   endReached?: boolean;
 }
 interface TimelinePageRequestV1 { timelineId: string; page: PageRequestV1; parameters: Record<string, string> }
+/** API v2: page.parameters is copied from the navigation target on every request. */
+interface TimelinePageLoadRequestV2 { pageId: string; page: PageRequestV1 }
 interface SearchRequestV1 { query: string; page: PageRequestV1 }
 /** entityToken is opaque entity context (at most 8192 characters), not a paging cursor. */
 interface EntityRequestV1 { key: EntityKeyV1; entityToken?: string }
@@ -430,9 +535,22 @@ interface RelationV1 {
   followedBy?: boolean;
   blocking?: boolean;
   muting?: boolean;
+  blockedBy?: boolean;
+  hasPendingFollowRequestFromYou?: boolean;
+  hasPendingFollowRequestToYou?: boolean;
   actionTokens?: Partial<Record<SemanticActionV1, string>>;
 }
-interface SocialListV1 { id: string; title: string; memberCount?: number; entityToken?: string }
+interface SocialListV1 {
+  id: string;
+  title: string;
+  memberCount?: number;
+  entityToken?: string;
+  description?: string;
+  avatarUrl?: string;
+  creator?: ProfileV1;
+  /** Also enforce write restrictions in the plugin's list mutation handlers. */
+  readOnly?: boolean;
+}
 interface DirectMessageRoomV1 {
   key: EntityKeyV1;
   title: string;
@@ -449,7 +567,13 @@ interface DirectMessageV1 {
   content: RichTextV1;
   fromCurrentAccount?: boolean;
   entityToken?: string;
+  /** Omission shows content. Keep content as the text fallback for older Hosts. */
+  body?: DirectMessageBodyV1;
 }
+type DirectMessageBodyV1 =
+  | { type: "media"; media: MediaV1 }
+  | { type: "post"; post: PostV1 }
+  | { type: "deleted" };
 interface ArticleV1 {
   key: EntityKeyV1;
   title: string;
@@ -458,7 +582,19 @@ interface ArticleV1 {
   content: RichTextV1;
   url?: string;
   coverUrl?: string;
+  /** Site and byline for articles without a ProfileV1 author. */
+  attribution?: ArticleAttributionV1;
+  /** Nonempty blocks take precedence on compatible Hosts. Keep content as a readable fallback. */
+  blocks?: ArticleBlockV1[];
 }
+interface ArticleAttributionV1 { siteName?: string; byline?: string; iconUrl?: string }
+type ArticleBlockV1 =
+  | { type: "text"; content: RichTextV1 }
+  | { type: "image"; media: MediaV1 & { type: "image" } }
+  | { type: "video"; media: MediaV1 & { type: "video" } }
+  | { type: "file"; name: string; url: string; sizeBytes?: number; extension?: string; customHeaders?: Record<string, string> }
+  | { type: "embed"; url: string; title?: string; description?: string; imageUrl?: string }
+  | { type: "contentGate"; actionUrl?: string; /** Subscription price in Japanese yen. */ feeRequired?: number };
 interface GalleryV1 {
   key: EntityKeyV1;
   title: string;
@@ -499,11 +635,13 @@ interface DirectMessageDeleteRequestV1 {
 interface CountResultV1 { value: number }
 interface BooleanResultV1 { value: boolean }
 
-/** Manifest defaults are required for compose.publish. Login config is merged by section:
- * shared limits are narrowed; a section present on only one side is retained.
+/** compose/v2 defaults require supportedTypes. Login intersects modes and shared limits;
+ * an optional section present on only one side is retained. compose/v1 remains supported for new posts and replies.
  * @see references/manifest.md#compose-defaults
  */
-interface ComposeConfigV1 {
+type ComposeTypeV2 = "new" | "reply" | "quote";
+interface ComposeConfigV2 {
+  supportedTypes: ComposeTypeV2[];
   text?: { maxLength: number };
   media?: {
     minCountForNew?: number;
@@ -518,19 +656,30 @@ interface ComposeConfigV1 {
   poll?: { maxOptions: number };
   language?: { maxCount: number };
 }
+/** Legacy config has implicit new/reply modes; no quote support. */
+interface ComposeConfigV1 extends Omit<ComposeConfigV2, "supportedTypes"> { supportedTypes?: never }
+type ComposeVisibilityV3 = VisibilityV1 | ExtendedVisibilityV1;
+interface ComposeConfigV3 extends Omit<ComposeConfigV2, "visibility"> {
+  /** Required in platform.composeDefaultsV3. */
+  visibility?: { allowed: ComposeVisibilityV3[]; default?: ComposeVisibilityV3 };
+}
 /** Host-owned per-invocation upload handle. Forward via multipart; bytes never enter JS. */
 interface ComposeAssetV1 { handle: string; fileName?: string; mimeType?: string; description?: string }
 interface ComposePollV1 { options: string[]; expiresInSeconds: number; multiple?: boolean }
-interface ComposeRequestV1 {
+interface ComposeRequestV2 {
   text: string;
   visibility: VisibilityV1;
   languages: string[];
   assets: ComposeAssetV1[];
   sensitive: boolean;
   spoilerText?: string;
-  replyTo?: EntityKeyV1;
+  reference?: { type: "reply" | "quote"; key: EntityKeyV1 };
+  replyTo?: never;
   poll?: ComposePollV1;
 }
+/** Selected by the manifest compose/v1 capability, independently of runtime apiVersion. */
+interface ComposeRequestV1 extends Omit<ComposeRequestV2, "reference" | "replyTo"> { replyTo?: EntityKeyV1; reference?: never }
+interface ComposeRequestV3 extends Omit<ComposeRequestV2, "visibility"> { visibility: ComposeVisibilityV3 }
 interface ComposeResultV1 { post: PostV1 }
 
 type HttpAuthorizationV1 =
@@ -556,11 +705,23 @@ interface HttpRequestV1 {
   cookies?: { name: string; value: string }[];
   body?: HttpBodyV1;
   timeoutMillis?: number;
+  /** API v2 only; manual returns the current hop, follow (default) permits same-origin GET/HEAD redirects. */
+  redirect?: "manual" | "follow";
 }
 /** body is text; parse JSON explicitly after checking status. Headers contain string arrays.
  * HTTP failure statuses are returned normally; this is not a browser Response.
  */
-interface HttpResponseV1 { status: number; headers: Record<string, string[]>; body: string }
+interface HttpResponseV1 {
+  status: number;
+  /** API v2 includes source application headers, including normalized Set-Cookie values. */
+  headers: Record<string, string[]>;
+  body: string;
+  /** Always present for API v2: actual canonical response URL. */
+  url?: string;
+  /** API v2: one valid, authorized HTTPS Location resolved against url, with fragment removed. */
+  redirectUrl?: string;
+}
+interface CredentialSnapshotV2 { value: JsonValue; revision: string }
 
 type PluginErrorCodeV1 =
   | "AuthenticationRequired" | "NotFound" | "Validation" | "RateLimited" | "Network"
@@ -578,12 +739,23 @@ interface PluginErrorV1 {
   remoteCode?: string;
 }
 
+interface PluginStorageSnapshotV1 { values: Record<string, JsonValue>; revision: string }
+interface PluginStorageV1 {
+  read(keys?: string[]): Promise<PluginStorageSnapshotV1>;
+  write(changes: { set?: Record<string, JsonValue>; remove?: string[] }, options?: { expectedRevision?: string }): Promise<{ revision: string }>;
+}
 interface FlareHostV1 {
+  readonly storage: { open(namespace: string): PluginStorageV1 };
   readonly http: { request(request: HttpRequestV1): Promise<HttpResponseV1> };
+  /** API v2, authorized extension scope only. Host injects authentication for the approved target origins. */
+  readonly account: { readonly http: { request(request: Omit<HttpRequestV1, "authorization" | "cookies">): Promise<HttpResponseV1> } };
   /** Available only in account scope. replace atomically replaces the whole JSON payload. */
   readonly credential: {
     read(): Promise<JsonValue>;
-    replace(value: JsonValue): Promise<boolean>;
+    /** API v2: revision is opaque; it changes after every successful replacement. */
+    read(options: { withRevision: true }): Promise<CredentialSnapshotV2>;
+    /** API v2: false means a local revision conflict; reread, do not replay a remote refresh. */
+    replace(value: JsonValue, options?: { expectedRevision: string }): Promise<boolean>;
   };
   readonly crypto: {
     /** size counts random bytes (1..1024), producing twice as many hex characters. */
@@ -591,6 +763,8 @@ interface FlareHostV1 {
     uuid(): Promise<string>;
     /** SHA-256 of UTF-8 input (at most 1 MiB); returns hex, not base64url/bytes. */
     sha256(value: string): Promise<string>;
+    /** MD5 of UTF-8 input (at most 1 MiB). Returns lowercase hex for legacy protocol compatibility. */
+    md5(value: string): Promise<string>;
   };
   readonly locale: { current(): Promise<string> };
   error(value: PluginErrorV1): Error;
@@ -599,5 +773,11 @@ interface FlareHostV1 {
 type MaybePromise<T> = T | Promise<T>;
 
 /** Register this social plugin once when its classic script is evaluated. */
-declare function defineFlareSocialPlugin(plugin: PluginDefinitionV1): void;
+declare function defineFlareSocialPlugin(plugin: SocialPluginDefinitionV1): void;
 declare const flare: FlareHostV1;
+
+/** Register this text-translation provider once; may coexist with a social registration. */
+declare function defineFlareTranslatePlugin(plugin: TranslatePluginDefinitionV1): void;
+
+/** Register actions for existing built-in or plugin-provided accounts once; may coexist with other plugin definitions. */
+declare function defineFlarePlatformExtensionPlugin(plugin: PlatformExtensionPluginDefinitionV1): void;

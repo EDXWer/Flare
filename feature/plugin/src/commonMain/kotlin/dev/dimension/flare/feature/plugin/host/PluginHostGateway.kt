@@ -1,6 +1,10 @@
 package dev.dimension.flare.feature.plugin.host
 
+import dev.dimension.flare.data.repository.RequireReLoginException
 import dev.dimension.flare.feature.plugin.abi.PluginJsonV1
+import dev.dimension.flare.feature.plugin.storage.PluginStorageAccessV1
+import dev.dimension.flare.feature.plugin.storage.PluginStorageChangesV1
+import dev.dimension.flare.feature.plugin.storage.PluginStorageSnapshotV1
 import dev.dimension.flare.feature.plugin.wire.HttpRequestV1
 import dev.dimension.flare.feature.plugin.wire.WireLimitsV1
 import kotlinx.coroutines.CancellationException
@@ -24,32 +28,90 @@ internal class PluginHostGateway(
         argumentsJson: String,
         context: PluginInvocationContextV1,
         callTimeoutMillis: Long,
+        apiVersion: Int = 1,
+        storage: PluginStorageAccessV1? = null,
     ): String {
         require(argumentsJson.encodeToByteArray().size <= MAX_HOST_ARGUMENT_BYTES) { "Host arguments are too large" }
         return try {
+            if (apiVersion >= 2) context.accountHttp?.ensureActive()
             val value =
                 when (operation) {
-                    "http.request" -> {
+                    "account.http.request" -> {
+                        if (apiVersion < 2) throw PluginHostException("host.unsupported", "Account HTTP requires API v2")
+                        val access = context.accountHttp ?: throw PluginHostException("account.denied", "Account HTTP is unavailable")
                         val request = PluginJsonV1.decodeFromString<HttpRequestV1>(argumentsJson)
+                        val response =
+                            try {
+                                http.execute(request, context, callTimeoutMillis, apiVersion, access)
+                            } catch (_: RequireReLoginException) {
+                                throw PluginHostException("account.authentication-required", "Account authentication requires login")
+                            }
                         PluginJsonV1.encodeToJsonElement(
                             dev.dimension.flare.feature.plugin.wire.HttpResponseV1
                                 .serializer(),
-                            http.execute(request, context, callTimeoutMillis),
+                            response,
                         )
                     }
 
+                    "http.request" -> {
+                        val request = PluginJsonV1.decodeFromString<HttpRequestV1>(argumentsJson)
+                        if (apiVersion >= 2) context.credential?.ensureActive()
+                        val response = http.execute(request, context, callTimeoutMillis, apiVersion)
+                        if (apiVersion >= 2) context.credential?.ensureActive()
+                        PluginJsonV1.encodeToJsonElement(
+                            dev.dimension.flare.feature.plugin.wire.HttpResponseV1
+                                .serializer(),
+                            response,
+                        )
+                    }
+
+                    "storage.read" -> {
+                        if (apiVersion < 2) throw PluginHostException("host.unsupported", "Plugin storage requires API v2")
+                        context.credential?.ensureActive()
+                        val access = storage ?: throw PluginHostException("storage.unavailable", "Storage is unavailable")
+                        val request = PluginJsonV1.decodeFromString<StorageReadRequest>(argumentsJson)
+                        val snapshot = access.read(request.namespace, request.keys)
+                        context.credential?.ensureActive()
+                        PluginJsonV1.encodeToJsonElement(PluginStorageSnapshotV1.serializer(), snapshot)
+                    }
+
+                    "storage.write" -> {
+                        if (apiVersion < 2) throw PluginHostException("host.unsupported", "Plugin storage requires API v2")
+                        context.credential?.ensureActive()
+                        val access = storage ?: throw PluginHostException("storage.unavailable", "Storage is unavailable")
+                        val request = PluginJsonV1.decodeFromString<StorageWriteRequest>(argumentsJson)
+                        val snapshot = access.write(request.namespace, request.changes, request.expectedRevision)
+                        context.credential?.ensureActive()
+                        buildJsonObject { put("revision", snapshot.revision) }
+                    }
+
                     "credential.read" -> {
-                        requireEmptyArguments(argumentsJson)
+                        val request = PluginJsonV1.decodeFromString<CredentialReadRequestV2>(argumentsJson)
+                        if (apiVersion == 1) requireEmptyArguments(argumentsJson)
                         val credential = context.credential ?: throw PluginHostException("credential.denied", "Credential is unavailable")
-                        credential.read().also(::requireCredentialSize)
+                        if (request.withRevision) {
+                            val snapshot = credential.readVersioned()
+                            requireCredentialSize(snapshot.value)
+                            require(snapshot.revision.length in 1..256) { "Invalid credential revision" }
+                            PluginJsonV1.encodeToJsonElement(PluginCredentialSnapshot.serializer(), snapshot)
+                        } else {
+                            credential.read().also(::requireCredentialSize)
+                        }
                     }
 
                     "credential.replace" -> {
                         val request = PluginJsonV1.decodeFromString<CredentialReplaceRequestV1>(argumentsJson)
                         requireCredentialSize(request.value)
                         val credential = context.credential ?: throw PluginHostException("credential.denied", "Credential is unavailable")
-                        credential.replace(request.value)
-                        JsonPrimitive(true)
+                        if (request.expectedRevision != null) {
+                            require(
+                                apiVersion >= 2 && request.expectedRevision.length in 1..256,
+                            ) { "Conditional credentials require API v2 and a valid revision" }
+                            JsonPrimitive(credential.replaceIfCurrent(request.value, request.expectedRevision))
+                        } else {
+                            credential.replace(request.value)
+                            JsonPrimitive(true)
+                        }
                     }
 
                     "crypto.randomHex" -> {
@@ -63,16 +125,13 @@ internal class PluginHostGateway(
                         JsonPrimitive(platformUuid())
                     }
 
-                    "crypto.sha256" -> {
+                    "crypto.md5", "crypto.sha256" -> {
                         val request = PluginJsonV1.decodeFromString<HashRequestV1>(argumentsJson)
-                        require(request.value.encodeToByteArray().size <= MAX_HASH_INPUT_BYTES) { "Hash input is too large" }
-                        JsonPrimitive(
-                            request.value
-                                .encodeToByteArray()
-                                .toByteString()
-                                .sha256()
-                                .hex(),
-                        )
+                        val input = request.value.encodeToByteArray()
+                        require(input.size <= MAX_HASH_INPUT_BYTES) { "Hash input is too large" }
+                        val bytes = input.toByteString()
+                        val digest = if (operation == "crypto.md5") bytes.md5() else bytes.sha256()
+                        JsonPrimitive(digest.hex())
                     }
 
                     "locale.current" -> {
@@ -84,6 +143,7 @@ internal class PluginHostGateway(
                         throw PluginHostException("host.unsupported", "Unknown Host operation")
                     }
                 }
+            if (apiVersion >= 2) context.accountHttp?.ensureActive()
             success(value)
         } catch (error: CancellationException) {
             throw error
@@ -100,6 +160,12 @@ internal class PluginHostGateway(
 @Serializable
 private data class CredentialReplaceRequestV1(
     val value: JsonElement,
+    val expectedRevision: String? = null,
+)
+
+@Serializable
+private data class CredentialReadRequestV2(
+    val withRevision: Boolean = false,
 )
 
 @Serializable
@@ -149,3 +215,16 @@ private const val MAX_HOST_ARGUMENT_BYTES = 5 * 1_024 * 1_024
 private const val MAX_HASH_INPUT_BYTES = 1024 * 1_024
 private const val MAX_RANDOM_BYTES = 1_024
 private const val MAX_HOST_ERROR_LENGTH = 512
+
+@Serializable
+private data class StorageReadRequest(
+    val namespace: String,
+    val keys: Set<String>? = null,
+)
+
+@Serializable
+private data class StorageWriteRequest(
+    val namespace: String,
+    val changes: PluginStorageChangesV1,
+    val expectedRevision: String? = null,
+)

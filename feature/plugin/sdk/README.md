@@ -1,22 +1,30 @@
 # Flare Plugin SDK
 
 `flare-plugin-sdk` contains a project initializer, editor types, a local package command,
-templates, examples, and a portable AI authoring skill for Social Plugin API v1.
+templates, examples, and a portable AI authoring skill for Flare Plugin API v1/v2.
 Flare provides the plugin runtime. Supported targets are Android, JVM Desktop,
-iOS, and native macOS, not Web. Use a Flare build that includes Plugins in Settings;
-this SDK does not promise a minimum public app release.
+iOS and native macOS. Select a matching Flare build, SDK and skill using the
+[version guide](skill/flare-plugin/README.md#match-flare-and-the-sdk).
+
+For text translation, plugin-owned storage and offline settings pages, use Host
+API v2 and start with the [feature contract](skill/flare-plugin/references/storage-and-settings.md)
+and [offline example](skill/flare-plugin/examples/translation-settings/README.md).
+For an existing V1 plugin, follow the [migration steps](skill/flare-plugin/ABI.md#migrate-an-api-v1-plugin).
 
 ## Create a plugin
 
-With Node 22 or newer, run:
+With Node 22 or newer, create a social starter for a build with Host API v2.
 
 ```sh
-npx flare-plugin-sdk@next init my-plugin
+npx flare-plugin-sdk@0.1.0-beta.11 init my-plugin
 cd my-plugin
 npm install
 ```
 
-This copies the GitHub template bundled with that SDK version into `my-plugin`:
+For Flare 1.8.0, use `flare-plugin-sdk@0.1.0-beta.10`. For features newer than the
+published SDK, [create the starter from the matching checkout](skill/flare-plugin/README.md#use-the-sdk-from-a-flare-checkout).
+The initializer copies the GitHub template bundled with the selected SDK into
+`my-plugin`.
 
 ```text
 my-plugin/
@@ -37,10 +45,11 @@ empty directories are accepted, including `init .` in an empty current directory
 Non-empty directories, files, and symbolic links are rejected without overwriting
 them. The command uses bundled files only and does not install dependencies,
 initialize Git, contact your website, or publish anything. Run
-`npx flare-plugin-sdk@next --help` for usage.
+the selected SDK's initializer with `--help` for usage.
 
-The generated `manifest.json` includes a `$schema` URL pinned to the SDK version
-used to create it. Open it in VS Code or another JSON Schema editor for property
+The generated `manifest.json` includes a `$schema` URL pinned to the initializer's
+SDK version. Use the installed schema path for a source build. Open the manifest
+in VS Code or another JSON Schema editor for property
 completion, descriptions, enum choices, and static validation. The complete schema
 is bundled at `skill/flare-plugin/manifest.schema.json` inside the SDK.
 
@@ -54,9 +63,9 @@ no demonstration server is included. Update the description, login methods and
 capabilities in `manifest.json`, and replace the placeholder icon. Keep `plugin.js`
 as generated output; edit the TS source and rebuild instead of editing both copies.
 
-For manual template copies, replace the example IDs and names before use. For
-`npx` projects, keep the generated IDs. Read the
-[complete developer guide](https://github.com/flaresocialapp/Flare/tree/master/feature/plugin/sdk/skill/flare-plugin)
+For manual template copies, replace the example IDs and names and install the
+SDK for your target Flare build. For initialized projects, keep the generated IDs. Read the
+[complete developer guide](skill/flare-plugin/README.md)
 for authentication, Host APIs, capabilities, and Wire data mapping.
 
 ## Develop and debug in Flare
@@ -71,15 +80,18 @@ for authentication, Host APIs, capabilities, and Wire data mapping.
 
    `check` uses the SDK's ambient types with strict TypeScript checking. `build`
    checks types and bundles local TS modules into one ES2020 IIFE at root.
-   Actual execution and manifest/registration validation happen in Flare, which
-   provides `defineFlareSocialPlugin` and `flare`.
+   Actual execution and manifest/registration validation happen in Flare. The
+   Host supplies `flare` and the [background registration entrypoints](skill/flare-plugin/ABI.md#registration).
 2. In Compose Desktop or native macOS, open **Settings → Plugins → More → Plugin
    development**. Choose the `my-plugin` directory, click **Start development**,
    and confirm the access review.
-3. Add an account in Flare. Select your plugin platform explicitly, enter the
+3. For social adapters, add an account in Flare. Select your plugin platform explicitly, enter the
    website's HTTPS API origin, and import a real access token using the starter's
    login form. Adapt this step if you change the login method. Test login,
    timeline refresh, older pages, end-of-list behavior, and website link clicks.
+   For a v2 translation plugin, select it in translation settings on iOS, Android
+   or native macOS and test text translation. Open its packaged settings page from plugin management on iOS,
+   Android or native macOS; no social account is needed for those features.
 4. Run `npm run dev` in a terminal, then edit `src/plugin.ts` or its local modules.
    Watch mode rebuilds `plugin.js`; syntax/build errors preserve the previous
    script. It transpiles without type checking, so use editor diagnostics or run
@@ -96,16 +108,17 @@ for authentication, Host APIs, capabilities, and Wire data mapping.
 Finish active writes before reloading; credential-schema changes may require
 logging in again. Keep Flare pointed at the project root, where the build writes
 `plugin.js`. Flare loads that classic script and does not execute TS or build tools.
-See [development and testing details](https://github.com/flaresocialapp/Flare/blob/master/feature/plugin/sdk/skill/flare-plugin/references/testing.md#develop-locally-in-desktop).
+See [development and testing details](skill/flare-plugin/references/testing.md#develop-locally-in-desktop).
 
 ## Publish and install through GitHub (recommended)
 
-1. Create a public GitHub repository. Its tagged root must contain `manifest.json`,
-   the ready-to-run `plugin.js`, exactly one supported `assets/icon.<extension>`,
-   and optional `locales/*.json`. Update the project README with the actual website,
+1. Create a public GitHub repository. Its selected plugin directory must contain `manifest.json`,
+   exactly one supported `assets/icon.<extension>`, ready-to-run `plugin.js` when
+   background capabilities are declared, all settings resources, and optional
+   `locales/*.json`. Update the project README with the actual website,
    login instructions, supported features, and verification results. Flare reads
-   these files directly; commit any compiled output at the root before tagging.
-2. Run `npm run build`, then commit both source and the resulting root `plugin.js`.
+   these files directly; commit compiled output in the plugin directory before tagging.
+2. Run `npm run build`, then commit both source and `plugin.js` in the plugin directory.
    The generated `.gitignore` excludes dependencies, temporary files and `.fpp`
    archives, while retaining `plugin.js`. Commit the `package-lock.json` created
    by `npm install`; use `npm ci` on later clean checkouts. For a new project and an empty GitHub
@@ -114,7 +127,7 @@ See [development and testing details](https://github.com/flaresocialapp/Flare/bl
    ```sh
    git init
    git add manifest.json plugin.js assets src package.json package-lock.json tsconfig.json build.mjs .gitignore README.md
-   # If used, also stage translations with: git add locales
+   # If used, also stage locale catalogs and built pages: git add locales settings
    git commit -m "Add Flare plugin"
    git branch -M main
    git remote add origin https://github.com/OWNER/REPO.git
@@ -123,8 +136,8 @@ See [development and testing details](https://github.com/flaresocialapp/Flare/bl
 
    Use your existing Git setup if the project is already a repository. Keep real
    credentials, private fixtures, `node_modules`, and build caches out of Git.
-3. Set a stable `manifest.version` and push a matching tag. The generated version
-   is `0.1.0`, so the first release can use:
+3. Set the plugin's SemVer `manifest.version` and publish a stable repository
+   snapshot tag. These versions are independent; the first snapshot can use:
 
    ```sh
    git tag v0.1.0
@@ -132,19 +145,29 @@ See [development and testing details](https://github.com/flaresocialapp/Flare/bl
    ```
 
    Commit and push any version edit before tagging. npm SDK versions are separate
-   from your plugin's version. Flare ignores prerelease plugin tags; pushing only
+   from your plugin's version. Flare ignores prerelease repository tags; pushing only
    a branch does not create an installable version. A GitHub Release and `.fpp`
    upload are unnecessary.
 4. Stop development, then open **Settings → Plugins → Add → Install from GitHub**
-   on any supported Flare platform. Enter `https://github.com/OWNER/REPO`, load the
-   latest stable version, and review its source and permissions before confirming.
+   on any supported Flare platform. Enter `https://github.com/OWNER/REPO`
+   (append `?path=/plugins/example` for a subdirectory) and click **Install**.
+   Flare selects the latest stable repository snapshot automatically; review
+   the plugin's source and permissions before confirming.
    Installation takes effect immediately. Add/log in to the plugin account and
    verify its behavior on that device.
 5. For updates, increment `manifest.version`, commit and push, then publish a new
-   matching stable tag. Keep plugin/platform IDs unchanged. In Flare, check for
-   updates and review/confirm the offered version; app restart is unnecessary.
+   stable repository snapshot tag. Keep plugin/platform IDs and directory
+   unchanged. In Flare, check for updates and review/confirm the offered version;
+   app restart is unnecessary.
 
-See [GitHub publication and update rules](https://github.com/flaresocialapp/Flare/blob/master/feature/plugin/sdk/skill/flare-plugin/references/publishing.md).
+Several plugins can share one repository. Each directory must contain a complete
+plugin with unique plugin/platform IDs. Install a subdirectory using
+`https://github.com/OWNER/REPO?path=/plugins/example`; omit `path` for root.
+The latest stable tag selects the repository snapshot, while each plugin keeps
+its own manifest version. Unchanged runtime files do not offer updates.
+Downloads over 20 MiB ask for confirmation; see the publishing guide for limits.
+
+See [GitHub publication and update rules](skill/flare-plugin/references/publishing.md).
 
 ## Optional: package and install a local file
 
@@ -155,7 +178,7 @@ needed. From the generated project root:
 npm run package
 ```
 
-This checks types, rebuilds `plugin.js`, stages only manifest/script/icon/locale
+This checks types, rebuilds `plugin.js`, stages manifest/script/icon/locale and built settings
 files in a temporary directory, reuses the SDK packer, and writes `plugin.fpp` in
 the project root. Temporary staging is cleaned up. Source and development files
 are excluded. The standalone `flare-plugin-pack` command still requires a clean
@@ -170,9 +193,10 @@ registration, permissions, and behavior. File installs have no GitHub update tra
 
 The generated `tsconfig.json` already sets `types: ["flare-plugin-sdk"]`, strict
 checking, and an ES2020 library without browser or Node globals.
-`defineFlareSocialPlugin` contextually types its handlers; `TimelineItemV1`, `PostV1`, `ProfileV1`,
-and other SDK types are available directly. The SDK is a development dependency,
-not a runtime import.
+`defineFlareSocialPlugin`, `defineFlareTranslatePlugin` and
+`defineFlarePlatformExtensionPlugin` contextually type their handlers.
+`TimelineItemV1`, `PostV1`, `ProfileV1` and other SDK types are available directly. The SDK root provides background
+ambient declarations as a development dependency.
 Local TS imports are bundled into `plugin.js`; imported code must also work
 without Node/browser APIs. `build` and `package` stop on type errors.
 
@@ -182,16 +206,18 @@ Keep these development files outside the optional `.fpp` staging directory.
 Flare treats `$schema` as editor metadata and never downloads it. With an older
 Flare build that rejects this field, remove it and use a VS Code `json.schemas`
 association in workspace settings instead. See the
-[manifest editor guide](https://github.com/flaresocialapp/Flare/blob/master/feature/plugin/sdk/skill/flare-plugin/references/manifest.md#json-schema-and-editor-support)
+[manifest editor guide](skill/flare-plugin/references/manifest.md#json-schema-and-editor-support)
 and [VS Code schema settings](https://code.visualstudio.com/docs/languages/json#_json-schemas-and-settings).
 
-For an existing project, install editor types:
+For an existing project targeting Host API v2, install the published SDK.
 
 ```sh
-npm install --save-dev flare-plugin-sdk@next
+npm install --save-dev --save-exact flare-plugin-sdk@0.1.0-beta.11
 ```
 
-Add the package to your TypeScript project's compiler options:
+For Flare 1.8.0, pin `0.1.0-beta.10`. For features newer than the published SDK,
+[install the source SDK tarball](skill/flare-plugin/README.md#use-the-sdk-from-a-flare-checkout).
+Add the package to your TypeScript project's compiler options.
 
 ```json
 {
@@ -202,27 +228,29 @@ Add the package to your TypeScript project's compiler options:
 ```
 
 Append it to any existing `types` list. For JavaScript, enable `checkJs` as well.
-The declarations provide ambient `defineFlareSocialPlugin`, `flare`, and wire
-types. Do not import the SDK at runtime: Flare supplies those globals, and plugin
-scripts must bundle their own runtime dependencies without Node or browser APIs.
+The root declarations provide ambient [registration entrypoints](skill/flare-plugin/ABI.md#registration),
+`flare` and Wire types for background code. Flare supplies those globals.
+Settings pages import `connectSettings` from `flare-plugin-sdk/settings`. Bundle
+the module into the packaged page. See the
+[page SDK contract](skill/flare-plugin/references/storage-and-settings.md#offline-settings-page).
 
 ## Use the AI authoring skill
 
 The self-contained skill is in `skill/flare-plugin/` in both the source and npm
 package. Copy that **entire directory** into your agent's skill directory; copying
 only `SKILL.md` loses its types, references, templates, and examples. Follow the
-[skill installation guide](https://github.com/flaresocialapp/Flare/blob/master/feature/plugin/sdk/skill/flare-plugin/README.md#install-the-skill)
+[skill installation guide](skill/flare-plugin/README.md#install-the-skill)
 for Codex or Claude Code, including project scope, verification, and updates.
 All documentation is in English. The complete Pixelfed adapter is bundled at
 `skill/flare-plugin/examples/pixelfed/`. The offline
 [mixed timeline showcase](skill/flare-plugin/examples/timeline-showcase/README.md)
 covers Post, Feed, User, UserList and Message rows, notifications, voting,
-reactions and follow requests using Flare's existing UI.
-
-Timeline-producing methods now return `PageV1<TimelineItemV1>`; post detail returns
-`{ post, presentation? }`. This preview intentionally removes the old bare-post
-and notification wire shapes. Update plugin sources and use a matching Host/SDK
-build; see the [wire contract](skill/flare-plugin/references/wire-data.md#timeline-items-and-interactions).
+reactions, follow requests and API v2 temporary replies pages using Flare's existing UI.
+For post/quote navigation into paginated sublists without home tabs, start with
+the [temporary page contract](skill/flare-plugin/references/capabilities.md#api-v2-temporary-timeline-pages)
+and [implementation recipe](skill/flare-plugin/references/recipes.md#temporary-timeline-pages-api-v2).
+See the [wire contract](skill/flare-plugin/references/wire-data.md#timeline-items-and-interactions)
+for timeline and post detail results.
 
 ## Validate this SDK
 
@@ -242,10 +270,8 @@ The draft-07 schema is compiled with Ajv in strict mode. Shared manifest cases
 exercise both Schema and Host validation; Host tests also compare every field,
 required property, enum, and known capability operation against Kotlin descriptors.
 
-To try the SDK from a checkout before npm publication, run
-`npm pack --pack-destination /tmp` after those checks, then install the resulting `.tgz` in
-a separate authoring project with
-`npm install --save-dev /path/to/flare-plugin-sdk-VERSION.tgz`.
+To use the checked-out SDK after those checks, follow the
+[source SDK instructions](skill/flare-plugin/README.md#use-the-sdk-from-a-flare-checkout).
 
 ## Publish this SDK (maintainers)
 
@@ -287,3 +313,8 @@ For subsequent releases:
 The **Plugin SDK** workflow runs validation on relevant pull requests. Its manual
 **Run workflow** action also validates only, even when a tag is selected; publishing
 requires a push of a matching `plugin-sdk-v*` tag. Updating a PR never publishes npm.
+
+For actions on existing built-in or plugin-provided accounts, use the
+[platform extension contract](skill/flare-plugin/references/platform-extensions.md)
+and [Weibo session-check example](skill/flare-plugin/examples/platform-extension/README.md).
+Account authorization and daily foreground execution are controlled by Flare.

@@ -2,11 +2,11 @@
 
 Use the [capability matrix](capabilities.md) for required operation sets and
 [type declarations](../flare-plugin.d.ts) for full signatures. Every method also
-receives `context`. Tables below describe all twelve services. Code fragments
+receives `context`. Sections below describe the available services. Code fragments
 use site-specific helpers such as `api`, `mapPost`, and `mapProfile`; implement
 them from the website contract and [HTTP rules](runtime-http.md), then place
 the service in the single `defineFlareSocialPlugin` registration. These are adaptation
-recipes, not seventeen separate installable plugins.
+recipes, not separate installable plugins.
 
 ## Timeline
 
@@ -24,6 +24,47 @@ Test refresh, a second page, an empty continued page, and genuine exhaustion.
 For automatic tab selection, platform names/icons and manual-add labels, follow
 the [tab presentation rules](manifest.md#default-and-manually-added-tabs).
 
+## Temporary timeline pages (API v2)
+
+Use this for a comment's child replies or a forum floor's sublist. Declare
+`apiVersion: 2`, the `flare.datasource.timeline-page/v1` capability with `load`,
+and the supported paging directions. Negotiate it at login and register the
+handler under `capabilities.timelinePage`:
+
+```js
+const timelinePageServiceFragment = {
+  async load({ pageId, page }, context) {
+    if (pageId !== "comment_replies") {
+      throw flare.error({ code: "NotFound", message: { value: "Unknown replies page" } });
+    }
+    const remote = await loadWebsiteReplies({
+      parentId: page.parameters.parentId,
+      sort: page.parameters.sort,
+      direction: page.direction,
+      cursor: page.cursor,
+      limit: page.limit,
+    }, context);
+    return {
+      items: remote.items.map(item => ({ type: "post", post: mapComment(item, context) })),
+      olderCursor: remote.nextCursor,
+      endReached: remote.finished,
+    };
+  },
+};
+```
+
+Implement `loadWebsiteReplies` and `mapComment` from verified website responses.
+Give the entry post or quote a [timelinePage target](capabilities.md#api-v2-temporary-timeline-pages)
+with the same pageId and its parent/sort parameters; read those only from
+`page.parameters`. No home timeline or tabCatalog registration is needed.
+
+Map actual parent/reply relationships and preserve opaque cursors, including a
+cursor after an empty page. For native Reply, implement comment `post.detail`
+and compose/v2 reference handling from stable comment keys; page parameters do
+not become Compose context. Follow the page contract for stable targets in
+detail/mutation results. The [offline showcase](../examples/timeline-showcase/README.md)
+contains a complete registration, quote entry, nested pages and empty-page continuation.
+
 ## Search
 
 All five methods receive `SearchRequestV1 { query, page }`:
@@ -36,12 +77,20 @@ All five methods receive `SearchRequestV1 { query, page }`:
 | discoverProfiles | PageV1<ProfileV1> |
 | discoverHashtags | PageV1<HashtagV1> |
 
-Declare and implement all five to expose the current search interface. Map the
-website's different search/discovery endpoints rather than forwarding a search
-result envelope. Encode queries as URL parameters, and keep paging cursors
-specific to the query and result type. Discovery may use an empty query; do not
-invent a hidden required query that the Host cannot provide. See Pixelfed's
-search service for complete examples. Test non-ASCII queries and empty results.
+Declare at least one of these operations in `flare.datasource.search/v1` and
+register the matching methods under `capabilities.search`. Login can negotiate
+any supported nonempty subset. Omit the search capability from the login result
+when that account supports none. An empty page is valid for an enabled operation
+with no results.
+
+The Host sends a search query to `posts` and `profiles` and an empty query to the
+three Discover operations. Trending tags can appear independently. Selecting a
+tag to search for posts requires `posts`. Profile results can appear independently
+of `profile` lookup and open a native profile when lookup is available.
+
+Use `["refresh"]` for a single page or `["refresh", "older"]` to allow more pages.
+Encode queries as URL parameters and keep cursors specific to the query and
+operation. Test non-ASCII queries and empty results.
 
 ## Profile
 
@@ -145,11 +194,33 @@ state in plugin globals.
 
 ## Compose
 
-Declare publish and conservative composeDefaults. `compose.publish` receives
-text, visibility, languages, assets, sensitive, optional spoilerText/replyTo/poll,
-and returns `{ post: PostV1 }`.
+Declare `flare.datasource.compose/v2` with publish and conservative composeDefaults,
+including a required supportedTypes set. `compose.publish` receives
+`ComposeRequestV2`: text, visibility, languages, assets, sensitive, optional
+spoilerText/reference/poll, and returns `{ post: PostV1 }`.
 
-1. Translate supported fields to the website's payload. Reply targets are keys;
+For friends-only or self-only publishing, negotiate `flare.datasource.compose/v3`
+and implement `composeV3.publish`. It receives the same fields with the expanded
+visibility values. Apply the selected visibility on the website and report
+the resulting private post with `extendedVisibility`. See [compose defaults](manifest.md#compose-defaults).
+
+- No reference means a new post.
+- `{ type: "reply", key: { id, host } }` means reply to that exact target.
+- `{ type: "quote", key: { id, host } }` means quote that exact target.
+
+There is no legacy replyTo/quoteTo alias. Preserve opaque IDs and target hosts;
+do not infer a mode from text, replace a target with its quoted original, or
+convert an empty quote to an ordinary repost. Repost remains a post mutation.
+The editor and publish adapter reject unsupported modes before upload/invocation.
+Quotes retain the existing requirement for text or media and the ordinary minimum
+attachment count; only replies waive that minimum.
+
+Expose post `Reply` / `Quote` action descriptors for the applicable targets.
+Both open the composer, gated by supportedTypes; Quote does not require repost
+mutation support. A website that cannot quote should omit quote from supportedTypes
+and reject it in its handler as well. The Pixelfed sample declares new/reply only.
+
+1. Translate supported fields to the website's payload. Reference targets are keys;
    do not confuse them with URLs. Poll duration is seconds, not milliseconds.
 2. Upload assets using the Host multipart handle API. Check each result and use
    the returned remote media IDs. Honor alt text, MIME, size, and count constraints.
@@ -161,7 +232,10 @@ See [multipart](runtime-http.md#body-recipes) and Pixelfed's complete publish
 implementation. Only enable controls the adapter handles. Login/manifest config
 merging is described in [compose defaults](manifest.md#compose-defaults).
 Test text-only where allowed, required-media constraints, an upload failure,
-alt text, reply, visibility, and resulting post navigation.
+alt text, reply/quote distinctions, unsupported-mode rejection, visibility, and
+resulting post navigation. Old v1 packages continue to work unchanged for new posts and replies. When
+adopting v2, update the manifest and handler together; existing accounts retain
+negotiated publish access and restrictions without a new login.
 
 ## Notification
 
@@ -332,3 +406,30 @@ declared static timeline ID; Browser takes no value. No wildcard/regex/callback
 field is available. Target capability and account/guest availability still
 matter. Test matching/nonmatching paths and URI encoding with the actual Host;
 detailType link explicitly bypasses this internal matching path.
+
+## API v2 HTTP session state
+
+Declare `apiVersion: 2` to inspect application headers and handle each redirect.
+Inside an account method, a single-hop sketch is:
+
+```js
+const { value: state, revision } = await flare.credential.read({ withRevision: true });
+const response = await flare.http.request({
+  url: context.origin + "/session",
+  redirect: "manual",
+  cookies: state.cookies,
+  headers: { Referer: context.origin + "/", "X-Csrf-Token": state.csrf },
+});
+const cookieUpdates = response.headers["set-cookie"] || [];
+const nextUrl = response.redirectUrl;
+// Interpret cookieUpdates against response.url using the platform's Cookie rules.
+// Extract body tokens with JSON.parse(response.body), then construct the next
+// request's explicit headers/form. Do not replay all response headers.
+// After verification, replace the complete JSON using expectedRevision.
+```
+
+This sketch omits the platform-specific Cookie parser, expiry/deletion rules,
+refresh coordination, and next-hop loop. The Host supplies no Cookie jar and no
+timer/sleep API. Bound every chain by the invocation deadline. CAS failure means
+reread local state; it does not justify repeating an already consumed remote
+exchange or write. See [HTTP limits](runtime-http.md#http-request-and-response).

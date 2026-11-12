@@ -9,12 +9,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -23,6 +27,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExpandedFullScreenSearchBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.IconButton
@@ -32,16 +37,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SearchBarDefaults
+import androidx.compose.material3.SearchBarValue
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberSearchBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -51,6 +60,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -63,8 +74,12 @@ import compose.icons.FontAwesomeIcons
 import compose.icons.fontawesomeicons.Solid
 import compose.icons.fontawesomeicons.solid.CircleInfo
 import compose.icons.fontawesomeicons.solid.EllipsisVertical
+import compose.icons.fontawesomeicons.solid.MagnifyingGlass
 import compose.icons.fontawesomeicons.solid.Plus
+import compose.icons.fontawesomeicons.solid.PuzzlePiece
+import compose.icons.fontawesomeicons.solid.Store
 import compose.icons.fontawesomeicons.solid.Trash
+import compose.icons.fontawesomeicons.solid.Xmark
 import dev.dimension.flare.R
 import dev.dimension.flare.data.model.PluginPermission
 import dev.dimension.flare.data.repository.PluginAuthoringPhase
@@ -77,13 +92,16 @@ import dev.dimension.flare.feature.plugin.management.PluginInstallReviewV1
 import dev.dimension.flare.feature.plugin.management.PluginManagementItemV1
 import dev.dimension.flare.feature.plugin.management.PluginManagementPresenterV1
 import dev.dimension.flare.feature.plugin.management.PluginManagementStateV1
+import dev.dimension.flare.ui.component.BackArrow
 import dev.dimension.flare.ui.component.BackButton
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.FlareDropdownMenu
 import dev.dimension.flare.ui.component.FlareLargeFlexibleTopAppBar
 import dev.dimension.flare.ui.component.FlareScaffold
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
+import dev.dimension.flare.ui.component.RefreshContainer
 import dev.dimension.flare.ui.component.resolveText
+import dev.dimension.flare.ui.component.status.ListEmptyView
 import dev.dimension.flare.ui.theme.screenHorizontalPadding
 import dev.dimension.flare.ui.theme.segmentedShapes2
 import kotlinx.coroutines.CancellationException
@@ -97,7 +115,11 @@ import java.io.File
 @Composable
 internal fun AndroidPluginManagementScreen(
     onBack: () -> Unit,
+    onSettings: (String) -> Unit,
     onCreateWithAI: () -> Unit = {},
+    onExtensions: (String) -> Unit = {},
+    onOpenMarketplace: () -> Unit = {},
+    marketplace: Boolean = false,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -114,7 +136,22 @@ internal fun AndroidPluginManagementScreen(
         onDispose { presenter.close() }
     }
     val state by presenter.state.collectAsState()
-    LaunchedEffect(presenter) { scope.launchPresenterAction { presenter.checkUpdates(forceRefresh = false) } }
+    var checkingUpdates by remember { mutableStateOf(false) }
+
+    fun checkUpdates(forceRefresh: Boolean = true) {
+        if (state.busy || checkingUpdates) return
+        checkingUpdates = true
+        scope.launchPresenterAction {
+            try {
+                presenter.checkUpdates(forceRefresh)
+            } finally {
+                checkingUpdates = false
+            }
+        }
+    }
+    LaunchedEffect(marketplace, presenter) {
+        if (marketplace) presenter.loadMarketplace() else checkUpdates(forceRefresh = false)
+    }
     var pendingUninstallId by remember { mutableStateOf<String?>(null) }
     val pendingUninstall = state.plugins.firstOrNull { it.pluginId == pendingUninstallId }
     val pendingAuthored = state.authoredPlugins.firstOrNull { it.id == pendingUninstallId }
@@ -141,11 +178,30 @@ internal fun AndroidPluginManagementScreen(
             state = state,
             onInstall = { url -> scope.launchPresenterAction { presenter.inspectGitHub(url) } },
             onConfirm = { scope.launchPresenterAction { presenter.confirmInstall() } },
+            onConfirmDownload = { scope.launchPresenterAction { presenter.confirmRepositoryDownload() } },
+            onCancelDownload = { scope.launchPresenterAction { presenter.cancelRepositoryDownload() } },
             onUrlChanged = presenter::clearGitHubInstallError,
             onDismiss = { scope.launchPresenterAction { presenter.cancelInstall() } },
         )
     }
 
+    if (state.needsRepositoryDownloadConfirmation && state.gitHubInstall == null) {
+        AlertDialog(
+            onDismissRequest = { scope.launchPresenterAction { presenter.cancelRepositoryDownload() } },
+            title = { Text(stringResource(R.string.plugin_large_repository_title)) },
+            text = { Text(stringResource(R.string.plugin_large_repository_message)) },
+            confirmButton = {
+                TextButton(onClick = { scope.launchPresenterAction { presenter.confirmRepositoryDownload() } }) {
+                    Text(stringResource(R.string.plugin_continue_download))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { scope.launchPresenterAction { presenter.cancelRepositoryDownload() } }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            },
+        )
+    }
     state.pendingInstall?.takeIf { state.gitHubInstall == null }?.let { review ->
         PluginInstallReviewDialog(
             review = review,
@@ -186,7 +242,21 @@ internal fun AndroidPluginManagementScreen(
         )
     }
 
-    Box(Modifier.fillMaxSize()) {
+    if (marketplace) {
+        Box(Modifier.fillMaxSize()) {
+            PluginMarketplaceScreen(
+                state = state,
+                onBack = onBack,
+                onInstall = { id -> scope.launchPresenterAction { presenter.inspectMarketplace(id) } },
+                onManage = onBack,
+                onRefresh = { presenter.loadMarketplace(forceRefresh = true) },
+                onIcon = presenter::marketplaceIcon,
+            )
+            if (state.busy) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            }
+        }
+    } else {
         FlareScaffold(
             topBar = {
                 FlareLargeFlexibleTopAppBar(
@@ -200,9 +270,12 @@ internal fun AndroidPluginManagementScreen(
                             onCreateWithAI = onCreateWithAI,
                             onFileInstall = { picker.launch(arrayOf("application/zip", "application/octet-stream")) },
                         )
+                        IconButton(onClick = onOpenMarketplace, enabled = !state.busy) {
+                            FAIcon(FontAwesomeIcons.Solid.Store, contentDescription = stringResource(R.string.plugin_marketplace))
+                        }
                         PluginManagementMenu(
                             state = state,
-                            onCheckUpdates = { scope.launchPresenterAction { presenter.checkUpdates() } },
+                            onCheckUpdates = { checkUpdates() },
                             onRebuildIndex = { scope.launchPresenterAction { presenter.rebuildIndex() } },
                             onCleanup = { scope.launchPresenterAction { presenter.cleanup() } },
                         )
@@ -212,25 +285,233 @@ internal fun AndroidPluginManagementScreen(
             },
             modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         ) { padding ->
-            PluginManagementList(
-                state = state,
-                onCancelPluginUpdate = { id -> scope.launchPresenterAction { presenter.cancelPluginUpdate(id) } },
-                onUninstall = { pendingUninstallId = it },
-                onUpdate = { pluginId -> scope.launchPresenterAction { presenter.inspectGitHubUpdate(pluginId) } },
-                onRetryRuntime = { pluginId ->
-                    scope.launchPresenterAction { presenter.retryRuntime(pluginId) }
+            RefreshContainer(
+                isRefreshing = state.busy || checkingUpdates,
+                onRefresh = { checkUpdates() },
+                indicatorPadding = padding,
+                modifier = Modifier.fillMaxSize(),
+                content = {
+                    PluginManagementList(
+                        state = state,
+                        onSettings = onSettings,
+                        onExtensions = onExtensions,
+                        onCancelPluginUpdate = { id -> scope.launchPresenterAction { presenter.cancelPluginUpdate(id) } },
+                        onUninstall = { pendingUninstallId = it },
+                        onUpdate = { pluginId -> scope.launchPresenterAction { presenter.inspectGitHubUpdate(pluginId) } },
+                        onRetryRuntime = { pluginId ->
+                            scope.launchPresenterAction { presenter.retryRuntime(pluginId) }
+                        },
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .padding(padding)
+                                .padding(horizontal = screenHorizontalPadding),
+                    )
                 },
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .padding(horizontal = screenHorizontalPadding),
             )
         }
-        if (state.busy) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+    }
+}
+
+@Composable
+internal fun PluginMarketplaceScreen(
+    state: PluginManagementStateV1,
+    onBack: () -> Unit,
+    onInstall: (String) -> Unit,
+    onManage: () -> Unit,
+    onRefresh: () -> Unit,
+    onIcon: suspend (String) -> String?,
+) {
+    val query = rememberTextFieldState()
+    val searchBarState = rememberSearchBarState()
+    val scope = rememberCoroutineScope()
+    val keyboard = LocalSoftwareKeyboardController.current
+    val results = @Composable {
+        PluginMarketplaceList(
+            state = state,
+            query = query.text.toString(),
+            onInstall = { id ->
+                keyboard?.hide()
+                scope.launch {
+                    searchBarState.animateToCollapsed()
+                    onInstall(id)
+                }
+            },
+            onManage = onManage,
+            onRefresh = onRefresh,
+            onIcon = onIcon,
+            modifier = Modifier.fillMaxSize().imePadding().padding(horizontal = screenHorizontalPadding),
+        )
+    }
+    FlareScaffold(
+        topBar = {
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                val inputField = @Composable {
+                    SearchBarDefaults.InputField(
+                        textFieldState = query,
+                        searchBarState = searchBarState,
+                        onSearch = {
+                            scope.launch { searchBarState.animateToCollapsed() }
+                            keyboard?.hide()
+                        },
+                        placeholder = { Text(stringResource(R.string.plugin_marketplace_search)) },
+                        leadingIcon = {
+                            IconButton(onClick = {
+                                if (searchBarState.currentValue == SearchBarValue.Expanded) {
+                                    scope.launch { searchBarState.animateToCollapsed() }
+                                } else {
+                                    onBack()
+                                }
+                            }) {
+                                FAIcon(FontAwesomeIcons.BackArrow, contentDescription = stringResource(R.string.navigate_back))
+                            }
+                        },
+                        trailingIcon = {
+                            if (query.text.isNotEmpty()) {
+                                IconButton(onClick = { query.clearText() }) {
+                                    FAIcon(FontAwesomeIcons.Solid.Xmark, contentDescription = stringResource(R.string.clear_search))
+                                }
+                            }
+                        },
+                    )
+                }
+                androidx.compose.material3.SearchBar(
+                    state = searchBarState,
+                    inputField = inputField,
+                    modifier = Modifier.windowInsetsPadding(SearchBarDefaults.windowInsets).padding(vertical = 8.dp),
+                )
+                ExpandedFullScreenSearchBar(state = searchBarState, inputField = inputField) { results() }
+            }
+        },
+    ) { padding ->
+        if (searchBarState.currentValue != SearchBarValue.Expanded) {
+            Box(Modifier.fillMaxSize().padding(padding)) { results() }
         }
     }
+}
+
+@Composable
+internal fun PluginMarketplaceList(
+    state: PluginManagementStateV1,
+    onInstall: (String) -> Unit,
+    onManage: () -> Unit,
+    onRefresh: () -> Unit,
+    onIcon: suspend (String) -> String?,
+    modifier: Modifier = Modifier,
+    query: String = "",
+) {
+    val uriHandler = LocalUriHandler.current
+    val marketplace = state.marketplace
+    val plugins = marketplace.search(query)
+    RefreshContainer(
+        isRefreshing = marketplace.loading,
+        onRefresh = onRefresh,
+        modifier = modifier,
+        content = {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
+                contentPadding =
+                    androidx.compose.foundation.layout
+                        .PaddingValues(vertical = 16.dp),
+            ) {
+                if (marketplace.error != null) {
+                    item(key = "marketplace-error") {
+                        Column {
+                            Text(stringResource(R.string.plugin_marketplace_failed), color = MaterialTheme.colorScheme.error)
+                            if (marketplace.loaded) Text(stringResource(R.string.plugin_marketplace_cached))
+                            TextButton(onClick = onRefresh, enabled = !marketplace.loading) { Text(stringResource(R.string.plugin_retry)) }
+                        }
+                    }
+                }
+                state.error?.let { error ->
+                    item(key = "marketplace-install-error") {
+                        Text(
+                            "${stringResource(R.string.plugin_operation_failed)}: ${error.take(512)}",
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+                if (marketplace.loaded && plugins.isEmpty() && !marketplace.loading) {
+                    item(key = "marketplace-empty") {
+                        ListEmptyView(
+                            text =
+                                stringResource(
+                                    if (query.isBlank()) R.string.plugin_marketplace_empty else R.string.empty_search_results,
+                                ),
+                            icon = if (query.isBlank()) FontAwesomeIcons.Solid.PuzzlePiece else FontAwesomeIcons.Solid.MagnifyingGlass,
+                            modifier = Modifier.fillParentMaxSize(),
+                        )
+                    }
+                }
+                itemsIndexed(plugins, key = { _, entry -> entry.id }) { index, entry ->
+                    val iconPath by produceState<String?>(null, entry.icon) { value = onIcon(entry.id) }
+                    val installed = state.isInstalled(entry.id)
+                    val managed = state.isManaged(entry.id)
+                    SegmentedListItem(
+                        onClick = { uriHandler.openUri(entry.repository) },
+                        shapes = ListItemDefaults.segmentedShapes2(index, plugins.size),
+                        leadingContent = {
+                            Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                                if (iconPath == null) FAIcon(FontAwesomeIcons.Solid.PuzzlePiece, contentDescription = null)
+                                iconPath?.let {
+                                    AsyncImage(
+                                        model = File(it),
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Fit,
+                                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)),
+                                    )
+                                }
+                            }
+                        },
+                        content = { Text(entry.name) },
+                        supportingContent = {
+                            Column {
+                                Text(entry.description)
+                                if (managed) {
+                                    Text(
+                                        stringResource(if (installed) R.string.plugin_installed else R.string.plugin_marketplace_local),
+                                    )
+                                }
+                            }
+                        },
+                        trailingContent = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                TextButton(
+                                    onClick = { if (managed) onManage() else onInstall(entry.id) },
+                                    enabled = managed || state.canInstallFromMarketplace,
+                                ) {
+                                    Text(
+                                        stringResource(
+                                            if (managed) R.string.plugin_marketplace_manage else R.string.plugin_marketplace_install,
+                                        ),
+                                    )
+                                }
+                                var showsMenu by remember { mutableStateOf(false) }
+                                Box {
+                                    IconButton(onClick = { showsMenu = true }) {
+                                        FAIcon(
+                                            FontAwesomeIcons.Solid.EllipsisVertical,
+                                            contentDescription = "${stringResource(R.string.more)}: ${entry.name}",
+                                        )
+                                    }
+                                    FlareDropdownMenu(expanded = showsMenu, onDismissRequest = { showsMenu = false }) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.plugin_marketplace_repository)) },
+                                            onClick = {
+                                                showsMenu = false
+                                                uriHandler.openUri(entry.repository)
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                    )
+                }
+            }
+        },
+    )
 }
 
 @Composable
@@ -394,6 +675,17 @@ internal fun PluginPermission.localizedDescription(): String {
     if (type == dev.dimension.flare.data.model.PluginPermissionType.MediaNetwork) {
         return stringResource(R.string.plugin_permission_media_network)
     }
+    if (type == dev.dimension.flare.data.model.PluginPermissionType.AccountHttpOrigin) {
+        val displayOrigin =
+            if (origin ==
+                PluginAbiV1.ACCOUNT_ORIGIN
+            ) {
+                stringResource(R.string.plugin_permission_account_origin_label)
+            } else {
+                origin
+            }
+        return stringResource(R.string.plugin_permission_account_http_origin, platformId.orEmpty(), displayOrigin)
+    }
     if (type == dev.dimension.flare.data.model.PluginPermissionType.HttpOrigin) {
         return stringResource(R.string.plugin_permission_http_origin, origin)
     }
@@ -422,21 +714,35 @@ internal fun GitHubInstallDialog(
     state: PluginManagementStateV1,
     onInstall: (String) -> Unit,
     onConfirm: () -> Unit,
+    onConfirmDownload: () -> Unit,
+    onCancelDownload: () -> Unit,
     onUrlChanged: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     var url by remember { mutableStateOf("") }
     val install = state.gitHubInstall ?: return
     val review = state.pendingInstall
+    val largeRepository = state.needsRepositoryDownloadConfirmation
+    val dismiss = if (largeRepository) onCancelDownload else onDismiss
     AlertDialog(
-        onDismissRequest = { if (!install.busy) onDismiss() },
-        title = { Text(review?.let { "${it.name} ${it.version}" } ?: stringResource(R.string.plugin_install_github)) },
+        onDismissRequest = { if (!install.busy) dismiss() },
+        title = {
+            Text(
+                if (largeRepository) {
+                    stringResource(R.string.plugin_large_repository_title)
+                } else {
+                    review?.let { "${it.name} ${it.version}" } ?: stringResource(R.string.plugin_install_github)
+                },
+            )
+        },
         text = {
             Column(
                 modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (review == null) {
+                if (largeRepository) {
+                    Text(stringResource(R.string.plugin_large_repository_message))
+                } else if (review == null) {
                     OutlinedTextField(
                         value = url,
                         onValueChange = {
@@ -445,6 +751,7 @@ internal fun GitHubInstallDialog(
                         },
                         label = { Text(stringResource(R.string.plugin_github_repository)) },
                         placeholder = { Text("https://github.com/owner/repository") },
+                        supportingText = { Text(stringResource(R.string.plugin_github_path_hint)) },
                         singleLine = true,
                         enabled = !install.busy,
                     )
@@ -459,14 +766,22 @@ internal fun GitHubInstallDialog(
         },
         confirmButton = {
             Button(
-                enabled = !install.busy && (review != null || url.isNotBlank()),
-                onClick = { if (review == null) onInstall(url) else onConfirm() },
+                enabled = !install.busy && (largeRepository || review != null || url.isNotBlank()),
+                onClick = {
+                    if (largeRepository) {
+                        onConfirmDownload()
+                    } else if (review == null) {
+                        onInstall(url)
+                    } else {
+                        onConfirm()
+                    }
+                },
             ) {
-                Text(stringResource(R.string.plugin_confirm_install))
+                Text(stringResource(if (largeRepository) R.string.plugin_continue_download else R.string.plugin_confirm_install))
             }
         },
         dismissButton = {
-            TextButton(enabled = !install.busy, onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+            TextButton(enabled = !install.busy, onClick = dismiss) { Text(stringResource(android.R.string.cancel)) }
         },
     )
 }
@@ -474,11 +789,13 @@ internal fun GitHubInstallDialog(
 @Composable
 internal fun PluginManagementList(
     state: PluginManagementStateV1,
+    onSettings: (String) -> Unit,
     onCancelPluginUpdate: (String) -> Unit,
     onUninstall: (String) -> Unit,
     onUpdate: (String) -> Unit,
     onRetryRuntime: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onExtensions: (String) -> Unit = {},
 ) {
     LazyColumn(
         modifier = modifier,
@@ -531,7 +848,14 @@ internal fun PluginManagementList(
         state.issues.forEach { issue ->
             item(key = "issue:${issue.code}:${issue.pluginId}") {
                 MessageItem(
-                    title = pluginIssueMessage(issue.code),
+                    title =
+                        if (issue.code ==
+                            "update.failed"
+                        ) {
+                            "${issue.pluginId}: ${issue.message.take(512)}"
+                        } else {
+                            pluginIssueMessage(issue.code)
+                        },
                     isError = true,
                 )
             }
@@ -573,6 +897,8 @@ internal fun PluginManagementList(
                     busy = state.busy,
                     shapesIndex = index,
                     shapesCount = state.items.size,
+                    onSettings = onSettings,
+                    onExtensions = onExtensions,
                     onCancelUpdate = onCancelPluginUpdate,
                     onUninstall = onUninstall,
                     onUpdate = onUpdate,
@@ -588,9 +914,11 @@ internal fun PluginItem(
     busy: Boolean,
     shapesIndex: Int,
     shapesCount: Int,
+    onSettings: (String) -> Unit,
     onCancelUpdate: (String) -> Unit,
     onUninstall: (String) -> Unit,
     onUpdate: (String) -> Unit,
+    onExtensions: (String) -> Unit = {},
 ) {
     val name = plugin.nameText.resolveText().ifBlank { stringResource(R.string.plugin_ai_untitled) }
     SegmentedListItem(
@@ -612,7 +940,7 @@ internal fun PluginItem(
             Column {
                 Text(
                     plugin.authoring?.let { stringResource(R.string.plugin_ai_source_revision, it.revision) }
-                        ?: "${plugin.platformId} · ${plugin.version}",
+                        ?: "${plugin.platformId.ifEmpty { plugin.pluginId }} · ${plugin.version}",
                 )
                 plugin.sourceUrl?.let { Text(it) }
                 plugin.availableUpdate?.let { update ->
@@ -634,7 +962,13 @@ internal fun PluginItem(
             }
         },
         trailingContent = {
-            PluginItemMenu(name = name, busy = busy, onUninstall = { onUninstall(plugin.pluginId) })
+            PluginItemMenu(
+                name = name,
+                busy = busy,
+                onUninstall = { onUninstall(plugin.pluginId) },
+                onSettings = if (plugin.hasSettings) ({ onSettings(plugin.pluginId) }) else null,
+                onExtensions = if (plugin.hasPlatformExtension) ({ onExtensions(plugin.pluginId) }) else null,
+            )
         },
     )
 }
@@ -644,6 +978,8 @@ internal fun PluginItemMenu(
     name: String,
     busy: Boolean,
     onUninstall: () -> Unit,
+    onSettings: (() -> Unit)?,
+    onExtensions: (() -> Unit)? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
@@ -651,6 +987,26 @@ internal fun PluginItemMenu(
             FAIcon(FontAwesomeIcons.Solid.EllipsisVertical, contentDescription = "${stringResource(R.string.more)}: $name")
         }
         FlareDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            if (onExtensions != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.plugin_extension_title)) },
+                    enabled = !busy,
+                    onClick = {
+                        expanded = false
+                        onExtensions()
+                    },
+                )
+            }
+            if (onSettings != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.settings_title)) },
+                    enabled = !busy,
+                    onClick = {
+                        expanded = false
+                        onSettings()
+                    },
+                )
+            }
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.plugin_uninstall)) },
                 leadingIcon = { FAIcon(FontAwesomeIcons.Solid.Trash, contentDescription = null) },

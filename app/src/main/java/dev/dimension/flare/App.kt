@@ -36,6 +36,8 @@ class App :
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
+        // Android 13 and earlier can still report foreground memory pressure.
+        @Suppress("DEPRECATION")
         if (level >= TRIM_MEMORY_RUNNING_LOW) {
             koinGet<CoroutineScope>().launch {
                 koinGet<PluginSubsystemV1>().onMemoryPressure()

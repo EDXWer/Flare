@@ -121,7 +121,7 @@ jobs:
           arch: x86_64
           disable-animations: true
           script: |
-            ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=dev.dimension.flare.ui.screen.settings.ProxySettingsContentTest,dev.dimension.flare.ui.screen.settings.PluginManagementMenuTest,dev.dimension.flare.common.WebViewProxyTest,dev.dimension.flare.ui.screen.gallery.GalleryDetailScreenTest,dev.dimension.flare.ui.screen.media.ImageTranslationErrorDialogTest
+            ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=dev.dimension.flare.ui.screen.settings.ProxySettingsContentTest,dev.dimension.flare.ui.screen.settings.PluginManagementMenuTest,dev.dimension.flare.ui.screen.settings.PluginExtensionScreenTest,dev.dimension.flare.common.WebViewProxyTest,dev.dimension.flare.ui.screen.gallery.GalleryDetailScreenTest,dev.dimension.flare.ui.screen.media.ImageTranslationErrorDialogTest
             ./gradlew :compose-ui:connectedAndroidDeviceTest -Pandroid.testInstrumentationRunnerArguments.class=dev.dimension.flare.ui.component.SurfaceBindingManagerTest
       - name: Build and package Android and Linux
         run: ./gradlew :app:assembleRelease :app:bundleRelease :app:check :app:lint :desktopApp:check :desktopApp:build :desktopApp:packageReleaseAppImage -x ktlintCheck --stacktrace
@@ -302,6 +302,9 @@ jobs:
             -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testSingleMediaLimitUsesStableWindowAndEmbeddedViewportGeometry \
             -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testViewportHeightChangeResizesSingleMediaAndPreservesReadingPosition \
             -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testSingleMediaLimitSwitchKeepsReadingPosition \
+            -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testLongPostExpandsDownwardFromItsPreview \
+            -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testContentWarningRevealsTextDownward \
+            -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testLongPostExpansionKeepsTimelineColumns \
             -only-testing:TimelineControllerTests/TimelineRefreshAnimationTests \
             -only-testing:TimelineControllerTests/FlareTextColorTests \
             -only-testing:TimelineControllerTests/FlareTextColorIntegrationTests \
@@ -317,12 +320,14 @@ jobs:
             -parallel-testing-enabled NO -collect-test-diagnostics never
       - name: Run media UI regressions
         working-directory: ./appleApp
+        # XCTest can time out waiting for the simulator to report the app PID.
         run: |
           xcodebuild test-without-building -project Flare.xcodeproj -scheme CI-iOS \
             -derivedDataPath build/DerivedData -destination "platform=iOS Simulator,id=$FLARE_TEST_SIMULATOR" \
             -only-testing:MediaViewerInteractionTests/TimelineMediaScrollTests \
             -only-testing:MediaViewerInteractionTests/MediaViewerInteractionTests/testVideoSummaryControlsStayBelowGrabberWithZeroHeightProposal \
-            -parallel-testing-enabled NO -collect-test-diagnostics never
+            -parallel-testing-enabled NO -collect-test-diagnostics never \
+            -retry-tests-on-failure -test-iterations 2
       - name: Run image translation error UI regressions
         working-directory: ./appleApp
         run: |

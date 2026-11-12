@@ -36,6 +36,11 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
             invalidateIntrinsicContentSize()
         }
     }
+    var clipsToVisibleHeight = false {
+        didSet {
+            if oldValue != clipsToVisibleHeight { updateVerticalLayoutPolicy() }
+        }
+    }
     var onOpenURL: ((URL) -> Void)?
     var baseTextStyle: UIFont.TextStyle = .body { didSet { if !isBatchUpdating { update() } } }
     var baseTextColor: UIColor = .flareLabel { didSet { if !isBatchUpdating { update() } } }
@@ -429,7 +434,7 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
     }
 
     private func updateVerticalLayoutPolicy() {
-        let clipsWholeRichText = collapseAboveLineCount != nil
+        let clipsWholeRichText = clipsToVisibleHeight || collapseAboveLineCount != nil
         stackBottomConstraint?.isActive = !clipsWholeRichText
         clipsToBounds = clipsWholeRichText
         invalidateIntrinsicContentSize()

@@ -1,10 +1,51 @@
 # Flare Plugin SDK and skill
 
 Use this directory as the `flare-plugin` skill to build a website adapter with an
-AI coding agent, or read the same references directly. All material describes
-Social Plugin API v1 in the accompanying Flare source. Use a Flare build that
-includes this subsystem; this directory does not promise a minimum public app
-release. The module targets Android, JVM Desktop, iOS, and native macOS, not Web.
+AI coding agent, or read the same references directly. The SDK describes Plugin
+API v1 and v2. The runtime targets Android, JVM Desktop, iOS and native macOS.
+Offline settings pages and Plugin tasks have UI on Android, iOS and native macOS.
+
+## Match Flare and the SDK
+
+Choose the Flare build that will run the plugin, then select the SDK and skill
+for that build. Check the feature's [Host API requirements](references/manifest.md#host-api-versions).
+
+| Target build | SDK and skill |
+| --- | --- |
+| [Flare 1.8.0](https://github.com/flaresocialapp/Flare/releases/tag/1.8.0) | Host API v1. Pin `flare-plugin-sdk@0.1.0-beta.10` and use the [skill from that SDK tag](https://github.com/flaresocialapp/Flare/tree/plugin-sdk-v0.1.0-beta.10/feature/plugin/sdk/skill/flare-plugin). |
+| Flare build with Host API v2 | Pin [`flare-plugin-sdk@0.1.0-beta.11`](https://www.npmjs.com/package/flare-plugin-sdk/v/0.1.0-beta.11) and use the [skill from that SDK tag](https://github.com/flaresocialapp/Flare/tree/plugin-sdk-v0.1.0-beta.11/feature/plugin/sdk/skill/flare-plugin). |
+
+Host API v2 is included on `master` starting with the [V2 merge commit](https://github.com/flaresocialapp/Flare/commit/85c82a46d7738cb4010bda6a9bd09e4e50bb6e68).
+SDK `0.1.0-beta.11` includes the V2 schema and the WebView settings module at
+`flare-plugin-sdk/settings`. The settings page runs in a V2 Host with
+`apiVersion: 2` and `settings.bridgeVersion: 1` in the manifest. See the
+[settings page contract](references/storage-and-settings.md#offline-settings-page).
+
+`npm view flare-plugin-sdk dist-tags --json` shows the rolling `next` channel.
+Pin the SDK version for reproducible builds. For features newer than the
+published SDK, use the SDK and skill from the tag or commit used to build Flare.
+
+### Use the SDK from a Flare checkout
+
+With Node 22 or newer, run these commands from the Flare revision used for your
+target build. They create a social starter in a sibling directory and install
+the SDK from that checkout.
+
+```sh
+flare_sdk_dir="$PWD/feature/plugin/sdk"
+node "$flare_sdk_dir/bin/cli.mjs" init ../my-plugin
+cd ../my-plugin
+mkdir -p .sdk
+flare_sdk_archive="$(npm pack "$flare_sdk_dir" --pack-destination .sdk --silent)"
+npm install --save-dev "./.sdk/$flare_sdk_archive"
+```
+
+For an existing plugin, set `flare_sdk_dir` to the matching SDK directory and
+run the last three commands from the plugin root. In `manifest.json`, set
+`$schema` to `./node_modules/flare-plugin-sdk/skill/flare-plugin/manifest.schema.json`.
+Record the Flare commit and keep the tarball available at the same project path
+for other developers running `npm ci`. Keep `.sdk/` outside the runtime package.
+For an existing V1 plugin, follow the [V1 migration steps](ABI.md#migrate-an-api-v1-plugin).
 
 ## Install the skill
 
@@ -24,9 +65,8 @@ your plugin project; Node is needed for the documented syntax and package checks
 ### Install from GitHub with Codex
 
 The [development source](https://github.com/flaresocialapp/Flare/tree/master/feature/plugin/sdk/skill/flare-plugin)
-is on the `master` branch of `flaresocialapp/Flare`. It is a development
-branch, not a released SDK version. For reproducible installation, select the
-full commit SHA containing the skill in GitHub and use it in place of the branch.
+is on `master` in `flaresocialapp/Flare`. For a specific Flare build, use its
+commit SHA or the corresponding SDK tag in place of `master`.
 
 Ask Codex's built-in installer:
 
@@ -36,19 +76,18 @@ ref master, path feature/plugin/sdk/skill/flare-plugin.
 Copy the complete skill directory, including its supporting files.
 ```
 
-Give the repository, ref, and path separately. If you use the installer's Python
-CLI directly, the equivalent arguments are
+The installer's Python CLI takes
 `--repo flaresocialapp/Flare --ref master --path feature/plugin/sdk/skill/flare-plugin`.
 Record the resolved commit SHA when you need to reproduce an installation. If a
 skill already exists, follow [Update or remove](#update-or-remove) first.
 
 ### Install from a local checkout
 
-Check out a revision that contains this directory. For example, clone the
-development branch into a new directory, then enter its repository root:
+Clone the repository and enter its root. For a specific target build, check
+out its matching revision before copying the skill.
 
 ```sh
-git clone --branch master --single-branch https://github.com/flaresocialapp/Flare.git
+git clone https://github.com/flaresocialapp/Flare.git
 cd Flare
 ```
 
@@ -161,20 +200,22 @@ cases matter. It should identify gaps rather than invent website endpoints.
 
 ## Start a plugin repository
 
-1. With Node 22 or newer, create the starter:
+1. With Node 22 or newer, create the social starter for a build with Host API v2.
 
    ```sh
-   npx flare-plugin-sdk@next init my-plugin
+   npx flare-plugin-sdk@0.1.0-beta.11 init my-plugin
    cd my-plugin
+   npm install
    ```
 
-   It generates a TS project with SDK types and unique plugin/platform IDs. A
-   prebuilt root `plugin.js` makes it installable before dependencies are installed.
-   Run `npm install`, edit `src/plugin.ts`, and use `npm run dev` while developing;
-   `npm run build` checks types before rebuilding the root script. For manual copies of
-   [assets/github-template](assets/github-template/README.md), replace its example
-   IDs and names first and rename `_gitignore` to `.gitignore`. The example API needs adaptation; no demonstration server
-   is provided.
+   For Flare 1.8.0, use `flare-plugin-sdk@0.1.0-beta.10`. For features newer than
+   the published SDK, [install from the matching checkout](#use-the-sdk-from-a-flare-checkout).
+   Both workflows generate a TS project with unique plugin/platform IDs and a
+   prebuilt root `plugin.js`. Edit `src/plugin.ts` and use `npm run dev` while
+   developing. `npm run build` checks types before rebuilding the root script.
+   For manual copies of [assets/github-template](assets/github-template/README.md),
+   replace the example IDs and names, rename `_gitignore` to `.gitignore`, and
+   install the SDK for the target build. The example API needs adaptation.
 2. Keep the generated IDs stable, replace the placeholder icon, and adapt
    authentication and data mapping to your website. See [manifest](references/manifest.md)
    and [authentication](references/authentication.md).
@@ -186,8 +227,8 @@ cases matter. It should identify gaps rather than invent website endpoints.
    **Reload plugin** after automatic validation. Follow the syntax, behavior and
    platform checks. Stop development before installing/updating the same plugin.
 5. Prefer GitHub distribution: run `npm run build`, commit the TS source, build
-   configuration, lockfile and root `plugin.js`, then push a stable tag matching
-   `manifest.version`. In Flare's plugin
+   configuration, lockfile and built `plugin.js`, then push a stable repository
+   snapshot tag. Each plugin's `manifest.version` is independent. In Flare's plugin
    management, enter `https://github.com/OWNER/REPO` and click **Install**. Review
    source and permissions, then confirm to use the plugin immediately. Follow the
    plugin's README to select the platform, origin, and login method.
@@ -196,20 +237,23 @@ The generated [project README](assets/github-template/README.md) contains the fu
 adaptation, local debugging, Git setup/tagging, GitHub installation and update path.
 See [publishing](references/publishing.md) for exact tag rules, updates, and
 [optional local `.fpp` installation](references/publishing.md#optional-local-installation).
-Flare reads the tagged repository root; a subdirectory in the Flare repository itself
-is not a plugin installation URL. A GitHub Release or `.fpp` upload is unnecessary.
+Flare reads the selected directory in the latest stable repository snapshot. Add
+`?path=/plugins/example` for a subdirectory; omit it for the repository root. A GitHub Release or `.fpp` upload is unnecessary.
 
 ## Reference and example index
 
 | Need | Reference |
 | --- | --- |
 | Agent workflow | [SKILL.md](SKILL.md) |
+| Host and SDK versions, existing V1 plugins | [Version pairing](#match-flare-and-the-sdk), [V1 migration](ABI.md#migrate-an-api-v1-plugin) |
 | Boundary contract and registration | [ABI.md](ABI.md) |
 | Exact JavaScript signatures and field comments | [flare-plugin.d.ts](flare-plugin.d.ts) |
 | Manifest fields, defaults, enums, and validation | [Manifest](references/manifest.md) |
 | JSON editor completion and static manifest checks | [JSON Schema](manifest.schema.json), [editor setup](references/manifest.md#json-schema-and-editor-support) |
-| All twelve capabilities, minimum methods, and UI requirements | [Capabilities](references/capabilities.md) |
+| Capabilities, minimum methods, and UI requirements | [Capabilities](references/capabilities.md) |
+| API v2 post/quote navigation and temporary reply lists | [Page contract](references/capabilities.md#api-v2-temporary-timeline-pages), [recipe](references/recipes.md#temporary-timeline-pages-api-v2), [offline showcase](examples/timeline-showcase/README.md) |
 | Platform engines, async completion, HTTP, permissions, credentials, and state | [Runtime and HTTP](references/runtime-http.md) |
+| Text translation, plugin storage revisions and offline settings SDK | [Storage, translation and settings](references/storage-and-settings.md) |
 | Detection and all five login methods | [Authentication](references/authentication.md) |
 | DTO mapping, pagination, media, and opaque tokens | [Wire data](references/wire-data.md) |
 | Capability implementations, guest, localization, and Deep Links | [Recipes](references/recipes.md) |
@@ -217,6 +261,11 @@ is not a plugin installation URL. A GitHub Release or `.fpp` upload is unnecessa
 | Author checks, Host tests, and acceptance evidence | [Testing](references/testing.md) |
 | GitHub publication, upgrades, and optional local installation | [Publishing](references/publishing.md) |
 | Complete website adapter | [Pixelfed](examples/pixelfed/README.md) |
+| Complete offline translation/settings interface example | [Translation/settings demo](examples/translation-settings/README.md) |
 
 Rules have one canonical reference; the skill links to it when needed. Recipe
 fragments explain adaptation points and are not separate installable plugins.
+
+For operations on existing built-in or plugin-provided accounts, including optional daily foreground
+actions, read [platform extensions](references/platform-extensions.md) and the
+[read-only Weibo example](examples/platform-extension/README.md).

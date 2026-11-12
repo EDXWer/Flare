@@ -1,6 +1,7 @@
 package dev.dimension.flare.feature.plugin.installer
 
 import dev.dimension.flare.feature.plugin.abi.DISABLE_DYNAMIC_CODE_PRELUDE
+import dev.dimension.flare.feature.plugin.abi.PLUGIN_REGISTRATION_PRELUDE
 import dev.dimension.flare.feature.plugin.abi.PluginJsonV1
 import dev.dimension.flare.feature.plugin.manifest.PluginMethodTableV1
 import dev.dimension.flare.feature.plugin.runtime.PluginHostCall
@@ -16,16 +17,22 @@ internal class PluginRegistrationInspector(
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val engineFactory: suspend (PluginHostCall) -> PluginJavaScriptEngine = { createPluginJavaScriptEngine(dispatcher, it) },
 ) {
-    suspend fun inspect(source: String): PluginMethodTableV1 =
+    suspend fun inspect(
+        source: String,
+        apiVersion: Int = 1,
+    ): PluginMethodTableV1 =
         withContext(dispatcher) {
             require(!containsDynamicImport(source)) { "Dynamic import is not supported" }
             val engine = engineFactory { _, _, _ -> error("Host API is unavailable during installation") }
             try {
                 val result =
                     withTimeout(VALIDATION_TIMEOUT_MILLIS) {
-                        engine.evaluate(registrationPrelude + DISABLE_DYNAMIC_CODE_PRELUDE + source + registrationResult, "plugin.js")
+                        engine.evaluate(
+                            PLUGIN_REGISTRATION_PRELUDE + DISABLE_DYNAMIC_CODE_PRELUDE + source + registrationResult,
+                            "plugin.js",
+                        )
                     }
-                PluginJsonV1.decodeFromString(result)
+                PluginJsonV1.decodeFromString<PluginMethodTableV1>(result).copy(apiVersion = apiVersion)
             } finally {
                 engine.close()
             }
@@ -34,33 +41,11 @@ internal class PluginRegistrationInspector(
 
 private const val VALIDATION_TIMEOUT_MILLIS = 2_000L
 
-private val registrationPrelude =
-    """
-    (() => {
-      let registration;
-      Object.defineProperty(globalThis, "defineFlareSocialPlugin", {
-        configurable: false,
-        writable: false,
-        value(value) {
-          if (registration !== undefined) throw new Error("defineFlareSocialPlugin may only be called once");
-          if (value === null || typeof value !== "object") throw new Error("Invalid plugin registration");
-          registration = value;
-        },
-      });
-      Object.defineProperty(globalThis, "__flareReadRegistrationV1", {
-        configurable: false,
-        writable: false,
-        value() { return registration; },
-      });
-    })();
-    """.trimIndent() + "\n"
-
 private val registrationResult =
     """
 
     ;(() => {
       const registration = globalThis.__flareReadRegistrationV1();
-      if (registration === undefined) throw new Error("plugin.js did not call defineFlareSocialPlugin");
       const methods = [];
       const visit = (value, path) => {
         if (value === null || typeof value !== "object" || Array.isArray(value)) return;

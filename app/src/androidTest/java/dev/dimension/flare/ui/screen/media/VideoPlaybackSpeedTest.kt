@@ -16,7 +16,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
@@ -42,7 +42,6 @@ import dev.dimension.flare.ui.model.UiMedia
 import dev.dimension.flare.ui.model.UiState
 import dev.dimension.flare.ui.theme.FlareTheme
 import kotlinx.collections.immutable.persistentListOf
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -56,8 +55,7 @@ class VideoPlaybackSpeedTest {
         ComposeUiFlags.isMediaQueryIntegrationEnabled = true
     }
 
-    // Media3 listener cleanup needs the legacy rule's real Android main looper.
-    @get:Rule val compose = createComposeRule(Dispatchers.Main.immediate)
+    @get:Rule val compose = createComposeRule()
 
     @Test
     fun viewerRemembersSpeedAndLongPressRestoresThePausedSelection() {
@@ -89,6 +87,7 @@ class VideoPlaybackSpeedTest {
             ),
         )
         var visible by mutableStateOf(true)
+        var mounted by mutableStateOf(true)
 
         fun awaitSpeed(rate: Float) {
             compose.waitUntil(10_000) {
@@ -124,6 +123,7 @@ class VideoPlaybackSpeedTest {
         try {
             runBlocking { repository.updateAppSettings { copy(videoPlaybackSpeed = 1f) } }
             compose.setContent {
+                if (!mounted) return@setContent
                 CompositionLocalProvider(
                     LocalGlobalAppearance provides GlobalAppearance(),
                     LocalTimelineAppearance provides TimelineAppearance(),
@@ -211,8 +211,13 @@ class VideoPlaybackSpeedTest {
                 assertEquals(16f, runBlocking { repository.appSettings.first().videoPlaybackSpeed })
             }
         } finally {
-            compose.runOnIdle { visible = false }
-            runBlocking { repository.updateAppSettings { copy(videoPlaybackSpeed = previousSpeed) } }
+            try {
+                // Drain Media3 listener cleanup on the UI thread before Compose test teardown.
+                compose.runOnUiThread { mounted = false }
+                compose.waitForIdle()
+            } finally {
+                runBlocking { repository.updateAppSettings { copy(videoPlaybackSpeed = previousSpeed) } }
+            }
         }
     }
 }

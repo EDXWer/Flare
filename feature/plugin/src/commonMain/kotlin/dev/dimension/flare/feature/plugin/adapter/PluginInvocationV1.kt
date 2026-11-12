@@ -11,6 +11,7 @@ import dev.dimension.flare.feature.plugin.host.PluginAsset
 import dev.dimension.flare.feature.plugin.host.PluginCallTimeoutV1
 import dev.dimension.flare.feature.plugin.host.PluginInvocationContextV1
 import dev.dimension.flare.feature.plugin.lifecycle.RunningPluginV1
+import dev.dimension.flare.feature.plugin.manifest.socialPlatform
 import dev.dimension.flare.feature.plugin.runtime.PluginCallException
 import dev.dimension.flare.feature.plugin.runtime.PluginRuntimeKeyV1
 import dev.dimension.flare.feature.plugin.runtime.PluginRuntimePool
@@ -33,6 +34,17 @@ internal class PluginAccountInvokerV1(
     private val accountKey: MicroBlogKey?,
     private val context: suspend (locale: String, assets: Map<String, PluginAsset>) -> PluginInvocationContextV1,
 ) {
+    suspend fun ensureActive() {
+        plugin.session.ensureActive()
+        context(Locale.language, emptyMap()).credential?.ensureActive()
+    }
+
+    suspend fun <T> withAuthorization(block: suspend () -> T): T =
+        plugin.session.invoke("capabilities.accountHttp.authorize") {
+            ensureActive()
+            block().also { ensureActive() }
+        }
+
     fun <Wire : Any> timelineLoader(
         capability: String,
         operation: String,
@@ -40,6 +52,7 @@ internal class PluginAccountInvokerV1(
         directions: Set<PageDirectionV1>,
         load: suspend (pageSize: Int, request: PagingRequest) -> PageV1<Wire>,
         map: (Wire) -> UiTimelineV2?,
+        collapseReplies: Boolean = capability != PluginAbiV1.Capabilities.NOTIFICATION,
     ): CacheableRemoteLoader<UiTimelineV2> {
         val loader = pluginRemoteLoader(directions, load, map)
         val key =
@@ -66,7 +79,7 @@ internal class PluginAccountInvokerV1(
                         .sha256()
                         .hex()
             override val supportPrepend = PageDirectionV1.Newer.isSupportedBy(directions)
-            override val collapseReplyChains = capability != PluginAbiV1.Capabilities.NOTIFICATION
+            override val collapseReplyChains = collapseReplies
         }
     }
 
@@ -81,21 +94,26 @@ internal class PluginAccountInvokerV1(
         validate: (Response) -> Unit = {},
     ): Response =
         plugin.session.invoke(requireNotNull(PluginAbiV1.capabilityMethod(capabilityId, operation))) {
+            val invocationContext = context(Locale.language, assets)
             try {
-                runtimePool.invoke(
-                    plugin = plugin,
-                    key = runtimeKey,
-                    context = context(Locale.language, assets),
-                    method = requireNotNull(PluginAbiV1.capabilityMethod(capabilityId, operation)),
-                    request = request,
-                    requestSerializer = requestSerializer,
-                    responseSerializer = responseSerializer,
-                    timeout = timeout,
-                    validate = validate,
-                )
+                runtimePool
+                    .invoke(
+                        plugin = plugin,
+                        key = runtimeKey,
+                        context = invocationContext,
+                        method = requireNotNull(PluginAbiV1.capabilityMethod(capabilityId, operation)),
+                        request = request,
+                        requestSerializer = requestSerializer,
+                        responseSerializer = responseSerializer,
+                        timeout = timeout,
+                        validate = validate,
+                    ).also {
+                        invocationContext.credential?.ensureActive()
+                    }
             } catch (error: PluginCallException) {
+                invocationContext.credential?.ensureActive()
                 if (error.error.code == PluginErrorCodeV1.AuthenticationRequired && accountKey != null) {
-                    throw RequireReLoginException(accountKey, plugin.installed.manifest.platform.id)
+                    throw RequireReLoginException(accountKey, plugin.installed.manifest.socialPlatform.id)
                 }
                 throw error
             }

@@ -1,17 +1,23 @@
 # Capability and UI contract
 
-Each ID below has prefix `flare.datasource.` and suffix `/v1`; use the full ID
-in the manifest and negotiated login result. JavaScript methods live under
+Each ID below has the prefix `flare.datasource.`. Append `/v1` to entries that
+omit a version. Use the full ID in the manifest and negotiated login result.
+JavaScript methods live under
 `defineFlareSocialPlugin({ capabilities: { <service>: ... } })`.
 
-| ID middle | Service | Required operations | Additional operations | Host surface / dependency |
+| ID after prefix | Service | Required operations | Additional operations | Host surface / dependency |
 | --- | --- | --- | --- | --- |
+| `timeline-page` | `timelinePage` | `load` | None | API v2 temporary native lists; no home timeline or tabCatalog required |
+| `account-http` | `accountHttp` | `authenticate` | None | API v2 account-only authentication for platform extensions; explicit authOrigins; no displayable entry |
+| `account-capabilities` | `accountCapabilities` | `negotiate` | None | Optional read-only account renegotiation after upgrade; runtime APIs 1 and 2; no displayable entry |
 | `timeline` | `timeline` | `page` | None | Static timelines, including at least one default |
-| `search` | `search` | `posts`, `profiles`, `discoverPosts`, `discoverProfiles`, `discoverHashtags` | None | Search/discovery sections |
+| `search` | `search` | At least one search operation | `posts`, `profiles`, `discoverPosts`, `discoverProfiles`, `discoverHashtags` | Each supported operation enables its own section |
 | `profile` | `profile` | `byId`, `byHandle` | `timeline`, `following`, `followers` | Profile lookup; tabs additionally require `timeline` and profileTabs |
 | `post` | `post` | `detail` | `context`, `delete`, `mutate` | Internal post detail, thread context, and supported actions |
 | `relation` | `relation` | `state`, `mutate` | None | Follow/block/mute controls; nonempty static relationActions |
-| `compose` | `compose` | `publish` | None | Composer; requires composeDefaults and an account |
+| `compose/v1` | `compose` | `publish` | None | Legacy new posts and replies via `replyTo`. Requires `composeDefaults` and an account. |
+| `compose/v2` | `compose` | `publish` | None | Typed reply and quote references. Requires `composeDefaults.supportedTypes` and an account. |
+| `compose/v3` | `composeV3` | `publish` | None | Composer with friends and selfOnly visibility. Requires composeDefaultsV3 and account negotiation. |
 | `notification` | `notification` | At least one of `page`, `badge` | Both may be declared | `page` supplies the list and requires notificationFilters; badge alone is not a displayable login capability |
 | `list` | `list` | `page`, `detail`, `create`, `update`, `delete`, `timeline`, `members`, `memberships`, `addMember`, `removeMember` | None | List browsing and management |
 | `direct-message` | `directMessage` | `rooms`, `room`, `messages`, `send`, `delete`, `leave`, `create`, `badge`, `canSend` | None | DM rooms, conversation, and related account controls |
@@ -51,7 +57,7 @@ The first is `platform.capabilities`, the second is `capabilities.timeline`
 (with a website-specific `loadTimeline` implementation), and the third is the
 login success's `capabilities`. On login, negotiate only declared, complete sets
 that this account/instance supports. At least one displayable capability is
-required: compose/relation alone and a notification badge alone do not qualify.
+required: compose/relation/account-http alone and a notification badge alone do not qualify.
 Guest access uses the enabled guest declaration and manifest capabilities instead
 of account login negotiation. See [upgrade negotiation](publishing.md#updates-and-compatibility)
 for how an existing account adopts newly declared operations after an update.
@@ -90,3 +96,56 @@ lookup methods. Use this for a minimal read-only feed such as the template.
 
 See [recipes](recipes.md) for every service's inputs, result shape, and adaptation
 points, and [the type declarations](../flare-plugin.d.ts) for full signatures.
+
+## API v2 account HTTP providers
+
+`flare.datasource.account-http/v1` lets another plugin extend this platform's
+existing accounts. Declare `authOrigins`, negotiate `authenticate` at login, and
+implement `capabilities.accountHttp.authenticate(request, context)`. The Host gives
+the provider its own account context and the exact request method, URL, headers
+and encoded body; returned authentication headers stay inside the Host. The
+consumer needs a separate user grant and cannot access provider credentials or
+storage. See [platform extensions](platform-extensions.md#supplying-authentication-from-a-social-plugin)
+for the manifest, signatures, origin restrictions and lifecycle rules.
+
+## API v2 temporary timeline pages
+
+Declare `flare.datasource.timeline-page/v1` with operation `load` and negotiate
+it at login, then implement `capabilities.timelinePage.load({ pageId, page }, context)`.
+This is a plugin API v2 feature; the capability itself starts at version v1.
+It does not require `timeline`, `tabCatalog`, a static/default timeline or a page catalog.
+The plugin must still have a normal displayable capability as its account entry point.
+
+Posts and quote posts may set:
+
+```js
+target: {
+  type: "timelinePage", pageId: "replies", title: { value: "Replies" },
+  parameters: { parentId: "comment:123", sort: "oldest" }
+}
+```
+
+`PostV1.target` accepts all existing navigation targets as well. An omitted/null
+target retains `detailType` navigation. Explicit unsupported targets are inert,
+never silently replaced with the post's default detail. Existing card, quote,
+media, avatar, link and action hit handling remains unchanged.
+
+The Host binds the originating plugin, package version and account, copies target
+parameters into `page.parameters` on every call, and supplies the normal paging
+direction, limit and cursor. Return `PageV1<TimelineItemV1>`; an empty page may
+advance its cursor. Unknown page IDs and remote failures must use the existing
+plugin error protocol rather than a successful empty list.
+
+The native page is a single column with a title, back navigation, refresh and
+pagination. It preserves supplied order without collapsing reply chains. Parent
+context, when useful, can be an ordinary returned row. There are no home tabs,
+page-level compose controls, sort controls or persistent page configuration.
+
+For one account, keep the same key's target type, destination and parameters
+consistent across timelines, quotes, `post.detail`, `updatedPost` and publish
+results; these are full entities sharing the existing cache. Do not change an
+entity key just to give one occurrence a different target. Navigation parameters
+do not become Compose context: comment keys must also work with `post.detail`
+and the existing reply reference. Like/reply/delete controls remain subject to
+their ordinary capabilities. Successful publish/delete invalidates this account's
+temporary lists; hidden lists refresh when shown again.

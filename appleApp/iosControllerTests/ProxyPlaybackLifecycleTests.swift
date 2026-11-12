@@ -7,6 +7,28 @@ import FlareAppleCore
 
 @MainActor
 final class ProxyPlaybackLifecycleTests: XCTestCase {
+    func testMediaRedirectDropsCustomTokensAndPreservesPublicHeadersAndRanges() throws {
+        let origin = try XCTUnwrap(URL(string: "https://media.example/video"))
+        var request = URLRequest(url: origin)
+        let headers = ["X-Media-Token": "private", "Authorization": "Bearer private", "Cookie": "session=private",
+                       "Referer": "https://www.bilibili.com/", "User-Agent": "Fixture/1.0"]
+        headers.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
+        request.setValue("bytes=2-5", forHTTPHeaderField: "Range")
+        XCTAssertEqual(MediaTransfer.redirectedRequest(request, origin: origin, headerNames: Array(headers.keys))
+            .value(forHTTPHeaderField: "X-Media-Token"), "private")
+        request.url = try XCTUnwrap(URL(string: "https://MEDIA.example:443/other"))
+        XCTAssertEqual(MediaTransfer.redirectedRequest(request, origin: origin, headerNames: Array(headers.keys))
+            .value(forHTTPHeaderField: "X-Media-Token"), "private")
+        request.url = try XCTUnwrap(URL(string: "https://cdn.example/video"))
+        let redirected = MediaTransfer.redirectedRequest(request, origin: origin, headerNames: Array(headers.keys))
+        for name in ["X-Media-Token", "Authorization", "Cookie"] {
+            XCTAssertNil(redirected.value(forHTTPHeaderField: name))
+        }
+        XCTAssertEqual(redirected.value(forHTTPHeaderField: "Referer"), headers["Referer"])
+        XCTAssertEqual(redirected.value(forHTTPHeaderField: "User-Agent"), headers["User-Agent"])
+        XCTAssertEqual(redirected.value(forHTTPHeaderField: "Range"), "bytes=2-5")
+    }
+
     func testRemoteVideoKeepsDecodingAcrossLoopsAfterServerStops() async throws {
         try await checkOfflineVideoLoops()
     }
@@ -35,35 +57,49 @@ final class ProxyPlaybackLifecycleTests: XCTestCase {
             session.detach()
             VideoPlaybackSession.releaseIdleBuffer()
         }
-        session.play(media: UiMediaVideo(url: server.url, thumbnailUrl: "", description: nil, height: 0, width: 0,
-                                        customHeaders: headers, proxy: ProxyRef.System.shared, downloadUrl: nil, kind: .video))
-        try await eventually { session.isPlaying && server.servedBytes.count == bytes.count }
+        let video = UiMediaVideo(url: server.url, thumbnailUrl: "", description: nil, height: 0, width: 0,
+                                 customHeaders: headers, proxy: ProxyRef.System.shared, downloadUrl: nil, kind: .video)
+        session.play(media: video, playing: false)
+        try await eventually { session.player != nil }
         let player = try XCTUnwrap(session.player)
+        var outputs: [AVPlayerItem: AVPlayerItemVideoOutput] = [:]
+        func attachQueuedOutputs() {
+            for item in player.items() where outputs[item] == nil {
+                let output = AVPlayerItemVideoOutput(pixelBufferAttributes: [
+                    kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+                ])
+                item.add(output)
+                outputs[item] = output
+            }
+        }
+        defer {
+            for (item, output) in outputs { item.remove(output) }
+        }
+        // Attach before each short clip starts so the output sees its first frames.
+        attachQueuedOutputs()
+        try await eventually { player.currentItem?.status == .readyToPlay && server.servedBytes.count == bytes.count }
         server.stop()
         if headers != nil {
             XCTAssertTrue(server.requests.allSatisfy { $0.lowercased().contains("authorization: bearer video-test") })
         }
 
         var item: AVPlayerItem?
-        var output: AVPlayerItemVideoOutput?
         var shades: Set<Bool> = []
         var completedLoops = 0
+        session.setPlaying(true)
         let deadline = Date().addingTimeInterval(8)
         while completedLoops < 5, Date() < deadline {
+            attachQueuedOutputs()
             if let current = player.currentItem, current !== item {
-                if let item, let output {
+                if let item {
                     XCTAssertEqual(shades.count, 2, "Every loop must keep decoding changing pixels")
-                    item.remove(output)
+                    if let output = outputs.removeValue(forKey: item) { item.remove(output) }
                     completedLoops += 1
                 }
                 item = current
-                output = AVPlayerItemVideoOutput(pixelBufferAttributes: [
-                    kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
-                ])
-                current.add(try XCTUnwrap(output))
                 shades = []
             }
-            if let frame = output?.copyPixelBuffer(forItemTime: player.currentTime(), itemTimeForDisplay: nil) {
+            if let item, let frame = outputs[item]?.copyPixelBuffer(forItemTime: item.currentTime(), itemTimeForDisplay: nil) {
                 CVPixelBufferLockBaseAddress(frame, .readOnly)
                 if let pixel = CVPixelBufferGetBaseAddress(frame)?.assumingMemoryBound(to: UInt8.self) {
                     shades.insert(pixel.pointee > 128)

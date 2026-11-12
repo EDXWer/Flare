@@ -3,11 +3,10 @@
     <string name="changelog_current"><![CDATA[
             <span>Weergawe %1$s:</span>
             <ul>
-                <li>Prentvertaling is bygevoeg. Stel ’n vertaaldiens op om tussen die oorspronklike en vertaalde prent te wissel en die resultaat te stoor of te deel.</li>
-                <li>Kies antwoorde en subantwoorde om in te sluit wanneer jy ’n plasing as ’n prent deel, met ondersteuning vir lang prente.</li>
-                <li>Weibo het nou tydlyne vir groepe, vriendekringe en private volglyste, instellings vir plasingsigbaarheid en Live Photo-afspeel. IP-liggingetikette is herstel.</li>
-                <li>Globale instellings en instellings per rekening vir HTTPS- en SOCKS5-instaanbedieners is bygevoeg.</li>
-                <li>Sekere prentlaaifoute, galeryboekmerkaksies en FANBOX-skakelnavigasie is reggestel. Gemengde tydlyne, vertaalvertoning en die onthou van rekeningkeuses is verbeter.</li>
+                <li>Video’s onthou jou afspeelspoed, met nuwe opsies tot 16×.</li>
+                <li>Wissel tussen die oorspronklike en vertaalde teks in artikels, RSS-inskrywings en galerybesonderhede.</li>
+                <li>Soek en Ontdek wys net afdelings wat die gekose rekening ondersteun.</li>
+                <li>Sommige probleme met webaanmelding is reggestel.</li>
             </ul>
         ]]></string>
     <string name="changelog_title">Welkom terug!</string>

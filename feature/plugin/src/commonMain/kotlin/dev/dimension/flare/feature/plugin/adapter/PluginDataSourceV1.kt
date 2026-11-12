@@ -1,6 +1,8 @@
 package dev.dimension.flare.feature.plugin.adapter
 
 import dev.dimension.flare.common.FileItem
+import dev.dimension.flare.data.datasource.microblog.AccountHttpCapability
+import dev.dimension.flare.data.datasource.microblog.AccountHttpRequest
 import dev.dimension.flare.data.datasource.microblog.AuthenticatedMicroblogDataSource
 import dev.dimension.flare.data.datasource.microblog.ComposeConfig
 import dev.dimension.flare.data.datasource.microblog.ComposeData
@@ -14,9 +16,11 @@ import dev.dimension.flare.data.datasource.microblog.PostEvent
 import dev.dimension.flare.data.datasource.microblog.ProfileCapability
 import dev.dimension.flare.data.datasource.microblog.ProfileTab
 import dev.dimension.flare.data.datasource.microblog.SearchCapability
+import dev.dimension.flare.data.datasource.microblog.SearchOperation
 import dev.dimension.flare.data.datasource.microblog.TabCatalogCapability
 import dev.dimension.flare.data.datasource.microblog.TimelineCapability
 import dev.dimension.flare.data.datasource.microblog.datasource.PostDataSource
+import dev.dimension.flare.data.datasource.microblog.datasource.TimelinePageDataSource
 import dev.dimension.flare.data.datasource.microblog.datasource.TimelineTabConfigurationDataSource
 import dev.dimension.flare.data.datasource.microblog.datasource.UserDataSource
 import dev.dimension.flare.data.datasource.microblog.handler.PostEventHandler
@@ -40,21 +44,25 @@ import dev.dimension.flare.feature.plugin.host.PluginInvocationContextV1
 import dev.dimension.flare.feature.plugin.host.PluginUrlPolicy
 import dev.dimension.flare.feature.plugin.host.accountHost
 import dev.dimension.flare.feature.plugin.host.platformUuid
+import dev.dimension.flare.feature.plugin.host.validateAuthenticationHeaders
 import dev.dimension.flare.feature.plugin.lifecycle.RunningPluginV1
 import dev.dimension.flare.feature.plugin.manifest.ProfileTabManifestV1
 import dev.dimension.flare.feature.plugin.manifest.TimelineManifestV1
+import dev.dimension.flare.feature.plugin.manifest.socialPlatform
 import dev.dimension.flare.feature.plugin.manifest.toUiText
 import dev.dimension.flare.feature.plugin.runtime.PluginRuntimeKeyV1
 import dev.dimension.flare.feature.plugin.runtime.PluginRuntimePool
 import dev.dimension.flare.feature.plugin.wire.ComposeAssetV1
-import dev.dimension.flare.feature.plugin.wire.ComposeConfigV1
+import dev.dimension.flare.feature.plugin.wire.ComposeConfigV2
 import dev.dimension.flare.feature.plugin.wire.ComposePollV1
-import dev.dimension.flare.feature.plugin.wire.ComposeRequestV1
+import dev.dimension.flare.feature.plugin.wire.ComposeReferenceV2
+import dev.dimension.flare.feature.plugin.wire.ComposeRequestV2
 import dev.dimension.flare.feature.plugin.wire.ComposeResultV1
 import dev.dimension.flare.feature.plugin.wire.EntityKeyV1
 import dev.dimension.flare.feature.plugin.wire.EntityRequestV1
 import dev.dimension.flare.feature.plugin.wire.HandleRequestV1
 import dev.dimension.flare.feature.plugin.wire.HashtagV1
+import dev.dimension.flare.feature.plugin.wire.LegacyComposeRequestV1Serializer
 import dev.dimension.flare.feature.plugin.wire.MutationRequestV1
 import dev.dimension.flare.feature.plugin.wire.MutationResultV1
 import dev.dimension.flare.feature.plugin.wire.PageDirectionV1
@@ -66,6 +74,7 @@ import dev.dimension.flare.feature.plugin.wire.SearchRequestV1
 import dev.dimension.flare.feature.plugin.wire.SemanticActionV1
 import dev.dimension.flare.feature.plugin.wire.TimelineDisplayV1
 import dev.dimension.flare.feature.plugin.wire.TimelineItemV1
+import dev.dimension.flare.feature.plugin.wire.TimelinePageLoadRequestV2
 import dev.dimension.flare.feature.plugin.wire.TimelinePageRequestV1
 import dev.dimension.flare.feature.plugin.wire.USER_ACTIONS_V1
 import dev.dimension.flare.feature.plugin.wire.VisibilityV1
@@ -82,11 +91,16 @@ import dev.dimension.flare.ui.model.UiHashtag
 import dev.dimension.flare.ui.model.UiProfile
 import dev.dimension.flare.ui.model.UiTimelineV2
 import dev.dimension.flare.ui.model.asType
+import dev.dimension.flare.ui.presenter.compose.ComposeStatus
 import io.ktor.http.Url
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.encodeToString
 
 /** Lazy proxy: construction reads only the Host-owned credential envelope and never starts a JavaScript engine. */
@@ -101,7 +115,7 @@ internal class PluginDataSourceV1 private constructor(
     private val timelineSpecs: Map<String, TimelineSpec<TimelineSpec.AccountResourceData>>,
     private val dynamicTimelineSpec: TimelineSpec<PluginTimelineDataV1>?,
     private val coroutineScope: CoroutineScope?,
-    private val cachedComposeConfig: ComposeConfigV1?,
+    private val cachedComposeConfig: ComposeConfigV2?,
     private val loginProfile: ProfileV1?,
 ) : MicroblogDataSource,
     DataSourceCapabilityProvider,
@@ -129,8 +143,31 @@ internal class PluginDataSourceV1 private constructor(
         )
     }
 
+    override val searchOperations: Set<SearchOperation> =
+        SearchOperation.entries.filterTo(linkedSetOf()) {
+            capabilities.hasOperation(PluginAbiV1.Capabilities.SEARCH, it.pluginName)
+        }
+
+    private val pageRevision = MutableStateFlow(0L)
+
     override val capabilitySet: DataSourceCapabilitySet by lazy {
         DataSourceCapabilitySet(
+            accountHttp =
+                if (plugin.installed.manifest.apiVersion >= 2 &&
+                    capabilities.canExpose(PluginAbiV1.Capabilities.ACCOUNT_HTTP)
+                ) {
+                    AccountHttpAdapter()
+                } else {
+                    null
+                },
+            timelinePage =
+                if (plugin.installed.manifest.apiVersion >= 2 &&
+                    capabilities.canExpose(PluginAbiV1.Capabilities.TIMELINE_PAGE)
+                ) {
+                    TimelinePageAdapter()
+                } else {
+                    null
+                },
             timeline = if (capabilities.canExpose(PluginAbiV1.Capabilities.TIMELINE)) TimelineCapability(this) else null,
             search = if (capabilities.canExpose(PluginAbiV1.Capabilities.SEARCH)) SearchCapability(this) else null,
             profile = if (capabilities.canExpose(PluginAbiV1.Capabilities.PROFILE)) ProfileCapability(this, userDataSource) else null,
@@ -142,7 +179,7 @@ internal class PluginDataSourceV1 private constructor(
                 } else {
                     null
                 },
-            compose = if (capabilities.canExpose(PluginAbiV1.Capabilities.COMPOSE)) ComposeCapabilityAdapter() else null,
+            compose = capabilities.composeCapability?.let(::ComposeCapabilityAdapter),
             relation = extraCapabilities.relation,
             notification = extraCapabilities.notification,
             list = extraCapabilities.list,
@@ -289,6 +326,7 @@ internal class PluginDataSourceV1 private constructor(
 
                     MutationResultV1.Deleted -> {
                         updater.deleteFromCache(event.postKey)
+                        pageRevision.update { it + 1 }
                     }
 
                     is MutationResultV1.Invalidate -> {
@@ -296,6 +334,7 @@ internal class PluginDataSourceV1 private constructor(
                             updater.deleteFromCache(it.toKey())
                             extraCapabilities.refreshGallery(it.toKey())
                         }
+                        pageRevision.update { it + 1 }
                     }
 
                     is MutationResultV1.UpdatedProfile -> {
@@ -360,14 +399,15 @@ internal class PluginDataSourceV1 private constructor(
 
                             override suspend fun deleteStatus(statusKey: MicroBlogKey) {
                                 capabilities.requireOperation(PluginAbiV1.Capabilities.POST, "delete")
-                                invoker.invoke(
-                                    capabilityId = PluginAbiV1.Capabilities.POST,
-                                    operation = "delete",
-                                    request = EntityRequestV1(statusKey.toWire()),
-                                    requestSerializer = EntityRequestV1.serializer(),
-                                    responseSerializer = MutationResultV1.serializer(),
-                                    validate = MutationResultV1::requireDeleteResult,
-                                )
+                                invoker
+                                    .invoke(
+                                        capabilityId = PluginAbiV1.Capabilities.POST,
+                                        operation = "delete",
+                                        request = EntityRequestV1(statusKey.toWire()),
+                                        requestSerializer = EntityRequestV1.serializer(),
+                                        responseSerializer = MutationResultV1.serializer(),
+                                        validate = MutationResultV1::requireDeleteResult,
+                                    ).also { if (it == MutationResultV1.Deleted) pageRevision.update { revision -> revision + 1 } }
                             }
                         },
                 )
@@ -379,13 +419,44 @@ internal class PluginDataSourceV1 private constructor(
         }
     }
 
+    private inner class TimelinePageAdapter : TimelinePageDataSource {
+        override val pluginId: String get() = plugin.installed.pluginId
+        override val packageHash: String get() = plugin.installed.packageHash
+        override val revision = pageRevision
+
+        override fun timelinePage(
+            pageId: String,
+            parameters: Map<String, String>,
+        ): RemoteLoader<UiTimelineV2> {
+            TimelinePageLoadRequestV2(pageId, PagingRequest.Refresh.toWire(1, parameters)).requireValid()
+            return invoker.timelineLoader(
+                capability = PluginAbiV1.Capabilities.TIMELINE_PAGE,
+                operation = "load",
+                identity = listOf(pageId) + parameters.toPagingIdentity(),
+                directions = capabilities.directions(PluginAbiV1.Capabilities.TIMELINE_PAGE, "load"),
+                collapseReplies = false,
+                load = { pageSize, request ->
+                    invoker.invoke(
+                        capabilityId = PluginAbiV1.Capabilities.TIMELINE_PAGE,
+                        operation = "load",
+                        request = TimelinePageLoadRequestV2(pageId, request.toWire(pageSize, parameters)),
+                        requestSerializer = TimelinePageLoadRequestV2.serializer(),
+                        responseSerializer = PageV1.serializer(TimelineItemV1.serializer()),
+                        validate = { page -> page.requireValid { it.requireValid() } },
+                    )
+                },
+                map = mapper::timelineItem,
+            )
+        }
+    }
+
     override fun homeTimeline(): RemoteLoader<UiTimelineV2> {
         val timeline =
-            plugin.installed.manifest.platform.timelines
+            plugin.installed.manifest.socialPlatform.timelines
                 .firstOrNull(TimelineManifestV1::defaultForNewAccount)
-                ?: plugin.installed.manifest.platform.timelines
+                ?: plugin.installed.manifest.socialPlatform.timelines
                     .firstOrNull { it.id.equals("home", ignoreCase = true) }
-                ?: plugin.installed.manifest.platform.timelines
+                ?: plugin.installed.manifest.socialPlatform.timelines
                     .firstOrNull()
                 ?: return notSupported()
         return timeline(timeline.id, timeline.parameters)
@@ -396,7 +467,7 @@ internal class PluginDataSourceV1 private constructor(
         parameters: Map<String, String>,
     ): RemoteLoader<UiTimelineV2> {
         val declared =
-            plugin.installed.manifest.platform.timelines
+            plugin.installed.manifest.socialPlatform.timelines
                 .singleOrNull { it.id == timelineId }
         val acceptsDynamicTimeline = capabilities.hasOperation(PluginAbiV1.Capabilities.TAB_CATALOG, "page")
         if (declared == null && !acceptsDynamicTimeline) return notSupported()
@@ -424,7 +495,7 @@ internal class PluginDataSourceV1 private constructor(
     ): RemoteLoader<UiTimelineV2> {
         if (!capabilities.hasOperation(PluginAbiV1.Capabilities.PROFILE, "timeline")) return notSupported()
         val manifestTab =
-            plugin.installed.manifest.platform.profileTabs.firstOrNull {
+            plugin.installed.manifest.socialPlatform.profileTabs.firstOrNull {
                 mediaOnly == (it.display == TimelineDisplayV1.Grid)
             }
         return profileTimelineLoader(userKey, manifestTab)
@@ -450,17 +521,17 @@ internal class PluginDataSourceV1 private constructor(
         }
     }
 
-    override fun searchStatus(query: String): RemoteLoader<UiTimelineV2> = searchPosts("posts", query)
+    override fun searchStatus(query: String): RemoteLoader<UiTimelineV2> = searchPosts(SearchOperation.Posts, query)
 
-    override fun searchUser(query: String): RemoteLoader<UiProfile> = searchProfiles("profiles", query)
+    override fun searchUser(query: String): RemoteLoader<UiProfile> = searchProfiles(SearchOperation.Profiles, query)
 
-    override fun discoverUsers(): RemoteLoader<UiProfile> = searchProfiles("discoverProfiles", "")
+    override fun discoverUsers(): RemoteLoader<UiProfile> = searchProfiles(SearchOperation.DiscoverProfiles, "")
 
-    override fun discoverStatuses(): RemoteLoader<UiTimelineV2> = searchPosts("discoverPosts", "")
+    override fun discoverStatuses(): RemoteLoader<UiTimelineV2> = searchPosts(SearchOperation.DiscoverPosts, "")
 
     override fun discoverHashtags(): RemoteLoader<UiHashtag> {
-        val operation = "discoverHashtags"
-        if (!capabilities.hasOperation(PluginAbiV1.Capabilities.SEARCH, operation)) return notSupported()
+        if (SearchOperation.DiscoverHashtags !in searchOperations) return notSupported()
+        val operation = SearchOperation.DiscoverHashtags.pluginName
         return pluginRemoteLoader(
             directions = capabilities.directions(PluginAbiV1.Capabilities.SEARCH, operation),
             load = { pageSize, request ->
@@ -482,7 +553,7 @@ internal class PluginDataSourceV1 private constructor(
     override fun fans(userKey: MicroBlogKey): RemoteLoader<UiProfile> = profilePage("followers", userKey)
 
     override suspend fun profileTabs(userKey: MicroBlogKey): ImmutableList<ProfileTab> =
-        plugin.installed.manifest.platform.profileTabs
+        plugin.installed.manifest.socialPlatform.profileTabs
             .takeIf { capabilities.hasOperation(PluginAbiV1.Capabilities.PROFILE, "timeline") }
             .orEmpty()
             .map { tab ->
@@ -551,10 +622,11 @@ internal class PluginDataSourceV1 private constructor(
     }
 
     private fun searchPosts(
-        operation: String,
+        searchOperation: SearchOperation,
         query: String,
     ): RemoteLoader<UiTimelineV2> {
-        if (!capabilities.hasOperation(PluginAbiV1.Capabilities.SEARCH, operation)) return notSupported()
+        if (searchOperation !in searchOperations) return notSupported()
+        val operation = searchOperation.pluginName
         return timelinePageLoader(PluginAbiV1.Capabilities.SEARCH, operation, listOf(query)) { pageSize, request ->
             invoker.invoke(
                 capabilityId = PluginAbiV1.Capabilities.SEARCH,
@@ -568,10 +640,11 @@ internal class PluginDataSourceV1 private constructor(
     }
 
     private fun searchProfiles(
-        operation: String,
+        searchOperation: SearchOperation,
         query: String,
     ): RemoteLoader<UiProfile> {
-        if (!capabilities.hasOperation(PluginAbiV1.Capabilities.SEARCH, operation)) return notSupported()
+        if (searchOperation !in searchOperations) return notSupported()
+        val operation = searchOperation.pluginName
         return pluginRemoteLoader(
             directions = capabilities.directions(PluginAbiV1.Capabilities.SEARCH, operation),
             load = { pageSize, request ->
@@ -603,13 +676,48 @@ internal class PluginDataSourceV1 private constructor(
             mapper::timelineItem,
         )
 
-    private inner class ComposeCapabilityAdapter :
-        ComposeDataSource,
+    private inner class AccountHttpAdapter : AccountHttpCapability {
+        override val accountOrigin = origin
+        override val authorizationRevision = "${plugin.installed.pluginId}:${plugin.installed.packageHash}:${plugin.generation}"
+        private val allowedOrigins =
+            requireNotNull(
+                plugin.installed.manifest.platform,
+            ).capabilities.getValue(PluginAbiV1.Capabilities.ACCOUNT_HTTP).authOrigins.mapTo(linkedSetOf()) {
+                if (it == PluginAbiV1.ACCOUNT_ORIGIN) origin else it
+            }
+        override val origins: Set<String> get() = if (plugin.session.isActive) allowedOrigins else emptySet()
+
+        override suspend fun ensureActive() = invoker.ensureActive()
+
+        override suspend fun <T> withAuthorization(block: suspend () -> T): T = invoker.withAuthorization(block)
+
+        override suspend fun authenticate(request: AccountHttpRequest): Map<String, String> {
+            PluginUrlPolicy.requireRequestUrl(request.url, origins)
+            return invoker.invoke(
+                capabilityId = PluginAbiV1.Capabilities.ACCOUNT_HTTP,
+                operation = "authenticate",
+                request = request,
+                requestSerializer = AccountHttpRequest.serializer(),
+                responseSerializer = MapSerializer(String.serializer(), String.serializer()),
+                validate = ::validateAuthenticationHeaders,
+            )
+        }
+    }
+
+    private inner class ComposeCapabilityAdapter(
+        private val capabilityId: String,
+    ) : ComposeDataSource,
         AuthenticatedMicroblogDataSource by AuthenticatedDelegate() {
         override suspend fun publish(
             data: ComposeData,
             progress: () -> Unit,
         ) {
+            val config = requireNotNull(cachedComposeConfig) { "Plugin compose requires manifest defaults" }
+            require(data.type in config.supportedTypes) { "Unsupported compose type: ${data.type.name.lowercase()}" }
+            val visibility = requireNotNull(data.visibility).toWire()
+            require(capabilityId == PluginAbiV1.Capabilities.COMPOSE_V3 || !visibility.isExtended) {
+                "Extended visibility requires compose/v3"
+            }
             val assets = linkedMapOf<String, PluginAsset>()
             val wireAssets =
                 data.medias.map { media ->
@@ -622,25 +730,26 @@ internal class PluginDataSourceV1 private constructor(
                         description = media.altText,
                     )
                 }
-            validateComposeData(data, assets, cachedComposeConfig)
+            validateComposeData(data, assets, config)
             progress()
             val result =
                 invoker.invoke(
-                    capabilityId = PluginAbiV1.Capabilities.COMPOSE,
+                    capabilityId = capabilityId,
                     operation = "publish",
                     request =
-                        ComposeRequestV1(
+                        ComposeRequestV2(
                             text = data.content,
-                            visibility = requireNotNull(data.visibility).toWire(),
+                            visibility = visibility,
                             languages = data.language,
                             assets = wireAssets,
                             sensitive = data.sensitive,
                             spoilerText = data.spoilerText,
-                            replyTo =
-                                data.referenceStatus
-                                    ?.composeStatus
-                                    ?.statusKey
-                                    ?.toWire(),
+                            reference =
+                                when (val status = data.referenceStatus?.composeStatus) {
+                                    is ComposeStatus.Reply -> ComposeReferenceV2.Reply(status.statusKey.toWire())
+                                    is ComposeStatus.Quote -> ComposeReferenceV2.Quote(status.statusKey.toWire())
+                                    null -> null
+                                },
                             poll =
                                 data.poll?.let {
                                     ComposePollV1(
@@ -650,13 +759,19 @@ internal class PluginDataSourceV1 private constructor(
                                     )
                                 },
                         ),
-                    requestSerializer = ComposeRequestV1.serializer(),
+                    requestSerializer =
+                        if (capabilityId == PluginAbiV1.Capabilities.COMPOSE_V1) {
+                            LegacyComposeRequestV1Serializer
+                        } else {
+                            ComposeRequestV2.serializer()
+                        },
                     responseSerializer = ComposeResultV1.serializer(),
                     timeout = PluginCallTimeoutV1.Extended,
                     assets = assets,
                     validate = ComposeResultV1::requireValid,
                 )
             mapper.post(result.post)
+            pageRevision.update { it + 1 }
             progress()
         }
 
@@ -673,7 +788,7 @@ internal class PluginDataSourceV1 private constructor(
         private val metadata = plugin.platformMetadata()
 
         override val defaultTabs: ImmutableList<TimelineCandidate<*>> =
-            plugin.installed.manifest.platform.timelines
+            plugin.installed.manifest.socialPlatform.timelines
                 .filter(TimelineManifestV1::defaultForNewAccount)
                 .mapNotNull(::candidate)
                 .mapIndexed { index, candidate ->
@@ -681,7 +796,7 @@ internal class PluginDataSourceV1 private constructor(
                 }.toImmutableList()
 
         override val builtInTimelineTabs: ImmutableList<TimelineCandidate<*>> =
-            plugin.installed.manifest.platform.timelines
+            plugin.installed.manifest.socialPlatform.timelines
                 .mapNotNull(::candidate)
                 .toImmutableList()
 
@@ -712,12 +827,29 @@ internal class PluginDataSourceV1 private constructor(
             val credentialAccess = PlatformDataSourceCredentialAccessV1(plugin, context)
             val account = credentialAccess.initial()
             val operations = account.effectiveCapabilities(plugin)
+            val platform = plugin.installed.manifest.socialPlatform
+            val composeConfig =
+                try {
+                    if ("publish" in operations[PluginAbiV1.Capabilities.COMPOSE_V3].orEmpty()) {
+                        mergePluginComposeConfigV2(
+                            platform.composeDefaultsV3,
+                            account.snapshot.composeConfigV3,
+                            allowExtendedVisibility = true,
+                        )
+                    } else {
+                        account.composeConfig(plugin)
+                    }
+                } catch (error: IllegalArgumentException) {
+                    if (!account.needsCapabilityNegotiation(plugin)) throw error
+                    null
+                }
             val runtimeKey =
                 PluginRuntimeKeyV1.account(
                     plugin.installed.pluginId,
                     plugin.installed.packageHash,
                     account.snapshot.origin,
                     account.snapshot.accountId,
+                    epoch = account.sessionEpoch.takeIf { plugin.installed.manifest.apiVersion >= 2 },
                 )
             val invoker =
                 PluginAccountInvokerV1(
@@ -734,16 +866,22 @@ internal class PluginDataSourceV1 private constructor(
                 runtimePool = runtimePool,
                 accountKey = context.accountKey,
                 origin = account.snapshot.origin,
-                operations = operations,
+                operations =
+                    if (composeConfig == null) {
+                        operations -
+                            setOf(
+                                PluginAbiV1.Capabilities.COMPOSE_V1,
+                                PluginAbiV1.Capabilities.COMPOSE,
+                                PluginAbiV1.Capabilities.COMPOSE_V3,
+                            )
+                    } else {
+                        operations
+                    },
                 invoker = invoker,
                 timelineSpecs = timelineSpecs,
                 dynamicTimelineSpec = dynamicTimelineSpec,
                 coroutineScope = coroutineScope,
-                composeConfig =
-                    mergePluginComposeConfigV1(
-                        plugin.installed.manifest.platform.composeDefaults,
-                        account.snapshot.composeConfig,
-                    ),
+                composeConfig = composeConfig,
                 loginProfile = account.snapshot.profile,
             )
         }
@@ -757,7 +895,7 @@ internal class PluginDataSourceV1 private constructor(
             dynamicTimelineSpec: TimelineSpec<PluginTimelineDataV1>?,
         ): PluginDataSourceV1 {
             require(
-                plugin.installed.manifest.platform.guest
+                plugin.installed.manifest.socialPlatform.guest
                     ?.enabled == true,
             ) { "Plugin guest access is unavailable" }
             val canonicalOrigin = PluginUrlPolicy.requireOrigin(origin)
@@ -776,7 +914,7 @@ internal class PluginDataSourceV1 private constructor(
                     context = { invocationLocale, _ ->
                         PluginInvocationContextV1.guest(
                             pluginId = plugin.installed.pluginId,
-                            platformId = plugin.installed.manifest.platform.id,
+                            platformId = plugin.installed.manifest.socialPlatform.id,
                             packageHash = plugin.installed.packageHash,
                             origin = canonicalOrigin,
                             locale = invocationLocale.ifBlank { locale },
@@ -790,7 +928,7 @@ internal class PluginDataSourceV1 private constructor(
                 accountKey = null,
                 origin = canonicalOrigin,
                 operations =
-                    plugin.installed.manifest.platform.capabilities
+                    plugin.installed.manifest.socialPlatform.capabilities
                         .mapValues { it.value.operations.keys },
                 invoker = invoker,
                 timelineSpecs = timelineSpecs,
@@ -811,10 +949,15 @@ internal class PluginDataSourceV1 private constructor(
             timelineSpecs: Map<String, TimelineSpec<TimelineSpec.AccountResourceData>>,
             dynamicTimelineSpec: TimelineSpec<PluginTimelineDataV1>?,
             coroutineScope: CoroutineScope?,
-            composeConfig: ComposeConfigV1?,
+            composeConfig: ComposeConfigV2?,
             loginProfile: ProfileV1?,
         ): PluginDataSourceV1 {
-            val capabilities = PluginSessionCapabilitiesV1(plugin.installed.manifest.platform.capabilities, operations, accountKey != null)
+            val capabilities =
+                PluginSessionCapabilitiesV1(
+                    plugin.installed.manifest.socialPlatform.capabilities,
+                    operations,
+                    accountKey != null,
+                )
             return PluginDataSourceV1(
                 plugin = plugin,
                 runtimePool = runtimePool,
@@ -825,12 +968,14 @@ internal class PluginDataSourceV1 private constructor(
                 mapper =
                     PluginWireMapperV1(
                         pluginId = plugin.installed.pluginId,
+                        packageHash = plugin.installed.packageHash,
                         platformIcon = plugin.platformMetadata().icon,
-                        platformId = plugin.installed.manifest.platform.id,
+                        platformId = plugin.installed.manifest.socialPlatform.id,
                         accountKey = accountKey,
                         mediaNetwork = plugin.installed.manifest.permissions.mediaNetwork,
                         originHost = Url(origin).accountHost(),
                         capabilities = capabilities,
+                        supportedComposeTypes = composeConfig?.supportedTypes.orEmpty(),
                     ),
                 timelineSpecs = timelineSpecs,
                 dynamicTimelineSpec = dynamicTimelineSpec,
@@ -848,6 +993,16 @@ internal interface PluginNamedTimelineDataSourceV1 {
         parameters: Map<String, String> = emptyMap(),
     ): RemoteLoader<UiTimelineV2>
 }
+
+private val SearchOperation.pluginName: String
+    get() =
+        when (this) {
+            SearchOperation.Posts -> "posts"
+            SearchOperation.Profiles -> "profiles"
+            SearchOperation.DiscoverPosts -> "discoverPosts"
+            SearchOperation.DiscoverProfiles -> "discoverProfiles"
+            SearchOperation.DiscoverHashtags -> "discoverHashtags"
+        }
 
 private fun MicroBlogKey.toWire(): EntityKeyV1 = EntityKeyV1(id, host)
 
@@ -881,21 +1036,25 @@ private fun UiTimelineV2.Post.Visibility.toWire(): VisibilityV1 =
         UiTimelineV2.Post.Visibility.Followers -> VisibilityV1.Followers
         UiTimelineV2.Post.Visibility.Specified -> VisibilityV1.Direct
         UiTimelineV2.Post.Visibility.Channel -> VisibilityV1.Channel
-        UiTimelineV2.Post.Visibility.Friends, UiTimelineV2.Post.Visibility.SelfOnly -> error("Unsupported plugin visibility: $this")
+        UiTimelineV2.Post.Visibility.Friends -> VisibilityV1.Friends
+        UiTimelineV2.Post.Visibility.SelfOnly -> VisibilityV1.SelfOnly
     }
 
-private fun VisibilityV1.toHost(): UiTimelineV2.Post.Visibility =
+internal fun VisibilityV1.toHost(): UiTimelineV2.Post.Visibility =
     when (this) {
         VisibilityV1.Public -> UiTimelineV2.Post.Visibility.Public
         VisibilityV1.Unlisted -> UiTimelineV2.Post.Visibility.Home
         VisibilityV1.Followers -> UiTimelineV2.Post.Visibility.Followers
         VisibilityV1.Direct -> UiTimelineV2.Post.Visibility.Specified
         VisibilityV1.Channel -> UiTimelineV2.Post.Visibility.Channel
+        VisibilityV1.Friends -> UiTimelineV2.Post.Visibility.Friends
+        VisibilityV1.SelfOnly -> UiTimelineV2.Post.Visibility.SelfOnly
     }
 
-private fun ComposeConfigV1?.toHostComposeConfig(): ComposeConfig {
-    val config = this ?: return ComposeConfig()
+private fun ComposeConfigV2?.toHostComposeConfig(): ComposeConfig {
+    val config = this ?: return ComposeConfig(supportedTypes = emptySet())
     return ComposeConfig(
+        supportedTypes = config.supportedTypes,
         text = config.text?.let { ComposeConfig.Text(it.maxLength) },
         media =
             config.media?.let {
@@ -922,12 +1081,18 @@ private fun ComposeConfigV1?.toHostComposeConfig(): ComposeConfig {
     )
 }
 
-internal fun mergePluginComposeConfigV1(
-    manifest: ComposeConfigV1?,
-    instance: ComposeConfigV1?,
-): ComposeConfigV1? {
-    if (manifest == null) return instance?.also(ComposeConfigV1::requireValid)
-    if (instance == null) return manifest.also(ComposeConfigV1::requireValid)
+internal fun mergePluginComposeConfigV2(
+    manifest: ComposeConfigV2?,
+    instance: ComposeConfigV2?,
+    allowExtendedVisibility: Boolean = false,
+    requireModeOverlap: Boolean = true,
+): ComposeConfigV2? {
+    manifest?.requireValid(allowExtendedVisibility)
+    instance?.requireValid(allowExtendedVisibility)
+    if (manifest == null) return instance
+    if (instance == null) return manifest
+    val supportedTypes = manifest.supportedTypes intersect instance.supportedTypes
+    require(!requireModeOverlap || supportedTypes.isNotEmpty()) { "Plugin compose supportedTypes do not overlap" }
     val media =
         when {
             manifest.media == null -> {
@@ -942,7 +1107,7 @@ internal fun mergePluginComposeConfigV1(
                 val minCountForNew = maxOf(manifest.media.minCountForNew, instance.media.minCountForNew)
                 val maxCount = minOf(manifest.media.maxCount, instance.media.maxCount)
                 require(minCountForNew <= maxCount) { "Plugin compose media constraints do not overlap" }
-                ComposeConfigV1.MediaConfigV1(
+                ComposeConfigV2.MediaConfigV1(
                     minCountForNew = minCountForNew,
                     maxCount = maxCount,
                     maxBytes = minOf(manifest.media.maxBytes, instance.media.maxBytes),
@@ -969,7 +1134,7 @@ internal fun mergePluginComposeConfigV1(
             else -> {
                 val allowed = manifest.visibility.allowed intersect instance.visibility.allowed
                 require(allowed.isNotEmpty()) { "Plugin compose visibility constraints do not overlap" }
-                ComposeConfigV1.VisibilityConfigV1(
+                ComposeConfigV2.VisibilityConfigV1(
                     allowed = allowed,
                     default =
                         manifest.visibility.default.takeIf(allowed::contains)
@@ -978,12 +1143,13 @@ internal fun mergePluginComposeConfigV1(
                 )
             }
         }
-    return ComposeConfigV1(
+    return ComposeConfigV2(
+        supportedTypes = supportedTypes,
         text =
             when {
                 manifest.text == null -> instance.text
                 instance.text == null -> manifest.text
-                else -> ComposeConfigV1.TextConfigV1(minOf(manifest.text.maxLength, instance.text.maxLength))
+                else -> ComposeConfigV2.TextConfigV1(minOf(manifest.text.maxLength, instance.text.maxLength))
             },
         media = media,
         visibility = visibility,
@@ -992,21 +1158,21 @@ internal fun mergePluginComposeConfigV1(
             when {
                 manifest.poll == null -> instance.poll
                 instance.poll == null -> manifest.poll
-                else -> ComposeConfigV1.PollConfigV1(minOf(manifest.poll.maxOptions, instance.poll.maxOptions))
+                else -> ComposeConfigV2.PollConfigV1(minOf(manifest.poll.maxOptions, instance.poll.maxOptions))
             },
         language =
             when {
                 manifest.language == null -> instance.language
                 instance.language == null -> manifest.language
-                else -> ComposeConfigV1.LanguageConfigV1(minOf(manifest.language.maxCount, instance.language.maxCount))
+                else -> ComposeConfigV2.LanguageConfigV1(minOf(manifest.language.maxCount, instance.language.maxCount))
             },
-    ).also(ComposeConfigV1::requireValid)
+    ).also { it.requireValid(allowExtendedVisibility, requireSupportedTypes = requireModeOverlap) }
 }
 
 private fun validateComposeData(
     data: ComposeData,
     assets: Map<String, PluginAsset>,
-    config: ComposeConfigV1?,
+    config: ComposeConfigV2,
 ) {
     data.referenceStatus
         ?.composeStatus
@@ -1016,7 +1182,7 @@ private fun validateComposeData(
     require(data.language.size <= 32 && data.language.all { it.length in 1..64 }) { "Invalid compose languages" }
     val poll = data.poll
     require((poll == null) || (poll.options.size in 2..100)) { "Invalid compose poll" }
-    if (config == null) return
+    require(data.content.isNotBlank() || assets.isNotEmpty()) { "Compose requires text or media" }
 
     config.text?.let { require(data.content.length <= it.maxLength) { "Compose text is too long" } }
     config.visibility?.let { require(requireNotNull(data.visibility).toWire() in it.allowed) { "Compose visibility is not allowed" } }
@@ -1028,7 +1194,7 @@ private fun validateComposeData(
     val media = config.media
     require((media != null) || assets.isEmpty()) { "Media is not supported" }
     media ?: return
-    val minimum = if (data.referenceStatus == null) media.minCountForNew else 0
+    val minimum = if (data.type == ComposeType.Reply) 0 else media.minCountForNew
     require(assets.size in minimum..media.maxCount) { "Invalid compose media count" }
     require(media.canSensitive || (!data.sensitive)) { "Sensitive media is not supported" }
     val supported = media.supportedMimeTypes.mapTo(linkedSetOf(), String::lowercase)

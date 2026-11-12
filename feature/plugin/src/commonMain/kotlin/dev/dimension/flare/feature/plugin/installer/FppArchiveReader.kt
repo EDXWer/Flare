@@ -1,5 +1,7 @@
 package dev.dimension.flare.feature.plugin.installer
 
+import dev.dimension.flare.feature.plugin.github.normalizePluginRepositoryPath
+import dev.dimension.flare.feature.plugin.manifest.isPluginSettingsPath
 import okio.Buffer
 import okio.BufferedSource
 import okio.FileSystem
@@ -29,23 +31,30 @@ internal class FppArchiveReader(
     fun read(
         path: Path,
         repositoryArchive: Boolean = false,
+        repositoryPath: String = "",
     ): FppArchive {
+        require(normalizePluginRepositoryPath(repositoryPath) == repositoryPath && (repositoryArchive || repositoryPath.isEmpty())) {
+            "Invalid plugin repository path"
+        }
         val packageSize = requireNotNull(fileSystem.metadataOrNull(path)?.size) { "Package does not exist" }
-        require(packageSize in 1..FppLimits.MAX_PACKAGE_BYTES) { "Package exceeds the compressed size limit" }
+        val compressedLimit = if (repositoryArchive) FppLimits.MAX_REPOSITORY_BYTES else FppLimits.MAX_PACKAGE_BYTES
+        require(packageSize in 1..compressedLimit) { "Package exceeds the compressed size limit" }
 
         val directory = readDirectory(path, packageSize, repositoryArchive)
         val root = if (repositoryArchive) directory.first().path.substringBefore('/') else ""
+        val prefix = if (repositoryArchive) "$root/" + repositoryPath.takeIf(String::isNotEmpty)?.let { "$it/" }.orEmpty() else ""
         val entries =
             if (repositoryArchive) {
                 require(directory.map { it.path.lowercase() }.distinct().size == directory.size) { "Duplicate ZIP path" }
-                require(directory.sumOf(FppArchiveEntry::uncompressedSize) <= FppLimits.MAX_UNCOMPRESSED_BYTES) {
+                require(directory.sumOf(FppArchiveEntry::uncompressedSize) <= FppLimits.MAX_REPOSITORY_UNCOMPRESSED_BYTES) {
                     "Repository exceeds the uncompressed size limit"
                 }
                 require(directory.all { it.path.startsWith("$root/") || (it.path == root && it.isDirectory) }) {
                     "Repository archive must have one root directory"
                 }
                 directory.mapNotNull { entry ->
-                    val name = entry.path.removePrefix("$root/")
+                    if (!entry.path.startsWith(prefix)) return@mapNotNull null
+                    val name = entry.path.removePrefix(prefix)
                     entry.copy(path = name).takeIf { !entry.isDirectory && isPluginPath(name) }
                 }
             } else {
@@ -59,7 +68,7 @@ internal class FppArchiveReader(
                 .filterNot(FppArchiveEntry::isDirectory)
                 .associate { entry ->
                     val bytes =
-                        zip.source("/${if (repositoryArchive) "$root/" else ""}${entry.path}".toPath()).buffer().use { source ->
+                        zip.source("/$prefix${entry.path}".toPath()).buffer().use { source ->
                             val buffer = Buffer()
                             while (true) {
                                 val remaining = entry.uncompressedSize + 1 - buffer.size
@@ -94,7 +103,9 @@ internal class FppArchiveReader(
             require(tail.ushortLe(eocdIndex + 4) == 0 && tail.ushortLe(eocdIndex + 6) == 0) { "Spanned ZIP is not supported" }
             val entryCount = tail.ushortLe(eocdIndex + 10)
             require(entryCount == tail.ushortLe(eocdIndex + 8)) { "Spanned ZIP is not supported" }
-            require(entryCount in 1..if (repositoryArchive) 4_096 else FppLimits.MAX_ENTRY_COUNT) { "Invalid ZIP entry count" }
+            require(entryCount in 1..if (repositoryArchive) FppLimits.MAX_REPOSITORY_ENTRY_COUNT else FppLimits.MAX_ENTRY_COUNT) {
+                "Invalid ZIP entry count"
+            }
             val centralSize = tail.uintLe(eocdIndex + 12)
             val centralOffset = tail.uintLe(eocdIndex + 16)
             require(centralSize != UINT32_MAX && centralOffset != UINT32_MAX) { "ZIP64 is not supported" }
@@ -207,17 +218,21 @@ internal class FppArchiveReader(
         }
 
     internal fun validateLayout(entries: List<FppArchiveEntry>) {
+        require(entries.size in 1..FppLimits.MAX_ENTRY_COUNT) { "Invalid package entry count" }
         val paths = entries.map(FppArchiveEntry::path)
         require(paths.distinct().size == paths.size) { "Duplicate ZIP path" }
         require(paths.map(String::lowercase).distinct().size == paths.size) { "Case-conflicting ZIP path" }
         entries.filter(FppArchiveEntry::isDirectory).forEach { entry ->
-            require(entry.path == "assets" || entry.path == "locales") {
+            require(
+                entry.path == "assets" || entry.path == "locales" || entry.path == "settings" ||
+                    (entry.path.startsWith("settings/") && entry.path.split('/').all { it.isNotEmpty() && it != "." && it != ".." }),
+            ) {
                 "Unsupported package directory: ${entry.path}"
             }
         }
 
         val files = entries.filterNot(FppArchiveEntry::isDirectory)
-        val required = setOf(FppPaths.MANIFEST, FppPaths.ENTRY)
+        val required = setOf(FppPaths.MANIFEST)
         require(files.map(FppArchiveEntry::path).containsAll(required)) { "Package is missing a required file" }
         require(files.count { it.path in FppPaths.ICONS } == 1) { "Package must contain exactly one supported icon asset" }
         files.forEach { entry ->
@@ -228,6 +243,10 @@ internal class FppArchiveReader(
                     }
 
                     entry.path == FppPaths.ENTRY -> {
+                        FppLimits.MAX_SCRIPT_BYTES
+                    }
+
+                    isPluginSettingsPath(entry.path) -> {
                         FppLimits.MAX_SCRIPT_BYTES
                     }
 
@@ -325,6 +344,10 @@ internal object FppPaths {
 }
 
 internal object FppLimits {
+    const val REPOSITORY_CONFIRMATION_BYTES: Long = 20L * 1024 * 1024
+    const val MAX_REPOSITORY_BYTES: Long = 200L * 1024 * 1024
+    const val MAX_REPOSITORY_UNCOMPRESSED_BYTES: Long = 512L * 1024 * 1024
+    const val MAX_REPOSITORY_ENTRY_COUNT: Int = 50_000
     const val MAX_PACKAGE_BYTES: Long = 20L * 1024 * 1024
     const val MAX_UNCOMPRESSED_BYTES: Long = 50L * 1024 * 1024
     const val MAX_ENTRY_COUNT: Int = 256

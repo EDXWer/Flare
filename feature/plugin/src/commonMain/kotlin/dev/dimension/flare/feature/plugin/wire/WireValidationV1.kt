@@ -1,5 +1,6 @@
 package dev.dimension.flare.feature.plugin.wire
 
+import dev.dimension.flare.feature.plugin.abi.PluginAbiV1
 import dev.dimension.flare.feature.plugin.abi.PluginJsonV1
 import dev.dimension.flare.feature.plugin.host.PluginUrlPolicy
 import io.ktor.http.URLProtocol
@@ -20,6 +21,14 @@ public object WireLimitsV1 {
     public const val MAX_CREDENTIAL_BYTES: Int = 64 * 1_024
     public const val MAX_ERROR_TEXT_LENGTH: Int = 4_096
     public const val MAX_RICH_TEXT_LENGTH: Int = 1_000_000
+    public const val MAX_MEDIA_HEADERS: Int = 32
+    public const val MAX_MEDIA_HEADER_VALUE_LENGTH: Int = 8_192
+    public const val MAX_MEDIA_HEADER_BYTES: Int = 64 * 1_024
+}
+
+public fun TimelinePageLoadRequestV2.requireValid() {
+    require(pageId.isWireName()) { "Invalid timeline page ID" }
+    page.requireValid()
 }
 
 public fun PageRequestV1.requireValid() {
@@ -42,7 +51,11 @@ public fun <T> PageV1<T>.requireValid(validateItem: (T) -> Unit) {
     items.forEach(validateItem)
 }
 
-public fun ComposeConfigV1.requireValid() {
+public fun ComposeConfigV2.requireValid(
+    allowExtendedVisibility: Boolean = false,
+    requireSupportedTypes: Boolean = true,
+) {
+    require(!requireSupportedTypes || supportedTypes.isNotEmpty()) { "Compose supportedTypes must not be empty" }
     text?.let { require(it.maxLength in 1..1_000_000) { "Invalid compose text limit" } }
     media?.let {
         require(it.maxCount in 0..100) { "Invalid compose media count" }
@@ -55,6 +68,9 @@ public fun ComposeConfigV1.requireValid() {
     visibility?.let {
         require(it.allowed.isNotEmpty()) { "Visibility set is empty" }
         require(it.default in it.allowed) { "Default visibility is not allowed" }
+        require(allowExtendedVisibility || it.allowed.none(VisibilityV1::isExtended)) {
+            "Extended visibility requires compose/v3"
+        }
     }
     poll?.let { require(it.maxOptions in 2..100) { "Invalid poll option limit" } }
     language?.let { require(it.maxCount in 1..32) { "Invalid language count" } }
@@ -64,6 +80,11 @@ public fun ProfileV1.requireValid() {
     key.requireValid()
     require(handle.isNotBlank() && handle.length <= 512 && handle.none(Char::isISOControl)) { "Invalid profile handle" }
     require(displayName.length <= 1_024) { "Profile display name is too long" }
+    displayNameRichText?.let {
+        require(it.value.length <= 8_192) { "Rich profile display name is too long" }
+        it.requireValid()
+    }
+    sourceLanguages.requireLanguages()
     avatarUrl.requireHttpsUrl()
     bannerUrl.requireHttpsUrl()
     url.requireHttpsUrl()
@@ -85,9 +106,16 @@ public fun ProfileV1.requireValid() {
 
 public fun PostV1.requireValid() {
     key.requireValid()
+    target?.requireValid()
     author?.requireValid()
     createdAt.requireTimestamp()
     content.requireValid()
+    require(authorSubtitle == null || (authorSubtitle.length <= 1_024 && authorSubtitle.none(Char::isISOControl))) {
+        "Invalid post author subtitle"
+    }
+    require(visibility?.isExtended != true && (extendedVisibility == null || (visibility == null && extendedVisibility.isExtended))) {
+        "Use extendedVisibility alone for friends or selfOnly"
+    }
     url.requireHttpsUrl(required = detailType == PostDetailTypeV1.Link)
     require(media.size <= 100) { "Too many media items" }
     media.forEach(MediaV1::requireValid)
@@ -137,6 +165,9 @@ public fun SocialListV1.requireValid() {
     require(id.isNotBlank() && id.length <= WireLimitsV1.MAX_ID_LENGTH) { "Invalid list ID" }
     require(title.isNotBlank() && title.length <= 4_096) { "Invalid list title" }
     require(memberCount == null || memberCount >= 0) { "Invalid list member count" }
+    require(description == null || description.length <= 4_096) { "List description is too long" }
+    avatarUrl.requireHttpsUrl()
+    creator?.requireValid()
     require(entityToken == null || entityToken.length <= WireLimitsV1.MAX_ENTITY_TOKEN_LENGTH) { "List entity token is too large" }
 }
 
@@ -161,6 +192,11 @@ public fun DirectMessageV1.requireValid() {
     sender.requireValid()
     createdAt.requireTimestamp()
     content.requireValid()
+    when (val body = body) {
+        is DirectMessageBodyV1.Media -> body.media.requireValid()
+        is DirectMessageBodyV1.Post -> body.post.requireValid()
+        DirectMessageBodyV1.Deleted, null -> Unit
+    }
     require(entityToken == null || entityToken.length <= WireLimitsV1.MAX_ENTITY_TOKEN_LENGTH) {
         "Direct-message entity token is too large"
     }
@@ -170,10 +206,60 @@ public fun ArticleV1.requireValid() {
     key.requireValid()
     require(title.isNotBlank() && title.length <= 16_384) { "Invalid article title" }
     author?.requireValid()
+    attribution?.let {
+        require(author == null) { "Provide either an article author or attribution" }
+        require(listOfNotNull(it.siteName, it.byline).all { text -> text.length <= 1_024 && text.none(Char::isISOControl) }) {
+            "Invalid article attribution"
+        }
+        it.iconUrl.requireHttpsUrl()
+    }
     createdAt?.requireTimestamp()
     content.requireValid()
     url.requireHttpsUrl()
     coverUrl.requireHttpsUrl()
+    require(blocks.size <= 200) { "Too many article blocks" }
+    blocks.forEach(ArticleBlockV1::requireValid)
+}
+
+private fun ArticleBlockV1.requireValid() {
+    when (this) {
+        is ArticleBlockV1.Text -> {
+            content.requireValid()
+        }
+
+        is ArticleBlockV1.Image -> {
+            require(media.type == MediaTypeV1.Image) { "Article image block requires image media" }
+            media.requireValid()
+        }
+
+        is ArticleBlockV1.Video -> {
+            require(media.type == MediaTypeV1.Video) { "Article video block requires video media" }
+            media.requireValid()
+        }
+
+        is ArticleBlockV1.File -> {
+            require(name.isNotBlank() && name.length <= 512 && name.none { it == '/' || it == '\\' || it.isISOControl() }) {
+                "Invalid article file name"
+            }
+            require(name != "." && name != ".." && (sizeBytes == null || sizeBytes >= 0)) { "Invalid article file" }
+            require(extension == null || FILE_EXTENSION.matches(extension)) { "Invalid article file extension" }
+            url.requireHttpsUrl(required = true)
+            customHeaders.requireValidMediaHeaders()
+        }
+
+        is ArticleBlockV1.Embed -> {
+            require((title?.length ?: 0) <= 16_384 && (description?.length ?: 0) <= WireLimitsV1.MAX_RICH_TEXT_LENGTH) {
+                "Invalid article embed metadata"
+            }
+            url.requireHttpsUrl(required = true)
+            imageUrl.requireHttpsUrl()
+        }
+
+        is ArticleBlockV1.ContentGate -> {
+            require(feeRequired == null || feeRequired >= 0) { "Invalid article subscription fee" }
+            actionUrl.requireHttpsUrl()
+        }
+    }
 }
 
 public fun GalleryV1.requireValid() {
@@ -320,6 +406,20 @@ public fun CookieSnapshotV1.requireValid() {
                 cookie.value.length <= MAX_COOKIE_VALUE_LENGTH
         },
     ) { "Invalid Cookie snapshot" }
+    cookies.forEach { cookie ->
+        cookie.attributes?.let { attributes ->
+            require(attributes.domain == null || (attributes.domain.length <= 253 && attributes.domain.none(Char::isISOControl))) {
+                "Invalid Cookie domain"
+            }
+            require(
+                attributes.path == null ||
+                    (attributes.path.length <= 8_192 && attributes.path.startsWith('/') && attributes.path.none(Char::isISOControl)),
+            ) {
+                "Invalid Cookie path"
+            }
+            require(attributes.sameSite == null || attributes.sameSite in setOf("strict", "lax", "none")) { "Invalid Cookie SameSite" }
+        }
+    }
     require(encodedSize(this, CookieSnapshotV1.serializer()) <= WireLimitsV1.MAX_PENDING_PAYLOAD_BYTES) {
         "Cookie snapshot is too large"
     }
@@ -327,8 +427,10 @@ public fun CookieSnapshotV1.requireValid() {
 
 public fun LoginTransitionV1.requireValid() {
     when (this) {
-        LoginTransitionV1.Pending -> {
-            return
+        is LoginTransitionV1.Pending -> {
+            require(pendingPayload == null || encodedJsonSize(pendingPayload) <= WireLimitsV1.MAX_PENDING_PAYLOAD_BYTES) {
+                "Login pending payload is too large"
+            }
         }
 
         is LoginTransitionV1.ExternalBrowser -> {
@@ -361,7 +463,13 @@ public fun LoginSuccessV1.requireValid() {
                 operations.all(METHOD_NAME::matches)
         },
     ) { "Invalid negotiated capabilities" }
-    composeConfig?.requireValid()
+    composeConfig.withLegacyComposeTypes(capabilities.keys.usesLegacyCompose())?.requireValid(
+        requireSupportedTypes = PluginAbiV1.Capabilities.COMPOSE in capabilities || PluginAbiV1.Capabilities.COMPOSE_V1 in capabilities,
+    )
+    composeConfigV3?.let {
+        require("publish" in capabilities[PluginAbiV1.Capabilities.COMPOSE_V3].orEmpty()) { "composeConfigV3 requires compose/v3" }
+        it.requireValid(allowExtendedVisibility = true)
+    }
 }
 
 private fun encodedJsonSize(value: JsonElement): Int =
@@ -392,6 +500,7 @@ internal fun RichTextV1.requireValid() {
 
 internal fun MediaV1.requireValid() {
     if (type == MediaTypeV1.Unknown) return
+    customHeaders.requireValidMediaHeaders()
     require(id.isNotBlank() && id.length <= WireLimitsV1.MAX_ID_LENGTH) { "Invalid media ID" }
     url.requireHttpsUrl(required = true)
     previewUrl.requireHttpsUrl()
@@ -408,6 +517,42 @@ internal fun MediaV1.requireValid() {
     require(height == null || height in 1..100_000) { "Invalid media height" }
     require(durationMillis == null || durationMillis in 0..604_800_000) { "Invalid media duration" }
 }
+
+private fun Map<String, String>.requireValidMediaHeaders() {
+    require(size <= WireLimitsV1.MAX_MEDIA_HEADERS) { "Too many media headers" }
+    require(keys.map(String::lowercase).distinct().size == size) { "Duplicate media header" }
+    var bytes = 0
+    forEach { (name, value) ->
+        val lower = name.lowercase()
+        require(
+            MEDIA_HEADER_NAME.matches(name) && lower !in RESERVED_MEDIA_HEADERS && !lower.startsWith("proxy-") &&
+                !lower.startsWith("sec-"),
+        ) { "Media header is not allowed" }
+        require(value.length <= WireLimitsV1.MAX_MEDIA_HEADER_VALUE_LENGTH && value.none(Char::isISOControl)) {
+            "Invalid media header value"
+        }
+        bytes += name.encodeToByteArray().size + value.encodeToByteArray().size
+    }
+    require(bytes <= WireLimitsV1.MAX_MEDIA_HEADER_BYTES) { "Media headers are too large" }
+}
+
+private val MEDIA_HEADER_NAME = Regex("[!#$%&'*+.^_`|~0-9A-Za-z-]{1,128}")
+private val RESERVED_MEDIA_HEADERS =
+    setOf(
+        "host",
+        "connection",
+        "content-length",
+        "keep-alive",
+        "te",
+        "trailer",
+        "transfer-encoding",
+        "upgrade",
+        "accept-encoding",
+        "range",
+        "if-range",
+        "if-none-match",
+        "if-modified-since",
+    )
 
 internal fun List<ActionDescriptorV1>.requireValid() {
     require(size <= SemanticActionV1.entries.size) { "Too many actions" }
@@ -442,6 +587,7 @@ internal fun String?.requireHttpsUrl(required: Boolean = false) {
 private fun String.isWireName(): Boolean = WIRE_NAME.matches(this)
 
 private val WIRE_NAME = Regex("[A-Za-z][A-Za-z0-9_.-]{0,127}")
+private val FILE_EXTENSION = Regex("[A-Za-z0-9]{1,24}")
 private val MIME_TYPE = Regex("[A-Za-z0-9!#$&^_.+-]+/(?:[A-Za-z0-9!#$&^_.+-]+|\\*)")
 private val COOKIE_NAME = Regex("[!#$%&'*+.^_`|~0-9A-Za-z-]{1,128}")
 private val CAPABILITY_ID = Regex("[a-z0-9.-]+/[a-z0-9.-]+")

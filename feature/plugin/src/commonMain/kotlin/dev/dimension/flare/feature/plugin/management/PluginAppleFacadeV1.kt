@@ -66,6 +66,23 @@ public class PluginAppleFacadeV1 : PresenterBase<PluginManagementStateV1>() {
         presenter.openGitHubInstall()
     }
 
+    public fun loadMarketplace(forceRefresh: Boolean) {
+        presenter.loadMarketplace(forceRefresh)
+    }
+
+    @Throws(Exception::class)
+    public suspend fun refreshMarketplace() {
+        presenter.refreshMarketplace()
+    }
+
+    @Throws(Exception::class)
+    public suspend fun inspectMarketplace(pluginId: String) {
+        presenter.inspectMarketplace(pluginId)
+    }
+
+    @Throws(Exception::class)
+    public suspend fun marketplaceIcon(pluginId: String): String? = presenter.marketplaceIcon(pluginId)
+
     public fun clearGitHubInstallError() {
         presenter.clearGitHubInstallError()
     }
@@ -73,6 +90,16 @@ public class PluginAppleFacadeV1 : PresenterBase<PluginManagementStateV1>() {
     @Throws(Exception::class)
     public suspend fun inspectGitHub(url: String) {
         presenter.inspectGitHub(url)
+    }
+
+    @Throws(Exception::class)
+    public suspend fun confirmRepositoryDownload() {
+        presenter.confirmRepositoryDownload()
+    }
+
+    @Throws(Exception::class)
+    public suspend fun cancelRepositoryDownload() {
+        presenter.cancelRepositoryDownload()
     }
 
     @Throws(Exception::class)
@@ -130,6 +157,10 @@ public class PluginOAuthCallbackFacadeV1 {
 
 /** Swift-facing hook for native memory-pressure notifications. */
 public class PluginRuntimeLifecycleFacadeV1 {
+    public fun setForeground(active: Boolean) {
+        koinGet<PluginSubsystemV1>().extensions.setForeground(active)
+    }
+
     @Throws(Exception::class)
     public suspend fun onMemoryPressure() {
         koinGet<PluginSubsystemV1>().onMemoryPressure()

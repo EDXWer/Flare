@@ -50,11 +50,13 @@ import compose.icons.FontAwesomeIcons
 import compose.icons.fontawesomeicons.Solid
 import compose.icons.fontawesomeicons.solid.Language
 import dev.dimension.flare.R
+import dev.dimension.flare.data.datastore.model.AgentOpenAIApi
 import dev.dimension.flare.ui.component.BackButton
 import dev.dimension.flare.ui.component.FlareDropdownMenu
 import dev.dimension.flare.ui.component.FlareLargeFlexibleTopAppBar
 import dev.dimension.flare.ui.component.FlareScaffold
 import dev.dimension.flare.ui.component.RichText
+import dev.dimension.flare.ui.component.resolveText
 import dev.dimension.flare.ui.component.status.ListEmptyView
 import dev.dimension.flare.ui.model.UiState
 import dev.dimension.flare.ui.model.onError
@@ -112,7 +114,14 @@ internal fun AiConfigScreen(onBack: () -> Unit) {
             states.forEach { state ->
                 val serverTitle = stringResource(id = R.string.settings_ai_config_server)
                 val serverHint = stringResource(id = R.string.settings_ai_config_server_hint)
-                val serverRequirementHint = stringResource(id = R.string.settings_ai_config_server_url_requirement)
+                val serverRequirementHint =
+                    stringResource(
+                        if (state.isAgentConfig) {
+                            R.string.settings_ai_config_agent_server_url_requirement
+                        } else {
+                            R.string.settings_ai_config_server_url_requirement
+                        },
+                    )
                 val apiKeyTitle = stringResource(id = R.string.settings_ai_config_api_key)
                 val apiKeyHint = stringResource(id = R.string.settings_ai_config_api_key_hint)
                 val contextWindowTitle = stringResource(id = R.string.settings_ai_config_context_window)
@@ -162,11 +171,38 @@ internal fun AiConfigScreen(onBack: () -> Unit) {
                     )
                     SegmentedListItem(
                         onClick = { state.setUseSharedConfig(!state.useSharedConfig) },
-                        shapes = ListItemDefaults.last(),
+                        shapes = ListItemDefaults.item(),
                         content = { Text(stringResource(R.string.settings_ai_config_use_shared)) },
                         supportingContent = { Text(stringResource(R.string.settings_ai_config_use_shared_description)) },
                         trailingContent = {
                             Switch(checked = state.useSharedConfig, onCheckedChange = state::setUseSharedConfig)
+                        },
+                    )
+                    var showApiDropdown by remember { mutableStateOf(false) }
+                    SegmentedListItem(
+                        onClick = { showApiDropdown = true },
+                        shapes = ListItemDefaults.last(),
+                        content = { Text(stringResource(R.string.settings_ai_config_agent_api)) },
+                        trailingContent = {
+                            Box {
+                                TextButton(onClick = { showApiDropdown = true }) {
+                                    Text(agentOpenAIApiLabel(state.agentOpenAIApi))
+                                }
+                                FlareDropdownMenu(
+                                    expanded = showApiDropdown,
+                                    onDismissRequest = { showApiDropdown = false },
+                                ) {
+                                    state.supportedAgentOpenAIApis.forEach { api ->
+                                        DropdownMenuItem(
+                                            text = { Text(agentOpenAIApiLabel(api)) },
+                                            onClick = {
+                                                state.setAgentOpenAIApi(api)
+                                                showApiDropdown = false
+                                            },
+                                        )
+                                    }
+                                }
+                            }
                         },
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -594,6 +630,14 @@ private fun presenter(agentConfig: Boolean = false) =
     }
 
 @Composable
+private fun agentOpenAIApiLabel(api: AgentOpenAIApi): String =
+    when (api) {
+        AgentOpenAIApi.Auto -> stringResource(R.string.settings_ai_config_agent_api_auto)
+        AgentOpenAIApi.Responses -> "Responses"
+        AgentOpenAIApi.ChatCompletions -> "Chat Completions"
+    }
+
+@Composable
 private fun openAIReasoningEffortLabel(option: AiReasoningEffortOption): String =
     when (option) {
         AiReasoningEffortOption.Default -> stringResource(id = R.string.settings_ai_config_reasoning_effort_default)
@@ -795,7 +839,17 @@ internal fun TranslationConfigScreen(onBack: () -> Unit) {
                             },
                         ) {
                             Text(
-                                text = translateProviderOptionLabel(state.translateProvider),
+                                text =
+                                    state.pluginTranslateProviders
+                                        .firstOrNull { it.pluginId == state.selectedTranslationPluginId }
+                                        ?.name
+                                        ?.resolveText()
+                                        ?: state.selectedTranslationPluginId?.let {
+                                            "$it (${stringResource(
+                                                R.string.plugin_operation_failed,
+                                            )})"
+                                        }
+                                        ?: translateProviderOptionLabel(state.translateProvider),
                             )
                         }
                         FlareDropdownMenu(
@@ -814,6 +868,12 @@ internal fun TranslationConfigScreen(onBack: () -> Unit) {
                                         state.selectTranslateProvider(provider)
                                     },
                                 )
+                            }
+                            state.pluginTranslateProviders.forEach { plugin ->
+                                DropdownMenuItem(text = { Text(plugin.name.resolveText()) }, onClick = {
+                                    state.setShowProviderDropdown(false)
+                                    state.selectTranslationPlugin(plugin.pluginId)
+                                })
                             }
                         }
                     }
@@ -1153,7 +1213,7 @@ internal fun TranslationConfigScreen(onBack: () -> Unit) {
                             )
                         }
 
-                        TranslateProviderOption.GoogleWeb -> {}
+                        TranslateProviderOption.GoogleWeb, TranslateProviderOption.Plugin -> {}
                     }
                 }
             }
@@ -1242,6 +1302,7 @@ private enum class TranslationEditField {
 @Composable
 private fun translateProviderOptionLabel(provider: TranslateProviderOption): String =
     when (provider) {
+        TranslateProviderOption.Plugin -> stringResource(R.string.settings_plugins_title)
         TranslateProviderOption.AI -> stringResource(id = R.string.settings_ai_config_translate_provider_ai)
         TranslateProviderOption.GoogleWeb -> stringResource(id = R.string.settings_ai_config_translate_provider_google_web)
         TranslateProviderOption.DeepL -> stringResource(id = R.string.settings_ai_config_translate_provider_deepl)

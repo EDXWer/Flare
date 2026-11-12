@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Flare plugin manifest — API v1",
+  "title": "Flare plugin manifest \u2014 API v1/v2",
   "description": "Editor assistance for manifest structure and static rules. Flare remains authoritative for registration, unique IDs, origin approval, locale catalogs, cross-field values and runtime behavior. The Host never fetches the $schema URL.",
   "type": "object",
   "additionalProperties": false,
@@ -20,7 +20,10 @@
     },
     "apiVersion": {
       "type": "integer",
-      "const": 1,
+      "enum": [
+        1,
+        2
+      ],
       "description": "Plugin Host API version."
     },
     "id": {
@@ -30,7 +33,7 @@
     },
     "version": {
       "type": "string",
-      "description": "Plugin SemVer, independent of the npm SDK version. GitHub installation requires a matching stable tag.",
+      "description": "Plugin SemVer, independent of the npm SDK version and GitHub repository snapshot tag.",
       "pattern": "^(?:(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?)(?![\\s\\S])"
     },
     "defaultLocale": {
@@ -57,15 +60,95 @@
       "$ref": "#/definitions/permissions"
     },
     "platform": {
-      "$ref": "#/definitions/platform"
+      "anyOf": [
+        {
+          "$ref": "#/definitions/platform"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "translation": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "apiVersion": {
+              "type": "integer",
+              "const": 1,
+              "default": 1
+            },
+            "cache": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "storageNamespaces": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "maxItems": 64,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256,
+                    "pattern": "^[^\\u0000-\\u001f]+$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "settings": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "entry"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "entry": {
+              "type": "string",
+              "maxLength": 512,
+              "pattern": "^(?!.*(?:^|/)\\.{1,2}(?:/|$))settings/(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+\\.html$"
+            },
+            "bridgeVersion": {
+              "type": "integer",
+              "const": 1,
+              "default": 1
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "platformExtension": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/platformExtension"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": [
     "apiVersion",
     "id",
     "version",
-    "name",
-    "platform"
+    "name"
   ],
   "definitions": {
     "identifier": {
@@ -210,7 +293,18 @@
         "composeDefaults": {
           "anyOf": [
             {
-              "$ref": "#/definitions/compose"
+              "$ref": "#/definitions/composeV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "composeDefaultsV3": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/composeV3"
             },
             {
               "type": "null"
@@ -409,10 +503,10 @@
               "capabilities": {
                 "type": "object",
                 "properties": {
-                  "flare.datasource.compose/v1": true
+                  "flare.datasource.compose/v2": true
                 },
                 "required": [
-                  "flare.datasource.compose/v1"
+                  "flare.datasource.compose/v2"
                 ]
               }
             }
@@ -423,7 +517,7 @@
             ],
             "properties": {
               "composeDefaults": {
-                "$ref": "#/definitions/compose"
+                "$ref": "#/definitions/composeV2"
               }
             }
           }
@@ -447,12 +541,131 @@
             "properties": {
               "capabilities": {
                 "type": "object",
+                "properties": {
+                  "flare.datasource.compose/v2": true,
+                  "flare.datasource.compose/v1": true
+                },
+                "anyOf": [
+                  {
+                    "required": [
+                      "flare.datasource.compose/v1"
+                    ],
+                    "properties": {
+                      "flare.datasource.compose/v1": true
+                    }
+                  },
+                  {
+                    "required": [
+                      "flare.datasource.compose/v2"
+                    ],
+                    "properties": {
+                      "flare.datasource.compose/v2": true
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": [
+              "capabilities"
+            ],
+            "properties": {
+              "capabilities": {
+                "type": "object",
+                "properties": {
+                  "flare.datasource.compose/v3": true
+                },
+                "required": [
+                  "flare.datasource.compose/v3"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "composeDefaultsV3"
+            ],
+            "properties": {
+              "composeDefaultsV3": {
+                "$ref": "#/definitions/composeV3"
+              },
+              "composeDefaults": {
+                "if": {
+                  "type": "object"
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "visibility": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "visibility"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "composeDefaultsV3"
+            ],
+            "properties": {
+              "composeDefaultsV3": {
+                "type": "object"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "required": [
+              "capabilities"
+            ],
+            "properties": {
+              "capabilities": {
+                "type": "object",
+                "required": [
+                  "flare.datasource.compose/v3"
+                ],
+                "properties": {
+                  "flare.datasource.compose/v3": true
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": [
+              "capabilities"
+            ],
+            "properties": {
+              "capabilities": {
+                "type": "object",
                 "required": [
                   "flare.datasource.compose/v1"
                 ],
                 "properties": {
                   "flare.datasource.compose/v1": true
                 }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "composeDefaults"
+            ],
+            "properties": {
+              "composeDefaults": {
+                "$ref": "#/definitions/composeV1"
               }
             }
           }
@@ -791,6 +1004,24 @@
           },
           "default": [],
           "uniqueItems": true
+        },
+        "authOrigins": {
+          "type": "array",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Exact canonical HTTPS origin; no path, credentials, wildcard, or trailing slash. Flare checks DNS/port normalization.",
+                "pattern": "^(?:https://[a-z0-9.-]+(?::[0-9]{1,5})?)(?![\\s\\S])"
+              },
+              {
+                "const": "$accountOrigin"
+              }
+            ]
+          },
+          "default": []
         }
       },
       "required": [
@@ -824,6 +1055,10 @@
               "maxItems": 0
             },
             "relationActions": {
+              "type": "array",
+              "maxItems": 0
+            },
+            "authOrigins": {
               "type": "array",
               "maxItems": 0
             }
@@ -860,20 +1095,17 @@
                 "discoverHashtags": {
                   "$ref": "#/definitions/operation"
                 }
-              },
-              "required": [
-                "posts",
-                "profiles",
-                "discoverPosts",
-                "discoverProfiles",
-                "discoverHashtags"
-              ]
+              }
             },
             "notificationFilters": {
               "type": "array",
               "maxItems": 0
             },
             "relationActions": {
+              "type": "array",
+              "maxItems": 0
+            },
+            "authOrigins": {
               "type": "array",
               "maxItems": 0
             }
@@ -923,6 +1155,10 @@
             "relationActions": {
               "type": "array",
               "maxItems": 0
+            },
+            "authOrigins": {
+              "type": "array",
+              "maxItems": 0
             }
           }
         }
@@ -966,6 +1202,10 @@
             "relationActions": {
               "type": "array",
               "maxItems": 0
+            },
+            "authOrigins": {
+              "type": "array",
+              "maxItems": 0
             }
           }
         }
@@ -1004,6 +1244,10 @@
             "relationActions": {
               "type": "array",
               "minItems": 1
+            },
+            "authOrigins": {
+              "type": "array",
+              "maxItems": 0
             }
           },
           "required": [
@@ -1041,6 +1285,10 @@
             "relationActions": {
               "type": "array",
               "maxItems": 0
+            },
+            "authOrigins": {
+              "type": "array",
+              "maxItems": 0
             }
           }
         }
@@ -1069,6 +1317,10 @@
               }
             },
             "relationActions": {
+              "type": "array",
+              "maxItems": 0
+            },
+            "authOrigins": {
               "type": "array",
               "maxItems": 0
             }
@@ -1169,6 +1421,10 @@
             "relationActions": {
               "type": "array",
               "maxItems": 0
+            },
+            "authOrigins": {
+              "type": "array",
+              "maxItems": 0
             }
           }
         }
@@ -1235,6 +1491,10 @@
             "relationActions": {
               "type": "array",
               "maxItems": 0
+            },
+            "authOrigins": {
+              "type": "array",
+              "maxItems": 0
             }
           }
         }
@@ -1271,6 +1531,10 @@
               "maxItems": 0
             },
             "relationActions": {
+              "type": "array",
+              "maxItems": 0
+            },
+            "authOrigins": {
               "type": "array",
               "maxItems": 0
             }
@@ -1318,6 +1582,10 @@
             "relationActions": {
               "type": "array",
               "maxItems": 0
+            },
+            "authOrigins": {
+              "type": "array",
+              "maxItems": 0
             }
           }
         }
@@ -1352,6 +1620,10 @@
             "relationActions": {
               "type": "array",
               "maxItems": 0
+            },
+            "authOrigins": {
+              "type": "array",
+              "maxItems": 0
             }
           }
         }
@@ -1383,7 +1655,7 @@
       "type": "object",
       "maxProperties": 32,
       "default": {},
-      "description": "Declare supported API v1 operations; the Host checks their JavaScript registration.",
+      "description": "Declare supported capability operations; compose/v2 uses typed references and requires explicit supportedTypes.",
       "propertyNames": {
         "pattern": "^(?:[a-z0-9.-]+/[a-z0-9.-]+)(?![\\s\\S])"
       },
@@ -1403,7 +1675,10 @@
         "flare.datasource.relation/v1": {
           "$ref": "#/definitions/capability-relation"
         },
-        "flare.datasource.compose/v1": {
+        "flare.datasource.compose/v2": {
+          "$ref": "#/definitions/capability-compose"
+        },
+        "flare.datasource.compose/v3": {
           "$ref": "#/definitions/capability-compose"
         },
         "flare.datasource.notification/v1": {
@@ -1423,6 +1698,18 @@
         },
         "flare.datasource.tab-catalog/v1": {
           "$ref": "#/definitions/capability-tab-catalog"
+        },
+        "flare.datasource.timeline-page/v1": {
+          "$ref": "#/definitions/capability-timeline-page"
+        },
+        "flare.datasource.account-http/v1": {
+          "$ref": "#/definitions/capability-account-http"
+        },
+        "flare.datasource.compose/v1": {
+          "$ref": "#/definitions/capability-compose"
+        },
+        "flare.datasource.account-capabilities/v1": {
+          "$ref": "#/definitions/capability-account-capabilities"
         }
       },
       "additionalProperties": {
@@ -1484,11 +1771,19 @@
           "$ref": "#/definitions/text"
         },
         "icon": {
-          "allOf": [{ "$ref": "#/definitions/hostIcon" }],
+          "allOf": [
+            {
+              "$ref": "#/definitions/hostIcon"
+            }
+          ],
           "default": "Home"
         },
         "display": {
-          "allOf": [{ "$ref": "#/definitions/timelineDisplay" }],
+          "allOf": [
+            {
+              "$ref": "#/definitions/timelineDisplay"
+            }
+          ],
           "default": "List"
         },
         "parameters": {
@@ -1515,11 +1810,19 @@
           "$ref": "#/definitions/text"
         },
         "icon": {
-          "allOf": [{ "$ref": "#/definitions/hostIcon" }],
+          "allOf": [
+            {
+              "$ref": "#/definitions/hostIcon"
+            }
+          ],
           "default": "Profile"
         },
         "display": {
-          "allOf": [{ "$ref": "#/definitions/timelineDisplay" }],
+          "allOf": [
+            {
+              "$ref": "#/definitions/timelineDisplay"
+            }
+          ],
           "default": "List"
         },
         "parameters": {
@@ -1690,6 +1993,18 @@
         "channel"
       ]
     },
+    "composeVisibilityValue": {
+      "type": "string",
+      "enum": [
+        "public",
+        "unlisted",
+        "followers",
+        "direct",
+        "channel",
+        "friends",
+        "selfOnly"
+      ]
+    },
     "composeText": {
       "type": "object",
       "additionalProperties": false,
@@ -1759,7 +2074,7 @@
         "allowed": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/visibility"
+            "$ref": "#/definitions/composeVisibilityValue"
           },
           "default": [],
           "minItems": 1,
@@ -1767,7 +2082,11 @@
           "description": "The default visibility must be a member; checked by Flare."
         },
         "default": {
-          "allOf": [{ "$ref": "#/definitions/visibility" }],
+          "allOf": [
+            {
+              "$ref": "#/definitions/composeVisibilityValue"
+            }
+          ],
           "default": "public"
         }
       },
@@ -1807,6 +2126,15 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "supportedTypes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/composeType"
+          }
+        },
         "text": {
           "anyOf": [
             {
@@ -1867,6 +2195,469 @@
           "default": null
         }
       }
+    },
+    "composeV2": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "#/definitions/compose"
+        },
+        {
+          "properties": {
+            "visibility": {
+              "if": {
+                "type": "object"
+              },
+              "then": {
+                "type": "object",
+                "properties": {
+                  "allowed": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/definitions/visibility"
+                    }
+                  },
+                  "default": {
+                    "$ref": "#/definitions/visibility"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "required": [
+        "supportedTypes"
+      ],
+      "properties": {
+        "supportedTypes": {
+          "$ref": "#/definitions/compose/properties/supportedTypes"
+        }
+      }
+    },
+    "composeV3": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "#/definitions/compose"
+        },
+        {
+          "properties": {
+            "visibility": {
+              "$ref": "#/definitions/composeVisibility"
+            }
+          },
+          "required": [
+            "visibility"
+          ]
+        }
+      ],
+      "required": [
+        "supportedTypes"
+      ],
+      "properties": {
+        "supportedTypes": {
+          "$ref": "#/definitions/compose/properties/supportedTypes"
+        }
+      }
+    },
+    "composeType": {
+      "type": "string",
+      "enum": [
+        "new",
+        "reply",
+        "quote"
+      ]
+    },
+    "platformExtension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "targets",
+        "actions"
+      ],
+      "properties": {
+        "apiVersion": {
+          "type": "integer",
+          "const": 1,
+          "default": 1
+        },
+        "targets": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "platformId",
+              "authOrigins"
+            ],
+            "properties": {
+              "platformId": {
+                "type": "string",
+                "description": "Case-sensitive identifier beginning with a letter.",
+                "pattern": "^(?:[A-Za-z][A-Za-z0-9_.-]{0,127})(?![\\s\\S])"
+              },
+              "authOrigins": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 16,
+                "uniqueItems": true,
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "Exact canonical HTTPS origin; no path, credentials, wildcard, or trailing slash. Flare checks DNS/port normalization.",
+                      "pattern": "^(?:https://[a-z0-9.-]+(?::[0-9]{1,5})?)(?![\\s\\S])"
+                    },
+                    {
+                      "const": "$accountOrigin"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "actions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "title"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+                "not": {
+                  "enum": [
+                    "constructor",
+                    "prototype",
+                    "__proto__"
+                  ]
+                }
+              },
+              "title": {
+                "$ref": "#/definitions/text"
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/text"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "dailyTimeZone": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1,
+                "maxLength": 128,
+                "description": "IANA timezone for once-per-date foreground execution. Host validates availability."
+              },
+              "platformIds": {
+                "type": "array",
+                "maxItems": 8,
+                "uniqueItems": true,
+                "default": [],
+                "description": "Applicable declared target platform IDs. Omitted or empty means all targets; Host validates target membership.",
+                "items": {
+                  "type": "string",
+                  "description": "Case-sensitive identifier beginning with a letter.",
+                  "pattern": "^(?:[A-Za-z][A-Za-z0-9_.-]{0,127})(?![\\s\\S])"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "capability-timeline-page": {
+      "type": "object",
+      "description": "API v2 temporary timeline pages, independent of home timelines and tabCatalog.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/capability"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operations": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "load": {
+                  "$ref": "#/definitions/operation"
+                }
+              },
+              "required": [
+                "load"
+              ]
+            },
+            "notificationFilters": {
+              "type": "array",
+              "maxItems": 0
+            },
+            "relationActions": {
+              "type": "array",
+              "maxItems": 0
+            },
+            "authOrigins": {
+              "type": "array",
+              "maxItems": 0
+            }
+          }
+        }
+      ]
+    },
+    "capability-account-http": {
+      "type": "object",
+      "description": "API v2 account authentication provider. Returned authentication headers stay inside the Host.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/capability"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operations": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "authenticate"
+              ],
+              "properties": {
+                "authenticate": {
+                  "$ref": "#/definitions/operation"
+                }
+              }
+            },
+            "authOrigins": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 16,
+              "uniqueItems": true,
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Exact canonical HTTPS origin; no path, credentials, wildcard, or trailing slash. Flare checks DNS/port normalization.",
+                    "pattern": "^(?:https://[a-z0-9.-]+(?::[0-9]{1,5})?)(?![\\s\\S])"
+                  },
+                  {
+                    "const": "$accountOrigin"
+                  }
+                ]
+              }
+            },
+            "notificationFilters": {
+              "type": "array",
+              "maxItems": 0
+            },
+            "relationActions": {
+              "type": "array",
+              "maxItems": 0
+            }
+          },
+          "required": [
+            "authOrigins"
+          ]
+        }
+      ]
+    },
+    "composeV1": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "#/definitions/compose"
+        },
+        {
+          "properties": {
+            "visibility": {
+              "if": {
+                "type": "object"
+              },
+              "then": {
+                "type": "object",
+                "properties": {
+                  "allowed": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/definitions/visibility"
+                    }
+                  },
+                  "default": {
+                    "$ref": "#/definitions/visibility"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "capability-account-capabilities": {
+      "type": "object",
+      "description": "Optional account-only, read-only capability negotiation after a package upgrade; supported on runtime APIs 1 and 2.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/capability"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operations": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "negotiate"
+              ],
+              "properties": {
+                "negotiate": {
+                  "$ref": "#/definitions/operation"
+                }
+              }
+            },
+            "authOrigins": {
+              "type": "array",
+              "maxItems": 0
+            },
+            "notificationFilters": {
+              "type": "array",
+              "maxItems": 0
+            },
+            "relationActions": {
+              "type": "array",
+              "maxItems": 0
+            }
+          }
+        }
+      ]
     }
-  }
+  },
+  "anyOf": [
+    {
+      "required": [
+        "platform"
+      ],
+      "properties": {
+        "platform": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "required": [
+        "translation"
+      ],
+      "properties": {
+        "translation": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "required": [
+        "settings"
+      ],
+      "properties": {
+        "settings": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "required": [
+        "platformExtension"
+      ],
+      "properties": {
+        "platformExtension": {
+          "type": "object"
+        }
+      }
+    }
+  ],
+  "allOf": [
+    {
+      "if": {
+        "anyOf": [
+          {
+            "required": [
+              "translation"
+            ],
+            "properties": {
+              "translation": {
+                "type": "object"
+              }
+            }
+          },
+          {
+            "required": [
+              "settings"
+            ],
+            "properties": {
+              "settings": {
+                "type": "object"
+              }
+            }
+          },
+          {
+            "required": [
+              "platformExtension"
+            ],
+            "properties": {
+              "platformExtension": {
+                "type": "object"
+              }
+            }
+          }
+        ]
+      },
+      "then": {
+        "properties": {
+          "apiVersion": {
+            "const": 2
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "apiVersion": {
+            "const": 1
+          }
+        },
+        "required": [
+          "apiVersion"
+        ]
+      },
+      "then": {
+        "properties": {
+          "platform": {
+            "properties": {
+              "capabilities": {
+                "properties": {
+                  "flare.datasource.timeline-page/v1": false,
+                  "flare.datasource.account-http/v1": false
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          }
+        }
+      }
+    }
+  ]
 }

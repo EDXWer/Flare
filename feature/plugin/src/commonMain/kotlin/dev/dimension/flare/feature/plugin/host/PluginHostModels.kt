@@ -1,5 +1,6 @@
 package dev.dimension.flare.feature.plugin.host
 
+import dev.dimension.flare.data.datasource.microblog.AccountHttpRequest
 import dev.dimension.flare.data.model.ProxyRef
 import dev.dimension.flare.feature.plugin.manifest.isValidLocaleTag
 import dev.dimension.flare.model.MicroBlogKey
@@ -16,7 +17,32 @@ public interface PluginCredentialAccess {
 
     /** The implementation must persist the replacement atomically. */
     public suspend fun replace(value: JsonElement)
+
+    public suspend fun readVersioned(): PluginCredentialSnapshot =
+        throw PluginHostException("host.unsupported", "Versioned credentials unavailable")
+
+    public suspend fun replaceIfCurrent(
+        value: JsonElement,
+        revision: String,
+    ): Boolean = throw PluginHostException("host.unsupported", "Conditional credentials unavailable")
+
+    public suspend fun ensureActive() {}
 }
+
+@HiddenFromObjC
+public interface PluginAccountHttpAccess {
+    public val origins: Set<String>
+
+    public suspend fun ensureActive()
+
+    public suspend fun authenticate(request: AccountHttpRequest): Map<String, String>
+}
+
+@Serializable
+public data class PluginCredentialSnapshot(
+    val value: JsonElement,
+    val revision: String,
+)
 
 @HiddenFromObjC
 public interface PluginAsset {
@@ -41,6 +67,12 @@ public enum class PluginInvocationScopeV1 {
 
     @SerialName("guest")
     Guest,
+
+    @SerialName("plugin")
+    Plugin,
+
+    @SerialName("extension")
+    Extension,
 }
 
 @Serializable
@@ -55,6 +87,7 @@ public data class PluginInvocationMetadataV1(
     val approvedOrigins: Set<String>,
     val credentialAvailable: Boolean,
     val assetHandles: Set<String>,
+    val targetPlatformId: String? = null,
 )
 
 public class PluginInvocationContextV1 private constructor(
@@ -62,8 +95,64 @@ public class PluginInvocationContextV1 private constructor(
     internal val credential: PluginCredentialAccess?,
     internal val assets: Map<String, PluginAsset>,
     internal val proxy: ProxyRef,
+    internal val accountHttp: PluginAccountHttpAccess? = null,
 ) {
     public companion object {
+        public fun extension(
+            pluginId: String,
+            packageHash: String,
+            platformId: String,
+            targetPlatformId: String,
+            accountId: String,
+            accountKey: MicroBlogKey,
+            httpOrigins: Set<String>,
+            locale: String,
+            access: PluginAccountHttpAccess,
+            accountOrigin: String? = null,
+        ): PluginInvocationContextV1 {
+            val base = plugin(pluginId, packageHash, httpOrigins, locale, platformId)
+            require(ID.matches(targetPlatformId) && accountId.isNotBlank() && accountId.length <= 512) { "Invalid extension identity" }
+            return PluginInvocationContextV1(
+                metadata =
+                    base.metadata.copy(
+                        scope = PluginInvocationScopeV1.Extension,
+                        origin = accountOrigin?.let(PluginUrlPolicy::requireOrigin).orEmpty(),
+                        accountId = accountId,
+                        targetPlatformId = targetPlatformId,
+                    ),
+                credential = null,
+                assets = emptyMap(),
+                proxy = ProxyRef.forAccount(accountKey),
+                accountHttp = access,
+            )
+        }
+
+        public fun plugin(
+            pluginId: String,
+            packageHash: String,
+            httpOrigins: Set<String>,
+            locale: String,
+            platformId: String = "",
+        ): PluginInvocationContextV1 {
+            require(ID.matches(pluginId) && HASH.matches(packageHash) && isValidLocaleTag(locale)) { "Invalid plugin context" }
+            return PluginInvocationContextV1(
+                PluginInvocationMetadataV1(
+                    pluginId,
+                    platformId,
+                    packageHash,
+                    PluginInvocationScopeV1.Plugin,
+                    "",
+                    locale = locale,
+                    approvedOrigins = httpOrigins.mapTo(mutableSetOf(), PluginUrlPolicy::requireOrigin),
+                    credentialAvailable = false,
+                    assetHandles = emptySet(),
+                ),
+                credential = null,
+                assets = emptyMap(),
+                proxy = ProxyRef.Global,
+            )
+        }
+
         public fun detector(
             pluginId: String,
             platformId: String,

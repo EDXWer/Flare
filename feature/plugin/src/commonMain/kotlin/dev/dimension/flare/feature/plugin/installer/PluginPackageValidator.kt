@@ -1,7 +1,9 @@
 package dev.dimension.flare.feature.plugin.installer
 
+import dev.dimension.flare.feature.plugin.abi.PluginAbiV1
 import dev.dimension.flare.feature.plugin.abi.PluginJsonV1
 import dev.dimension.flare.feature.plugin.manifest.PluginManifestV1
+import dev.dimension.flare.feature.plugin.manifest.PluginMethodTableV1
 import dev.dimension.flare.feature.plugin.manifest.PluginTextV1
 import dev.dimension.flare.feature.plugin.manifest.isValidLocaleTag
 import dev.dimension.flare.feature.plugin.manifest.validate
@@ -31,9 +33,14 @@ internal class PluginPackageValidator(
     internal suspend fun validate(archive: FppArchive): ValidatedPluginPackage {
         archiveReader.validateLayout(archive.entries)
         val manifest = decodeManifest(archive.files.getValue(FppPaths.MANIFEST))
-        val source = decodeUtf8(archive.files.getValue(FppPaths.ENTRY), FppPaths.ENTRY)
-        require('\u0000' !in source) { "plugin.js contains a null character" }
-        val methodTable = registrationInspector.inspect(source)
+        require(manifest.apiVersion in PluginAbiV1.supportedApiVersions) { "Unsupported API version" }
+        val source = archive.files[FppPaths.ENTRY]?.let { decodeUtf8(it, FppPaths.ENTRY) }
+        manifest.requireBackgroundScript(source != null)
+        require(source == null || '\u0000' !in source) { "plugin.js contains a null character" }
+        val methodTable =
+            source?.let { registrationInspector.inspect(it, manifest.apiVersion) }
+                ?: PluginMethodTableV1(manifest.apiVersion, emptySet())
+        manifest.settings?.let { require(it.entry in archive.files) { "Settings entry is missing" } }
         val manifestValidation = manifest.validate(methodTable)
         manifestValidation.requireValid()
 
@@ -150,6 +157,12 @@ private fun ByteArray.uint32BigEndian(offset: Int): Long =
         ((this[offset + 2].toLong() and 0xff) shl 8) or
         (this[offset + 3].toLong() and 0xff)
 
+internal fun PluginManifestV1.requireBackgroundScript(hasScript: Boolean) {
+    require(hasScript || (platform == null && translation == null && platformExtension == null)) {
+        "Background capabilities require plugin.js"
+    }
+}
+
 private fun PluginManifestV1.localizedKeys(): Set<String> =
     buildSet {
         fun addText(text: PluginTextV1?) {
@@ -157,16 +170,22 @@ private fun PluginManifestV1.localizedKeys(): Set<String> =
         }
         addText(name)
         addText(description)
-        addText(platform.name)
-        addText(platform.description)
-        platform.timelines.forEach { addText(it.title) }
-        platform.profileTabs.forEach { addText(it.title) }
-        platform.loginMethods.forEach { method ->
-            addText(method.title)
-            addText(method.description)
-            method.fields.forEach { field ->
-                addText(field.label)
-                addText(field.placeholder)
+        platformExtension?.actions?.forEach {
+            addText(it.title)
+            addText(it.description)
+        }
+        platform?.let { platform ->
+            addText(platform.name)
+            addText(platform.description)
+            platform.timelines.forEach { addText(it.title) }
+            platform.profileTabs.forEach { addText(it.title) }
+            platform.loginMethods.forEach { method ->
+                addText(method.title)
+                addText(method.description)
+                method.fields.forEach { field ->
+                    addText(field.label)
+                    addText(field.placeholder)
+                }
             }
         }
     }

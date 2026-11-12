@@ -10,6 +10,15 @@ public struct ProxyWebContent<Content: View>: View {
     }
 
     public var body: some View {
+        Self.content(proxy: proxy, content)
+            .onAppear { proxy.start() }
+            .onDisappear { proxy.stop() }
+    }
+
+    public static func content(
+        proxy: WebViewProxy,
+        @ViewBuilder _ content: (WebViewProxyRoute) -> Content
+    ) -> some View {
         Group {
             if proxy.failed || proxy.route?.failed == true {
                 VStack(spacing: 12) {
@@ -26,7 +35,5 @@ public struct ProxyWebContent<Content: View>: View {
                 ProgressView()
             }
         }
-        .onAppear { proxy.start() }
-        .onDisappear { proxy.stop() }
     }
 }

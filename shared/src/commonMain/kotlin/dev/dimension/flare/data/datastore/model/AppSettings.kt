@@ -58,6 +58,11 @@ public data class AppSettings(
         @Serializable
         public sealed interface Provider {
             @Serializable
+            public data class Plugin(
+                val pluginId: String,
+            ) : Provider
+
+            @Serializable
             @SerialName("AI")
             public data object AI : Provider
 
@@ -102,6 +107,7 @@ public data class AppSettings(
         val preTranslation: Boolean = false,
         val agent: Boolean = true,
         val agentType: Type.OpenAI? = null,
+        val agentOpenAIApi: AgentOpenAIApi = AgentOpenAIApi.Auto,
     ) {
         public val effectiveAgentType: Type
             get() = agentType ?: type
@@ -130,6 +136,13 @@ public data class AppSettings(
             ) : Type
         }
     }
+}
+
+@Serializable
+public enum class AgentOpenAIApi {
+    Auto,
+    Responses,
+    ChatCompletions,
 }
 
 @Serializable

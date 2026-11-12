@@ -45,6 +45,9 @@
       }
     ],
     "capabilities": {
+      "flare.datasource.account-capabilities/v1": {
+        "operations": { "negotiate": {} }
+      },
       "flare.datasource.timeline/v1": {
         "operations": {
           "page": {
@@ -96,7 +99,7 @@
           "mutate": {}
         }
       },
-      "flare.datasource.compose/v1": {
+      "flare.datasource.compose/v2": {
         "operations": {
           "publish": {}
         }
@@ -183,6 +186,7 @@
       }
     ],
     "composeDefaults": {
+      "supportedTypes": ["new", "reply"],
       "text": {
         "maxLength": 500
       },

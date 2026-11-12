@@ -6,15 +6,25 @@ Adapt the paths, authentication, and mapping to your website before publishing.
 No demonstration server is included. Tests in Flare exercise this template with
 fixture HTTP responses through the real QuickJS runtime.
 
+For API v2 features, [match Flare and the SDK](https://github.com/flaresocialapp/Flare/blob/master/feature/plugin/sdk/skill/flare-plugin/README.md#match-flare-and-the-sdk)
+before installing dependencies. For translation or offline settings, follow the
+[storage, translation and settings contract](https://github.com/flaresocialapp/Flare/blob/master/feature/plugin/sdk/skill/flare-plugin/references/storage-and-settings.md).
+Keep ready-to-load HTML/CSS/JS and all page dependencies in `settings/`; the
+starter's build/package commands copy that directory but do not compile page
+TypeScript or resolve browser imports. Bundle the page SDK before packaging.
+A settings-only project can omit the social platform and background script;
+the standalone packer accepts that layout without this starter's build pipeline.
+
 ## 1. Adapt the plugin
 
-If you created this project with `npx flare-plugin-sdk@next init my-plugin`, work
+If you created this project with the SDK initializer, work
 inside `my-plugin` and keep its generated plugin/platform IDs. If you copied the
-template manually, first copy its contents to your repository root and replace
+template manually, first copy its contents to your plugin directory and replace
 the example `manifest.id`, `platform.id`, and names. Keep IDs stable for updates.
 For manual copies, also rename `_gitignore` to `.gitignore`; `init` does this for you.
 
-The generated manifest's `$schema` is pinned to the SDK version that created it.
+The initializer pins the manifest's `$schema` URL to its SDK version. For a
+source SDK, set `$schema` to the schema in the installed package.
 Open `manifest.json` in VS Code or another JSON Schema editor for completion,
 field descriptions, enum choices and static errors. Flare treats the URL as
 metadata and never downloads it; actual registration and behavior are checked in
@@ -80,15 +90,17 @@ manifest, registration, and runtime checks. Use a Flare build with Plugins in Se
    automatically mount this directory. Development uses real accounts and data,
    and remote writes are not rolled back.
 
-Keep the project root selected in Flare. Edit TS source, not the generated
+Keep the plugin directory selected in Flare. Edit TS source, not the generated
 `plugin.js`; `npm run build` checks types before rebuilding it. Commit that built
-script at root so GitHub installation works without running npm on the device.
+script at the plugin directory root, even when that directory is nested in a
+larger repository, so GitHub installation works without running npm on the device.
 See [development and testing details](https://github.com/flaresocialapp/Flare/blob/master/feature/plugin/sdk/skill/flare-plugin/references/testing.md#develop-locally-in-desktop)
 for reload restrictions, credential changes, and platform acceptance checks.
 
 ## 3. Publish and install through GitHub (recommended)
 
-Create a public GitHub repository with these ready-to-run files at its root:
+Create a public GitHub repository with these ready-to-run files in the selected
+plugin directory (the repository root by default):
 
 ```text
 manifest.json
@@ -119,26 +131,35 @@ git push -u origin main
 ```
 
 Use the existing Git setup if the project is already a repository. The generated
-`manifest.version` is `0.1.0`. After pushing the matching commit, publish its stable tag:
+`manifest.version` is `0.1.0`. After pushing the built files, publish a stable repository snapshot tag:
 
 ```sh
 git tag v0.1.0
 git push origin refs/tags/v0.1.0
 ```
 
-If you changed the manifest version, commit/push it and use that exact version
-after the optional lowercase `v`. npm SDK versions and plugin versions are
-independent. Flare ignores prerelease plugin tags; a branch alone is insufficient.
+Commit/push each changed plugin's manifest version and built files before tagging.
+The repository snapshot tag, each plugin's version, and the npm SDK version are
+independent. Flare ignores prerelease repository tags; a branch alone is
+insufficient.
 A GitHub Release and uploaded `.fpp` asset are unnecessary.
 
 Stop development, then in **Settings → Plugins → Add → Install from GitHub** enter
-`https://github.com/OWNER/REPO`. Load the latest stable version, review its source
+`https://github.com/OWNER/REPO` (append `?path=/plugins/example` for a subdirectory).
+Flare selects the latest stable repository snapshot; review its source
 and permissions, and confirm. Installation takes effect immediately. Select the
 plugin platform, HTTPS API origin, and real access token to verify it on each target
 device. For later updates, increment `manifest.version`, commit/push, and publish
-a new matching stable tag while preserving IDs. Check for updates in Flare and
-review/confirm the new version. See the
+a newer stable repository snapshot tag while preserving IDs and directory.
+Check for updates in Flare and review/confirm the new version. See the
 [publication and update rules](https://github.com/flaresocialapp/Flare/blob/master/feature/plugin/sdk/skill/flare-plugin/references/publishing.md).
+
+Several plugins can share one repository. Each directory must contain a complete
+plugin with unique plugin/platform IDs. Install a subdirectory using
+`https://github.com/OWNER/REPO?path=/plugins/example`; omit `path` for root.
+The latest stable tag selects the repository snapshot, while each plugin keeps
+its own manifest version. Unchanged runtime files do not offer updates.
+Downloads over 20 MiB ask for confirmation; see the publishing guide for limits.
 
 ## Alternative: package a local file
 
@@ -148,7 +169,7 @@ Use `.fpp` for offline transfer or local testing. From this project directory:
 npm run package
 ```
 
-This checks types, rebuilds the root script, copies only manifest/script/icon/locale
+This checks types, rebuilds the root script, copies manifest/script/icon/locale and built settings
 files to temporary staging, and uses the SDK packer to write `plugin.fpp` at root.
 Staging is cleaned up and development files are excluded. The standalone packer
 still accepts only a clean runtime directory, not this whole project.

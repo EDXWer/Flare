@@ -5,11 +5,10 @@
     <string name="changelog_current"><![CDATA[
             <span>Versiunea %1$s:</span>
             <ul>
-                <li>Am adăugat traducerea imaginilor. După configurarea unui serviciu de traducere, poți comuta între original și traducere și poți salva sau distribui rezultatul.</li>
-                <li>Poți selecta răspunsuri și răspunsuri secundare când distribui o postare ca imagine, inclusiv imagini lungi.</li>
-                <li>Am adăugat fluxuri Weibo pentru grupuri, cercul de prieteni și conturi urmărite în privat, setări de vizibilitate a postărilor și redare Live Photo. Am restabilit afișarea locației pe baza IP-ului.</li>
-                <li>Am adăugat setări proxy globale și pentru fiecare cont, cu suport pentru HTTPS și SOCKS5.</li>
-                <li>Am remediat unele erori de încărcare a imaginilor, acțiunile de marcare din galerie și deschiderea linkurilor FANBOX. Am îmbunătățit fluxurile mixte, afișarea traducerilor și memorarea contului selectat.</li>
+                <li>Videoclipurile rețin viteza de redare, cu opțiuni noi de până la 16×.</li>
+                <li>Comută între textul original și traducere în articole, elemente RSS și detaliile din galerie.</li>
+                <li>Căutarea și descoperirea afișează doar secțiunile acceptate de contul selectat.</li>
+                <li>Au fost remediate unele probleme de autentificare pe web.</li>
             </ul>
         ]]></string>
 </resources>

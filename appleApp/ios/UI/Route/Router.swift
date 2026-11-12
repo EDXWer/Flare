@@ -78,6 +78,11 @@ struct Router<Root: View>: View {
         } message: {
             alertRoute?.alertMessage()
         }
+        .transformEnvironment(\.tabBarNotificationCenter) { center in
+            if !navigation.backStack.isEmpty || navigation.sheet != nil || navigation.cover != nil || alertRoute != nil {
+                center = nil
+            }
+        }
         .environment(\.openURL, OpenURLAction { url in
             deepLinkPresenter.state.handle(url: url.absoluteString)
             return .handled

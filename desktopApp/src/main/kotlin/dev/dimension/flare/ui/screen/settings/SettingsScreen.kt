@@ -59,6 +59,7 @@ import dev.dimension.flare.action_import
 import dev.dimension.flare.add_account
 import dev.dimension.flare.app_name
 import dev.dimension.flare.cancel
+import dev.dimension.flare.data.datastore.model.AgentOpenAIApi
 import dev.dimension.flare.data.datastore.model.AppSettings
 import dev.dimension.flare.data.datastore.model.TimelineAutoRefreshInterval
 import dev.dimension.flare.data.model.AvatarShape
@@ -99,7 +100,10 @@ import dev.dimension.flare.settings_accounts_remove_failed
 import dev.dimension.flare.settings_accounts_title
 import dev.dimension.flare.settings_agent_history_description
 import dev.dimension.flare.settings_agent_history_title
+import dev.dimension.flare.settings_ai_config_agent_api
+import dev.dimension.flare.settings_ai_config_agent_api_auto
 import dev.dimension.flare.settings_ai_config_agent_description
+import dev.dimension.flare.settings_ai_config_agent_server_url_requirement
 import dev.dimension.flare.settings_ai_config_agent_title
 import dev.dimension.flare.settings_ai_config_api_key
 import dev.dimension.flare.settings_ai_config_api_key_hint
@@ -296,6 +300,7 @@ import dev.dimension.flare.ui.component.LocalAppSettings
 import dev.dimension.flare.ui.component.LocalGlobalAppearance
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
 import dev.dimension.flare.ui.component.RichText
+import dev.dimension.flare.ui.component.resolveText
 import dev.dimension.flare.ui.model.UiState
 import dev.dimension.flare.ui.model.isSuccess
 import dev.dimension.flare.ui.model.onError
@@ -1780,7 +1785,14 @@ internal fun SettingsScreen(
                 ) {
                     val serverTitle = stringResource(Res.string.settings_ai_config_server)
                     val serverHint = stringResource(Res.string.settings_ai_config_server_hint)
-                    val serverRequirementHint = stringResource(Res.string.settings_ai_config_server_url_requirement)
+                    val serverRequirementHint =
+                        stringResource(
+                            if (aiConfigState.isAgentConfig) {
+                                Res.string.settings_ai_config_agent_server_url_requirement
+                            } else {
+                                Res.string.settings_ai_config_server_url_requirement
+                            },
+                        )
                     val apiKeyTitle = stringResource(Res.string.settings_ai_config_api_key)
                     val apiKeyHint = stringResource(Res.string.settings_ai_config_api_key_hint)
                     val contextWindowTitle = stringResource(Res.string.settings_ai_config_context_window)
@@ -1813,6 +1825,31 @@ internal fun SettingsScreen(
                             caption = { Text(stringResource(Res.string.settings_ai_config_use_shared_description)) },
                             trailing = {
                                 Switcher(aiConfigState.useSharedConfig, aiConfigState::setUseSharedConfig)
+                            },
+                        )
+                        ExpanderItemSeparator()
+                        var showApiDropdown by remember { mutableStateOf(false) }
+                        ExpanderItem(
+                            heading = { Text(stringResource(Res.string.settings_ai_config_agent_api)) },
+                            trailing = {
+                                DropDownButton(onClick = { showApiDropdown = !showApiDropdown }) {
+                                    Text(agentOpenAIApiLabel(aiConfigState.agentOpenAIApi))
+                                }
+                                MenuFlyout(
+                                    visible = showApiDropdown,
+                                    onDismissRequest = { showApiDropdown = false },
+                                    placement = FlyoutPlacement.BottomAlignedEnd,
+                                ) {
+                                    aiConfigState.supportedAgentOpenAIApis.forEach { api ->
+                                        MenuFlyoutItem(
+                                            text = { Text(agentOpenAIApiLabel(api)) },
+                                            onClick = {
+                                                aiConfigState.setAgentOpenAIApi(api)
+                                                showApiDropdown = false
+                                            },
+                                        )
+                                    }
+                                }
                             },
                         )
                         ExpanderItemSeparator()
@@ -2112,35 +2149,7 @@ internal fun SettingsScreen(
                     caption = {
                         Text(stringResource(Res.string.settings_ai_config_translate_provider_description))
                     },
-                    trailing = {
-                        DropDownButton(
-                            onClick = {
-                                state.aiConfigState.setShowProviderDropdown(!state.aiConfigState.showProviderDropdown)
-                            },
-                        ) {
-                            Text(
-                                translateProviderOptionLabel(state.aiConfigState.translateProvider),
-                            )
-                        }
-                        MenuFlyout(
-                            visible = state.aiConfigState.showProviderDropdown,
-                            onDismissRequest = { state.aiConfigState.setShowProviderDropdown(false) },
-                            placement = FlyoutPlacement.BottomAlignedEnd,
-                            modifier = Modifier.heightIn(max = 200.dp),
-                        ) {
-                            state.aiConfigState.supportedTranslateProviders.forEach { provider ->
-                                MenuFlyoutItem(
-                                    text = {
-                                        Text(translateProviderOptionLabel(provider))
-                                    },
-                                    onClick = {
-                                        state.aiConfigState.selectTranslateProvider(provider)
-                                        state.aiConfigState.setShowProviderDropdown(false)
-                                    },
-                                )
-                            }
-                        }
-                    },
+                    trailing = { TranslationProviderSelector(state.aiConfigState) },
                 )
                 ExpanderItemSeparator()
                 ExpanderItem(
@@ -2423,7 +2432,7 @@ internal fun SettingsScreen(
                                 )
                             }
 
-                            TranslateProviderOption.GoogleWeb -> {}
+                            TranslateProviderOption.GoogleWeb, TranslateProviderOption.Plugin -> {}
                         }
                     }
                 }
@@ -2843,7 +2852,6 @@ private fun aiConfigPresenter(agentConfig: Boolean = false) =
         var showTypeDropdown by remember { mutableStateOf(false) }
         var showModelDropdown by remember { mutableStateOf(false) }
         var showReasoningEffortDropdown by remember { mutableStateOf(false) }
-        var showProviderDropdown by remember { mutableStateOf(false) }
         var showExcludedLanguagesDialog by remember { mutableStateOf(false) }
         var textEditDialog by remember { mutableStateOf<TextEditDialogState?>(null) }
         object : AiConfigPresenter.State by state {
@@ -2853,7 +2861,6 @@ private fun aiConfigPresenter(agentConfig: Boolean = false) =
             val showTypeDropdown = showTypeDropdown
             val showModelDropdown = showModelDropdown
             val showReasoningEffortDropdown = showReasoningEffortDropdown
-            val showProviderDropdown = showProviderDropdown
             val showExcludedLanguagesDialog = showExcludedLanguagesDialog
             val textEditDialog = textEditDialog
 
@@ -2877,10 +2884,6 @@ private fun aiConfigPresenter(agentConfig: Boolean = false) =
                 showReasoningEffortDropdown = value
             }
 
-            fun setShowProviderDropdown(value: Boolean) {
-                showProviderDropdown = value
-            }
-
             fun setExcludedLanguagesDialog(value: Boolean) {
                 showExcludedLanguagesDialog = value
             }
@@ -2892,13 +2895,63 @@ private fun aiConfigPresenter(agentConfig: Boolean = false) =
     }
 
 @Composable
+internal fun TranslationProviderSelector(state: AiConfigPresenter.State) {
+    var expanded by remember { mutableStateOf(false) }
+    DropDownButton(onClick = { expanded = !expanded }) {
+        Text(
+            state.pluginTranslateProviders
+                .firstOrNull { it.pluginId == state.selectedTranslationPluginId }
+                ?.name
+                ?.resolveText()
+                ?: translateProviderOptionLabel(state.translateProvider),
+        )
+    }
+    MenuFlyout(
+        visible = expanded,
+        onDismissRequest = { expanded = false },
+        placement = FlyoutPlacement.BottomAlignedEnd,
+        modifier = Modifier.heightIn(max = 200.dp),
+    ) {
+        state.supportedTranslateProviders.forEach { provider ->
+            MenuFlyoutItem(
+                text = { Text(translateProviderOptionLabel(provider)) },
+                onClick = {
+                    state.selectTranslateProvider(provider)
+                    expanded = false
+                },
+            )
+        }
+        state.pluginTranslateProviders.forEach { plugin ->
+            key(plugin.pluginId) {
+                MenuFlyoutItem(
+                    text = { Text(plugin.name.resolveText()) },
+                    onClick = {
+                        expanded = false
+                        state.selectTranslationPlugin(plugin.pluginId)
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun translateProviderOptionLabel(provider: TranslateProviderOption): String =
     when (provider) {
+        TranslateProviderOption.Plugin -> "Plugin"
         TranslateProviderOption.AI -> stringResource(Res.string.settings_ai_config_translate_provider_ai)
         TranslateProviderOption.GoogleWeb -> stringResource(Res.string.settings_ai_config_translate_provider_google_web)
         TranslateProviderOption.DeepL -> stringResource(Res.string.settings_ai_config_translate_provider_deepl)
         TranslateProviderOption.GoogleCloud -> stringResource(Res.string.settings_ai_config_translate_provider_google_cloud)
         TranslateProviderOption.LibreTranslate -> stringResource(Res.string.settings_ai_config_translate_provider_libretranslate)
+    }
+
+@Composable
+private fun agentOpenAIApiLabel(api: AgentOpenAIApi): String =
+    when (api) {
+        AgentOpenAIApi.Auto -> stringResource(Res.string.settings_ai_config_agent_api_auto)
+        AgentOpenAIApi.Responses -> "Responses"
+        AgentOpenAIApi.ChatCompletions -> "Chat Completions"
     }
 
 @Composable

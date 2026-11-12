@@ -1,14 +1,16 @@
 # GitHub publication and upgrades
 
 GitHub is the recommended distribution path. Flare installs from a public
-`https://github.com/OWNER/REPOSITORY` URL (optional `.git` suffix), with one plugin
-at the repository root:
+`https://github.com/OWNER/REPOSITORY` URL (optional `.git` suffix). Add
+`?path=/plugins/example` to select a plugin directory. Omit the path for the
+repository root. Each selected directory contains a complete plugin:
 
 ```text
 manifest.json
-plugin.js
+plugin.js             # required for platform, translation or platformExtension
 assets/icon.png
 locales/en.json       # optional; other BCP-47 catalogs as needed
+settings/             # optional offline page and all its dependencies
 README.md            # author/user instructions, ignored by the importer
 ```
 
@@ -17,37 +19,65 @@ The package must contain exactly one `assets/icon.<extension>`: `png`, `jpg`,
 The icon is kept unchanged, limited to 2 MiB and 1024×1024 pixels. SVG is not
 supported. PNG remains the default in the templates.
 
+Translation, offline settings and platform extensions require Host API v2.
+Use the SDK for the target Flare build. A settings-only package can omit the
+background script, social platform and login methods. See [Flare and SDK versions](../README.md#match-flare-and-the-sdk)
+and [the settings-only manifest](storage-and-settings.md#settings-only-package).
+
 Development files may coexist in the repository. Flare selects the plugin files;
 it does not run a package manager, build script, or client-side bundler. Commit
-the already-built classic script, including all runtime dependencies. A Flare
-monorepo URL pointing to an example subdirectory is not a valid installation URL:
-copy that example's contents into a repository you own first.
+the already-built classic script when needed and all packaged page dependencies. Several
+plugins can share a repository, with separate directories and unique
+plugin/platform IDs. Files and resources are relative to the selected plugin
+directory; runtime files cannot depend on siblings. For example, repository
+snapshot tag `v9.0.0` can contain:
+
+| Plugin directory | Its manifest.version | Installation URL |
+| --- | --- | --- |
+| `plugins/first` | `1.4.0` | `https://github.com/OWNER/REPOSITORY?path=/plugins/first` |
+| `plugins/second` | `3.2.0` | `https://github.com/OWNER/REPOSITORY?path=/plugins/second` |
+
+Paths are relative to the repository root and case-sensitive. A leading/trailing
+slash is optional; omitting `path` or using `?path=/` selects the root. Use forward
+slashes and URL-encode spaces/reserved characters once, such as
+`?path=/plugins/My%20Plugin`. Dot segments (`.` or `..`), empty interior segments,
+backslashes, and repeated `path` parameters are rejected.
+
+Directory installation and independent plugin versions require a Flare release
+with this support; older Hosts only install root plugins with matching tags.
+Existing root installations keep using the repository root.
 
 ## Prepare and publish
 
-1. Adapt the website endpoints and verify the advertised features. Replace the
+1. Verify the advertised features, using verified endpoints for network features. Replace the
    name, description, and placeholder icon before publication. For manual template
-   copies, replace the example plugin/platform IDs; keep the unique IDs generated
-   by `npx flare-plugin-sdk@next init my-plugin` stable.
+   copies, replace the example plugin/platform IDs. Keep the unique IDs generated
+   by the SDK initializer stable.
    Keep real tokens, Cookies, passwords, and private fixtures out of Git history.
-2. Put the required files at root and check that a clean checkout contains them.
+2. Put the required files in the selected plugin directory and check that a clean
+   checkout contains them.
    For the TS starter, run `npm run build` and commit `src/`, the build files,
-   `package-lock.json`, and the newly built root `plugin.js`. Keep `plugin.js`
-   tracked; the generated `.gitignore` excludes dependencies and local artifacts.
+   `package-lock.json`, and the newly built `plugin.js` in that directory. Keep `plugin.js`
+   tracked when background code is declared. Build and commit all settings page
+   resources as well; Flare does not bundle them on the device. The generated
+   `.gitignore` excludes dependencies and local artifacts.
    Include README instructions for supported website/instances, token acquisition
    if relevant, features, permissions, and tests actually performed.
-3. Set a stable SemVer manifest version, for example `0.1.0`. Publish a tag
-   `0.1.0` or `v0.1.0` on the commit with those files. Removing the optional
-   **lowercase** `v` must exactly match manifest.version. Follow the same rule for
-   any permitted build metadata; plain major.minor.patch is the simplest choice.
-4. Share the repository URL. A GitHub Release page and uploaded `.fpp` asset are
+3. Set each plugin's own SemVer `manifest.version`. Publish a repository snapshot
+   tag such as `0.1.0` or `v0.1.0`; the optional prefix is **lowercase** `v`.
+   Flare selects the highest stable SemVer tag. The tag selects a repository
+   snapshot and does not need to equal any plugin's manifest version. Plugins in
+   the same repository can have independent versions. Increment the repository
+   tag whenever publishing a new snapshot.
+4. Share the repository URL, including `?path=/...` for a subdirectory. A GitHub
+   Release page and uploaded `.fpp` asset are
    not required. Creating/pushing the repository or tag follows the user's
    authorization; a generated project alone is not permission to publish it.
 5. The user enters the repository URL in Flare plugin management and clicks
-   **Install**. Flare selects and downloads the latest stable version, then shows
-   source and permission review in the same dialog. Only confirmation installs
-   the plugin; cancellation discards the download. Errors stay in the dialog for
-   retry. Successful installs take effect immediately; verify the installed
+   **Install**. Flare selects and downloads the latest stable repository snapshot,
+   then shows source and permission review in the same dialog. Only confirmation
+   installs the plugin; cancellation discards the download. Errors stay in the
+   dialog for retry. Successful installs take effect immediately; verify the installed
    tag/version and running behavior without restarting Flare.
 
 For a first release from a generated project, follow the complete Git setup,
@@ -58,26 +88,54 @@ Private repositories, arbitrary branch tracking, prerelease tags, automatic
 installation, and build-on-device are unsupported. A public repo without a stable
 version tag has no installable version, even if its default branch has valid files.
 
-Flare resolves the latest stable tag to a commit SHA and downloads that source ZIP.
+Flare resolves the latest stable tag to a commit SHA, downloads the full repository
+ZIP, and imports the selected plugin directory.
 Archive checks also inspect ignored development files for unsafe paths/symlinks,
-duplicates, multiple roots, and size limits. Do not commit node_modules, build
-caches, or unrelated large assets. See [limits](troubleshooting.md#limits).
+duplicates, multiple roots, and size limits. Downloads above 20 MiB ask for
+confirmation, including when their final size is initially unknown. Confirmed
+downloads are limited to 200 MiB, 512 MiB declared uncompressed content, and
+50,000 ZIP entries. Single-plugin limits remain separate. When the total size is
+unknown, the prompt appears after more than 20 MiB has been received. The partial
+file is removed; confirming starts a fresh download of the same pinned snapshot.
+Source and permission review still follows before installation. Cancellation
+removes temporary downloads. Keep node_modules and build caches out of Git. See
+[limits](troubleshooting.md#limits).
 
 ## Updates and compatibility
 
-Increment manifest.version and publish a new stable tag. Preserve plugin ID,
-platform ID, and the GitHub repository identity for an in-place update. Flare
-records repository ID, owner/name, tag, and SHA. A moved tag/source change or new
+Follow the [V1 migration steps](../ABI.md#migrate-an-api-v1-plugin) when adding
+V2 features. GitHub selects the repository's latest stable tag and then reads
+the selected plugin path. A snapshot that declares `apiVersion: 2` requires a V2
+Host. V1 Hosts keep their installed package if the update fails validation.
+
+Increment the changed plugin's manifest.version and publish a newer repository
+snapshot tag. Preserve plugin ID, any previously owned platform ID, repository identity, and directory
+for an in-place update. Flare records repository ID, owner/name, directory, tag,
+and SHA. A directory move is a source change requiring an explicit new install
+review; update checks do not switch directories or fall back to older tags when
+the latest snapshot is invalid. A moved tag/source change or new
 permission is surfaced in review; prefer a new tag over rewriting a published
 one. Failure/cancellation leaves the installed package intact.
 
 Opening management checks for updates using a five-minute metadata cache;
-manual checking bypasses it. Discovery only offers an update; download/review/
-confirmation are separate steps. GitHub metadata uses global proxy routing and
+manual checking bypasses it. Discovery compares the selected runtime files using
+Git blob hashes without
+downloading the repository ZIP. Unchanged plugin files do not offer an update
+even when the repository tag/SHA changes. The downloaded canonical package hash
+is checked again before review. Manifest, script, icon, locale and settings resource changes all
+count; README files and ZIP metadata do not. Download/review/confirmation remain
+separate steps. Failed checks are shown as plugin issues. GitHub metadata uses
+global proxy routing and
 rate-limit handling, not plugin account credentials. Excessive tag lists produce
 an error rather than an incomplete “latest version” answer.
 
-Install, update, and uninstall take effect immediately. Installed plugins are always enabled. There are no plugin lifecycle/migration callbacks. Media
+For the example above, snapshot `v9.1.0` could update `plugins/first` to `1.5.0`
+while leaving `plugins/second` at `3.2.0` with identical runtime files. Only the
+first plugin is offered an update. The second keeps its installed tag/SHA until
+its own runtime files change. A missing directory or failed check appears as a
+plugin issue; retry after fixing the snapshot or connection.
+
+Install, update, and uninstall take effect immediately. Installed plugins are always enabled. There are no general plugin lifecycle or credential migration callbacks. Optional account capability renegotiation runs in the background after upgrades. Media
 grants follow the running package; cached media retains plugin ownership and
 rechecks that package's permission. Missing plugins cannot restore their media.
 Uninstall records removal before account cleanup. Once that record is saved,
@@ -85,19 +143,37 @@ account-cleanup or final-index-write failures keep the plugin stopped across
 restart; retry deletion from management to finish. Updating or reinstalling
 cannot bypass incomplete removal. Unused package-file cleanup can be retried
 separately from management after deletion completes.
-Publishing controls follow the current account capabilities after replacement or
+Publishing controls follow the current account capabilities after capability renegotiation, replacement or
 relogin, without requiring the account list to change.
+
+Plugin storage survives updates; the plugin owns schema changes and downgrade
+compatibility. Uninstall removes it. Removing the social declaration keeps the
+installation's historical platform ownership for account cleanup and prevents
+another plugin from claiming that ID. Re-adding that same platform is allowed;
+changing an already owned platform ID is not. A plugin that has never owned one
+may add its first platform. Settings-only plugins do not need a synthetic platform.
 
 | Change | Author consequence |
 | --- | --- |
+| Adopt compose/v2 | Old compose/v1 packages remain supported. To adopt v2, declare supportedTypes and handle typed reference; existing accounts retain publish access and restrictions without a new login |
+| Adopt v2 header/session features | Set apiVersion to 2; older Hosts reject the package. Existing accounts with unchanged credentialSchemaVersion get Host session metadata atomically without relogin; installation review explains application response-header access |
+| Add storage, text translation or offline settings | Use Host API v2 and matching SDK types/resources; feature declarations can be combined or used without a social platform |
+| Change plugin data/configuration | Manage the JSON schema and migrations inside the plugin; storage writes update revisions, and declared translation dependencies invalidate cached/in-progress results |
+| Remove or restore the social platform | Retain its owned ID for account cleanup; restore that same ID, or add a first ID only if none has ever been owned |
+| Update a package with an open settings page | Reopen the page; the old document's Host session is revoked |
 | Credential payload format becomes incompatible | Increment credentialSchemaVersion; existing accounts require relogin, with no plugin migration hook |
 | Timeline IDs/parameters change incompatibly | Consider timelineSchemaVersion; it changes timeline identities and retires old specs. Explain that existing selections may need reconfiguration |
 | Capabilities removed | Running capabilities are filtered by the new manifest |
-| Operations newly declared compared with the account's saved manifest | Current Host admits those new operations without re-negotiating login; do not assume a new login will gate them |
-| Previously declared operation was not negotiated for the account | It remains unavailable unless account negotiation changes |
+| Ordinary datasource operations newly declared compared with the account's saved manifest | Current Host admits those new operations without re-negotiating login; do not assume a new login will gate them |
+| Add account-http, compose/v3, or new compose modes | Implement [account capability renegotiation](authentication.md#account-capability-renegotiation) to enable them for existing accounts without login; manifest declarations alone do not bypass saved restrictions |
+| Previously declared operation was not negotiated for the account | A successful renegotiation can enable it; otherwise it remains unavailable |
 | Package hash changes | Account adapter invalidates cached content when refreshing its persisted package snapshot |
 | Additive fields, detail types, item/media/action variants, capabilities or operations | Compatible Hosts ignore unsupported extensions; known content keeps its behavior and validation. Unknown detail/navigation types are inert, with no URL fallback |
 | Host predates additive compatibility, or an existing contract changes incompatibly | Require a compatible app release; a plugin update cannot retrofit Host behavior. API/schema version checks remain enforced |
+
+Partial search declarations require a Host release that supports them. Earlier
+Hosts require all five search operations and reject a partial declaration when
+installing or updating from the latest stable tag.
 
 Treat website/credential compatibility deliberately. A version bump alone does
 not convert stored credentials. Document new permissions and user-visible changes.
@@ -118,12 +194,13 @@ temporary directory and invokes the SDK packer. The result is `plugin.fpp` at
 project root; temporary staging is cleaned up. GitHub remains the recommended
 distribution path and this file has no GitHub update tracking.
 
-For other project layouts, create a new, empty `dist` directory. Copy only `manifest.json`, `plugin.js`,
-one supported `assets/icon.<extension>`, and optional `locales/*.json` into it,
+For other project layouts, create a new, empty `dist` directory. Copy `manifest.json`,
+one supported icon, the background script when needed, optional locale catalogs,
+and all packaged `settings/` resources into it,
 preserving those paths. From the project root:
 
 ```sh
-npx --package=flare-plugin-sdk@next flare-plugin-pack ./dist ../my-plugin.fpp
+node ./node_modules/flare-plugin-sdk/skill/flare-plugin/pack.mjs ./dist ../my-plugin.fpp
 ```
 
 The complete skill also includes the standard-library-only packer for use without

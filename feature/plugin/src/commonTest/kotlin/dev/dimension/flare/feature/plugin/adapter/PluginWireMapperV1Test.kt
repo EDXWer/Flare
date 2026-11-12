@@ -1,15 +1,23 @@
 package dev.dimension.flare.feature.plugin.adapter
 
+import dev.dimension.flare.data.datasource.microblog.ActionMenu
+import dev.dimension.flare.data.datasource.microblog.ComposeType
+import dev.dimension.flare.data.datasource.microblog.PostActionFamily
 import dev.dimension.flare.data.model.IconType
 import dev.dimension.flare.data.model.ProxyRef
 import dev.dimension.flare.feature.plugin.abi.PluginAbiV1
 import dev.dimension.flare.feature.plugin.abi.PluginJsonV1
 import dev.dimension.flare.feature.plugin.wire.ActionDescriptorV1
+import dev.dimension.flare.feature.plugin.wire.ArticleAttributionV1
+import dev.dimension.flare.feature.plugin.wire.ArticleBlockV1
 import dev.dimension.flare.feature.plugin.wire.ArticleV1
+import dev.dimension.flare.feature.plugin.wire.DirectMessageBodyV1
+import dev.dimension.flare.feature.plugin.wire.DirectMessageV1
 import dev.dimension.flare.feature.plugin.wire.EntityKeyV1
 import dev.dimension.flare.feature.plugin.wire.FeedSourceV1
 import dev.dimension.flare.feature.plugin.wire.FeedV1
 import dev.dimension.flare.feature.plugin.wire.GalleryV1
+import dev.dimension.flare.feature.plugin.wire.MediaClickPolicyV1
 import dev.dimension.flare.feature.plugin.wire.MediaTypeV1
 import dev.dimension.flare.feature.plugin.wire.MediaV1
 import dev.dimension.flare.feature.plugin.wire.MessageV1
@@ -18,18 +26,28 @@ import dev.dimension.flare.feature.plugin.wire.PostDetailTypeV1
 import dev.dimension.flare.feature.plugin.wire.PostPresentationV1
 import dev.dimension.flare.feature.plugin.wire.PostV1
 import dev.dimension.flare.feature.plugin.wire.ProfileV1
+import dev.dimension.flare.feature.plugin.wire.RelationV1
 import dev.dimension.flare.feature.plugin.wire.RichTextFormatV1
 import dev.dimension.flare.feature.plugin.wire.RichTextV1
 import dev.dimension.flare.feature.plugin.wire.SemanticActionV1
+import dev.dimension.flare.feature.plugin.wire.SocialListV1
 import dev.dimension.flare.feature.plugin.wire.TimelineItemV1
 import dev.dimension.flare.feature.plugin.wire.VisibilityV1
+import dev.dimension.flare.feature.plugin.wire.WireTextV1
+import dev.dimension.flare.feature.plugin.wire.requireValid
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.model.ClickEvent
+import dev.dimension.flare.ui.model.UiArticleAuthor
 import dev.dimension.flare.ui.model.UiArticleBlock
+import dev.dimension.flare.ui.model.UiDMItem
 import dev.dimension.flare.ui.model.UiIcon
+import dev.dimension.flare.ui.model.UiMedia
+import dev.dimension.flare.ui.model.UiNumber
+import dev.dimension.flare.ui.model.UiProfile
 import dev.dimension.flare.ui.model.UiTimelineV2
 import dev.dimension.flare.ui.model.asType
+import dev.dimension.flare.ui.model.withProxy
 import dev.dimension.flare.ui.route.DeeplinkRoute
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -55,6 +73,228 @@ class PluginWireMapperV1Test {
             createdAt = "2026-10-27T00:00:00Z",
             content = RichTextV1(value = "Preview"),
         )
+
+    @Test
+    fun postSubtitleAudienceAndCountsReachExistingControls() {
+        val target = NavigationTargetV1.TimelinePage("replies", WireTextV1(value = "Replies"))
+        val value =
+            post.copy(
+                authorSubtitle = "Published in Beijing",
+                extendedVisibility = VisibilityV1.Friends,
+                target = target,
+                mediaClickPolicy = MediaClickPolicyV1.OpenTarget,
+                favouritesCount = 9,
+                repostsCount = 12,
+                repliesCount = 5,
+                actions =
+                    listOf(
+                        ActionDescriptorV1(SemanticActionV1.Favourite, count = 0),
+                        ActionDescriptorV1(SemanticActionV1.Unrepost),
+                        ActionDescriptorV1(SemanticActionV1.Reply),
+                    ),
+            )
+        val mapped = mapper.post(value).post
+        assertEquals("Published in Beijing", mapped.authorSubtitle)
+        assertEquals(UiTimelineV2.Post.Visibility.Friends, mapped.visibility)
+        assertEquals(UiTimelineV2.Post.MediaClickPolicy.OpenPostClickEvent, mapped.mediaClickPolicy)
+        val actions = mapped.actions.filterIsInstance<ActionMenu.Item>().associate { it.actionFamily to it.count }
+        assertEquals(UiNumber(0), actions[PostActionFamily.Like])
+        assertEquals(UiNumber(12), actions[PostActionFamily.Repost])
+        assertEquals(UiNumber(5), actions[PostActionFamily.Reply])
+        val encoded = PluginJsonV1.encodeToJsonElement(value).jsonObject
+        assertNull(encoded["visibility"])
+        assertEquals(JsonPrimitive("friends"), encoded["extendedVisibility"])
+        assertFailsWith<IllegalArgumentException> { mapper.post(value.copy(visibility = VisibilityV1.Public)) }
+        assertFailsWith<IllegalArgumentException> { mapper.post(post.copy(visibility = VisibilityV1.SelfOnly)) }
+    }
+
+    @Test
+    fun profileAndListMetadataRespectNavigationAndMediaGrants() {
+        val avatar = "https://remote.example/avatar.png"
+        val value =
+            author.copy(
+                url = "https://remote.example/alice",
+                verified = true,
+                cat = true,
+                displayNameRichText = RichTextV1(RichTextFormatV1.Html, "Alice <emoji target='$avatar' alt=':sparkle:'>"),
+                sourceLanguages = listOf("en"),
+            )
+        val profile = mapper.profile(value)
+        assertEquals(listOf(UiProfile.Mark.Verified, UiProfile.Mark.Cat), profile.mark)
+        assertEquals(listOf("en"), profile.sourceLanguages)
+        assertEquals(listOf(avatar), profile.name.imageUrls)
+        val guest = createMapper(null, mediaNetwork = false, profileAvailable = false)
+        assertEquals(
+            ClickEvent.Deeplink(DeeplinkRoute.OpenLinkDirectly(requireNotNull(value.url))),
+            guest.cachedProfile(value).clickEvent,
+        )
+        assertEquals("Alice", guest.cachedProfile(value).name.raw)
+        assertFailsWith<IllegalArgumentException> { guest.profile(value) }
+
+        val list = SocialListV1("news", "News", description = "Editors", avatarUrl = avatar, creator = author, readOnly = true)
+        val mapped = mapper.socialList(list)
+        assertEquals("Editors", mapped.description)
+        assertEquals(avatar, mapped.avatar)
+        assertEquals(author.key.id, mapped.creator?.key?.id)
+        assertEquals(true, mapped.readonly)
+        assertFailsWith<IllegalArgumentException> { guest.socialList(list) }
+    }
+
+    @Test
+    fun nicknameFormattingAndProfileLinkChangesInvalidateCachedPosts() {
+        val mapper = createMapper(MicroBlogKey("me", "local.example"), profileAvailable = false)
+        val profile = author.copy(url = "https://remote.example/alice")
+        val original = mapper.post(post.copy(author = profile))
+        val restyled =
+            mapper.post(
+                post.copy(author = profile.copy(displayNameRichText = RichTextV1(RichTextFormatV1.Html, "<b>Alice</b>"))),
+            )
+        val redirected = mapper.post(post.copy(author = profile.copy(url = "https://remote.example/profiles/alice")))
+
+        assertEquals(
+            original.post.user
+                ?.name
+                ?.raw,
+            restyled.post.user
+                ?.name
+                ?.raw,
+        )
+        for (updated in listOf(restyled, redirected)) {
+            assertEquals(original.stableItemKey, updated.stableItemKey)
+            assertNotEquals(original.renderHash, updated.renderHash)
+            assertNotEquals(original.post.renderHash, updated.post.renderHash)
+        }
+    }
+
+    @Test
+    fun relationSnapshotIncludesBothDirectionsOfFollowRequests() {
+        val relation =
+            mapper.relation(
+                RelationV1(author.key, blockedBy = true, hasPendingFollowRequestFromYou = true, hasPendingFollowRequestToYou = true),
+            )
+        assertEquals(true, relation.blockedBy)
+        assertEquals(true, relation.hasPendingFollowRequestFromYou)
+        assertEquals(true, relation.hasPendingFollowRequestToYou)
+    }
+
+    @Test
+    fun structuredArticleBlocksAndMessageBodiesUseNativeVariants() {
+        val mapper = createMapper(MicroBlogKey("me", "local.example"), pluginId = "test.article")
+        val video = MediaV1("v", MediaTypeV1.Video, "https://remote.example/video.mp4")
+        val imageUrl = "https://remote.example/preview.png"
+        val article =
+            ArticleV1(
+                key = post.key,
+                title = "Article",
+                content = RichTextV1(value = "Legacy summary"),
+                attribution = ArticleAttributionV1(siteName = "Example", byline = "Alice"),
+                blocks =
+                    listOf(
+                        ArticleBlockV1.Text(RichTextV1(value = "Paragraph")),
+                        ArticleBlockV1.Video(video),
+                        ArticleBlockV1.File("notes.pdf", "https://remote.example/notes.pdf", sizeBytes = 1_024),
+                        ArticleBlockV1.Embed("https://remote.example/more", title = "Read more", imageUrl = imageUrl),
+                        ArticleBlockV1.ContentGate("https://remote.example/subscribe"),
+                    ),
+            )
+        val mapped = mapper.article(PluginJsonV1.decodeFromString<ArticleV1>(PluginJsonV1.encodeToString(article)))
+        assertEquals("Alice", assertIs<UiArticleAuthor.Rss>(mapped.author).byline)
+        assertEquals("Paragraph", assertIs<UiArticleBlock.Text>(mapped.content.blocks[0]).richText.raw)
+        assertEquals(video.url, assertIs<UiArticleBlock.Video>(mapped.content.blocks[1]).media.url)
+        assertEquals("notes.pdf", assertIs<UiArticleBlock.File>(mapped.content.blocks[2]).name)
+        assertEquals(imageUrl, assertIs<UiArticleBlock.Embed>(mapped.content.blocks[3]).imageUrl)
+        assertIs<UiArticleBlock.ContentGate>(mapped.content.blocks[4])
+        val restoredEmbed =
+            mapped
+                .withProxy(ProxyRef.Global)
+                .content.blocks
+                .filterIsInstance<UiArticleBlock.Embed>()
+                .single()
+        assertEquals("https://remote.example/more", restoredEmbed.url)
+        assertNull(restoredEmbed.imageUrl)
+        assertFailsWith<IllegalArgumentException> {
+            article.copy(blocks = listOf(ArticleBlockV1.Embed("http://remote.example/"))).requireValid()
+        }
+        assertFailsWith<IllegalArgumentException> {
+            article.copy(blocks = listOf(ArticleBlockV1.File("../notes.pdf", "https://remote.example/notes.pdf"))).requireValid()
+        }
+
+        val message = DirectMessageV1(post.key, EntityKeyV1("room", post.key.host), author, post.createdAt, post.content)
+
+        fun body(value: DirectMessageBodyV1): UiDMItem.Message {
+            val encoded = PluginJsonV1.encodeToString(message.copy(body = value))
+            return mapper.directMessage(PluginJsonV1.decodeFromString<DirectMessageV1>(encoded)).content
+        }
+        assertEquals(video.url, assertIs<UiDMItem.Message.Media>(body(DirectMessageBodyV1.Media(video))).media.url)
+        assertEquals(post.key.id, assertIs<UiDMItem.Message.Status>(body(DirectMessageBodyV1.Post(post))).status.statusKey.id)
+        assertIs<UiDMItem.Message.Deleted>(body(DirectMessageBodyV1.Deleted))
+        assertEquals(post.content.value, assertIs<UiDMItem.Message.Text>(mapper.directMessage(message).content).text.raw)
+    }
+
+    @Test
+    fun postAndQuoteTargetsOverrideNavigationWithoutChangingMediaOrEntityIdentity() {
+        val pageTarget = NavigationTargetV1.TimelinePage("replies", WireTextV1(value = "Replies"), mapOf("parentId" to "123"))
+        val quote = post.copy(key = EntityKeyV1("quote", post.key.host), target = pageTarget)
+        val main = post.copy(target = NavigationTargetV1.Link("https://remote.example/topic"))
+        val mapped =
+            assertIs<UiTimelineV2.TimelinePostItem>(
+                mapper.timelineItem(TimelineItemV1.Post(main, PostPresentationV1(quotes = listOf(quote)))),
+            )
+        assertEquals(mapper.post(post).post.mediaClickPolicy, mapped.post.mediaClickPolicy)
+        assertEquals(MicroBlogKey(post.key.id, post.key.host), mapped.post.statusKey)
+        assertEquals(ClickEvent.Deeplink(DeeplinkRoute.OpenLinkDirectly("https://remote.example/topic")), mapped.post.clickEvent)
+        val route =
+            assertIs<DeeplinkRoute.Timeline.Page>(
+                DeeplinkRoute.parse(
+                    assertIs<ClickEvent.Deeplink>(
+                        mapped.presentation.quotes
+                            .single()
+                            .clickEvent,
+                    ).url,
+                ),
+            )
+        assertEquals("test.plugin", route.pluginId)
+        assertEquals(AccountType.Specific(MicroBlogKey("me", "local.example")), route.accountType)
+        assertEquals("replies", route.pageId)
+        assertEquals(mapOf("parentId" to "123"), route.parameters)
+        assertEquals(
+            mapped.presentation.quotes
+                .single()
+                .clickEvent,
+            mapper.post(quote.copy(favouritesCount = 1)).post.clickEvent,
+        )
+        val cover = mapper.post(quote.copy(detailType = PostDetailTypeV1.Article)).post
+        assertEquals(UiTimelineV2.Post.MediaClickPolicy.OpenPostClickEvent, cover.mediaClickPolicy)
+        assertEquals(
+            mapped.presentation.quotes
+                .single()
+                .clickEvent,
+            cover.clickEvent,
+        )
+    }
+
+    @Test
+    fun explicitUnknownPostTargetNeverFallsBackAndTargetParametersAreValidated() {
+        assertEquals(ClickEvent.Noop, mapper.post(post.copy(target = NavigationTargetV1.Unknown)).post.clickEvent)
+        assertEquals(mapper.post(post).post.clickEvent, mapper.post(post.copy(target = null)).post.clickEvent)
+        val valid = NavigationTargetV1.TimelinePage("replies", WireTextV1(value = "Replies"))
+        valid.requireValid()
+        assertFailsWith<IllegalArgumentException> { post.copy(target = valid.copy(pageId = "../bad")).requireValid() }
+        assertFailsWith<IllegalArgumentException> { valid.copy(parameters = mapOf("parentId" to "x".repeat(4097))).requireValid() }
+        assertFailsWith<IllegalArgumentException> { valid.copy(title = WireTextV1()).requireValid() }
+    }
+
+    @Test
+    fun quoteUsesTheComposeRouteWithoutRepostMutationAndHonoursSupportedModes() {
+        val account = MicroBlogKey("me", "local.example")
+        val value = post.copy(actions = listOf(ActionDescriptorV1(SemanticActionV1.Reply), ActionDescriptorV1(SemanticActionV1.Quote)))
+        val mapped = createMapper(account, postMutationAvailable = false).post(value).post
+        val quote = mapped.actions.filterIsInstance<ActionMenu.Item>().single { it.actionFamily == PostActionFamily.Quote }
+        assertEquals(true, quote.enabled)
+        assertEquals(ClickEvent.Deeplink(DeeplinkRoute.Compose.Quote(account, MicroBlogKey(post.key.id, post.key.host))), quote.clickEvent)
+        val unsupported = createMapper(account, supportedComposeTypes = setOf(ComposeType.New, ComposeType.Reply)).post(value).post
+        assertEquals(false, unsupported.actions.filterIsInstance<ActionMenu.Item>().any { it.actionFamily == PostActionFamily.Quote })
+    }
 
     @Test
     fun unknownDetailsKeepThePreviewButDisableEveryPostClickForAccountsAndGuests() {
@@ -237,6 +477,47 @@ class PluginWireMapperV1Test {
             false,
             dev.dimension.flare.ui.model.PluginMediaPermissions
                 .isAllowed(profile.pluginId!!),
+        )
+    }
+
+    @Test
+    fun mediaHeadersReachAllNativeVariantsAndTheirPreviews() {
+        val headers = mapOf("Referer" to "https://local.example/", "X-Media-Token" to "fixture-token")
+        MediaTypeV1.entries.filterNot { it == MediaTypeV1.Unknown }.forEach { type ->
+            val media =
+                MediaV1(
+                    "media",
+                    type,
+                    "https://cdn.example/media",
+                    previewUrl = "https://preview.example/image.jpg",
+                    ugoiraKey = post.key.takeIf { type == MediaTypeV1.Ugoira },
+                    customHeaders = headers,
+                )
+            val mapped =
+                mapper
+                    .post(post.copy(media = listOf(media)))
+                    .post.images
+                    .single()
+            assertEquals<Map<String, String>?>(headers, mapped.customHeaders)
+            assertEquals<Map<String, String>?>(headers, assertNotNull(mapped.preview).customHeaders)
+            assertEquals(ProxyRef.Account(MicroBlogKey("me", "local.example")), mapped.proxy)
+            val cached = PluginJsonV1.decodeFromString<UiMedia>(PluginJsonV1.encodeToString(UiMedia.serializer(), mapped))
+            assertEquals<Map<String, String>?>(headers, cached.customHeaders)
+            assertEquals<Map<String, String>?>(headers, cached.preview?.customHeaders)
+        }
+        val denied = createMapper(null, mediaNetwork = false)
+        assertFailsWith<IllegalArgumentException> {
+            denied.post(
+                post.copy(media = listOf(MediaV1("media", MediaTypeV1.Image, "https://cdn.example/image", customHeaders = headers))),
+            )
+        }
+        assertNull(
+            mapper
+                .post(
+                    post.copy(media = listOf(MediaV1("media", MediaTypeV1.Image, "https://cdn.example/image"))),
+                ).post.images
+                .single()
+                .customHeaders,
         )
     }
 
@@ -480,9 +761,13 @@ class PluginWireMapperV1Test {
         mediaNetwork: Boolean = true,
         postMutationAvailable: Boolean = true,
         platformIcon: IconType = UiIcon.World.asType(),
+        supportedComposeTypes: Set<ComposeType> = ComposeType.entries.toSet(),
+        profileAvailable: Boolean = true,
+        pluginId: String = "test.plugin",
     ): PluginWireMapperV1 =
         PluginWireMapperV1(
-            pluginId = "test.plugin",
+            supportedComposeTypes = supportedComposeTypes,
+            pluginId = pluginId,
             platformIcon = platformIcon,
             mediaNetwork = mediaNetwork,
             platformId = "Test",
@@ -492,9 +777,11 @@ class PluginWireMapperV1Test {
                 PluginSessionCapabilitiesV1(
                     declarations = emptyMap(),
                     operations =
-                        PluginAbiV1.knownCapabilityOperations.mapValues { (id, operations) ->
-                            if (id == PluginAbiV1.Capabilities.POST && !postMutationAvailable) operations - "mutate" else operations
-                        },
+                        PluginAbiV1.knownCapabilityOperations
+                            .filterKeys { profileAvailable || it != PluginAbiV1.Capabilities.PROFILE }
+                            .mapValues { (id, operations) ->
+                                if (id == PluginAbiV1.Capabilities.POST && !postMutationAvailable) operations - "mutate" else operations
+                            },
                     authenticated = accountKey != null,
                 ),
         )

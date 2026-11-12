@@ -6,6 +6,8 @@ import dev.dimension.flare.common.CacheData
 import dev.dimension.flare.common.FileItem
 import dev.dimension.flare.common.MemCacheable
 import dev.dimension.flare.common.decodeJson
+import dev.dimension.flare.data.datasource.microblog.AccountHttpCapability
+import dev.dimension.flare.data.datasource.microblog.AccountHttpRequest
 import dev.dimension.flare.data.datasource.microblog.AuthenticatedMicroblogDataSource
 import dev.dimension.flare.data.datasource.microblog.ComposeConfig
 import dev.dimension.flare.data.datasource.microblog.ComposeData
@@ -16,6 +18,7 @@ import dev.dimension.flare.data.datasource.microblog.NotificationFilter
 import dev.dimension.flare.data.datasource.microblog.NotificationTimelineDataSource
 import dev.dimension.flare.data.datasource.microblog.PostEvent
 import dev.dimension.flare.data.datasource.microblog.ProfileTab
+import dev.dimension.flare.data.datasource.microblog.SearchOperation
 import dev.dimension.flare.data.datasource.microblog.datasource.NotificationDataSource
 import dev.dimension.flare.data.datasource.microblog.datasource.PinnableTimelineTabDataSource
 import dev.dimension.flare.data.datasource.microblog.datasource.PinnableTimelineTabSection
@@ -33,6 +36,7 @@ import dev.dimension.flare.data.datasource.microblog.paging.PagingRequest
 import dev.dimension.flare.data.datasource.microblog.paging.PagingResult
 import dev.dimension.flare.data.datasource.microblog.paging.RemoteLoader
 import dev.dimension.flare.data.datasource.microblog.paging.ShareRepliesLoader
+import dev.dimension.flare.data.datasource.microblog.paging.notSupported
 import dev.dimension.flare.data.datasource.microblog.pagingConfig
 import dev.dimension.flare.data.model.IconType
 import dev.dimension.flare.data.model.ProxyRef
@@ -108,7 +112,13 @@ internal class VVODataSource(
     TimelineTabConfigurationDataSource,
     PinnableTimelineTabDataSource,
     PostDataSource,
+    AccountHttpCapability,
     PostEventHandler.Handler {
+    override val accountOrigin = "https://m.weibo.cn"
+    override val origins: Set<String> = setOf("https://m.weibo.cn", "https://weibo.com")
+
+    override suspend fun authenticate(request: AccountHttpRequest): Map<String, String> = service.extensionAuthHeaders(request.url)
+
     private val imageCompressor: ImageCompressor by koinInject()
     private val service by lazy {
         VVOService(
@@ -400,6 +410,8 @@ internal class VVODataSource(
             }
         }
 
+    override val searchOperations: Set<SearchOperation> = SearchOperation.entries.toSet() - SearchOperation.DiscoverProfiles
+
     override fun searchStatus(query: String) =
         SearchStatusRemoteMediator(
             service = service,
@@ -414,16 +426,7 @@ internal class VVODataSource(
             query = query,
         )
 
-    override fun discoverUsers(): RemoteLoader<UiProfile> =
-        object : RemoteLoader<UiProfile> {
-            override suspend fun load(
-                pageSize: Int,
-                request: PagingRequest,
-            ): PagingResult<UiProfile> =
-                PagingResult(
-                    endOfPaginationReached = true,
-                )
-        }
+    override fun discoverUsers(): RemoteLoader<UiProfile> = notSupported()
 
     override fun discoverStatuses() =
         DiscoverStatusRemoteMediator(

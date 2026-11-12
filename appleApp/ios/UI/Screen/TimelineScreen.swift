@@ -15,6 +15,7 @@ struct TimelineScreen: View {
     @Environment(\.appSettings) private var appSettings
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.tabBarNotificationCenter) private var tabBarNotificationCenter
     @State var presenter: KotlinPresenter<TimelineItemPresenterState>
     @State private var isAtTop = true
     @State private var isTabRefreshInFlight = false
@@ -75,7 +76,7 @@ struct TimelineScreen: View {
             .refreshable {
                 try? await presenter.state.refreshSuspend()
             }
-            .onReceive(NotificationCenter.default.publisher(for: .tabDoubleTapped)) { notification in
+            .onReceive((tabBarNotificationCenter ?? .default).publisher(for: .tabDoubleTapped)) { notification in
                 guard notification.object as? String == HomeTabsPresenterStateHomeTabs.home.name.lowercased(),
                       isHomeTimeline, isAtTop, !isTabRefreshInFlight,
                       !presenter.state.isRefreshing else { return }
@@ -107,5 +108,30 @@ struct ListTimelineScreen:  View {
     let tabItem: UiTimelineTabItem
     var body: some View {
         TimelineScreen(tabItem: tabItem)
+    }
+}
+
+struct TimelinePageScreen: View {
+    let page: DeeplinkRoute.TimelinePage
+    @Environment(\.timelineAppearance) private var timelineAppearance
+    @State private var presenter: KotlinPresenter<TimelinePagePresenterState>
+
+    init(page: DeeplinkRoute.TimelinePage) {
+        self.page = page
+        _presenter = .init(wrappedValue: .init(presenter: TimelinePagePresenter(page: page)))
+    }
+
+    var body: some View {
+        UITimelinePagingView(
+            data: presenter.state.listState,
+            detailStatusKey: nil,
+            key: presenter.key,
+            columnPolicy: .single
+        )
+        .environment(\.timelineAppearance, TimelinePagePresenter.companion.appearance(base: timelineAppearance))
+        .navigationTitle(page.title.text)
+        .refreshable { try? await presenter.state.refreshSuspend() }
+        .onAppear { presenter.state.setActive(active: true) }
+        .onDisappear { presenter.state.setActive(active: false) }
     }
 }

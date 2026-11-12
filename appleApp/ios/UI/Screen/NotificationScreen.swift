@@ -8,6 +8,7 @@ import FlareAppleCore
 
 struct NotificationScreen: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.tabBarNotificationCenter) private var tabBarNotificationCenter
     @State private var presenter: KotlinPresenter<AllNotificationPresenterState> = .init(presenter: AllNotificationPresenter())
     @State private var selectedAccountStableKey: String?
     @State private var selectedFilter: NotificationFilter?
@@ -89,7 +90,7 @@ struct NotificationScreen: View {
             .refreshable {
                 try? await presenter.state.refreshSuspend()
             }
-            .onReceive(NotificationCenter.default.publisher(for: .tabDoubleTapped)) { notification in
+            .onReceive((tabBarNotificationCenter ?? .default).publisher(for: .tabDoubleTapped)) { notification in
                 guard notification.object as? String == HomeTabsPresenterStateHomeTabs.notifications.name.lowercased(),
                       case .success(let timeline) = onEnum(of: presenter.state.timeline),
                       isAtTop, !isTabRefreshInFlight, !timeline.isRefreshing else { return }

@@ -12,7 +12,9 @@ import app.cash.molecule.moleculeFlow
 import dev.dimension.flare.common.PagingState
 import dev.dimension.flare.feature.agent.common.AgentChatHistoryProvider
 import dev.dimension.flare.feature.agent.common.AgentChatRoom
+import dev.dimension.flare.feature.agent.common.AgentConfigurationException
 import dev.dimension.flare.feature.agent.common.AgentConversationEvent
+import dev.dimension.flare.feature.agent.common.AgentFailureKind
 import dev.dimension.flare.feature.agent.common.AgentPendingInputRequest
 import dev.dimension.flare.feature.agent.common.AgentRetryMode
 import dev.dimension.flare.feature.agent.common.AgentRetryableException
@@ -190,8 +192,9 @@ class AgentChatRetryTest {
                             runAgent = { _, input, _, retryMode ->
                                 flow<AgentConversationEvent<Unit, AgentTrace>> {
                                     requests += input to retryMode
-                                    if (requests.size == 1) {
-                                        throw AgentRetryableException(IllegalStateException("Provider failure"), AgentRetryMode.Resume)
+                                    when (requests.size) {
+                                        1 -> throw AgentRetryableException(IllegalStateException("Provider failure"), AgentRetryMode.Resume)
+                                        2 -> throw AgentConfigurationException("Restore the original protocol to retry this turn.")
                                     }
                                 }
                             },
@@ -227,10 +230,14 @@ class AgentChatRetryTest {
                 failed.retry()
                 failed.retry()
                 Snapshot.sendApplyNotifications()
-                val retried = states.filterNotNull().first { requests.size == 2 && !it.room.isRunning && it.room.error == null }
+                val rejected =
+                    states.filterNotNull().first { !it.room.isRunning && it.room.error?.kind == AgentFailureKind.Configuration }
+                assertTrue(rejected.room.error?.canRetry == true)
+                rejected.retry()
+                val retried = states.filterNotNull().first { requests.size == 3 && !it.room.isRunning && it.room.error == null }
                 assertEquals("My next draft", retried.input)
                 assertEquals<List<Pair<String?, AgentRetryMode?>>>(
-                    listOf("Original question" to null, "Original question" to AgentRetryMode.Resume),
+                    listOf("Original question" to null) + List(2) { "Original question" to AgentRetryMode.Resume },
                     requests,
                 )
                 assertEquals(1, history.observeMessages("retry-test").first().count { it.isUser })
