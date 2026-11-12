@@ -77,9 +77,7 @@ internal data class PluginDevelopmentSourceV1(
                     .decodeFromString<PluginManifestV1>(
                         files.getValue(FppPaths.MANIFEST).decodeToString(),
                     )
-            require((manifest.platform == null && manifest.translation == null) || FppPaths.ENTRY in files) {
-                "Background capabilities require plugin.js"
-            }
+            manifest.requireBackgroundScript(FppPaths.ENTRY in files)
             val digest = Buffer()
             files.forEach { (name, bytes) ->
                 digest

@@ -11,6 +11,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
 
 class PluginDevelopmentSourceV1Test {
@@ -91,6 +92,27 @@ class PluginDevelopmentSourceV1Test {
         files.write(root / "elsewhere.js") { writeUtf8(TestFppFactory.validScript) }
         files.createSymlink(root / "plugin.js", root / "elsewhere.js")
         assertFails { PluginDevelopmentSourceV1.read(files, root) }
+    }
+
+    @Test
+    fun extensionOnlyDevelopmentSourceRequiresBackgroundScript() {
+        files.write(root / "manifest.json") {
+            writeUtf8(
+                """
+                {
+                  "apiVersion": 2, "id": "org.example.extension", "version": "1.0.0", "name": "Test extension",
+                  "platformExtension": {
+                    "targets": [{"platformId": "TestPlugin", "authOrigins": ["https://example.invalid"]}],
+                    "actions": [{"id": "testAction", "title": "Test action"}]
+                  }
+                }
+                """.trimIndent(),
+            )
+        }
+        PluginDevelopmentSourceV1.read(files, root)
+        files.delete(root / "plugin.js")
+        val error = assertFailsWith<IllegalArgumentException> { PluginDevelopmentSourceV1.read(files, root) }
+        assertEquals("Background capabilities require plugin.js", error.message)
     }
 
     @Test

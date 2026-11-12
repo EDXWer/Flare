@@ -35,9 +35,7 @@ internal class PluginPackageValidator(
         val manifest = decodeManifest(archive.files.getValue(FppPaths.MANIFEST))
         require(manifest.apiVersion in PluginAbiV1.supportedApiVersions) { "Unsupported API version" }
         val source = archive.files[FppPaths.ENTRY]?.let { decodeUtf8(it, FppPaths.ENTRY) }
-        require(
-            source != null || (manifest.platform == null && manifest.translation == null && manifest.platformExtension == null),
-        ) { "Background capabilities require plugin.js" }
+        manifest.requireBackgroundScript(source != null)
         require(source == null || '\u0000' !in source) { "plugin.js contains a null character" }
         val methodTable =
             source?.let { registrationInspector.inspect(it, manifest.apiVersion) }
@@ -158,6 +156,12 @@ private fun ByteArray.uint32BigEndian(offset: Int): Long =
         ((this[offset + 1].toLong() and 0xff) shl 16) or
         ((this[offset + 2].toLong() and 0xff) shl 8) or
         (this[offset + 3].toLong() and 0xff)
+
+internal fun PluginManifestV1.requireBackgroundScript(hasScript: Boolean) {
+    require(hasScript || (platform == null && translation == null && platformExtension == null)) {
+        "Background capabilities require plugin.js"
+    }
+}
 
 private fun PluginManifestV1.localizedKeys(): Set<String> =
     buildSet {
