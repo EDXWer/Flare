@@ -864,4 +864,7 @@
     <string name="visibility_friends_description">仅互相关注的好友可以看到此微博</string>
     <string name="visibility_self">仅自己可见</string>
     <string name="visibility_self_description">仅你自己可以看到此微博</string>
+    <string name="settings_ai_config_agent_api">API 协议</string>
+    <string name="settings_ai_config_agent_api_auto">自动</string>
+    <string name="settings_ai_config_agent_server_url_requirement">请输入 API 基础 URL，例如 https://api.openai.com/v1。Agent 会附加所选协议的路径。</string>
 </resources>

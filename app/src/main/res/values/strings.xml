@@ -1028,4 +1028,7 @@
     <string name="empty_languages">No matching languages</string>
     <string name="empty_search_history">Search for posts or users to get started.</string>
     <string name="empty_media">No media available</string>
+    <string name="settings_ai_config_agent_api">API protocol</string>
+    <string name="settings_ai_config_agent_api_auto">Auto</string>
+    <string name="settings_ai_config_agent_server_url_requirement">Enter the API base URL, such as https://api.openai.com/v1. The Agent appends the selected API path.</string>
 </resources>

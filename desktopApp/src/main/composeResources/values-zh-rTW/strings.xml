@@ -722,4 +722,7 @@
     <string name="visibility_friends_description">僅互相關注的好友可以看到此微博</string>
     <string name="visibility_self">僅自己可見</string>
     <string name="visibility_self_description">僅你自己可以看到此微博</string>
+    <string name="settings_ai_config_agent_api">API 協定</string>
+    <string name="settings_ai_config_agent_api_auto">自動</string>
+    <string name="settings_ai_config_agent_server_url_requirement">請輸入 API 基礎網址，例如 https://api.openai.com/v1。Agent 會附加所選協定的路徑。</string>
 </resources>

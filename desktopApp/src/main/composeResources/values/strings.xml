@@ -917,4 +917,7 @@
     <string name="visibility_friends_description">Only people who follow you and whom you follow can see this post</string>
     <string name="visibility_self">Only me</string>
     <string name="visibility_self_description">Only you can see this post</string>
+    <string name="settings_ai_config_agent_api">API protocol</string>
+    <string name="settings_ai_config_agent_api_auto">Auto</string>
+    <string name="settings_ai_config_agent_server_url_requirement">Enter the API base URL, such as https://api.openai.com/v1. The Agent appends the selected API path.</string>
 </resources>

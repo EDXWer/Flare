@@ -2,6 +2,7 @@ package dev.dimension.flare.feature.agent.runtime
 
 import ai.koog.http.client.KoogHttpClient
 import ai.koog.http.client.ktor.KtorKoogHttpClient
+import ai.koog.prompt.message.Message
 import dev.dimension.flare.data.network.ktorClient
 import dev.dimension.flare.data.repository.SettingsRepository
 import kotlinx.coroutines.flow.Flow
@@ -35,7 +36,7 @@ internal class FlareAgentRuntimeProvider(
                 .aiConfig,
         )
 
-    suspend fun createRuntime(): FlareAgentRuntime? =
+    suspend fun createRuntime(retryToolCalls: List<Message.Assistant> = emptyList()): FlareAgentRuntime? =
         bridge.createRuntime(
             aiConfig =
                 settingsRepository
@@ -43,5 +44,6 @@ internal class FlareAgentRuntimeProvider(
                     .first()
                     .aiConfig,
             httpClientFactory = httpClientFactory,
+            retryToolCalls = retryToolCalls,
         )
 }

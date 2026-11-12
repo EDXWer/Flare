@@ -7,7 +7,9 @@ import ai.koog.http.client.ktor.KtorKoogHttpClient
 import ai.koog.prompt.Prompt
 import ai.koog.prompt.message.Message
 import ai.koog.serialization.typeToken
+import dev.dimension.flare.data.datastore.model.AgentOpenAIApi
 import dev.dimension.flare.data.datastore.model.AppSettings
+import dev.dimension.flare.feature.agent.common.AgentConfigurationException
 import dev.dimension.flare.feature.agent.common.AgentToolSet
 import dev.dimension.flare.feature.agent.common.FlareAgentRequest
 import dev.dimension.flare.feature.agent.common.createAgent
@@ -16,6 +18,7 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
@@ -262,6 +265,140 @@ class AgentAiConfigurationTest {
                         KtorKoogHttpClient.Factory(baseClient = client),
                     )
                 }
+            }
+        }
+    }
+
+    @Test
+    fun remembersCompletionsWhenThePreferredEndpointIsUnavailable() =
+        runTest {
+            val bridge = AiConfigKoogBridge()
+            val requests = mutableListOf<String>()
+            val engine =
+                MockEngine { request ->
+                    requests += request.url.encodedPath
+                    if (request.url.encodedPath == "/v1/responses") {
+                        respond("""{"detail":"Not Found"}""", HttpStatusCode.NotFound)
+                    } else {
+                        assertEquals("/v1/chat/completions", request.url.encodedPath)
+                        val body = Json.parseToJsonElement((request.body as TextContent).text).jsonObject
+                        assertEquals("high", body["reasoning_effort"]?.jsonPrimitive?.content)
+                        respond(
+                            """{"id":"response","object":"chat.completion","created":0,"model":"future-model","choices":[{"index":0,"message":{"role":"assistant","content":"done"},"finish_reason":"stop"}]}""",
+                        )
+                    }
+                }
+            HttpClient(engine).use { client ->
+                val config = independent.copy(serverUrl = "https://api.openai.com/v1/", model = "future-model")
+                for (connection in listOf(config, config, config.copy(apiKey = "another-key"))) {
+                    val runtime =
+                        assertNotNull(
+                            bridge.createRuntime(AppSettings.AiConfig(type = connection), KtorKoogHttpClient.Factory(baseClient = client)),
+                        )
+                    try {
+                        runtime.promptExecutor.execute(
+                            Prompt.build("test", params = runtime.params) { user("hello") },
+                            runtime.model,
+                            listOf(EchoTool().descriptor),
+                        )
+                    } finally {
+                        runtime.promptExecutor.close()
+                    }
+                }
+            }
+            assertEquals(
+                listOf(
+                    "/v1/responses",
+                    "/v1/chat/completions",
+                    "/v1/chat/completions",
+                    "/v1/responses",
+                    "/v1/chat/completions",
+                ),
+                requests,
+            )
+        }
+
+    @Test
+    fun doesNotSwitchForAuthenticationModelOrParameterErrors() =
+        runTest {
+            for ((status, body) in listOf(
+                HttpStatusCode.Unauthorized to """{"error":{"message":"Unauthorized"}}""",
+                HttpStatusCode.TooManyRequests to """{"error":{"message":"Rate limited"}}""",
+                HttpStatusCode.NotFound to """{"error":{"code":"model_not_found","message":"The model does not exist"}}""",
+                HttpStatusCode.BadRequest to """{"error":{"message":"Invalid reasoning_effort"}}""",
+                HttpStatusCode.BadRequest to """{"error":{"message":"temperature is not supported on /v1/responses"}}""",
+                HttpStatusCode.NotImplemented to """{"error":{"message":"Upstream service unavailable"}}""",
+            )) {
+                val requests = mutableListOf<String>()
+                HttpClient(
+                    MockEngine { request ->
+                        requests += request.url.encodedPath
+                        respond(body, status)
+                    },
+                ).use { client ->
+                    val runtime =
+                        assertNotNull(
+                            AiConfigKoogBridge().createRuntime(
+                                AppSettings.AiConfig(type = independent.copy(serverUrl = "https://api.openai.com/v1/")),
+                                KtorKoogHttpClient.Factory(baseClient = client),
+                            ),
+                        )
+                    try {
+                        assertFailsWith<Exception> {
+                            runtime.promptExecutor.execute(Prompt.build("test", params = runtime.params) { user("hello") }, runtime.model)
+                        }
+                    } finally {
+                        runtime.promptExecutor.close()
+                    }
+                }
+                assertEquals(listOf("/v1/responses"), requests)
+            }
+        }
+
+    @Test
+    fun explicitProtocolsOverrideTheHostDefaultAndStayPinnedOnRouteFailure() =
+        runTest {
+            for ((api, connection, path) in listOf(
+                Triple(AgentOpenAIApi.Responses, independent, "/custom/v1/responses"),
+                Triple(AgentOpenAIApi.ChatCompletions, basic.copy(serverUrl = "https://api.openai.com/v1"), "/v1/chat/completions"),
+            )) {
+                val requests = mutableListOf<String>()
+                HttpClient(
+                    MockEngine { request ->
+                        requests += request.url.encodedPath
+                        respond("Method Not Allowed", HttpStatusCode.MethodNotAllowed)
+                    },
+                ).use { client ->
+                    val runtime =
+                        assertNotNull(
+                            AiConfigKoogBridge().createRuntime(
+                                AppSettings.AiConfig(type = connection, agentOpenAIApi = api),
+                                KtorKoogHttpClient.Factory(baseClient = client),
+                            ),
+                        )
+                    try {
+                        assertFailsWith<Exception> {
+                            runtime.promptExecutor.execute(Prompt.build("test", params = runtime.params) { user("Hello") }, runtime.model)
+                        }
+                    } finally {
+                        runtime.promptExecutor.close()
+                    }
+                }
+                assertEquals(listOf(path), requests)
+            }
+        }
+
+    @Test
+    fun explicitAzureResponsesReportsAnIncompatibleConfiguration() {
+        HttpClient(MockEngine { error("Explicit Responses must not silently use Azure Chat Completions") }).use { client ->
+            assertFailsWith<AgentConfigurationException> {
+                AiConfigKoogBridge().createRuntime(
+                    AppSettings.AiConfig(
+                        type = basic.copy(serverUrl = "https://example.openai.azure.com/openai/v1/"),
+                        agentOpenAIApi = AgentOpenAIApi.Responses,
+                    ),
+                    KtorKoogHttpClient.Factory(baseClient = client),
+                )
             }
         }
     }

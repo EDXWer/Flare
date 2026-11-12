@@ -14,6 +14,7 @@ import dev.dimension.flare.feature.agent.presenter.agentMessagePartIdentity
 import dev.dimension.flare.feature.agent.presenter.buildAgentMessageParts
 import dev.dimension.flare.feature.agent.presenter.markAgentInputRequestSelected
 import dev.dimension.flare.feature.agent.presenter.toAgentTextParts
+import dev.dimension.flare.feature.agent.runtime.AGENT_RESPONSES_SCOPE
 import dev.dimension.flare.ui.model.UiProfile
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
@@ -324,6 +325,20 @@ internal class AgentChatHistoryProvider(
         return failure
     }
 
+    suspend fun retryToolCallMessages(conversationId: String): List<Message.Assistant> =
+        database
+            .conversationDao()
+            .getMessagesChronological(conversationId)
+            .asReversed()
+            .asSequence()
+            .mapNotNull { it.toMessage() }
+            .takeWhile { message -> message !is Message.User || message.parts.all { it is MessagePart.Tool.Result } }
+            .toList()
+            .asReversed()
+            .sanitizeForReplay()
+            .filterIsInstance<Message.Assistant>()
+            .filter { message -> message.parts.any { it is MessagePart.Tool.Call } }
+
     suspend fun markInputRequestSelected(
         conversationId: String,
         requestId: String,
@@ -632,9 +647,18 @@ internal class AgentChatHistoryProvider(
                 }
 
                 is Message.Assistant -> {
+                    val calls = message.parts.indices.filter { message.parts[it] is MessagePart.Tool.Call }
+                    val replayReasoning =
+                        message.metaInfo.metadata?.containsKey(AGENT_RESPONSES_SCOPE) == true &&
+                            calls.isNotEmpty() &&
+                            calls.all { (messageIndex to it) in completed }
                     val parts =
                         message.parts.filterIndexed { partIndex, part ->
-                            part !is MessagePart.Reasoning && (part !is MessagePart.Tool.Call || (messageIndex to partIndex) in completed)
+                            when (part) {
+                                is MessagePart.Reasoning -> replayReasoning && !part.encrypted.isNullOrBlank()
+                                is MessagePart.Tool.Call -> (messageIndex to partIndex) in completed
+                                else -> true
+                            }
                         }
                     parts.takeIf { it.isNotEmpty() }?.let { message.copy(parts = it) }
                 }

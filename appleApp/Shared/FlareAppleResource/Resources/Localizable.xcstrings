@@ -181917,6 +181917,72 @@
       }
     }
   },
+  "settings_ai_config_agent_api": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "API protocol"
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "API 协议"
+        }
+      },
+      "zh-Hant": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "API 協定"
+        }
+      }
+    }
+  },
+  "settings_ai_config_agent_api_auto": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Auto"
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "自动"
+        }
+      },
+      "zh-Hant": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "自動"
+        }
+      }
+    }
+  },
+  "settings_ai_config_agent_server_url_requirement": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Enter the API base URL, such as https://api.openai.com/v1. The Agent appends the selected API path."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "请输入 API 基础 URL，例如 https://api.openai.com/v1。Agent 会附加所选协议的路径。"
+        }
+      },
+      "zh-Hant": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "請輸入 API 基礎網址，例如 https://api.openai.com/v1。Agent 會附加所選協定的路徑。"
+        }
+      }
+    }
+  },
   "settings_ai_config_use_shared": {
     "localizations": {
       "en": {
