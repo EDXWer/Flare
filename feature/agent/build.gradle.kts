@@ -38,6 +38,7 @@ kotlin {
                 implementation(libs.koog.agents.features.memory)
                 implementation(libs.koog.http.client.ktor)
                 implementation(libs.bundles.kotlinx)
+                implementation(libs.okio)
                 implementation(libs.room.runtime)
                 implementation(libs.sqlite)
                 implementation(libs.sqlite.async)

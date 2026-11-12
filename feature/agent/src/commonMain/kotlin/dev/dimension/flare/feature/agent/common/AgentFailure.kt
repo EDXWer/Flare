@@ -58,6 +58,10 @@ internal enum class AgentRetryMode {
     Finish,
 }
 
+internal class AgentConfigurationException(
+    message: String,
+) : IllegalStateException(message)
+
 internal class AgentRetryableException(
     cause: Throwable,
     val retryMode: AgentRetryMode,
@@ -74,11 +78,11 @@ internal fun Throwable.toAgentFailure(userInput: String? = null): AgentFailure {
         .firstOrNull { modelFailure == null || it !is TimeoutCancellationException }
         ?.let { throw it }
     val http = causes.filterIsInstance<KoogHttpClientException>().firstOrNull()
-    val unavailable = causes.any { it is FlareAgentUnavailableException }
+    val configuration = causes.any { it is FlareAgentUnavailableException || it is AgentConfigurationException }
     val body = http?.errorBody.orEmpty().take(16_384)
     val kind =
         when {
-            unavailable -> AgentFailureKind.Configuration
+            configuration -> AgentFailureKind.Configuration
 
             http?.statusCode == 401 -> AgentFailureKind.Authentication
 
@@ -121,14 +125,14 @@ internal fun Throwable.toAgentFailure(userInput: String? = null): AgentFailure {
         message = raw.sanitizedAgentError(),
         retryMode =
             modelFailure?.retryMode
-                ?: AgentRetryMode.Restart.takeIf { unavailable },
+                ?: AgentRetryMode.Restart.takeIf { configuration },
         userInput = userInput,
         supportingParts = modelFailure?.supportingParts.orEmpty(),
         inputRequest = modelFailure?.inputRequest,
     )
 }
 
-private fun String.upstreamErrorMessage(): String {
+internal fun String.upstreamErrorMessage(): String {
     val value = runCatching { Json.parseToJsonElement(this) }.getOrNull()
     if (value is JsonPrimitive) return value.contentOrNull ?: this
     if (value !is JsonObject) return this

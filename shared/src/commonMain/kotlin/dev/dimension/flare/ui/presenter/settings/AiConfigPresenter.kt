@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import dev.dimension.flare.common.OnDeviceAI
 import dev.dimension.flare.data.datastore.AppDataStore
+import dev.dimension.flare.data.datastore.model.AgentOpenAIApi
 import dev.dimension.flare.data.datastore.model.AppSettings
 import dev.dimension.flare.data.network.ai.OpenAIService
 import dev.dimension.flare.data.translation.canonicalTranslationLanguage
@@ -70,6 +71,8 @@ public class AiConfigPresenter(
     public interface State {
         public val isAgentConfig: Boolean
         public val useSharedConfig: Boolean
+        public val agentOpenAIApi: AgentOpenAIApi
+        public val supportedAgentOpenAIApis: ImmutableList<AgentOpenAIApi>
         public val aiType: AiTypeOption
         public val openAIServerUrl: String
         public val openAIApiKey: String
@@ -98,6 +101,8 @@ public class AiConfigPresenter(
         public val autoTranslateExcludedLanguages: ImmutableList<String>
 
         public fun setUseSharedConfig(value: Boolean)
+
+        public fun setAgentOpenAIApi(value: AgentOpenAIApi)
 
         public fun selectType(type: AiTypeOption)
 
@@ -248,9 +253,15 @@ public class AiConfigPresenter(
         return object : State {
             override val isAgentConfig: Boolean = agentConfig
             override val useSharedConfig: Boolean = appSettings.aiConfig.agentType == null
+            override val agentOpenAIApi: AgentOpenAIApi = appSettings.aiConfig.agentOpenAIApi
+            override val supportedAgentOpenAIApis: ImmutableList<AgentOpenAIApi> = AGENT_OPENAI_APIS
 
             override fun setUseSharedConfig(value: Boolean) {
                 update { withAgentConfigInheritance(value) }
+            }
+
+            override fun setAgentOpenAIApi(value: AgentOpenAIApi) {
+                if (agentConfig) update { copy(agentOpenAIApi = value) }
             }
 
             override val openAIModels: UiState<ImmutableList<String>> = openAIModels
@@ -548,6 +559,8 @@ public class AiConfigPresenter(
         }
     }
 }
+
+private val AGENT_OPENAI_APIS = AgentOpenAIApi.entries.toImmutableList()
 
 private fun AppSettings.AiConfig.editingType(agentConfig: Boolean): AppSettings.AiConfig.Type =
     if (agentConfig) effectiveAgentType else type

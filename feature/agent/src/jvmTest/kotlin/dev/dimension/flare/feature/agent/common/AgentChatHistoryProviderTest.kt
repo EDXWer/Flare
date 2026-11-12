@@ -1,17 +1,21 @@
 package dev.dimension.flare.feature.agent.common
 
+import ai.koog.agents.core.tools.SimpleTool
+import ai.koog.agents.core.tools.ToolRegistry
 import ai.koog.http.client.ktor.KtorKoogHttpClient
 import ai.koog.prompt.Prompt
 import ai.koog.prompt.message.AttachmentContent
 import ai.koog.prompt.message.AttachmentSource
 import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.MessagePart
+import ai.koog.serialization.typeToken
 import androidx.room3.Room
 import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.SQLiteDriver
 import androidx.sqlite.SQLiteStatement
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
+import dev.dimension.flare.data.datastore.model.AgentOpenAIApi
 import dev.dimension.flare.data.datastore.model.AppSettings
 import dev.dimension.flare.data.model.ProxyRef
 import dev.dimension.flare.feature.agent.database.AGENT_CONTEXT_MIGRATION
@@ -32,7 +36,11 @@ import dev.dimension.flare.ui.render.toUiPlainText
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.TextContent
+import io.ktor.http.headersOf
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -41,6 +49,11 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.nio.file.Files
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -54,6 +67,248 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class AgentChatHistoryProviderTest {
+    @Test
+    fun retriesResponsesToolResultsWithTheirReasoningAfterRecreatingTheRuntime() =
+        runTest {
+            val config =
+                AppSettings.AiConfig.Type.OpenAI(
+                    "https://agent.example/v1/",
+                    "fixture",
+                    "provider-alias",
+                    "high",
+                    extraBody =
+                        """
+                        {"reasoning":{"effort":"low","summary":"auto"},"top_p":0.8,"max_completion_tokens":1200,
+                         "include":["message.output_text.logprobs","reasoning.encrypted_content"]}
+                        """.trimIndent(),
+                )
+            val tool = ReplayTool()
+            val prompt = Prompt.build("retry") { user("Echo hello") }
+            val request =
+                FlareAgentRequest(
+                    prompt,
+                    "Use the echo tool",
+                    "retry",
+                    "retry",
+                    "analyze",
+                    "tools",
+                    "results",
+                    toolSet = AgentToolSet.Empty.copy(toolRegistry = ToolRegistry { tool(tool) }),
+                )
+            val calls = mutableListOf<String>()
+            val jsonHeaders = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+            val engine =
+                MockEngine { httpRequest ->
+                    calls += httpRequest.url.encodedPath
+                    val body = Json.parseToJsonElement((httpRequest.body as TextContent).text).jsonObject
+                    if (calls.size == 1) {
+                        assertEquals("/v1/chat/completions", calls.last())
+                        respond(
+                            """{"error":{"message":"Function tools with reasoning_effort are not supported for provider-alias in /v1/chat/completions. To use function tools, use /v1/responses or set reasoning_effort to 'none'."}}""",
+                            HttpStatusCode.BadRequest,
+                        )
+                    } else {
+                        assertEquals("/v1/responses", calls.last(), "HTTP request #${calls.size}")
+                        val reasoningConfig = body.getValue("reasoning").jsonObject
+                        assertEquals("high", reasoningConfig["effort"]?.jsonPrimitive?.content)
+                        assertEquals("auto", reasoningConfig["summary"]?.jsonPrimitive?.content)
+                        assertEquals("1200", body["max_output_tokens"]?.jsonPrimitive?.content)
+                        assertEquals("false", body["store"]?.jsonPrimitive?.content)
+                        assertFalse("temperature" in body)
+                        assertFalse("top_p" in body)
+                        assertFalse("reasoning_effort" in body)
+                        val include = body.getValue("include").jsonArray.single()
+                        assertEquals("reasoning.encrypted_content", include.jsonPrimitive.content)
+                        val input = body.getValue("input").jsonArray.map { it.jsonObject }
+                        val reasoning = input.filter { it["type"]?.jsonPrimitive?.content == "reasoning" }
+                        if (calls.size in 3..4) {
+                            assertEquals("opaque", reasoning.single()["encrypted_content"]?.jsonPrimitive?.content)
+                            val result = input.single { it["type"]?.jsonPrimitive?.content == "function_call_output" }
+                            assertEquals("call_echo", result["call_id"]?.jsonPrimitive?.content)
+                            val call = input.single { it["type"]?.jsonPrimitive?.content == "function_call" }
+                            assertEquals("fc_echo", call["id"]?.jsonPrimitive?.content)
+                            val progress = input.single { it["phase"]?.jsonPrimitive?.content == "commentary" }
+                            assertEquals("msg_progress", progress["id"]?.jsonPrimitive?.content)
+                        } else {
+                            assertTrue(reasoning.isEmpty())
+                            assertTrue(input.none { "phase" in it })
+                        }
+                        when (calls.size) {
+                            2 -> {
+                                respond(
+                                    """{"id":"response","object":"response","created_at":0,"model":"provider-alias","parallel_tool_calls":false,"status":"completed","text":{"format":{"type":"text"}},"output":[{"type":"reasoning","id":"rs_echo","encrypted_content":"opaque","summary":[]},{"type":"message","id":"msg_progress","role":"assistant","phase":"commentary","status":"completed","content":[{"type":"output_text","text":"Checking","annotations":[]}]},{"type":"function_call","id":"fc_echo","call_id":"call_echo","name":"echo","arguments":"{\"text\":\"hello\"}","status":"completed"}]}""",
+                                    headers = jsonHeaders,
+                                )
+                            }
+
+                            3 -> {
+                                respond("""{"error":{"message":"Method not allowed"}}""", HttpStatusCode.MethodNotAllowed)
+                            }
+
+                            else -> {
+                                respond(
+                                    """{"id":"response","object":"response","created_at":0,"model":"provider-alias","parallel_tool_calls":false,"status":"completed","text":{"format":{"type":"text"}},"output":[{"type":"message","role":"assistant","id":"msg_done","status":"completed","content":[{"type":"output_text","text":"done","annotations":[]}]}]}""",
+                                    headers = jsonHeaders,
+                                )
+                            }
+                        }
+                    }
+                }
+            Fixture().use { fixture ->
+                HttpClient(engine).use { client ->
+                    for (retry in listOf(null, AgentRetryMode.Resume)) {
+                        val retryToolCalls = fixture.history.retryToolCallMessages(CONVERSATION)
+                        val httpFactory = KtorKoogHttpClient.Factory(baseClient = client)
+                        if (retry != null) {
+                            val settings = AppSettings.AiConfig(type = config)
+                            for (changed in listOf(
+                                settings.copy(agentOpenAIApi = AgentOpenAIApi.ChatCompletions),
+                                settings.copy(type = config.copy(model = "other-model")),
+                                settings.copy(type = config.copy(apiKey = "other-key")),
+                                settings.copy(type = config.copy(serverUrl = "https://other.example/v1/")),
+                            )) {
+                                assertFailsWith<AgentConfigurationException> {
+                                    AiConfigKoogBridge().createRuntime(changed, httpFactory, retryToolCalls)
+                                }
+                            }
+                            assertEquals(3, calls.size)
+                            assertEquals(1, tool.calls)
+                        }
+                        val runtime =
+                            assertNotNull(
+                                AiConfigKoogBridge().createRuntime(
+                                    AppSettings.AiConfig(type = config),
+                                    httpFactory,
+                                    retryToolCalls,
+                                ),
+                            )
+                        val agent = runtime.createAgent(request.copy(retryMode = retry), {}, fixture.history)
+                        try {
+                            if (retry == null) {
+                                val failure = assertFailsWith<AgentRetryableException> { agent.run(prompt, CONVERSATION) }
+                                assertEquals(3, calls.size, failure.cause?.stackTraceToString())
+                                assertEquals(AgentRetryMode.Resume, failure.retryMode)
+                                val reasoning =
+                                    fixture.history
+                                        .load(CONVERSATION)
+                                        .flatMap { it.parts }
+                                        .filterIsInstance<MessagePart.Reasoning>()
+                                assertEquals("opaque", reasoning.single().encrypted)
+                            } else {
+                                assertEquals("done", agent.run(prompt, CONVERSATION))
+                            }
+                        } finally {
+                            agent.close()
+                            runtime.promptExecutor.close()
+                        }
+                    }
+                    val runtime =
+                        assertNotNull(
+                            AiConfigKoogBridge().createRuntime(
+                                AppSettings.AiConfig(type = config.copy(serverUrl = "https://api.openai.com/v1/", apiKey = "other-key")),
+                                KtorKoogHttpClient.Factory(baseClient = client),
+                            ),
+                        )
+                    try {
+                        val history = fixture.history.load(CONVERSATION)
+                        runtime.promptExecutor.execute(prompt.withParams(runtime.params).withMessages { history + it }, runtime.model)
+                    } finally {
+                        runtime.promptExecutor.close()
+                    }
+                }
+            }
+            assertEquals(listOf("/v1/chat/completions") + List(4) { "/v1/responses" }, calls)
+            assertEquals(1, tool.calls)
+        }
+
+    @Test
+    fun retryCanChangeProtocolBeforeToolsAndPinsCompletionsAfterTools() =
+        runTest {
+            val connection = AppSettings.AiConfig.Type.OpenAI("https://api.openai.com/v1", "fixture", "old-model")
+            val initial = AppSettings.AiConfig(type = connection, agentOpenAIApi = AgentOpenAIApi.Responses)
+            val chat =
+                initial.copy(type = connection.copy(model = "new-model"), agentOpenAIApi = AgentOpenAIApi.ChatCompletions)
+            val tool = ReplayTool()
+            val prompt = Prompt.build("retry") { user("Echo hello") }
+            val request =
+                FlareAgentRequest(
+                    prompt,
+                    "Use the echo tool",
+                    "retry",
+                    "retry",
+                    "analyze",
+                    "tools",
+                    "results",
+                    toolSet = AgentToolSet.Empty.copy(toolRegistry = ToolRegistry { tool(tool) }),
+                )
+            val paths = mutableListOf<String>()
+            val jsonHeaders = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+            val engine =
+                MockEngine { request ->
+                    paths += request.url.encodedPath
+                    val body = Json.parseToJsonElement((request.body as TextContent).text).jsonObject
+                    assertEquals(if (paths.size == 1) "old-model" else "new-model", body.getValue("model").jsonPrimitive.content)
+                    when (paths.size) {
+                        1 -> {
+                            respond("Invalid parameters", HttpStatusCode.BadRequest)
+                        }
+
+                        2 -> {
+                            respond(
+                                """{"id":"chat","object":"chat.completion","created":0,"model":"new-model","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_echo","type":"function","function":{"name":"echo","arguments":"{\"text\":\"hello\"}"}}]},"finish_reason":"tool_calls"}]}""",
+                                headers = jsonHeaders,
+                            )
+                        }
+
+                        3 -> {
+                            respond("Method Not Allowed", HttpStatusCode.MethodNotAllowed)
+                        }
+
+                        else -> {
+                            val messages = body.getValue("messages").jsonArray.map { it.jsonObject }
+                            assertEquals(1, messages.count { it["role"]?.jsonPrimitive?.content == "user" })
+                            val result = messages.single { it["role"]?.jsonPrimitive?.content == "tool" }
+                            assertEquals("call_echo", result.getValue("tool_call_id").jsonPrimitive.content)
+                            respond(
+                                """{"id":"chat","object":"chat.completion","created":0,"model":"new-model","choices":[{"index":0,"message":{"role":"assistant","content":"done"},"finish_reason":"stop"}]}""",
+                                headers = jsonHeaders,
+                            )
+                        }
+                    }
+                }
+            Fixture().use { fixture ->
+                HttpClient(engine).use { client ->
+                    suspend fun attempt(
+                        settings: AppSettings.AiConfig,
+                        retryMode: AgentRetryMode?,
+                    ): String {
+                        val runtime =
+                            assertNotNull(
+                                AiConfigKoogBridge().createRuntime(
+                                    settings,
+                                    KtorKoogHttpClient.Factory(baseClient = client),
+                                    fixture.history.retryToolCallMessages(CONVERSATION),
+                                ),
+                            )
+                        val agent = runtime.createAgent(request.copy(retryMode = retryMode), {}, fixture.history)
+                        return try {
+                            agent.run(prompt, CONVERSATION)
+                        } finally {
+                            agent.close()
+                            runtime.promptExecutor.close()
+                        }
+                    }
+                    assertFailsWith<AgentRetryableException> { attempt(initial, null) }
+                    assertTrue(fixture.history.retryToolCallMessages(CONVERSATION).isEmpty())
+                    val failed = assertFailsWith<AgentRetryableException> { attempt(chat, AgentRetryMode.Resume) }
+                    assertEquals(1, tool.calls, failed.cause?.stackTraceToString())
+                    assertEquals("done", attempt(chat.copy(agentOpenAIApi = AgentOpenAIApi.Auto), AgentRetryMode.Resume))
+                }
+            }
+            assertEquals(listOf("/v1/responses") + List(3) { "/v1/chat/completions" }, paths)
+            assertEquals(1, tool.calls)
+        }
+
     @Test
     fun deepSeekImageRetryKeepsTheSourceCardBeforeAndAfterTheModelFinishes() =
         runTest {
@@ -995,6 +1250,20 @@ class AgentChatHistoryProviderTest {
                 Files.delete(directory)
             }
         }
+
+    private class ReplayTool : SimpleTool<ReplayTool.Args>(argsType = typeToken<Args>(), name = "echo", description = "Echo text") {
+        var calls = 0
+
+        @Serializable
+        data class Args(
+            val text: String,
+        )
+
+        override suspend fun execute(args: Args): String {
+            calls++
+            return args.text
+        }
+    }
 
     private class Fixture(
         path: String? = null,

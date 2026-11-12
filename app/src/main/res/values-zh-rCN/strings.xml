@@ -959,4 +959,7 @@
     <string name="empty_media">暂无可显示的媒体</string>
     <string name="media_playback_speed">播放速度</string>
     <string name="media_playback_speed_save_error">无法保存播放速度，请重试。</string>
+    <string name="settings_ai_config_agent_api">API 协议</string>
+    <string name="settings_ai_config_agent_api_auto">自动</string>
+    <string name="settings_ai_config_agent_server_url_requirement">请输入 API 基础 URL，例如 https://api.openai.com/v1。Agent 会附加所选协议的路径。</string>
 </resources>

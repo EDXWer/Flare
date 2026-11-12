@@ -55,20 +55,40 @@ internal class FlareAgentRunner(
         conversationId: String,
         onTrace: suspend (AgentTrace) -> Unit,
     ): AgentRunResult {
-        val confirmedAction = chatHistoryProvider.consumeConfirmation(conversationId)
+        val retryToolCalls =
+            when (request.retryMode) {
+                AgentRetryMode.Resume, AgentRetryMode.Finish -> chatHistoryProvider.retryToolCallMessages(conversationId)
+                null, AgentRetryMode.Restart -> emptyList()
+            }
         val runtime =
-            runtimeProvider.createRuntime()
+            runtimeProvider.createRuntime(retryToolCalls)
                 ?: throw FlareAgentUnavailableException(runtimeProvider.availability())
+        try {
+            return runWithRuntime(request, conversationId, onTrace, runtime)
+        } finally {
+            withContext(NonCancellable) { runtime.promptExecutor.close() }
+        }
+    }
+
+    private suspend fun runWithRuntime(
+        request: FlareAgentRequest,
+        conversationId: String,
+        onTrace: suspend (AgentTrace) -> Unit,
+        runtime: FlareAgentRuntime,
+    ): AgentRunResult {
+        val retryFailure =
+            request.retryMode?.let {
+                checkNotNull(chatHistoryProvider.consumeRetry(conversationId)) { "This attempt is no longer retryable" }
+            }
+        val confirmedAction = chatHistoryProvider.consumeConfirmation(conversationId)
         val toolSet =
             toolProvider.resolve(
                 request.toolContext.copy(confirmedAction = confirmedAction),
             )
-        if (request.retryMode != null) {
-            checkNotNull(chatHistoryProvider.consumeRetry(conversationId)) { "This attempt is no longer retryable" }.let { failure ->
-                toolSet.messagePartStore.addPosts(failure.supportingParts.filterIsInstance<AgentMessagePart.PostCard>().map { it.post })
-                toolSet.messagePartStore.addUsers(failure.supportingParts.filterIsInstance<AgentMessagePart.UserCard>().map { it.user })
-                failure.inputRequest?.let { toolSet.inputRequestStore.set(it) }
-            }
+        if (retryFailure != null) {
+            toolSet.messagePartStore.addPosts(retryFailure.supportingParts.filterIsInstance<AgentMessagePart.PostCard>().map { it.post })
+            toolSet.messagePartStore.addUsers(retryFailure.supportingParts.filterIsInstance<AgentMessagePart.UserCard>().map { it.user })
+            retryFailure.inputRequest?.let { toolSet.inputRequestStore.set(it) }
         }
         val resolvedRequest = request.withToolSet(toolSet)
         val agent =
@@ -114,13 +134,7 @@ internal class FlareAgentRunner(
             }
             throw exception
         } finally {
-            withContext(NonCancellable) {
-                try {
-                    agent.close()
-                } finally {
-                    runtime.promptExecutor.close()
-                }
-            }
+            withContext(NonCancellable) { agent.close() }
         }
     }
 }

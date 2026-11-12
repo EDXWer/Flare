@@ -1,6 +1,8 @@
 package dev.dimension.flare.ui.presenter.settings
 
+import dev.dimension.flare.data.datastore.model.AgentOpenAIApi
 import dev.dimension.flare.data.datastore.model.AppSettings
+import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -28,6 +30,18 @@ class AiConfigPresenterTest {
         val shared = independent.withAgentConfigInheritance(true).updateOpenAIConfig(agentConfig = false) { copy(model = "new-light") }
         assertNull(shared.agentType)
         assertEquals(basic.copy(model = "new-light"), shared.effectiveAgentType)
+    }
+
+    @Test
+    fun agentProtocolDefaultsToAutoAndPersistsWithSharedCredentials() {
+        val legacy = Json.decodeFromString<AppSettings.AiConfig>("{}")
+        assertEquals(AgentOpenAIApi.Auto, legacy.agentOpenAIApi)
+        val settings = legacy.copy(type = basic, agentOpenAIApi = AgentOpenAIApi.Responses)
+        val restored = Json.decodeFromString<AppSettings.AiConfig>(Json.encodeToString(settings))
+        val sharedAgain = restored.withAgentConfigInheritance(false).withAgentConfigInheritance(true)
+        assertEquals(AgentOpenAIApi.Responses, sharedAgain.agentOpenAIApi)
+        assertNull(sharedAgain.agentType)
+        assertEquals(basic, sharedAgain.effectiveAgentType)
     }
 
     @Test

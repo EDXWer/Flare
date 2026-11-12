@@ -59,6 +59,7 @@ import dev.dimension.flare.action_import
 import dev.dimension.flare.add_account
 import dev.dimension.flare.app_name
 import dev.dimension.flare.cancel
+import dev.dimension.flare.data.datastore.model.AgentOpenAIApi
 import dev.dimension.flare.data.datastore.model.AppSettings
 import dev.dimension.flare.data.datastore.model.TimelineAutoRefreshInterval
 import dev.dimension.flare.data.model.AvatarShape
@@ -99,7 +100,10 @@ import dev.dimension.flare.settings_accounts_remove_failed
 import dev.dimension.flare.settings_accounts_title
 import dev.dimension.flare.settings_agent_history_description
 import dev.dimension.flare.settings_agent_history_title
+import dev.dimension.flare.settings_ai_config_agent_api
+import dev.dimension.flare.settings_ai_config_agent_api_auto
 import dev.dimension.flare.settings_ai_config_agent_description
+import dev.dimension.flare.settings_ai_config_agent_server_url_requirement
 import dev.dimension.flare.settings_ai_config_agent_title
 import dev.dimension.flare.settings_ai_config_api_key
 import dev.dimension.flare.settings_ai_config_api_key_hint
@@ -1780,7 +1784,14 @@ internal fun SettingsScreen(
                 ) {
                     val serverTitle = stringResource(Res.string.settings_ai_config_server)
                     val serverHint = stringResource(Res.string.settings_ai_config_server_hint)
-                    val serverRequirementHint = stringResource(Res.string.settings_ai_config_server_url_requirement)
+                    val serverRequirementHint =
+                        stringResource(
+                            if (aiConfigState.isAgentConfig) {
+                                Res.string.settings_ai_config_agent_server_url_requirement
+                            } else {
+                                Res.string.settings_ai_config_server_url_requirement
+                            },
+                        )
                     val apiKeyTitle = stringResource(Res.string.settings_ai_config_api_key)
                     val apiKeyHint = stringResource(Res.string.settings_ai_config_api_key_hint)
                     val contextWindowTitle = stringResource(Res.string.settings_ai_config_context_window)
@@ -1813,6 +1824,31 @@ internal fun SettingsScreen(
                             caption = { Text(stringResource(Res.string.settings_ai_config_use_shared_description)) },
                             trailing = {
                                 Switcher(aiConfigState.useSharedConfig, aiConfigState::setUseSharedConfig)
+                            },
+                        )
+                        ExpanderItemSeparator()
+                        var showApiDropdown by remember { mutableStateOf(false) }
+                        ExpanderItem(
+                            heading = { Text(stringResource(Res.string.settings_ai_config_agent_api)) },
+                            trailing = {
+                                DropDownButton(onClick = { showApiDropdown = !showApiDropdown }) {
+                                    Text(agentOpenAIApiLabel(aiConfigState.agentOpenAIApi))
+                                }
+                                MenuFlyout(
+                                    visible = showApiDropdown,
+                                    onDismissRequest = { showApiDropdown = false },
+                                    placement = FlyoutPlacement.BottomAlignedEnd,
+                                ) {
+                                    aiConfigState.supportedAgentOpenAIApis.forEach { api ->
+                                        MenuFlyoutItem(
+                                            text = { Text(agentOpenAIApiLabel(api)) },
+                                            onClick = {
+                                                aiConfigState.setAgentOpenAIApi(api)
+                                                showApiDropdown = false
+                                            },
+                                        )
+                                    }
+                                }
                             },
                         )
                         ExpanderItemSeparator()
@@ -2899,6 +2935,14 @@ private fun translateProviderOptionLabel(provider: TranslateProviderOption): Str
         TranslateProviderOption.DeepL -> stringResource(Res.string.settings_ai_config_translate_provider_deepl)
         TranslateProviderOption.GoogleCloud -> stringResource(Res.string.settings_ai_config_translate_provider_google_cloud)
         TranslateProviderOption.LibreTranslate -> stringResource(Res.string.settings_ai_config_translate_provider_libretranslate)
+    }
+
+@Composable
+private fun agentOpenAIApiLabel(api: AgentOpenAIApi): String =
+    when (api) {
+        AgentOpenAIApi.Auto -> stringResource(Res.string.settings_ai_config_agent_api_auto)
+        AgentOpenAIApi.Responses -> "Responses"
+        AgentOpenAIApi.ChatCompletions -> "Chat Completions"
     }
 
 @Composable

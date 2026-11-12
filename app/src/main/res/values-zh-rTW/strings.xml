@@ -828,4 +828,7 @@
     <string name="empty_media">暫無可顯示的媒體</string>
     <string name="media_playback_speed">播放速度</string>
     <string name="media_playback_speed_save_error">無法儲存播放速度，請重試。</string>
+    <string name="settings_ai_config_agent_api">API 協定</string>
+    <string name="settings_ai_config_agent_api_auto">自動</string>
+    <string name="settings_ai_config_agent_server_url_requirement">請輸入 API 基礎網址，例如 https://api.openai.com/v1。Agent 會附加所選協定的路徑。</string>
 </resources>

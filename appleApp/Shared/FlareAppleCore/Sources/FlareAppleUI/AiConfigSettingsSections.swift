@@ -97,6 +97,19 @@ private struct AiConfigSettingsSectionsContent: View {
                         Text("settings_ai_config_use_shared", bundle: FlareAppleUILocalization.bundle)
                         Text("settings_ai_config_use_shared_description", bundle: FlareAppleUILocalization.bundle)
                     }
+                    Picker(
+                        selection: Binding(
+                            get: { state.presenter.state.agentOpenAIApi },
+                            set: { state.presenter.state.setAgentOpenAIApi(value: $0) }
+                        )
+                    ) {
+                        ForEach(state.presenter.state.supportedAgentOpenAIApis, id: \.name) { api in
+                            Text(agentApiTitleKey(option: api), bundle: FlareAppleUILocalization.bundle)
+                                .tag(api)
+                        }
+                    } label: {
+                        Text("settings_ai_config_agent_api", bundle: FlareAppleUILocalization.bundle)
+                    }
                 } header: {
                     Text("settings_ai_config_agent_title", bundle: FlareAppleUILocalization.bundle)
                 }
@@ -237,6 +250,17 @@ private struct AiConfigSettingsSectionsContent: View {
         }
     }
 
+    private func agentApiTitleKey(option: AgentOpenAIApi) -> LocalizedStringKey {
+        switch option {
+        case .auto:
+            "settings_ai_config_agent_api_auto"
+        case .responses:
+            "Responses"
+        case .chatCompletions:
+            "Chat Completions"
+        }
+    }
+
     private func reasoningEffortTitleKey(option: AiReasoningEffortOption) -> LocalizedStringKey {
         switch option {
         case .default:
@@ -292,6 +316,9 @@ private struct AiConfigEditSheet: View {
     }
 
     private var footer: Text? {
+        if field == .serverUrl && state.presenter.state.isAgentConfig {
+            return Text("settings_ai_config_agent_server_url_requirement", bundle: FlareAppleUILocalization.bundle)
+        }
         if let key = field.footerKey {
             return Text(key, bundle: FlareAppleUILocalization.bundle)
         }
