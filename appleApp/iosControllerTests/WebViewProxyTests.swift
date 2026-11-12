@@ -155,27 +155,114 @@ final class WebViewProxyTests: XCTestCase {
         XCTAssertEqual(first.requests.count, 1)
     }
 
-    func testLoginScreensLoadOnceAndKeepCookiesOnGlobalChange() async throws {
+    func testLoginScreensPreserveFormOnRemountAndKeepCookiesOnGlobalChange() async throws {
         let target = try await server(.https)
         for modern in [false, true] {
             try await select(ProxyPolicy(mode: .direct, proxyId: nil))
             let path = modern ? "/modern-login" : "/legacy-login"
             let url = target.url.appending(path: path).absoluteString
+            let isLoginRequest = { (request: String) in request.hasPrefix("GET \(path) ") }
+            var acceptCookies = false
+            let login = WebLoginSession(url: url, cookieCheck: .init()) { cookies in
+                acceptCookies && cookies.contains { $0.name == "webview" && $0.value == "ready" }
+            }
+            defer { login.close() }
+            let screen: AnyView
             if modern {
                 if #available(iOS 26.0, *) {
-                    window.rootViewController = UIHostingController(rootView: WebLoginScreen(onCookie: { _ in }, url: url))
+                    screen = AnyView(WebLoginScreen(session: login))
                 } else { continue }
             } else {
-                window.rootViewController = UIHostingController(rootView: BackportWebLoginScreen(onCookie: { _ in }, url: url))
+                screen = AnyView(BackportWebLoginScreen(session: login))
             }
-            try await eventually { target.requests.contains { $0.hasPrefix("GET \(path) ") } }
-            try await Task.sleep(for: .milliseconds(200))
-            XCTAssertEqual(target.requests.filter { $0.hasPrefix("GET \(path) ") }.count, 1)
+            var mounted = false
+            let content = AnyView(screen.onAppear { mounted = true }.onDisappear { mounted = false })
+            let host = UIHostingController(rootView: content)
+            window.rootViewController = host
+            try await eventually { mounted && target.requests.contains(where: isLoginRequest) }
+            let route = try XCTUnwrap(login.proxy.route)
+            let model = try XCTUnwrap(login.viewModel)
+            let evaluate: @MainActor (String) async throws -> String?
+            if #available(iOS 26.0, *), let modernModel = model as? WebLoginViewModel {
+                let page = modernModel.page
+                try await eventually { page.url?.path == path && !page.isLoading }
+                evaluate = { try await page.callJavaScript("return \($0)") as? String }
+            } else {
+                let webView = try XCTUnwrap(model as? BackportWebLoginViewModel).webView
+                try await eventually { webView.url?.path == path && !webView.isLoading }
+                evaluate = { try await webView.evaluateJavaScript($0) as? String }
+            }
+            _ = try await evaluate("""
+                (() => {
+                    const input = document.createElement('input');
+                    input.id = 'login-fixture';
+                    input.value = 'typed before remount';
+                    document.body.append(input);
+                    return input.value;
+                })()
+                """)
+
+            host.rootView = AnyView(EmptyView())
+            try await eventually { !mounted }
+            host.rootView = content
+            try await eventually { mounted }
+            let value = try await evaluate("document.getElementById('login-fixture')?.value ?? ''")
+            XCTAssertEqual(value, "typed before remount")
+            XCTAssertTrue(login.proxy.route === route)
+            XCTAssertTrue(login.viewModel === model)
+            XCTAssertEqual(target.requests.filter(isLoginRequest).count, 1)
+
             try await select(ProxyPolicy(mode: .system, proxyId: nil))
-            try await eventually { target.requests.filter { $0.hasPrefix("GET \(path) ") }.count == 2 }
-            XCTAssertTrue(target.requests.last { $0.hasPrefix("GET \(path) ") }!.contains("webview=ready"))
+            try await eventually {
+                guard let latestRoute = login.proxy.route else { return false }
+                return latestRoute !== route && login.viewModel?.route === latestRoute &&
+                    target.requests.filter(isLoginRequest).count >= 2
+            }
+            let latestRoute = try XCTUnwrap(login.proxy.route)
+            acceptCookies = true
+            try await eventually { login.completed }
+            XCTAssertEqual(target.requests.filter(isLoginRequest).count, 2)
+            XCTAssertTrue(try XCTUnwrap(target.requests.last(where: isLoginRequest)).contains("webview=ready"))
+            login.close()
+            XCTAssertFalse(latestRoute.isValid)
+            XCTAssertNil(login.viewModel)
             window.rootViewController = UIViewController()
         }
+    }
+
+    func testClosingLoginLetsInFlightCookieValidationFinish() async throws {
+        try await select(ProxyPolicy(mode: .system, proxyId: nil))
+        let cookieCheck = WebLoginSession.CookieCheck()
+        var resumeValidation: CheckedContinuation<Void, Never>?
+        var wasCancelled: Bool?
+        let login = WebLoginSession(url: "", cookieCheck: cookieCheck) { _ in
+            await withCheckedContinuation { resumeValidation = $0 }
+            wasCancelled = Task.isCancelled
+            return true
+        }
+        defer {
+            resumeValidation?.resume()
+            login.close()
+        }
+        try await eventually { login.proxy.route?.isValid == true }
+        login.checkCookies([])
+        try await eventually { resumeValidation != nil }
+        login.close()
+
+        var overlapped = false
+        await cookieCheck.run { overlapped = true }
+        XCTAssertFalse(overlapped)
+        resumeValidation?.resume()
+        resumeValidation = nil
+        try await eventually { wasCancelled != nil }
+        XCTAssertEqual(wasCancelled, false)
+
+        let replacement = WebLoginSession(url: "", cookieCheck: cookieCheck) { _ in true }
+        defer { replacement.close() }
+        try await eventually { replacement.proxy.route?.isValid == true }
+        replacement.checkCookies([])
+        try await eventually { replacement.completed }
+        XCTAssertFalse(login.completed)
     }
 
     func testDirectTunnelForwardsPostAndClosesActiveConnections() async throws {
@@ -220,10 +307,10 @@ final class WebViewProxyTests: XCTestCase {
         try await select(ProxyPolicy(mode: .system, proxyId: nil))
         let session = try await session()
         let route = try XCTUnwrap(session.route)
-        let legacy = BackportWebLoginViewModel(onCookie: { _ in }, url: "https://example.com", route: route)
-        XCTAssertTrue(legacy.configuration.websiteDataStore === route.dataStore)
+        let legacy = BackportWebLoginViewModel(onCookie: { _ in }, url: "", route: route)
+        XCTAssertTrue(legacy.webView.configuration.websiteDataStore === route.dataStore)
         if #available(iOS 26.0, *) {
-            let modern = WebLoginViewModel(onCookie: { _ in }, url: "https://example.com", route: route)
+            let modern = WebLoginViewModel(onCookie: { _ in }, url: "", route: route)
             XCTAssertTrue(modern.route.dataStore === route.dataStore)
         }
     }

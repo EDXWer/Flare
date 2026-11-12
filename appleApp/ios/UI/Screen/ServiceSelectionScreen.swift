@@ -368,9 +368,8 @@ private struct LoginFlowView: View {
 
     @State private var presenter: KotlinPresenter<LoginFlowPresenterState>
     @State private var qrContent: String?
-    @State private var webCookieUrl: String?
-    @State private var webCookieProbes: [LoginCookieProbe] = []
-    @State private var checkingCookies = false
+    @State private var webLogin: WebLoginSession?
+    @State private var webCookieCheck = WebLoginSession.CookieCheck()
 
     init(handler: @escaping () -> LoginMethodHandler) {
         self._presenter = .init(wrappedValue: .init(presenter: LoginFlowPresenter(handler: handler())))
@@ -419,23 +418,24 @@ private struct LoginFlowView: View {
             await collectEffects()
         }
         .sheet(isPresented: Binding(
-            get: { webCookieUrl != nil },
+            get: { webLogin != nil },
             set: { value in
                 if !value {
-                    webCookieUrl = nil
+                    closeWebLogin()
                 }
             }
         )) {
-            if let webCookieUrl {
+            if let webLogin {
                 if #available(iOS 26.0, *) {
-                    WebLoginScreen(onCookie: { cookies in
-                        checkCookies(cookies, sourceUrl: webCookieUrl)
-                    }, url: webCookieUrl)
+                    WebLoginScreen(session: webLogin)
                 } else {
-                    BackportWebLoginScreen(onCookie: { cookies in
-                        checkCookies(cookies, sourceUrl: webCookieUrl)
-                    }, url: webCookieUrl)
+                    BackportWebLoginScreen(session: webLogin)
                 }
+            }
+        }
+        .onChange(of: webLogin?.completed) { _, completed in
+            if completed == true {
+                closeWebLogin()
             }
         }
     }
@@ -450,22 +450,21 @@ private struct LoginFlowView: View {
                     qrContent = showQr.content
                 }
             case .openWebCookieLogin(let webCookie):
-                webCookieProbes = webCookie.probes
-                webCookieUrl = webCookie.url
+                // Built-in requests can repeat before the sheet appears. Plugin attempts carry probes.
+                if webCookie.probes.isEmpty, webLogin?.url == webCookie.url { continue }
+                closeWebLogin()
+                let presenter = presenter
+                webLogin = WebLoginSession(url: webCookie.url, cookieCheck: webCookieCheck) { cookies in
+                    let snapshot = loginCookieSnapshot(cookies: cookies, probes: webCookie.probes, fallbackUrl: webCookie.url)
+                    return (try? await presenter.state.checkCookies(snapshot: snapshot)) == true
+                }
             }
         }
     }
 
-    private func checkCookies(_ cookies: [HTTPCookie], sourceUrl: String) {
-        Task { @MainActor in
-            guard !checkingCookies else { return }
-            checkingCookies = true
-            defer { checkingCookies = false }
-            let snapshot = loginCookieSnapshot(cookies: cookies, probes: webCookieProbes, fallbackUrl: sourceUrl)
-            if (try? await presenter.state.checkCookies(snapshot: snapshot)) == true {
-                webCookieUrl = nil
-            }
-        }
+    private func closeWebLogin() {
+        webLogin?.close()
+        webLogin = nil
     }
 
     private func progressButtonLabel(title: String, isLoading: Bool) -> some View {
