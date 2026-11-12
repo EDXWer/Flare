@@ -5,11 +5,10 @@
     <string name="changelog_current"><![CDATA[
             <span>Versio %1$s:</span>
             <ul>
-                <li>Lisätty kuvien kääntäminen. Kun käännöspalvelu on määritetty, voit vaihtaa alkuperäisen ja käännetyn kuvan välillä sekä tallentaa tai jakaa tuloksen.</li>
-                <li>Voit valita vastaukset ja niiden alavastaukset jakaessasi julkaisun kuvana. Myös pitkät kuvat ovat tuettuja.</li>
-                <li>Lisätty Weibon ryhmien, ystäväpiirin ja yksityisesti seurattujen tilien aikajanat, julkaisujen näkyvyysasetukset ja Live Photo -toisto. IP-sijainnin näyttö on palautettu.</li>
-                <li>Lisätty yleiset ja tilikohtaiset välityspalvelinasetukset sekä HTTPS- ja SOCKS5-tuki.</li>
-                <li>Korjattu joitakin kuvien latausvirheitä, gallerian kirjanmerkkitoimintoja ja FANBOX-linkkien avaamista. Parannettu yhdistettyjä aikajanoja, käännösten näyttöä ja tilivalinnan muistamista.</li>
+                <li>Videot muistavat valitun toistonopeuden, ja uusilla asetuksilla nopeus voi olla jopa 16×.</li>
+                <li>Vaihda alkuperäisen ja käännetyn tekstin välillä artikkeleissa, RSS-syötteen julkaisuissa ja gallerian tietonäkymissä.</li>
+                <li>Haku ja selaus näyttävät vain valitun tilin tukemat osiot.</li>
+                <li>Korjattu joitakin verkkokirjautumisen ongelmia.</li>
             </ul>
         ]]></string>
 </resources>

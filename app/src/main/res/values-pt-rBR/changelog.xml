@@ -5,11 +5,10 @@
     <string name="changelog_current"><![CDATA[
             <span>Versão %1$s:</span>
             <ul>
-                <li>Adicionada a tradução de imagens. Após configurar um serviço de tradução, você pode alternar entre o original e a tradução e salvar ou compartilhar o resultado.</li>
-                <li>Você pode escolher respostas e respostas aninhadas ao compartilhar uma publicação como imagem, com suporte a imagens longas.</li>
-                <li>Adicionadas linhas do tempo de grupos, círculo de amigos e contas seguidas em particular do Weibo, configurações de visibilidade das publicações e reprodução de Live Photo. Restaurada a localização por IP.</li>
-                <li>Adicionadas configurações de proxy globais e por conta, com suporte a HTTPS e SOCKS5.</li>
-                <li>Corrigidas algumas falhas no carregamento de imagens, ações de favoritos na galeria e abertura de links do FANBOX. Melhoradas as linhas do tempo mistas, a exibição de traduções e a memorização da conta selecionada.</li>
+                <li>Os vídeos lembram a velocidade de reprodução, com novas opções de até 16×.</li>
+                <li>Alterne entre o texto original e o traduzido em artigos, itens de RSS e detalhes da galeria.</li>
+                <li>A busca e a descoberta mostram apenas as seções compatíveis com a conta selecionada.</li>
+                <li>Corrigidas algumas falhas de login pela web.</li>
             </ul>
         ]]></string>
 </resources>
