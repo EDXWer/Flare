@@ -17,6 +17,7 @@ internal class PluginSessionCapabilitiesV1(
             when {
                 canExpose(Capabilities.COMPOSE_V3) -> Capabilities.COMPOSE_V3
                 canExpose(Capabilities.COMPOSE) -> Capabilities.COMPOSE
+                canExpose(Capabilities.COMPOSE_V1) -> Capabilities.COMPOSE_V1
                 else -> null
             }
 
@@ -49,7 +50,9 @@ internal class PluginSessionCapabilitiesV1(
     private companion object {
         val ACCOUNT_CAPABILITIES =
             setOf(
+                Capabilities.ACCOUNT_CAPABILITIES,
                 Capabilities.COMPOSE,
+                Capabilities.COMPOSE_V1,
                 Capabilities.COMPOSE_V3,
                 Capabilities.ACCOUNT_HTTP,
                 Capabilities.RELATION,

@@ -114,6 +114,15 @@ defineFlareSocialPlugin({
   },
 
   capabilities: {
+    accountCapabilities: {
+      async negotiate(request, context) {
+        const account = await authenticatedRequest(context, "/api/v1/accounts/verify_credentials");
+        if (!account.data || String(account.data.id) !== context.accountId) authenticationError();
+        const instance = await authenticatedRequest(context, "/api/v1/instance");
+        requirePixelfed(instance.data);
+        return { capabilities: PIXELFED_CAPABILITIES, composeConfig: composeConfig(instance.data) };
+      },
+    },
     timeline: {
       async page(request, context) {
         const timeline = request.timelineId;

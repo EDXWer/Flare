@@ -254,6 +254,45 @@ Host does not repeat the remote exchange for that retry. It clears the result
 once the account is saved. Return final state explicitly in `success.credential`;
 the Host never merges pending state into the account for you.
 
+## Account capability renegotiation
+
+Declare this optional operation to enable newly supported features for existing
+accounts without opening a login flow (runtime APIs 1 and 2):
+
+```json
+"flare.datasource.account-capabilities/v1": { "operations": { "negotiate": {} } }
+```
+
+Implement `capabilities.accountCapabilities.negotiate(request, context)` in the
+social registration. `request.previous` contains the saved `capabilities`,
+`composeConfig` and `composeConfigV3`. Read the existing credential with
+`flare.credential.read()`, query the provider as needed, and return a complete
+`AccountCapabilitiesV1` result with the same three fields. The manifest remains
+the upper bound; include complete operation sets and a displayable capability.
+Omitted capabilities are disabled and omitted configs fall back to manifest
+defaults. Return current account/instance restrictions, not a delta.
+
+The Host runs this callback in the background when an account is opened with a
+new package hash, including accounts saved before this hook existed. Successful
+logins already record that hash and need no extra negotiation. It validates and
+atomically replaces only the capability snapshot, preserves credentials and
+session metadata, then recreates the datasource so the UI sees new features.
+Calls use an isolated temporary runtime and are serialized for the same account. Concurrent credential changes discard
+stale results; logout, account replacement and plugin retirement reject late saves.
+
+The callback is read-only: do not perform writes or call credential replacement.
+It may be retried, starting after 5 seconds and backing off to 5 minutes; provider retry-after hints can delay it further.
+Network/provider failures retain the previous capabilities; even an
+`AuthenticationRequired` result here does not launch login. Invalid capability
+results are rejected. A later app launch or package update can retry them.
+Normal account methods remain responsible for refreshing tokens.
+
+For example, returning newly supported compose/v2 Quote, compose/v3 or
+account-http enables them without login. Cross-plugin account HTTP still needs
+the extension's separate user grant. Plugins without this declaration continue
+using their saved negotiation and existing additive upgrade rules. Changing
+`credentialSchemaVersion` still requires relogin; this callback does not reinterpret opaque credentials.
+
 ## Refresh and relogin
 
 Refresh access tokens within an account method using the website's documented

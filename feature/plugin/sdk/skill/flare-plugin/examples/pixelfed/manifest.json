@@ -45,6 +45,9 @@
       }
     ],
     "capabilities": {
+      "flare.datasource.account-capabilities/v1": {
+        "operations": { "negotiate": {} }
+      },
       "flare.datasource.timeline/v1": {
         "operations": {
           "page": {

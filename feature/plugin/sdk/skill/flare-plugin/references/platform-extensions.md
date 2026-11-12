@@ -95,8 +95,11 @@ The provider uses Host API v2 and declares this account-only capability inside
 `"flare.datasource.account-http/v1": ["authenticate"]` in the login result's
 negotiated capabilities for accounts that support it. It is unavailable to guests
 and does not count as a displayable capability or create its own UI entry.
-Existing accounts must log in again to enable a newly added account HTTP
-capability; ordinary datasource operations retain their additive upgrade rules.
+For existing accounts, include it in the result of the optional
+[account capability renegotiation](authentication.md#account-capability-renegotiation)
+callback to enable it without another login. Updating the manifest alone does
+not grant account HTTP access. Each consuming extension still needs its separate
+user authorization; ordinary datasource operations retain their additive upgrade rules.
 
 Implement it within the provider's single social registration:
 

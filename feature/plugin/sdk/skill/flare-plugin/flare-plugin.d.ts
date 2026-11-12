@@ -88,6 +88,8 @@ interface SocialPluginDefinitionV1 {
   detector?: { detect(request: DetectorRequestV1, context: PluginInvocationContextV1): MaybePromise<DetectorResultV1> };
   login?: Record<string, LoginServiceV1>;
   capabilities?: {
+    /** Optional read-only renegotiation using saved credentials, without invoking login. */
+    accountCapabilities?: { negotiate(request: AccountCapabilitiesRequestV1, context: PluginInvocationContextV1): MaybePromise<AccountCapabilitiesV1> };
     accountHttp?: { authenticate(request: AccountHttpAuthenticationRequestV1, context: PluginInvocationContextV1): MaybePromise<Record<string, string>> };
     /** API v2: transient native lists, independent of home timelines and tabCatalog. */
     timelinePage?: { load(request: TimelinePageLoadRequestV2, context: PluginInvocationContextV1): MaybePromise<PageV1<TimelineItemV1>> };
@@ -96,7 +98,7 @@ interface SocialPluginDefinitionV1 {
     profile?: Partial<ProfileServiceV1>;
     post?: Partial<PostServiceV1>;
     relation?: Partial<RelationServiceV1>;
-    compose?: { publish(request: ComposeRequestV2, context: PluginInvocationContextV1): MaybePromise<ComposeResultV1> };
+    compose?: { publish(request: ComposeRequestV1 | ComposeRequestV2, context: PluginInvocationContextV1): MaybePromise<ComposeResultV1> };
     /** Opt-in compose/v3 capability for friends and selfOnly. */
     composeV3?: { publish(request: ComposeRequestV3, context: PluginInvocationContextV1): MaybePromise<ComposeResultV1> };
     notification?: Partial<NotificationServiceV1>;
@@ -256,18 +258,19 @@ type LoginTransitionV1 =
   | { type: "externalBrowser"; url: string; pendingPayload: JsonValue }
   | { type: "webCookie"; startUrl: string }
   | { type: "success"; value: LoginSuccessV1 };
-/** accountId must equal profile.key.id; origin/profile host must match the selected instance.
- * Negotiate declared complete capability sets with at least one displayable capability.
- * The Host persists credential (at most 64 KiB JSON) and the authenticated profile.
- */
-interface LoginSuccessV1 {
+/** Complete current account capability/config snapshot, bounded by the manifest. */
+interface AccountCapabilitiesV1 {
+  capabilities: Record<string, string[]>;
+  composeConfig?: ComposeConfigV1 | ComposeConfigV2;
+  composeConfigV3?: ComposeConfigV3;
+}
+interface AccountCapabilitiesRequestV1 { previous: AccountCapabilitiesV1 }
+/** Identity/profile must match the selected instance. Credential JSON is limited to 64 KiB. */
+interface LoginSuccessV1 extends AccountCapabilitiesV1 {
   accountId: string;
   origin: string;
   credential: JsonValue;
   profile: ProfileV1;
-  capabilities: Record<string, string[]>;
-  composeConfig?: ComposeConfigV2;
-  composeConfigV3?: ComposeConfigV3;
 }
 
 /** Stable ID in the selected API namespace; host is an HTTPS authority without scheme/path. */
@@ -633,7 +636,7 @@ interface CountResultV1 { value: number }
 interface BooleanResultV1 { value: boolean }
 
 /** compose/v2 defaults require supportedTypes. Login intersects modes and shared limits;
- * an optional section present on only one side is retained. compose/v1 is rejected.
+ * an optional section present on only one side is retained. compose/v1 remains supported for new posts and replies.
  * @see references/manifest.md#compose-defaults
  */
 type ComposeTypeV2 = "new" | "reply" | "quote";
@@ -653,6 +656,8 @@ interface ComposeConfigV2 {
   poll?: { maxOptions: number };
   language?: { maxCount: number };
 }
+/** Legacy config has implicit new/reply modes; no quote support. */
+interface ComposeConfigV1 extends Omit<ComposeConfigV2, "supportedTypes"> { supportedTypes?: never }
 type ComposeVisibilityV3 = VisibilityV1 | ExtendedVisibilityV1;
 interface ComposeConfigV3 extends Omit<ComposeConfigV2, "visibility"> {
   /** Required in platform.composeDefaultsV3. */
@@ -669,8 +674,11 @@ interface ComposeRequestV2 {
   sensitive: boolean;
   spoilerText?: string;
   reference?: { type: "reply" | "quote"; key: EntityKeyV1 };
+  replyTo?: never;
   poll?: ComposePollV1;
 }
+/** Selected by the manifest compose/v1 capability, independently of runtime apiVersion. */
+interface ComposeRequestV1 extends Omit<ComposeRequestV2, "reference" | "replyTo"> { replyTo?: EntityKeyV1; reference?: never }
 interface ComposeRequestV3 extends Omit<ComposeRequestV2, "visibility"> { visibility: ComposeVisibilityV3 }
 interface ComposeResultV1 { post: PostV1 }
 

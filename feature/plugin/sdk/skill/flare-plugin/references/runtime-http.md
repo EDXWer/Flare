@@ -267,8 +267,9 @@ operations inside the plugin; CAS does not prevent a refresh token being consume
 remotely twice. On conflict, reread the latest state instead of re-exchanging the
 old token. A failed local save after a successful exchange needs recovery or
 relogin, not automatic replay. Host session epochs reject old work after relogin,
-delete/re-add, or restore. Upgrading an existing v1 account to v2 requires one
-relogin to establish this private metadata. Backups contain credentials; restore
+delete/re-add, or restore. Upgrading an existing v1 account to v2 with the same credentialSchemaVersion
+initializes this private metadata atomically without changing the plugin credential
+or asking for login. Backups contain credentials; restore
 rotates their Host epoch/revision and discards in-flight login state.
 
 `await flare.crypto.randomHex(size)` uses **bytes** as its size and returns twice

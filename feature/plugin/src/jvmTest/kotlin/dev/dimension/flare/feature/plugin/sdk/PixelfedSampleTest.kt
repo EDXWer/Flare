@@ -1,5 +1,6 @@
 package dev.dimension.flare.feature.plugin.sdk
 
+import dev.dimension.flare.data.datasource.microblog.ComposeData
 import dev.dimension.flare.data.datasource.microblog.ComposeType
 import dev.dimension.flare.data.datasource.microblog.capabilities
 import dev.dimension.flare.data.datasource.microblog.paging.PagingRequest
@@ -9,6 +10,7 @@ import dev.dimension.flare.data.model.appearance.AppearanceKeys
 import dev.dimension.flare.data.model.tab.TimelineSpec
 import dev.dimension.flare.data.model.tab.toUiTimelineTabItem
 import dev.dimension.flare.feature.plugin.abi.PluginJsonV1
+import dev.dimension.flare.feature.plugin.adapter.PluginNamedTimelineDataSourceV1
 import dev.dimension.flare.feature.plugin.adapter.PluginPlatformSpecSourceV1
 import dev.dimension.flare.feature.plugin.adapter.accountCredential
 import dev.dimension.flare.feature.plugin.adapter.platformMetadata
@@ -23,6 +25,7 @@ import dev.dimension.flare.feature.plugin.host.PluginTransportMultipartPartV1
 import dev.dimension.flare.feature.plugin.host.PluginTransportRequestV1
 import dev.dimension.flare.feature.plugin.host.PluginTransportResponseV1
 import dev.dimension.flare.feature.plugin.installer.PluginInstaller
+import dev.dimension.flare.feature.plugin.installer.TestFppFactory
 import dev.dimension.flare.feature.plugin.lifecycle.PluginRunningSnapshotV1
 import dev.dimension.flare.feature.plugin.lifecycle.PluginStateStore
 import dev.dimension.flare.feature.plugin.lifecycle.RunningPluginV1
@@ -70,6 +73,8 @@ import dev.dimension.flare.feature.plugin.wire.VisibilityV1
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.model.PlatformDataSourceContext
 import dev.dimension.flare.ui.model.UiIcon
+import dev.dimension.flare.ui.model.UiTimelineV2
+import dev.dimension.flare.ui.presenter.compose.ComposeStatus
 import io.ktor.client.engine.okhttp.OkHttp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -78,6 +83,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.buildJsonObject
@@ -90,6 +97,7 @@ import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.zip.ZipInputStream
 import kotlin.io.path.readBytes
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -114,6 +122,158 @@ class PixelfedSampleTest {
     fun tearDown() {
         FileSystem.SYSTEM.deleteRecursively(root.toOkioPath(), mustExist = false)
     }
+
+    @Test
+    fun originalV1PackageRestoresAccountsAndPublishesRepliesWithoutRelogin() =
+        runBlocking<Unit> {
+            val input = root.resolve("legacy.fpp")
+            requireNotNull(javaClass.getResourceAsStream("/legacy/pixelfed-v1.fpp")).use { Files.copy(it, input) }
+            val plugin = install(input)
+            val transport = PixelfedFixtureTransport()
+            val pool = PluginRuntimePool(FileSystem.SYSTEM, transport)
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            var stage = "legacy login"
+            try {
+                val key = PluginRuntimeKeyV1.login(PLUGIN_ID, plugin.installed.packageHash, "legacy")
+                val begin =
+                    assertIs<LoginTransitionV1.ExternalBrowser>(
+                        pool.invoke(
+                            plugin,
+                            key,
+                            loginContext(plugin),
+                            "login.oauth.begin",
+                            LoginBeginRequestV1("oauth", ORIGIN, "legacy", "state", REDIRECT_URI),
+                            LoginBeginRequestV1.serializer(),
+                            LoginTransitionV1.serializer(),
+                        ),
+                    )
+                val success =
+                    assertIs<LoginTransitionV1.Success>(
+                        pool.invoke(
+                            plugin,
+                            key,
+                            loginContext(plugin),
+                            "login.oauth.resume",
+                            LoginResumeRequestV1(
+                                "oauth",
+                                ORIGIN,
+                                "legacy",
+                                REDIRECT_URI,
+                                mapOf("code" to "oauth-code", "state" to "state"),
+                                begin.pendingPayload,
+                            ),
+                            LoginResumeRequestV1.serializer(),
+                            LoginTransitionV1.serializer(),
+                            timeout = PluginCallTimeoutV1.Extended,
+                        ),
+                    ).value
+                val saved =
+                    PluginJsonV1
+                        .encodeToString(PluginAccountCredentialV1.serializer(), plugin.accountCredential(success))
+                        .replace("\"supportedTypes\":[],", "")
+                assertTrue("supportedTypes" !in saved)
+                val restored = PluginJsonV1.decodeFromString<PluginAccountCredentialV1>(saved)
+                assertNull(restored.sessionEpoch)
+                val source =
+                    plugin.platformSpec(pool, scope).createDataSource(
+                        MemoryPlatformDataSourceContext(MicroBlogKey("42", "pixelfed.social"), restored),
+                    )
+                stage = "legacy timeline"
+                assertTrue(
+                    assertIs<PluginNamedTimelineDataSourceV1>(source)
+                        .timeline("home")
+                        .load(20, PagingRequest.Refresh)
+                        .data
+                        .isNotEmpty(),
+                )
+                val compose = assertNotNull(source.capabilities.compose)
+                assertEquals(setOf(ComposeType.New, ComposeType.Reply), compose.composeConfig(ComposeType.New).supportedTypes)
+                val beforeLoginCalls = transport.requests.count { URI(it.url).path == "/oauth/token" }
+                stage = "legacy reply"
+                compose.compose(
+                    ComposeData(
+                        content = "legacy reply",
+                        visibility = UiTimelineV2.Post.Visibility.Public,
+                        referenceStatus = ComposeData.ReferenceStatus(ComposeStatus.Reply(MicroBlogKey("100", "pixelfed.social"))),
+                    ),
+                ) {}
+                val publish = transport.requests.last { URI(it.url).path == "/api/v1/statuses" && it.method == "POST" }
+                assertTrue("\"in_reply_to_id\":\"100\"" in assertIs<PluginTransportBodyV1.Text>(publish.body).value)
+                assertEquals(beforeLoginCalls, transport.requests.count { URI(it.url).path == "/oauth/token" })
+                assertFailsWith<IllegalArgumentException> {
+                    compose.compose(
+                        ComposeData(
+                            content = "unsupported quote",
+                            visibility = UiTimelineV2.Post.Visibility.Public,
+                            referenceStatus = ComposeData.ReferenceStatus(ComposeStatus.Quote(MicroBlogKey("100", "pixelfed.social"))),
+                        ),
+                    ) {}
+                }
+
+                val currentPackage = root.resolve("current.fpp")
+                stage = "upgrade"
+                pack(currentPackage)
+                val entries =
+                    ZipInputStream(Files.newInputStream(currentPackage)).use { zip ->
+                        buildList {
+                            while (true) {
+                                val entry = zip.nextEntry ?: break
+                                val bytes = zip.readBytes()
+                                add(
+                                    entry.name to
+                                        if (entry.name == "manifest.json") {
+                                            bytes.decodeToString().replace("\"apiVersion\": 1", "\"apiVersion\": 2").encodeToByteArray()
+                                        } else {
+                                            bytes
+                                        },
+                                )
+                            }
+                        }
+                    }
+                val upgradedPackage = root.resolve("api-v2.fpp")
+                TestFppFactory.write(upgradedPackage.toOkioPath(), entries)
+                val upgraded = install(upgradedPackage)
+                assertEquals(2, upgraded.installed.manifest.apiVersion)
+                val spec = upgraded.platformSpec(pool, scope)
+                val prepared = spec.prepareCredential(saved)
+                assertEquals(prepared, spec.prepareCredential(prepared))
+                val upgradedAccount = PluginJsonV1.decodeFromString<PluginAccountCredentialV1>(prepared)
+                assertEquals(restored.credential, upgradedAccount.credential)
+                assertNotNull(upgradedAccount.sessionEpoch)
+                assertNotNull(upgradedAccount.credentialRevision)
+                val upgradedContext = MemoryPlatformDataSourceContext(MicroBlogKey("42", "pixelfed.social"), upgradedAccount)
+                spec.createDataSource(upgradedContext)
+                kotlinx.coroutines.withTimeout(10_000) { upgradedContext.refreshed.await() }
+                val renegotiated = upgradedContext.credential(PluginAccountCredentialV1.serializer())
+                assertEquals(upgradedAccount.credential, renegotiated.credential)
+                assertEquals(upgradedAccount.sessionEpoch, renegotiated.sessionEpoch)
+                assertEquals(upgradedAccount.credentialRevision, renegotiated.credentialRevision)
+                assertEquals(upgraded.installed.packageHash, renegotiated.snapshot.capabilitiesPackageHash)
+                val upgradedSource = spec.createDataSource(upgradedContext)
+                stage = "upgraded timeline"
+                assertTrue(
+                    assertIs<PluginNamedTimelineDataSourceV1>(
+                        upgradedSource,
+                    ).timeline("home").load(20, PagingRequest.Refresh).data.isNotEmpty(),
+                )
+                stage = "upgraded reply"
+                assertNotNull(upgradedSource.capabilities.compose).compose(
+                    ComposeData(
+                        content = "upgraded reply",
+                        visibility = UiTimelineV2.Post.Visibility.Public,
+                        referenceStatus = ComposeData.ReferenceStatus(ComposeStatus.Reply(MicroBlogKey("100", "pixelfed.social"))),
+                    ),
+                ) {}
+                val upgradedPublish = transport.requests.last { URI(it.url).path == "/api/v1/statuses" && it.method == "POST" }
+                assertTrue("\"in_reply_to_id\":\"100\"" in assertIs<PluginTransportBodyV1.Text>(upgradedPublish.body).value)
+                assertEquals(beforeLoginCalls, transport.requests.count { URI(it.url).path == "/oauth/token" })
+            } catch (error: Throwable) {
+                throw AssertionError("Legacy package failed during $stage after ${transport.requests.lastOrNull()}", error)
+            } finally {
+                scope.cancel()
+                pool.close()
+            }
+        }
 
     @Test
     fun actualPackageIsDeterministicAndExercisesTheV1Runtime() =
@@ -932,10 +1092,25 @@ private class MemoryPlatformDataSourceContext(
     credential: PluginAccountCredentialV1,
 ) : PlatformDataSourceContext {
     private var value = PluginJsonV1.encodeToJsonElement(PluginAccountCredentialV1.serializer(), credential)
+    val refreshed = kotlinx.coroutines.CompletableDeferred<Unit>()
+
+    override suspend fun invalidateDataSource() {
+        refreshed.complete(Unit)
+    }
+
+    private val mutex = Mutex()
 
     override fun <T : Any> credential(serializer: KSerializer<T>): T = PluginJsonV1.decodeFromJsonElement(serializer, value)
 
     override fun <T : Any> credentialFlow(serializer: KSerializer<T>): Flow<T> = flowOf(credential(serializer))
+
+    override suspend fun <T : Any> mutateCredential(
+        serializer: KSerializer<T>,
+        update: (T) -> T?,
+    ): T? =
+        mutex.withLock {
+            update(credential(serializer))?.also { value = PluginJsonV1.encodeToJsonElement(serializer, it) }
+        }
 
     override suspend fun <T : Any> updateCredential(
         serializer: KSerializer<T>,

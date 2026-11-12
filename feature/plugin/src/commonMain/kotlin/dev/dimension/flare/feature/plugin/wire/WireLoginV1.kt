@@ -138,6 +138,19 @@ public data class LoginSuccessV1(
 )
 
 @Serializable
+public data class AccountCapabilitiesV1(
+    @Serializable(with = KnownCapabilitySetsV1Serializer::class)
+    val capabilities: Map<String, Set<String>>,
+    val composeConfig: ComposeConfigV2? = null,
+    val composeConfigV3: ComposeConfigV2? = null,
+)
+
+@Serializable
+public data class AccountCapabilitiesRequestV1(
+    val previous: AccountCapabilitiesV1,
+)
+
+@Serializable
 public data class AccountPluginSnapshotV1(
     val pluginId: String,
     val platformId: String,
@@ -152,6 +165,7 @@ public data class AccountPluginSnapshotV1(
     val composeConfig: ComposeConfigV2? = null,
     val credentialSchemaVersion: Int,
     val composeConfigV3: ComposeConfigV2? = null,
+    val capabilitiesPackageHash: String? = null,
 )
 
 /** Host-owned credential envelope persisted in Flare's account store. */

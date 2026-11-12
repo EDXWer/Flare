@@ -62,6 +62,7 @@ import dev.dimension.flare.feature.plugin.wire.EntityKeyV1
 import dev.dimension.flare.feature.plugin.wire.EntityRequestV1
 import dev.dimension.flare.feature.plugin.wire.HandleRequestV1
 import dev.dimension.flare.feature.plugin.wire.HashtagV1
+import dev.dimension.flare.feature.plugin.wire.LegacyComposeRequestV1Serializer
 import dev.dimension.flare.feature.plugin.wire.MutationRequestV1
 import dev.dimension.flare.feature.plugin.wire.MutationResultV1
 import dev.dimension.flare.feature.plugin.wire.PageDirectionV1
@@ -758,7 +759,12 @@ internal class PluginDataSourceV1 private constructor(
                                     )
                                 },
                         ),
-                    requestSerializer = ComposeRequestV2.serializer(),
+                    requestSerializer =
+                        if (capabilityId == PluginAbiV1.Capabilities.COMPOSE_V1) {
+                            LegacyComposeRequestV1Serializer
+                        } else {
+                            ComposeRequestV2.serializer()
+                        },
                     responseSerializer = ComposeResultV1.serializer(),
                     timeout = PluginCallTimeoutV1.Extended,
                     assets = assets,
@@ -822,6 +828,21 @@ internal class PluginDataSourceV1 private constructor(
             val account = credentialAccess.initial()
             val operations = account.effectiveCapabilities(plugin)
             val platform = plugin.installed.manifest.socialPlatform
+            val composeConfig =
+                try {
+                    if ("publish" in operations[PluginAbiV1.Capabilities.COMPOSE_V3].orEmpty()) {
+                        mergePluginComposeConfigV2(
+                            platform.composeDefaultsV3,
+                            account.snapshot.composeConfigV3,
+                            allowExtendedVisibility = true,
+                        )
+                    } else {
+                        account.composeConfig(plugin)
+                    }
+                } catch (error: IllegalArgumentException) {
+                    if (!account.needsCapabilityNegotiation(plugin)) throw error
+                    null
+                }
             val runtimeKey =
                 PluginRuntimeKeyV1.account(
                     plugin.installed.pluginId,
@@ -845,21 +866,22 @@ internal class PluginDataSourceV1 private constructor(
                 runtimePool = runtimePool,
                 accountKey = context.accountKey,
                 origin = account.snapshot.origin,
-                operations = operations,
+                operations =
+                    if (composeConfig == null) {
+                        operations -
+                            setOf(
+                                PluginAbiV1.Capabilities.COMPOSE_V1,
+                                PluginAbiV1.Capabilities.COMPOSE,
+                                PluginAbiV1.Capabilities.COMPOSE_V3,
+                            )
+                    } else {
+                        operations
+                    },
                 invoker = invoker,
                 timelineSpecs = timelineSpecs,
                 dynamicTimelineSpec = dynamicTimelineSpec,
                 coroutineScope = coroutineScope,
-                composeConfig =
-                    if ("publish" in operations[PluginAbiV1.Capabilities.COMPOSE_V3].orEmpty()) {
-                        mergePluginComposeConfigV2(
-                            platform.composeDefaultsV3,
-                            account.snapshot.composeConfigV3,
-                            allowExtendedVisibility = true,
-                        )
-                    } else {
-                        mergePluginComposeConfigV2(platform.composeDefaults, account.snapshot.composeConfig)
-                    },
+                composeConfig = composeConfig,
                 loginProfile = account.snapshot.profile,
             )
         }
@@ -1063,13 +1085,14 @@ internal fun mergePluginComposeConfigV2(
     manifest: ComposeConfigV2?,
     instance: ComposeConfigV2?,
     allowExtendedVisibility: Boolean = false,
+    requireModeOverlap: Boolean = true,
 ): ComposeConfigV2? {
     manifest?.requireValid(allowExtendedVisibility)
     instance?.requireValid(allowExtendedVisibility)
     if (manifest == null) return instance
     if (instance == null) return manifest
     val supportedTypes = manifest.supportedTypes intersect instance.supportedTypes
-    require(supportedTypes.isNotEmpty()) { "Plugin compose supportedTypes do not overlap" }
+    require(!requireModeOverlap || supportedTypes.isNotEmpty()) { "Plugin compose supportedTypes do not overlap" }
     val media =
         when {
             manifest.media == null -> {
@@ -1143,7 +1166,7 @@ internal fun mergePluginComposeConfigV2(
                 instance.language == null -> manifest.language
                 else -> ComposeConfigV2.LanguageConfigV1(minOf(manifest.language.maxCount, instance.language.maxCount))
             },
-    ).also { it.requireValid(allowExtendedVisibility) }
+    ).also { it.requireValid(allowExtendedVisibility, requireSupportedTypes = requireModeOverlap) }
 }
 
 private fun validateComposeData(

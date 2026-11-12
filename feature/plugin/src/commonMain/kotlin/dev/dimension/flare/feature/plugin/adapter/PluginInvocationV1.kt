@@ -108,10 +108,10 @@ internal class PluginAccountInvokerV1(
                         timeout = timeout,
                         validate = validate,
                     ).also {
-                        if (plugin.installed.manifest.apiVersion >= 2) invocationContext.credential?.ensureActive()
+                        invocationContext.credential?.ensureActive()
                     }
             } catch (error: PluginCallException) {
-                if (plugin.installed.manifest.apiVersion >= 2) invocationContext.credential?.ensureActive()
+                invocationContext.credential?.ensureActive()
                 if (error.error.code == PluginErrorCodeV1.AuthenticationRequired && accountKey != null) {
                     throw RequireReLoginException(accountKey, plugin.installed.manifest.socialPlatform.id)
                 }

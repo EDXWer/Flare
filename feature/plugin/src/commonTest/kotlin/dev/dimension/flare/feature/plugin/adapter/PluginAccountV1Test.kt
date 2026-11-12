@@ -24,6 +24,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.test.runTest
@@ -95,16 +96,24 @@ class PluginAccountV1Test {
         }
 
     @Test
-    fun legacyEnvelopeRequiresOneReloginOnApiV2AndNewLoginGetsFreshEpochs() =
+    fun legacyEnvelopeUpgradesWithoutChangingCredentialsAndNewLoginGetsFreshEpochs() =
         runTest {
             val plugin = plugin(setOf("detail"), apiVersion = 2)
             val legacy = credential(plugin, setOf("detail"), setOf("detail"))
-            val context = AtomicContext(legacy)
+            val raw = PluginJsonV1.encodeToString(PluginAccountCredentialV1.serializer(), legacy)
+            val prepared = plugin.prepareAccountCredential(raw)
+            assertEquals(prepared, plugin.prepareAccountCredential(prepared))
+            val upgraded = PluginJsonV1.decodeFromString<PluginAccountCredentialV1>(prepared)
+            assertEquals(legacy.snapshot, upgraded.snapshot)
+            assertEquals(legacy.credential, upgraded.credential)
+            val context = AtomicContext(upgraded)
             val access = PlatformDataSourceCredentialAccessV1(plugin, context)
-            assertEquals(legacy, access.initial())
-            assertFailsWith<RequireReLoginException> { access.read() }
-            assertFailsWith<RequireReLoginException> { access.replace(JsonPrimitive("wrong")) }
-            assertEquals(legacy, context.persisted.value)
+            assertEquals(upgraded, access.initial())
+            assertEquals(legacy.credential, access.readVersioned().value)
+            val revision = access.readVersioned().revision
+            assertTrue(access.replaceIfCurrent(JsonPrimitive("refreshed"), revision))
+            assertFalse(access.replaceIfCurrent(JsonPrimitive("stale"), revision))
+            assertEquals(JsonPrimitive("refreshed"), access.read())
             val success =
                 LoginSuccessV1(
                     legacy.snapshot.accountId,
@@ -119,6 +128,190 @@ class PluginAccountV1Test {
             assertNotEquals(first.sessionEpoch, second.sessionEpoch)
             assertNotEquals(first.credentialRevision, second.credentialRevision)
         }
+
+    @Test
+    fun preparationDoesNotGuessCredentialSchemasOrRepairPartialSessions() {
+        val plugin = plugin(setOf("detail"), apiVersion = 2)
+        val old = credential(plugin, setOf("detail"), setOf("detail"))
+        val raw = PluginJsonV1.encodeToString(PluginAccountCredentialV1.serializer(), old)
+        assertEquals(raw, plugin(setOf("detail"), apiVersion = 1).prepareAccountCredential(raw))
+        assertEquals(raw, plugin(setOf("detail"), apiVersion = 2, credentialSchemaVersion = 2).prepareAccountCredential(raw))
+        assertFailsWith<IllegalArgumentException> {
+            plugin.prepareAccountCredential(
+                PluginJsonV1.encodeToString(PluginAccountCredentialV1.serializer(), old.copy(sessionEpoch = "partial")),
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            plugin.prepareAccountCredential(
+                PluginJsonV1.encodeToString(
+                    PluginAccountCredentialV1.serializer(),
+                    old.copy(snapshot = old.snapshot.copy(pluginId = "other")),
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun composeVersionUpgradePreservesNegotiatedPublishAndDeniedPublish() {
+        val legacy = PluginAbiV1.Capabilities.COMPOSE_V1
+        val original = plugin(setOf("publish"), capability = legacy)
+        val account = credential(original, setOf("publish"), setOf("publish"), capability = legacy)
+        val upgraded =
+            plugin(setOf("publish"), capability = PluginAbiV1.Capabilities.COMPOSE).let {
+                it.copy(
+                    installed =
+                        it.installed.copy(
+                            manifest =
+                                it.installed.manifest.copy(
+                                    platform =
+                                        it.installed.manifest.socialPlatform
+                                            .copy(composeDefaults = composeConfig()),
+                                ),
+                        ),
+                )
+            }
+        assertEquals(setOf("publish"), account.effectiveCapabilities(upgraded)[PluginAbiV1.Capabilities.COMPOSE])
+        assertFalse(
+            PluginAbiV1.Capabilities.COMPOSE in
+                account.copy(snapshot = account.snapshot.copy(negotiatedCapabilities = emptyMap())).effectiveCapabilities(upgraded),
+        )
+    }
+
+    @Test
+    fun readonlyLegacyComposeConfigSurvivesAccountSavingAndApiUpgrade() {
+        val original = plugin(setOf("detail"))
+        val previous = credential(original, setOf("detail"), setOf("detail"))
+        val success =
+            LoginSuccessV1(
+                previous.snapshot.accountId,
+                previous.snapshot.origin,
+                previous.credential,
+                previous.snapshot.profile,
+                previous.snapshot.negotiatedCapabilities,
+                composeConfig = ComposeConfigV2(text = ComposeConfigV2.TextConfigV1(500)),
+            )
+        val saved = original.accountCredential(success)
+        assertEquals(null, saved.composeConfig(original))
+        val upgraded = plugin(setOf("detail"), apiVersion = 2)
+        val raw = PluginJsonV1.encodeToString(PluginAccountCredentialV1.serializer(), saved)
+        val prepared = PluginJsonV1.decodeFromString<PluginAccountCredentialV1>(upgraded.prepareAccountCredential(raw))
+        assertEquals(saved.credential, prepared.credential)
+        assertEquals(setOf(PluginAbiV1.Capabilities.POST), prepared.effectiveCapabilities(upgraded).keys)
+        assertEquals(null, prepared.composeConfig(upgraded))
+        val addedComposer =
+            upgraded.copy(
+                installed =
+                    upgraded.installed.copy(
+                        manifest =
+                            upgraded.installed.manifest.copy(
+                                platform =
+                                    upgraded.installed.manifest.socialPlatform.copy(
+                                        capabilities =
+                                            upgraded.installed.manifest.socialPlatform.capabilities +
+                                                (
+                                                    PluginAbiV1.Capabilities.COMPOSE to
+                                                        CapabilityManifestV1(mapOf("publish" to CapabilityOperationManifestV1()))
+                                                ),
+                                        composeDefaults = composeConfig(),
+                                    ),
+                            ),
+                    ),
+            )
+        val addedAccount = PluginJsonV1.decodeFromString<PluginAccountCredentialV1>(addedComposer.prepareAccountCredential(raw))
+        assertEquals(saved.credential, addedAccount.credential)
+        assertEquals(composeConfig(), addedAccount.composeConfig(addedComposer))
+        assertEquals(setOf("publish"), addedAccount.effectiveCapabilities(addedComposer)[PluginAbiV1.Capabilities.COMPOSE])
+    }
+
+    @Test
+    fun removingLegacyComposeModesDoesNotInvalidateTheAccount() {
+        val original = plugin(setOf("publish"), capability = PluginAbiV1.Capabilities.COMPOSE_V1)
+        val account =
+            credential(original, setOf("publish"), setOf("publish"), capability = PluginAbiV1.Capabilities.COMPOSE_V1).let {
+                it.copy(snapshot = it.snapshot.copy(composeConfig = ComposeConfigV2(text = ComposeConfigV2.TextConfigV1(500))))
+            }
+        val upgraded =
+            plugin(setOf("publish"), apiVersion = 2, capability = PluginAbiV1.Capabilities.COMPOSE).let {
+                it.copy(
+                    installed =
+                        it.installed.copy(
+                            manifest =
+                                it.installed.manifest.copy(
+                                    platform =
+                                        it.installed.manifest.socialPlatform.copy(
+                                            composeDefaults =
+                                                composeConfig().copy(
+                                                    supportedTypes = setOf(dev.dimension.flare.data.datasource.microblog.ComposeType.Quote),
+                                                ),
+                                        ),
+                                ),
+                        ),
+                )
+            }
+        val prepared =
+            PluginJsonV1.decodeFromString<PluginAccountCredentialV1>(
+                upgraded.prepareAccountCredential(PluginJsonV1.encodeToString(PluginAccountCredentialV1.serializer(), account)),
+            )
+        assertEquals(account.credential, prepared.credential)
+        assertTrue(prepared.composeConfig(upgraded)!!.supportedTypes.isEmpty())
+    }
+
+    @Test
+    fun legacyComposeKeepsAbsentOverridesAndUsesTheNegotiatedProtocol() {
+        val legacy = PluginAbiV1.Capabilities.COMPOSE_V1
+        val original =
+            plugin(setOf("publish"), capability = legacy).let {
+                it.copy(
+                    installed =
+                        it.installed.copy(
+                            manifest =
+                                it.installed.manifest.copy(
+                                    platform =
+                                        it.installed.manifest.socialPlatform.copy(
+                                            composeDefaults = composeConfig().copy(contentWarning = true, supportedTypes = emptySet()),
+                                        ),
+                                ),
+                        ),
+                )
+            }
+        val account = credential(original, setOf("publish"), setOf("publish"), capability = legacy)
+        assertTrue(account.composeConfig(original)!!.contentWarning)
+        val dual =
+            original.copy(
+                installed =
+                    original.installed.copy(
+                        manifest =
+                            original.installed.manifest.copy(
+                                platform =
+                                    original.installed.manifest.socialPlatform.copy(
+                                        capabilities =
+                                            original.installed.manifest.socialPlatform.capabilities +
+                                                (
+                                                    PluginAbiV1.Capabilities.COMPOSE to
+                                                        CapabilityManifestV1(mapOf("publish" to CapabilityOperationManifestV1()))
+                                                ),
+                                        composeDefaults = composeConfig().copy(contentWarning = true),
+                                    ),
+                            ),
+                    ),
+            )
+        val dualAccount =
+            account
+                .copy(
+                    snapshot =
+                        account.snapshot.copy(
+                            manifestCapabilities =
+                                dual.installed.manifest.socialPlatform.capabilities.mapValues {
+                                    it.value.operations.keys
+                                },
+                        ),
+                )
+        assertEquals(dev.dimension.flare.feature.plugin.wire.legacyComposeTypes, dualAccount.composeConfig(dual)!!.supportedTypes)
+        assertTrue(dualAccount.composeConfig(dual)!!.contentWarning)
+        val oldOverride = dualAccount.copy(snapshot = dualAccount.snapshot.copy(composeConfig = ComposeConfigV2(contentWarning = true)))
+        oldOverride.requireValid(dual)
+        assertTrue(oldOverride.composeConfig(dual)!!.contentWarning)
+    }
 
     @Test
     fun v2PackageSnapshotOnlyAdvancesAfterCacheInvalidationSucceeds() =
@@ -326,6 +519,14 @@ class PluginAccountV1Test {
                     @Suppress("UNCHECKED_CAST")
                     override fun <T : Any> credentialFlow(serializer: KSerializer<T>): Flow<T> = persisted as Flow<T>
 
+                    override suspend fun <T : Any> mutateCredential(
+                        serializer: KSerializer<T>,
+                        update: (T) -> T?,
+                    ): T? =
+                        update(credentialFlow(serializer).first())?.also {
+                            if (it != credentialFlow(serializer).first()) updateCredential(serializer, it)
+                        }
+
                     override suspend fun <T : Any> updateCredential(
                         serializer: KSerializer<T>,
                         credential: T,
@@ -383,6 +584,14 @@ class PluginAccountV1Test {
                     override fun <T : Any> credentialFlow(serializer: KSerializer<T>): Flow<T> = persisted as Flow<T>
 
                     @Suppress("UNCHECKED_CAST")
+                    override suspend fun <T : Any> mutateCredential(
+                        serializer: KSerializer<T>,
+                        update: (T) -> T?,
+                    ): T? =
+                        update(credentialFlow(serializer).first())?.also {
+                            if (it != credentialFlow(serializer).first()) updateCredential(serializer, it)
+                        }
+
                     override suspend fun <T : Any> updateCredential(
                         serializer: KSerializer<T>,
                         credential: T,
@@ -448,6 +657,11 @@ class PluginAccountV1Test {
                     override fun <T : Any> credentialFlow(serializer: KSerializer<T>): Flow<T> = persisted as Flow<T>
 
                     @Suppress("UNCHECKED_CAST")
+                    override suspend fun <T : Any> mutateCredential(
+                        serializer: KSerializer<T>,
+                        update: (T) -> T?,
+                    ): T? = update(credentialFlow(serializer).first())?.also { updateCredential(serializer, it) }
+
                     override suspend fun <T : Any> updateCredential(
                         serializer: KSerializer<T>,
                         credential: T,

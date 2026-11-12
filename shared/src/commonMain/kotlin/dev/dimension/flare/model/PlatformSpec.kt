@@ -44,6 +44,9 @@ public interface PlatformSpec {
 
     public fun createDataSource(context: PlatformDataSourceContext): MicroblogDataSource
 
+    /** Runs in the account writer transaction before creating a datasource; must not perform external work. */
+    public fun prepareCredential(credentialJson: String): String = credentialJson
+
     public fun restoreCredential(credentialJson: String): String = credentialJson
 
     public fun guestDataSource(
@@ -88,6 +91,9 @@ public interface PlatformDataSourceContext {
 
     /** Clears content derived from an older datasource implementation without removing the account. */
     public suspend fun invalidateCachedContent() {}
+
+    /** Recreates the current account's datasource after its persisted capabilities change. */
+    public suspend fun invalidateDataSource() {}
 }
 
 @HiddenFromObjC

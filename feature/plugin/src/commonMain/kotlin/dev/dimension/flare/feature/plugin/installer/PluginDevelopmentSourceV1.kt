@@ -36,7 +36,7 @@ internal data class PluginDevelopmentSourceV1(
                 fileSystem.list(path).forEach { child ->
                     val metadata = fileSystem.metadata(child)
                     require(metadata.symlinkTarget == null) { "Settings resources cannot be symbolic links" }
-                    if (metadata.isDirectory) settings(child) else addName(child.relativeTo(root).toString())
+                    if (metadata.isDirectory) settings(child) else addName(child.relativeTo(root).segments.joinToString("/"))
                 }
             }
             if (fileSystem.exists(root / "settings")) settings(root / "settings")

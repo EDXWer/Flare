@@ -2,6 +2,7 @@ package dev.dimension.flare.feature.plugin.manifest
 
 import dev.dimension.flare.feature.plugin.abi.PluginAbiV1
 import dev.dimension.flare.feature.plugin.wire.requireValid
+import dev.dimension.flare.feature.plugin.wire.withLegacyComposeTypes
 import kotlinx.datetime.TimeZone
 
 public data class ManifestValidationV1(
@@ -174,7 +175,6 @@ public fun PluginManifestV1.validate(methodTable: PluginMethodTableV1? = null): 
                 path,
                 "Timeline pages require plugin API v2",
             )
-            check(capabilityId != PluginAbiV1.RETIRED_COMPOSE, "compose.version", path, "compose/v1 is retired; update to compose/v2")
             check(CAPABILITY_ID.matches(capabilityId), "capability.id", path, "Invalid capability ID")
             val knownOperations = PluginAbiV1.knownCapabilityOperations[capabilityId] ?: return@forEach
             check(declaration.operations.size <= 32, "capability.operations", path, "Too many operations")
@@ -324,14 +324,23 @@ public fun PluginManifestV1.validate(methodTable: PluginMethodTableV1? = null): 
         val timelineIds = platform.timelines.mapTo(hashSetOf(), TimelineManifestV1::id)
         platform.deepLinks.forEachIndexed { index, rule -> validateDeepLink(rule, index, permissions, timelineIds, errors) }
         listOf(
-            Triple("platform.composeDefaults", PluginAbiV1.Capabilities.COMPOSE, platform.composeDefaults),
+            Triple(
+                "platform.composeDefaults",
+                if (platform.hasOperation(PluginAbiV1.Capabilities.COMPOSE, "publish")) {
+                    PluginAbiV1.Capabilities.COMPOSE
+                } else {
+                    PluginAbiV1.Capabilities.COMPOSE_V1
+                },
+                platform.composeDefaults,
+            ),
             Triple("platform.composeDefaultsV3", PluginAbiV1.Capabilities.COMPOSE_V3, platform.composeDefaultsV3),
         ).forEach { (path, capability, config) ->
             val publishes = platform.hasOperation(capability, "publish")
             if (config != null) {
                 val extended = capability == PluginAbiV1.Capabilities.COMPOSE_V3
                 runCatching {
-                    config.requireValid(allowExtendedVisibility = extended)
+                    requireNotNull(config.withLegacyComposeTypes(capability == PluginAbiV1.Capabilities.COMPOSE_V1))
+                        .requireValid(allowExtendedVisibility = extended)
                     require(!extended || config.visibility != null) { "compose/v3 requires explicit visibility defaults" }
                 }.onFailure { error ->
                     errors += ManifestIssueV1("compose.config", path, error.message ?: "Invalid Compose config")

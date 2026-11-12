@@ -5,11 +5,11 @@ import dev.dimension.flare.feature.plugin.PluginSubsystemV1
 import dev.dimension.flare.feature.plugin.abi.PluginJsonV1
 import dev.dimension.flare.feature.plugin.adapter.PluginPlatformSpecSourceV1
 import dev.dimension.flare.feature.plugin.adapter.belongsToPlugin
-import dev.dimension.flare.feature.plugin.wire.PluginAccountCredentialV1
 import dev.dimension.flare.model.PlatformRegistry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.decodeFromString
 
@@ -99,7 +99,7 @@ internal class PluginRuntimeSwitcherV1(
                         ownsCredential = { json ->
                             val snapshot =
                                 try {
-                                    PluginJsonV1.decodeFromString<PluginAccountCredentialV1>(json).snapshot
+                                    PluginJsonV1.decodeFromString<PluginAccountOwnership>(json).snapshot
                                 } catch (_: SerializationException) {
                                     error("Cannot verify account ownership. Remove the affected account before deleting this plugin.")
                                 }
@@ -184,4 +184,16 @@ internal class PluginRuntimeSwitcherV1(
                             ?.id
                 }.mapTo(mutableSetOf()) { it.platformId },
         ).single()
+}
+
+// Cleanup must be able to identify accounts after their capability contract is retired.
+@Serializable
+private data class PluginAccountOwnership(
+    val snapshot: Identity,
+) {
+    @Serializable
+    data class Identity(
+        val pluginId: String,
+        val platformId: String,
+    )
 }

@@ -9,6 +9,7 @@ in the manifest and negotiated login result. JavaScript methods live under
 | --- | --- | --- | --- | --- |
 | `timeline-page` | `timelinePage` | `load` | None | API v2 temporary native lists; no home timeline or tabCatalog required |
 | `account-http` | `accountHttp` | `authenticate` | None | API v2 account-only authentication for platform extensions; explicit authOrigins; no displayable entry |
+| `account-capabilities` | `accountCapabilities` | `negotiate` | None | Optional read-only account renegotiation after upgrade; runtime APIs 1 and 2; no displayable entry |
 | `timeline` | `timeline` | `page` | None | Static timelines, including at least one default |
 | `search` | `search` | At least one search operation | `posts`, `profiles`, `discoverPosts`, `discoverProfiles`, `discoverHashtags` | Each supported operation enables its own section |
 | `profile` | `profile` | `byId`, `byHandle` | `timeline`, `following`, `followers` | Profile lookup; tabs additionally require `timeline` and profileTabs |

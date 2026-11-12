@@ -101,7 +101,12 @@ defineFlareSocialPlugin({
 
 The manifest is the static upper bound. Every declared known operation must
 have the corresponding function, or installation fails. Login returns the
-subset supported by that account and instance. Unknown capability IDs and
+subset supported by that account and instance. An optional
+`flare.datasource.account-capabilities/v1` declaration maps `negotiate` to
+`capabilities.accountCapabilities.negotiate`; after an upgrade it returns that
+complete subset and compose configs using existing credentials, without login.
+See [account capability renegotiation](references/authentication.md#account-capability-renegotiation).
+Unknown capability IDs and
 operation names are silently ignored during installation, login, account
 restoration, and updates. Known operations still require their declared methods
 and complete required operation sets. A capability containing only unsupported
@@ -138,12 +143,13 @@ translateBatchDocumentJson })`. The Host keeps the internal method paths
 Settings-only packages have no background registration to execute.
 
 Compose capability versions are independent of the runtime API version.
-`compose/v1` manifests and negotiated capabilities are rejected rather
-than adapted. Composer plugins must update their manifests, SDK types and
-publish handlers; existing compose accounts need a new login. New requests use
-`reference: { type: "reply" | "quote", key }`, with no reference for a new post.
-`composeDefaults.supportedTypes` is required and login narrows that set by
-intersection. See the [compose recipe](references/recipes.md#compose).
+`compose/v1` packages and saved accounts remain supported without modification.
+The Host sends legacy `replyTo` requests and exposes new posts and replies only;
+quote controls are hidden because that contract cannot represent a quote.
+For `compose/v2`, declare `supportedTypes` and handle
+`reference: { type: "reply" | "quote", key }`. Existing v1 accounts retain their
+negotiated publish access and restrictions when the plugin adopts v2, without a
+new login. See the [compose recipe](references/recipes.md#compose).
 
 Use `compose/v3` to publish with `friends` or `selfOnly` visibility. The Host
 selects `composeV3.publish` when the account negotiates it. A package can include
@@ -151,9 +157,8 @@ selects `composeV3.publish` when the account negotiates it. A package can includ
 additive compatibility ignore the v3 capability and config and use the declared
 v2 config when available. See [compose defaults](references/manifest.md#compose-defaults).
 
-Installed compose/v1 records are retained as disabled, upgradeable/uninstallable
-entries so they cannot corrupt the shared plugin index or block unrelated plugins.
-Their handlers never run, and no request or account migration is provided.
+Installed compose/v1 records remain runnable and uninstallable. Legacy config
+omission preserves manifest defaults; the Host does not rewrite the package.
 
 Capabilities that map to a full Host interface must declare its required
 operation set; installation rejects partial interfaces. Notification filters
@@ -246,9 +251,8 @@ permission or invoke an operation.
 - Unknown capability IDs and operations do not become available to the account
   or guest. An account still needs at least one supported displayable capability.
 
-The retired `flare.datasource.compose/v1` capability is an explicit exception:
-it is rejected so old handlers cannot silently publish replies or quotes as new
-posts. Other additive compatibility behavior remains unchanged.
+The known `flare.datasource.compose/v1` contract uses its own request adapter;
+it is not dropped as an unknown extension or sent v2 request fields.
 
 Known malformed data still fails validation. Other enums and control results,
 including login transitions, mutation results, and Host errors, remain strict;
@@ -327,8 +331,9 @@ In account scope, API v2 `credential.read({withRevision:true})` returns
 `{value, revision}` and `replace(next, {expectedRevision})` returns false on a
 local conflict. Unconditional replace remains available. Revisions are opaque;
 every successful replacement changes one. A new login or account restore changes
-the private session epoch and rejects old calls. Existing v1 accounts require
-one relogin when their plugin upgrades to v2. Never replay a remote refresh or
+the private session epoch and rejects old calls. When a plugin upgrades to v2 without changing credentialSchemaVersion, the Host
+atomically initializes missing session metadata before creating its runtime.
+Existing credential JSON and account identity are preserved; no login runs. Never replay a remote refresh or
 business write simply because local persistence conflicted or failed.
 
 Automatic media loading is a separate permission, disabled by default. A plugin

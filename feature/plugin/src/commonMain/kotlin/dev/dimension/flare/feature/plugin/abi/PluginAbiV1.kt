@@ -10,15 +10,11 @@ public object PluginAbiV1 {
     public const val ENTRY_PATH: String = "plugin.js"
     public const val MANIFEST_PATH: String = "manifest.json"
     public const val ACCOUNT_ORIGIN: String = "\$accountOrigin"
-    internal const val RETIRED_COMPOSE: String = "flare.datasource.compose/v1"
-
-    internal fun requireCurrentComposeContract(capabilities: Set<String>) {
-        require(RETIRED_COMPOSE !in capabilities) { "compose/v1 is retired; update the plugin to compose/v2" }
-    }
 
     internal val capabilityIdPattern = Regex("[a-z0-9.-]+/[a-z0-9.-]+")
 
     public object Capabilities {
+        public const val ACCOUNT_CAPABILITIES: String = "flare.datasource.account-capabilities/v1"
         public const val ACCOUNT_HTTP: String = "flare.datasource.account-http/v1"
         public const val TIMELINE_PAGE: String = "flare.datasource.timeline-page/v1"
         public const val TIMELINE: String = "flare.datasource.timeline/v1"
@@ -26,6 +22,7 @@ public object PluginAbiV1 {
         public const val PROFILE: String = "flare.datasource.profile/v1"
         public const val POST: String = "flare.datasource.post/v1"
         public const val RELATION: String = "flare.datasource.relation/v1"
+        public const val COMPOSE_V1: String = "flare.datasource.compose/v1"
         public const val COMPOSE: String = "flare.datasource.compose/v2"
         public const val COMPOSE_V3: String = "flare.datasource.compose/v3"
         public const val NOTIFICATION: String = "flare.datasource.notification/v1"
@@ -39,6 +36,7 @@ public object PluginAbiV1 {
     /** Capability versions are independent of the runtime API version. */
     public val knownCapabilityOperations: Map<String, Set<String>> =
         mapOf(
+            Capabilities.ACCOUNT_CAPABILITIES to setOf("negotiate"),
             Capabilities.ACCOUNT_HTTP to setOf("authenticate"),
             Capabilities.TIMELINE_PAGE to setOf("load"),
             Capabilities.TIMELINE to setOf("page"),
@@ -53,6 +51,7 @@ public object PluginAbiV1 {
             Capabilities.PROFILE to setOf("byId", "byHandle", "timeline", "following", "followers"),
             Capabilities.POST to setOf("detail", "context", "delete", "mutate"),
             Capabilities.RELATION to setOf("state", "mutate"),
+            Capabilities.COMPOSE_V1 to setOf("publish"),
             Capabilities.COMPOSE to setOf("publish"),
             Capabilities.COMPOSE_V3 to setOf("publish"),
             Capabilities.NOTIFICATION to setOf("page", "badge"),
@@ -104,7 +103,6 @@ public object PluginAbiV1 {
     ): Boolean = requiredCapabilityOperations[capabilityId]?.let(operations::containsAll) == true && operations.isNotEmpty()
 
     internal fun knownCapabilities(capabilities: Map<String, Set<String>>): Map<String, Set<String>> {
-        requireCurrentComposeContract(capabilities.keys)
         return capabilities
             .mapNotNull { (id, operations) ->
                 val known = knownCapabilityOperations[id] ?: return@mapNotNull null
@@ -128,6 +126,7 @@ public object PluginAbiV1 {
         if (operation !in knownCapabilityOperations[capabilityId].orEmpty()) return null
         val service =
             when (capabilityId) {
+                Capabilities.ACCOUNT_CAPABILITIES -> "accountCapabilities"
                 Capabilities.ACCOUNT_HTTP -> "accountHttp"
                 Capabilities.TIMELINE_PAGE -> "timelinePage"
                 Capabilities.TIMELINE -> "timeline"
@@ -135,7 +134,7 @@ public object PluginAbiV1 {
                 Capabilities.PROFILE -> "profile"
                 Capabilities.POST -> "post"
                 Capabilities.RELATION -> "relation"
-                Capabilities.COMPOSE -> "compose"
+                Capabilities.COMPOSE_V1, Capabilities.COMPOSE -> "compose"
                 Capabilities.COMPOSE_V3 -> "composeV3"
                 Capabilities.NOTIFICATION -> "notification"
                 Capabilities.LIST -> "list"

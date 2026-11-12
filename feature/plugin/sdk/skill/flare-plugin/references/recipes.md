@@ -233,8 +233,9 @@ implementation. Only enable controls the adapter handles. Login/manifest config
 merging is described in [compose defaults](manifest.md#compose-defaults).
 Test text-only where allowed, required-media constraints, an upload failure,
 alt text, reply/quote distinctions, unsupported-mode rejection, visibility, and
-resulting post navigation. Upgrade old manifests and handlers together; old
-compose accounts need a new login and receive no compatibility conversion.
+resulting post navigation. Old v1 packages continue to work unchanged for new posts and replies. When
+adopting v2, update the manifest and handler together; existing accounts retain
+negotiated publish access and restrictions without a new login.
 
 ## Notification
 

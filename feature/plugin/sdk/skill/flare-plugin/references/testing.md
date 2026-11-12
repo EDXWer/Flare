@@ -32,7 +32,9 @@ do not replace Host validation, and parsing JSON does not validate the manifest.
   media URLs. No real secrets enter checked-in fixtures.
 - Compose fixtures distinguish new/reply/quote, preserve opaque target keys,
   reject unsupported modes before upload and keep quote/reply attachment rules
-  aligned with the editor. Retired compose/v1 declarations must fail validation.
+  aligned with the editor. Unchanged compose/v1 packages and saved accounts must keep working; v1 quote
+  controls stay hidden and rejected. Verify upgrade initialization is idempotent,
+  preserves credentials, and does not revive removed or replaced accounts.
 - Temporary page fixtures cover post/quote entry, nested replies, page.parameters,
   opaque cursors and empty-page continuation. Keep entity keys and targets stable
   through detail/mutation results and recover reply context after runtime eviction.

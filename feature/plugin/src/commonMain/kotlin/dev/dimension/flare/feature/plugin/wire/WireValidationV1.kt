@@ -51,8 +51,11 @@ public fun <T> PageV1<T>.requireValid(validateItem: (T) -> Unit) {
     items.forEach(validateItem)
 }
 
-public fun ComposeConfigV2.requireValid(allowExtendedVisibility: Boolean = false) {
-    require(supportedTypes.isNotEmpty()) { "Compose supportedTypes must not be empty" }
+public fun ComposeConfigV2.requireValid(
+    allowExtendedVisibility: Boolean = false,
+    requireSupportedTypes: Boolean = true,
+) {
+    require(!requireSupportedTypes || supportedTypes.isNotEmpty()) { "Compose supportedTypes must not be empty" }
     text?.let { require(it.maxLength in 1..1_000_000) { "Invalid compose text limit" } }
     media?.let {
         require(it.maxCount in 0..100) { "Invalid compose media count" }
@@ -460,7 +463,9 @@ public fun LoginSuccessV1.requireValid() {
                 operations.all(METHOD_NAME::matches)
         },
     ) { "Invalid negotiated capabilities" }
-    composeConfig?.requireValid()
+    composeConfig.withLegacyComposeTypes(capabilities.keys.usesLegacyCompose())?.requireValid(
+        requireSupportedTypes = PluginAbiV1.Capabilities.COMPOSE in capabilities || PluginAbiV1.Capabilities.COMPOSE_V1 in capabilities,
+    )
     composeConfigV3?.let {
         require("publish" in capabilities[PluginAbiV1.Capabilities.COMPOSE_V3].orEmpty()) { "composeConfigV3 requires compose/v3" }
         it.requireValid(allowExtendedVisibility = true)

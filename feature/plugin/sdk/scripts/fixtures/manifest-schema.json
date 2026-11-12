@@ -1741,7 +1741,7 @@
       "hostValid": false
     },
     {
-      "name": "compose/v1 is retired",
+      "name": "compose/v1 keeps legacy defaults without supportedTypes",
       "patch": {
         "platform": {
           "capabilities": {
@@ -1750,11 +1750,17 @@
                 "publish": {}
               }
             }
+          },
+          "composeDefaults": {
+            "text": {
+              "maxLength": 500
+            },
+            "contentWarning": true
           }
         }
       },
-      "schemaValid": false,
-      "hostValid": false
+      "schemaValid": true,
+      "hostValid": true
     },
     {
       "name": "compose supportedTypes is required",
@@ -2165,6 +2171,69 @@
         }
       },
       "schemaValid": true,
+      "hostValid": false
+    },
+    {
+      "name": "compose/v1 still requires manifest defaults",
+      "patch": {
+        "platform": {
+          "capabilities": {
+            "flare.datasource.compose/v1": {
+              "operations": {
+                "publish": {}
+              }
+            }
+          }
+        }
+      },
+      "schemaValid": false,
+      "hostValid": false
+    },
+    {
+      "name": "account capability renegotiation on API v1",
+      "patch": {
+        "platform": {
+          "capabilities": {
+            "flare.datasource.account-capabilities/v1": {
+              "operations": {
+                "negotiate": {}
+              }
+            }
+          }
+        }
+      },
+      "schemaValid": true,
+      "hostValid": true
+    },
+    {
+      "name": "account capability renegotiation on API v2",
+      "patch": {
+        "apiVersion": 2,
+        "platform": {
+          "capabilities": {
+            "flare.datasource.account-capabilities/v1": {
+              "operations": {
+                "negotiate": {}
+              }
+            }
+          }
+        }
+      },
+      "schemaValid": true,
+      "hostValid": true
+    },
+    {
+      "name": "account capability renegotiation needs an operation",
+      "patch": {
+        "platform": {
+          "capabilities": {
+            "flare.datasource.account-capabilities/v1": {
+              "operations": {}
+            }
+          }
+        }
+      },
+      "schemaValid": false,
       "hostValid": false
     }
   ]

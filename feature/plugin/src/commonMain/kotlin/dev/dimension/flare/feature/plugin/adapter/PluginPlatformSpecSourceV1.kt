@@ -173,6 +173,7 @@ private class PluginPlatformSpecV1(
     private val oauthCallbacks: PluginOAuthCallbackCoordinatorV1 by koinInject()
     private val manifest = plugin.installed.manifest
     private val platform = manifest.socialPlatform
+    private val accountCapabilities = PluginAccountCapabilitiesV1(plugin, runtimePool, coroutineScope)
 
     val pluginId: String = plugin.installed.pluginId
     override val platformId: String = platform.id
@@ -218,7 +219,11 @@ private class PluginPlatformSpecV1(
         platform.deepLinks.map { it.toPlatformDeepLink(accountKey) }.toImmutableList()
 
     override fun createDataSource(context: PlatformDataSourceContext): MicroblogDataSource =
-        PluginDataSourceV1.authenticated(plugin, runtimePool, context, specs, dynamicTimelineSpec, coroutineScope)
+        PluginDataSourceV1
+            .authenticated(plugin, runtimePool, context, specs, dynamicTimelineSpec, coroutineScope)
+            .also { accountCapabilities.start(context) }
+
+    override fun prepareCredential(credentialJson: String): String = plugin.prepareAccountCredential(credentialJson)
 
     override fun restoreCredential(credentialJson: String): String {
         if (plugin.installed.manifest.apiVersion < 2) return credentialJson

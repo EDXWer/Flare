@@ -81,7 +81,7 @@ internal class IsolatedPluginRuntime(
                 val requestJson = request.toString()
                 val authentication = method == "capabilities.accountHttp.authenticate"
                 require(
-                    !authentication ||
+                    !(authentication || method == "capabilities.accountCapabilities.negotiate") ||
                         (
                             context.metadata.scope == dev.dimension.flare.feature.plugin.host.PluginInvocationScopeV1.Account &&
                                 context.metadata.credentialAvailable

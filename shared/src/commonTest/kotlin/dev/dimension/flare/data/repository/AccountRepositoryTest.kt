@@ -108,6 +108,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNotSame
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -173,6 +174,83 @@ class AccountRepositoryTest : RobolectricTest() {
                 }
             }
             assertFailsWith<kotlinx.coroutines.CancellationException> { capturedContext.mutateCredential(Int.serializer()) { 9 } }
+        }
+
+    @Test
+    fun credentialPreparationIsAtomicAndVisibleBeforeDatasourceCreation() =
+        runTest {
+            val registry = testPlatformRegistry()
+            var migrations = 0
+            registry.replaceExternal(
+                "PluginTest",
+                object : PlatformSpec by registry.defaultGuest {
+                    override val platformId = "PluginTest"
+                    override val isDefaultGuest = false
+
+                    override fun prepareCredential(credentialJson: String): String {
+                        if (credentialJson != "\"legacy\"") return credentialJson
+                        migrations++
+                        return "\"prepared\""
+                    }
+
+                    override fun createDataSource(context: PlatformDataSourceContext): MicroblogDataSource {
+                        assertEquals("prepared", context.credential(String.serializer()))
+                        return UnavailableMicroblogDataSource
+                    }
+                },
+            )
+            val repository = createRepository(backgroundScope, registry = registry)
+            val account = UiAccount(accountKey, "PluginTest")
+            repository.addAccount(account, "legacy")
+            val session = appDatabase.accountDao().getAccount(accountKey)!!.session_id
+            List(12) { async(Dispatchers.Default) { repository.getOrCreateDataSource(account) } }.awaitAll()
+            assertEquals(1, migrations)
+            assertEquals("prepared", repository.credentialFlow<String>(accountKey).first())
+            assertEquals(session, appDatabase.accountDao().getAccount(accountKey)!!.session_id)
+        }
+
+    @Test
+    fun capabilityRefreshRebindsObserversWithoutReplacingTheLoginSession() =
+        runTest {
+            val registry = testPlatformRegistry()
+            lateinit var currentContext: PlatformDataSourceContext
+            registry.replaceExternal(
+                "PluginTest",
+                object : PlatformSpec by registry.defaultGuest {
+                    override val platformId = "PluginTest"
+                    override val isDefaultGuest = false
+
+                    override fun createDataSource(context: PlatformDataSourceContext): MicroblogDataSource {
+                        currentContext = context
+                        return object : MicroblogDataSource by UnavailableMicroblogDataSource {}
+                    }
+                },
+            )
+            val repository = createRepository(backgroundScope, registry = registry)
+            val account = UiAccount(accountKey, "PluginTest")
+            repository.addAccount(account, "old capabilities")
+            val sessionId = appDatabase.accountDao().getAccount(accountKey)!!.session_id
+            val single = Channel<MicroblogDataSource>(Channel.UNLIMITED)
+            val all = Channel<List<AccountMicroblogDataSource>>(Channel.UNLIMITED)
+            backgroundScope.launch { accountServiceFlow(AccountType.Specific(accountKey), repository).collect(single::send) }
+            backgroundScope.launch { RepositoryAccountService(repository).allAccountServicesFlow().collect(all::send) }
+            val first = single.receive()
+            assertSame(first, all.receive().single().dataSource)
+            val oldContext = currentContext
+            oldContext.mutateCredential(String.serializer()) { "new capabilities" }
+            oldContext.invalidateDataSource()
+            val second = withTimeout(5_000) { single.receive() }
+            assertNotSame(first, second)
+            assertSame(second, withTimeout(5_000) { all.receive() }.single().dataSource)
+            assertEquals("new capabilities", currentContext.credential(String.serializer()))
+            assertEquals(sessionId, appDatabase.accountDao().getAccount(accountKey)!!.session_id)
+            oldContext.invalidateDataSource()
+            assertSame(second, repository.getOrCreateDataSource(account))
+
+            repository.addAccount(account, "replacement session")
+            val replacement = withTimeout(5_000) { single.receive() }
+            assertFailsWith<kotlinx.coroutines.CancellationException> { oldContext.invalidateDataSource() }
+            assertSame(replacement, repository.getOrCreateDataSource(account))
         }
 
     @Test

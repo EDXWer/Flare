@@ -50,7 +50,7 @@ class PluginStateStoreTest {
     }
 
     @Test
-    fun retiredComposeRecordIsDisabledWithoutBlockingOtherPluginsOrUninstall() =
+    fun legacyComposeRecordStaysRunnableAndUninstallable() =
         runBlocking {
             val installed = installValid(fileSystem)
             val retiredId = installed.pluginId + ".retired"
@@ -67,7 +67,7 @@ class PluginStateStoreTest {
                                     capabilities =
                                         installed.manifest.socialPlatform.capabilities +
                                             (
-                                                PluginAbiV1.RETIRED_COMPOSE to
+                                                PluginAbiV1.Capabilities.COMPOSE_V1 to
                                                     CapabilityManifestV1(operations = mapOf("publish" to CapabilityOperationManifestV1()))
                                             ),
                                     composeDefaults = ComposeConfigV2(supportedTypes = emptySet()),
@@ -84,8 +84,8 @@ class PluginStateStoreTest {
             val reopened = PluginStateStore.open(fileSystem, namespace)
             assertTrue(reopened.desired.value.indexHealthy)
             assertTrue(installed.pluginId in reopened.running.plugins)
-            assertFalse(retiredId in reopened.running.plugins)
-            assertTrue(reopened.running.issues.any { it.pluginId == retiredId && it.code == "compose.retired" })
+            assertTrue(retiredId in reopened.running.plugins)
+            assertTrue(reopened.running.issues.isEmpty())
             assertTrue(fileSystem.exists(paths.packagePath(retired.packageHash)))
             reopened.uninstall(retiredId)
             val after = PluginStateStore.open(fileSystem, namespace)

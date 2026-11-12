@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Flare plugin manifest — API v1/v2",
+  "title": "Flare plugin manifest \u2014 API v1/v2",
   "description": "Editor assistance for manifest structure and static rules. Flare remains authoritative for registration, unique IDs, origin approval, locale catalogs, cross-field values and runtime behavior. The Host never fetches the $schema URL.",
   "type": "object",
   "additionalProperties": false,
@@ -293,7 +293,7 @@
         "composeDefaults": {
           "anyOf": [
             {
-              "$ref": "#/definitions/composeV2"
+              "$ref": "#/definitions/composeV1"
             },
             {
               "type": "null"
@@ -541,12 +541,28 @@
             "properties": {
               "capabilities": {
                 "type": "object",
-                "required": [
-                  "flare.datasource.compose/v2"
-                ],
                 "properties": {
-                  "flare.datasource.compose/v2": true
-                }
+                  "flare.datasource.compose/v2": true,
+                  "flare.datasource.compose/v1": true
+                },
+                "anyOf": [
+                  {
+                    "required": [
+                      "flare.datasource.compose/v1"
+                    ],
+                    "properties": {
+                      "flare.datasource.compose/v1": true
+                    }
+                  },
+                  {
+                    "required": [
+                      "flare.datasource.compose/v2"
+                    ],
+                    "properties": {
+                      "flare.datasource.compose/v2": true
+                    }
+                  }
+                ]
               }
             }
           }
@@ -621,6 +637,35 @@
                 "properties": {
                   "flare.datasource.compose/v3": true
                 }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": [
+              "capabilities"
+            ],
+            "properties": {
+              "capabilities": {
+                "type": "object",
+                "required": [
+                  "flare.datasource.compose/v1"
+                ],
+                "properties": {
+                  "flare.datasource.compose/v1": true
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "composeDefaults"
+            ],
+            "properties": {
+              "composeDefaults": {
+                "$ref": "#/definitions/composeV1"
               }
             }
           }
@@ -1612,10 +1657,7 @@
       "default": {},
       "description": "Declare supported capability operations; compose/v2 uses typed references and requires explicit supportedTypes.",
       "propertyNames": {
-        "pattern": "^(?:[a-z0-9.-]+/[a-z0-9.-]+)(?![\\s\\S])",
-        "not": {
-          "const": "flare.datasource.compose/v1"
-        }
+        "pattern": "^(?:[a-z0-9.-]+/[a-z0-9.-]+)(?![\\s\\S])"
       },
       "properties": {
         "flare.datasource.timeline/v1": {
@@ -1662,6 +1704,12 @@
         },
         "flare.datasource.account-http/v1": {
           "$ref": "#/definitions/capability-account-http"
+        },
+        "flare.datasource.compose/v1": {
+          "$ref": "#/definitions/capability-compose"
+        },
+        "flare.datasource.account-capabilities/v1": {
+          "$ref": "#/definitions/capability-account-capabilities"
         }
       },
       "additionalProperties": {
@@ -2146,10 +2194,7 @@
           ],
           "default": null
         }
-      },
-      "required": [
-        "supportedTypes"
-      ]
+      }
     },
     "composeV2": {
       "type": "object",
@@ -2180,7 +2225,15 @@
             }
           }
         }
-      ]
+      ],
+      "required": [
+        "supportedTypes"
+      ],
+      "properties": {
+        "supportedTypes": {
+          "$ref": "#/definitions/compose/properties/supportedTypes"
+        }
+      }
     },
     "composeV3": {
       "type": "object",
@@ -2198,7 +2251,15 @@
             "visibility"
           ]
         }
-      ]
+      ],
+      "required": [
+        "supportedTypes"
+      ],
+      "properties": {
+        "supportedTypes": {
+          "$ref": "#/definitions/compose/properties/supportedTypes"
+        }
+      }
     },
     "composeType": {
       "type": "string",
@@ -2411,6 +2472,75 @@
           "required": [
             "authOrigins"
           ]
+        }
+      ]
+    },
+    "composeV1": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "#/definitions/compose"
+        },
+        {
+          "properties": {
+            "visibility": {
+              "if": {
+                "type": "object"
+              },
+              "then": {
+                "type": "object",
+                "properties": {
+                  "allowed": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/definitions/visibility"
+                    }
+                  },
+                  "default": {
+                    "$ref": "#/definitions/visibility"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "capability-account-capabilities": {
+      "type": "object",
+      "description": "Optional account-only, read-only capability negotiation after a package upgrade; supported on runtime APIs 1 and 2.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/capability"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operations": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "negotiate"
+              ],
+              "properties": {
+                "negotiate": {
+                  "$ref": "#/definitions/operation"
+                }
+              }
+            },
+            "authOrigins": {
+              "type": "array",
+              "maxItems": 0
+            },
+            "notificationFilters": {
+              "type": "array",
+              "maxItems": 0
+            },
+            "relationActions": {
+              "type": "array",
+              "maxItems": 0
+            }
+          }
         }
       ]
     }

@@ -179,7 +179,9 @@ public class PluginRuntimePool(
         validate: (JsonElement) -> Unit,
     ): JsonElement {
         validateInvocation(plugin, key, context)
-        if (key.scope == PluginInvocationScopeV1.Detector || key.scope == PluginInvocationScopeV1.Extension) {
+        if (key.scope == PluginInvocationScopeV1.Detector || key.scope == PluginInvocationScopeV1.Extension ||
+            method == "capabilities.accountCapabilities.negotiate"
+        ) {
             return invokeTemporary(plugin, context, method, request, timeout, validate)
         }
         val holder =
@@ -271,7 +273,10 @@ public class PluginRuntimePool(
         return try {
             runtime.invoke(method, request, context, timeout, validate)
         } catch (error: PluginRuntimeFatalException) {
-            withContext(NonCancellable) { recordFailure(plugin.installed.pluginId, error.countsTowardPause) }
+            // Optional metadata negotiation must never pause the account's working runtime.
+            if (method != "capabilities.accountCapabilities.negotiate") {
+                withContext(NonCancellable) { recordFailure(plugin.installed.pluginId, error.countsTowardPause) }
+            }
             val cause = error.cause ?: error
             if (cause is CancellationException && !error.countsTowardPause) throw cause
             throw PluginRuntimeUnavailableException(plugin.installed.pluginId, cause)

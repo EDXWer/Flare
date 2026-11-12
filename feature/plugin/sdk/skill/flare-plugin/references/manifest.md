@@ -242,8 +242,10 @@ See the [complete login recipes](authentication.md).
 
 ### Compose defaults
 
-Declare `flare.datasource.compose/v2` for `compose.publish`. The retired
-`compose/v1` capability is rejected, not treated as an unknown optional extension.
+Declare `flare.datasource.compose/v2` for typed `compose.publish` references.
+Existing `compose/v1` packages remain supported with `replyTo`, implicit new/reply
+modes and no quote controls. Their composeDefaults do not require supportedTypes.
+The table below describes v2; v1 retains the other limits and optional sections.
 
 | Field | Shape and defaults |
 | --- | --- |
@@ -310,3 +312,7 @@ older additive Hosts.
 For `platformExtension` targets (including other plugins' platforms), action IDs,
 optional per-action `platformIds`, daily timezones and account authorization,
 read [existing-platform actions](platform-extensions.md). Extensions require Host API v2.
+
+Account-only `flare.datasource.account-capabilities/v1` declares `negotiate` on
+runtime APIs 1 and 2. It adds no permissions and enables optional
+[capability renegotiation without login](authentication.md#account-capability-renegotiation).

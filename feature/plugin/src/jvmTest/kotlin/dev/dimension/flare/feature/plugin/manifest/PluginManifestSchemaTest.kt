@@ -107,8 +107,9 @@ class PluginManifestSchemaTest {
         checkObject(
             definitions.getValue("compose").jsonObject,
             ComposeConfigV2.serializer().descriptor,
-            requiredByValidation = setOf("supportedTypes"),
         )
+        assertEquals(setOf("supportedTypes"), definitions.getValue("composeV2").jsonObject.strings("required"))
+        assertEquals(setOf("supportedTypes"), definitions.getValue("composeV3").jsonObject.strings("required"))
         checkObject(definitions.getValue("literalSegment").jsonObject, DeepLinkPathSegmentV1.Literal.serializer().descriptor, setOf("type"))
         checkObject(definitions.getValue("captureSegment").jsonObject, DeepLinkPathSegmentV1.Capture.serializer().descriptor, setOf("type"))
     }

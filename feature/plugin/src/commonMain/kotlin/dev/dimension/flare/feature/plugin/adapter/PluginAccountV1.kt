@@ -16,10 +16,14 @@ import dev.dimension.flare.feature.plugin.manifest.fallbackText
 import dev.dimension.flare.feature.plugin.manifest.socialPlatform
 import dev.dimension.flare.feature.plugin.manifest.toUiText
 import dev.dimension.flare.feature.plugin.wire.AccountPluginSnapshotV1
+import dev.dimension.flare.feature.plugin.wire.ComposeConfigV2
 import dev.dimension.flare.feature.plugin.wire.LoginSuccessV1
 import dev.dimension.flare.feature.plugin.wire.PluginAccountCredentialV1
 import dev.dimension.flare.feature.plugin.wire.WireLimitsV1
+import dev.dimension.flare.feature.plugin.wire.legacyComposeTypes
 import dev.dimension.flare.feature.plugin.wire.requireValid
+import dev.dimension.flare.feature.plugin.wire.usesLegacyCompose
+import dev.dimension.flare.feature.plugin.wire.withLegacyComposeTypes
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.model.PlatformDataSourceContext
 import dev.dimension.flare.model.PlatformMetadata
@@ -27,7 +31,6 @@ import dev.dimension.flare.ui.model.UiAccount
 import io.ktor.http.Url
 import io.ktor.http.encodeURLPath
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonElement
@@ -53,6 +56,7 @@ public fun RunningPluginV1.accountCredential(success: LoginSuccessV1): PluginAcc
                 composeConfig = success.composeConfig,
                 credentialSchemaVersion = installed.manifest.socialPlatform.credentialSchemaVersion,
                 composeConfigV3 = success.composeConfigV3,
+                capabilitiesPackageHash = installed.packageHash,
             ),
         credential = success.credential,
         sessionEpoch = if (installed.manifest.apiVersion >= 2) platformUuid() else null,
@@ -114,6 +118,9 @@ internal fun PluginAccountCredentialV1.requireValid(plugin: RunningPluginV1) {
         "Plugin account identity mismatch"
     }
     require(PACKAGE_HASH.matches(snapshot.packageHash)) { "Invalid plugin account package hash" }
+    require(snapshot.capabilitiesPackageHash == null || PACKAGE_HASH.matches(snapshot.capabilitiesPackageHash)) {
+        "Invalid capability negotiation package hash"
+    }
     require(snapshot.accountId.isNotBlank() && snapshot.accountId.length <= WireLimitsV1.MAX_ID_LENGTH) {
         "Invalid plugin account ID"
     }
@@ -130,8 +137,19 @@ internal fun PluginAccountCredentialV1.requireValid(plugin: RunningPluginV1) {
     require(snapshot.manifestCapabilities.isCapabilitySnapshot() && snapshot.negotiatedCapabilities.isCapabilitySnapshot()) {
         "Invalid plugin account capabilities"
     }
-    mergePluginComposeConfigV2(manifest.socialPlatform.composeDefaults, snapshot.composeConfig)
-    mergePluginComposeConfigV2(manifest.socialPlatform.composeDefaultsV3, snapshot.composeConfigV3, allowExtendedVisibility = true)
+    if (needsCapabilityNegotiation(plugin)) {
+        // An upgraded manifest may replace incompatible compose limits; validate the saved snapshot independently until negotiation.
+        snapshot.composeConfig.withLegacyComposeTypes(snapshot.negotiatedCapabilities.keys.usesLegacyCompose())?.requireValid(
+            requireSupportedTypes =
+                snapshot.negotiatedCapabilities.keys.any {
+                    it == PluginAbiV1.Capabilities.COMPOSE_V1 || it == PluginAbiV1.Capabilities.COMPOSE
+                },
+        )
+        snapshot.composeConfigV3?.requireValid(allowExtendedVisibility = true)
+    } else {
+        composeConfig(plugin)
+        mergePluginComposeConfigV2(manifest.socialPlatform.composeDefaultsV3, snapshot.composeConfigV3, allowExtendedVisibility = true)
+    }
     require(
         PluginJsonV1
             .encodeToString(JsonElement.serializer(), credential)
@@ -142,10 +160,56 @@ internal fun PluginAccountCredentialV1.requireValid(plugin: RunningPluginV1) {
 
 internal fun PluginAccountCredentialV1.effectiveCapabilities(plugin: RunningPluginV1): Map<String, Set<String>> {
     requireValid(plugin)
-    return plugin.installed.manifest.socialPlatform.capabilities
+    return effectiveOperations(plugin)
+}
+
+internal fun PluginAccountCredentialV1.needsCapabilityNegotiation(plugin: RunningPluginV1): Boolean =
+    snapshot.capabilitiesPackageHash != plugin.installed.packageHash &&
+        snapshot.credentialSchemaVersion == plugin.installed.manifest.socialPlatform.credentialSchemaVersion &&
+        "negotiate" in
+        plugin.installed.manifest.socialPlatform.capabilities[PluginAbiV1.Capabilities.ACCOUNT_CAPABILITIES]
+            ?.operations
+            .orEmpty()
+
+internal fun PluginAccountCredentialV1.composeConfig(plugin: RunningPluginV1): ComposeConfigV2? {
+    val platform = plugin.installed.manifest.socialPlatform
+    val operations = effectiveOperations(plugin)
+    if ("publish" !in operations[PluginAbiV1.Capabilities.COMPOSE_V1].orEmpty() &&
+        "publish" !in operations[PluginAbiV1.Capabilities.COMPOSE].orEmpty()
+    ) {
+        snapshot.composeConfig?.requireValid(requireSupportedTypes = false)
+        return null
+    }
+    val legacy =
+        "publish" in operations[PluginAbiV1.Capabilities.COMPOSE_V1].orEmpty() &&
+            "publish" !in operations[PluginAbiV1.Capabilities.COMPOSE].orEmpty()
+    val legacySnapshot =
+        PluginAbiV1.Capabilities.COMPOSE_V1 in snapshot.manifestCapabilities &&
+            PluginAbiV1.Capabilities.COMPOSE !in snapshot.negotiatedCapabilities
+    val hadCompose =
+        PluginAbiV1.Capabilities.COMPOSE_V1 in snapshot.manifestCapabilities ||
+            PluginAbiV1.Capabilities.COMPOSE in snapshot.manifestCapabilities
+    if (!hadCompose) snapshot.composeConfig?.requireValid(requireSupportedTypes = false)
+    val config =
+        mergePluginComposeConfigV2(
+            platform.composeDefaults.withLegacyComposeTypes(legacy || platform.capabilities.keys.usesLegacyCompose()),
+            snapshot.composeConfig.takeIf { hadCompose }.withLegacyComposeTypes(legacySnapshot),
+            requireModeOverlap = !legacySnapshot || legacy,
+        ) ?: return null
+    return if (legacy || legacySnapshot) config.copy(supportedTypes = config.supportedTypes intersect legacyComposeTypes) else config
+}
+
+private fun PluginAccountCredentialV1.effectiveOperations(plugin: RunningPluginV1): Map<String, Set<String>> =
+    plugin.installed.manifest.socialPlatform.capabilities
         .mapValues { (capability, declaration) ->
-            val previousManifest = snapshot.manifestCapabilities[capability].orEmpty()
-            val negotiated = snapshot.negotiatedCapabilities[capability].orEmpty()
+            val previousCapability =
+                if (capability == PluginAbiV1.Capabilities.COMPOSE && snapshot.manifestCapabilities.keys.usesLegacyCompose()) {
+                    PluginAbiV1.Capabilities.COMPOSE_V1
+                } else {
+                    capability
+                }
+            val previousManifest = snapshot.manifestCapabilities[previousCapability].orEmpty()
+            val negotiated = snapshot.negotiatedCapabilities[previousCapability].orEmpty()
             declaration.operations.keys.filterTo(linkedSetOf()) { operation ->
                 operation in negotiated ||
                     (
@@ -156,6 +220,18 @@ internal fun PluginAccountCredentialV1.effectiveCapabilities(plugin: RunningPlug
             }
         }.filterValues(Set<String>::isNotEmpty)
         .let(PluginAbiV1::knownCapabilities)
+
+internal fun RunningPluginV1.prepareAccountCredential(json: String): String {
+    if (installed.manifest.apiVersion < 2) return json
+    session.ensureActive()
+    val account = PluginJsonV1.decodeFromString<PluginAccountCredentialV1>(json).also { it.requireValid(this) }
+    if (account.snapshot.credentialSchemaVersion != installed.manifest.socialPlatform.credentialSchemaVersion) return json
+    if (account.sessionEpoch != null && account.credentialRevision != null) return json
+    require(account.sessionEpoch == null && account.credentialRevision == null) { "Incomplete plugin account session" }
+    return PluginJsonV1.encodeToString(
+        PluginAccountCredentialV1.serializer(),
+        account.copy(sessionEpoch = platformUuid(), credentialRevision = platformUuid()),
+    )
 }
 
 internal class PlatformDataSourceCredentialAccessV1(
@@ -164,18 +240,12 @@ internal class PlatformDataSourceCredentialAccessV1(
 ) : PluginCredentialAccess {
     private val packageRefreshMutex = Mutex()
     private val epoch = context.credential(PluginAccountCredentialV1.serializer()).sessionEpoch
+    private val capabilitiesPackageHash = context.credential(PluginAccountCredentialV1.serializer()).snapshot.capabilitiesPackageHash
 
     override suspend fun read(): JsonElement = current().credential
 
     override suspend fun replace(value: JsonElement) {
-        if (plugin.installed.manifest.apiVersion >= 2) {
-            update(value, null)
-            return
-        }
-        val current = current()
-        val replacement = current.copy(credential = value).also { it.requireValid(plugin) }
-        plugin.session.ensureActive()
-        context.updateCredential(PluginAccountCredentialV1.serializer(), replacement)
+        update(value, null)
     }
 
     override suspend fun readVersioned(): PluginCredentialSnapshot =
@@ -187,7 +257,7 @@ internal class PlatformDataSourceCredentialAccessV1(
     ): Boolean = update(value, revision)
 
     override suspend fun ensureActive() {
-        if (plugin.installed.manifest.apiVersion >= 2) current()
+        current()
     }
 
     private suspend fun update(
@@ -198,14 +268,21 @@ internal class PlatformDataSourceCredentialAccessV1(
             if (revision != null && revision != current.credentialRevision) {
                 null
             } else {
-                current.copy(credential = value, credentialRevision = platformUuid()).also { it.requireValid(plugin) }
+                current
+                    .copy(
+                        credential = value,
+                        credentialRevision = if (plugin.installed.manifest.apiVersion >= 2) platformUuid() else current.credentialRevision,
+                    ).also { it.requireValid(plugin) }
             }
         } != null
 
     private suspend fun mutateCurrent(update: (PluginAccountCredentialV1) -> PluginAccountCredentialV1?): PluginAccountCredentialV1? =
         context.mutateCredential(PluginAccountCredentialV1.serializer()) { current ->
             requireCurrentAccount(current)
-            requireEpoch(current)
+            if (plugin.installed.manifest.apiVersion >= 2) requireEpoch(current)
+            if (current.snapshot.credentialSchemaVersion != plugin.installed.manifest.socialPlatform.credentialSchemaVersion) {
+                throw RequireReLoginException(context.accountKey, plugin.installed.manifest.socialPlatform.id)
+            }
             plugin.session.ensureActive()
             update(current)
         }
@@ -225,57 +302,23 @@ internal class PlatformDataSourceCredentialAccessV1(
             .credential(PluginAccountCredentialV1.serializer())
             .also(::requireCurrentAccount)
 
-    suspend fun current(): PluginAccountCredentialV1 {
-        if (plugin.installed.manifest.apiVersion >= 2) {
-            return packageRefreshMutex.withLock {
-                val account = mutateCurrent { it } ?: throw CancellationException("Plugin account is unavailable")
-                if (account.snapshot.packageHash == plugin.installed.packageHash) {
-                    account
-                } else {
-                    context.invalidateCachedContent()
-                    mutateCurrent { current ->
-                        current.copy(snapshot = current.snapshot.copy(packageHash = plugin.installed.packageHash))
-                    } ?: throw CancellationException("Plugin account is unavailable")
-                }
-            }
-        }
-        return persisted().let { current ->
-            plugin.session.ensureActive()
-            if (current.snapshot.packageHash == plugin.installed.packageHash) {
-                current
+    suspend fun current(): PluginAccountCredentialV1 =
+        packageRefreshMutex.withLock {
+            val account = mutateCurrent { it } ?: throw CancellationException("Plugin account is unavailable")
+            if (account.snapshot.packageHash == plugin.installed.packageHash) {
+                account
             } else {
-                packageRefreshMutex.withLock {
-                    val latest = persisted()
-                    if (latest.snapshot.packageHash == plugin.installed.packageHash) {
-                        latest
-                    } else {
-                        context.invalidateCachedContent()
-                        latest
-                            .copy(snapshot = latest.snapshot.copy(packageHash = plugin.installed.packageHash))
-                            .also { replacement ->
-                                replacement.requireValid(plugin)
-                                plugin.session.ensureActive()
-                                context.updateCredential(PluginAccountCredentialV1.serializer(), replacement)
-                            }
-                    }
-                }
+                context.invalidateCachedContent()
+                mutateCurrent { current ->
+                    current.copy(snapshot = current.snapshot.copy(packageHash = plugin.installed.packageHash))
+                } ?: throw CancellationException("Plugin account is unavailable")
             }
         }
-    }
-
-    private suspend fun persisted(): PluginAccountCredentialV1 =
-        context
-            .credentialFlow(PluginAccountCredentialV1.serializer())
-            .first()
-            .also { account ->
-                requireCurrentAccount(account)
-                // Keep account observers alive for relogin or restoration, but never invoke incompatible credentials.
-                if (account.snapshot.credentialSchemaVersion != plugin.installed.manifest.socialPlatform.credentialSchemaVersion) {
-                    throw RequireReLoginException(context.accountKey, plugin.installed.manifest.socialPlatform.id)
-                }
-            }
 
     private fun requireCurrentAccount(account: PluginAccountCredentialV1) {
+        if (account.snapshot.capabilitiesPackageHash != capabilitiesPackageHash) {
+            throw CancellationException("Plugin account capabilities were updated")
+        }
         account.requireValid(plugin)
         val expectedKey = MicroBlogKey(account.snapshot.accountId, Url(account.snapshot.origin).accountHost())
         if (expectedKey != context.accountKey) {

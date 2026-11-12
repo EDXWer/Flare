@@ -211,17 +211,46 @@ class PluginLifecycleTest {
         }
 
     @Test
+    fun uninstallDeletesOnlyOwnedAccountsWithRetiredCapabilities() =
+        runTest {
+            withFixture(backgroundScope) { subsystem, presenter, accounts, input ->
+                val review = presenter.inspect(input.toString())
+                presenter.confirmInstall()
+                val capabilities = mapOf("flare.datasource.compose/v1" to setOf("publish"))
+                val owned = account(accounts, "legacy", review.pluginId, review.platformId, capabilities)
+                val foreign = account(accounts, "foreign", "another.plugin", review.platformId, capabilities)
+                val otherPlatform = account(accounts, "other", review.pluginId, "OtherPlatform", capabilities)
+                val saved = accounts.accounts.getValue(otherPlatform)
+                accounts.accounts[otherPlatform] = saved.first.copy(platformId = review.platformId) to saved.second
+
+                presenter.uninstall(review.pluginId)
+
+                assertFalse(owned in accounts.accounts)
+                assertEquals(setOf(foreign, otherPlatform), accounts.accounts.keys)
+                assertFalse(review.pluginId in subsystem.running.value.plugins)
+                assertFalse(review.pluginId in subsystem.stateStore.desired.value.plugins)
+            }
+        }
+
+    @Test
     fun malformedCredentialsDoNotLeakThroughTheDeleteError() =
         runTest {
             withFixture(backgroundScope) { subsystem, presenter, accounts, input ->
                 val review = presenter.inspect(input.toString())
                 presenter.confirmInstall()
                 val account = UiAccount(MicroBlogKey("broken", "same.example"), review.platformId)
-                accounts.accounts[account.accountKey] = account to "{secret_token:do-not-disclose}"
-                val error = assertFailsWith<IllegalStateException> { presenter.uninstall(review.pluginId) }
-                assertFalse(error.message.orEmpty().contains("do-not-disclose"))
-                assertTrue(account.accountKey in accounts.accounts)
-                assertTrue(review.pluginId in subsystem.running.value.plugins)
+                for (credential in listOf(
+                    "{secret_token:do-not-disclose}",
+                    """{"snapshot":"do-not-disclose"}""",
+                    """{"snapshot":{"pluginId":"${review.pluginId}"},"credential":"do-not-disclose"}""",
+                    """{"snapshot":{"platformId":"${review.platformId}"},"credential":"do-not-disclose"}""",
+                )) {
+                    accounts.accounts[account.accountKey] = account to credential
+                    val error = assertFailsWith<IllegalStateException> { presenter.uninstall(review.pluginId) }
+                    assertFalse(error.message.orEmpty().contains("do-not-disclose"))
+                    assertTrue(account.accountKey in accounts.accounts)
+                    assertTrue(review.pluginId in subsystem.running.value.plugins)
+                }
             }
         }
 
@@ -261,6 +290,7 @@ class PluginLifecycleTest {
         id: String,
         pluginId: String,
         platformId: String,
+        capabilities: Map<String, Set<String>> = emptyMap(),
     ): MicroBlogKey {
         val key = MicroBlogKey(id, "same.example")
         accounts.addAccount(
@@ -273,8 +303,8 @@ class PluginLifecycleTest {
                     "https://same.example",
                     id,
                     ProfileV1(EntityKeyV1(id, "same.example"), id, id),
-                    emptyMap(),
-                    emptyMap(),
+                    capabilities,
+                    capabilities,
                     credentialSchemaVersion = 1,
                 ),
                 JsonObject(emptyMap()),

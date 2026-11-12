@@ -71,6 +71,20 @@ test("npm tarball preserves the SDK and creates a typed, buildable plugin projec
   }
   npm(["install", "--prefer-offline", "--ignore-scripts", "--no-save", "--no-audit", "--no-fund", "--package-lock=false", join(directory, archive.filename)], generated, toolingCache);
   const prebuilt = readFileSync(join(generated, "plugin.js"));
+  writeFileSync(join(generated, "src/legacy-types.ts"), `
+const legacyConfig: ComposeConfigV1 = { text: { maxLength: 500 } };
+function legacyPublish(request: ComposeRequestV1): ComposeResultV1 {
+  const target: EntityKeyV1 | undefined = request.replyTo;
+  throw new Error(String(target?.id));
+}
+defineFlareSocialPlugin({ capabilities: { compose: { publish: legacyPublish } } });
+function currentPublish(request: ComposeRequestV2): ComposeResultV1 {
+  const target: EntityKeyV1 | undefined = request.reference?.key;
+  throw new Error(String(target?.id));
+}
+defineFlareSocialPlugin({ capabilities: { compose: { publish: currentPublish } } });
+void legacyConfig;
+`);
   npm(["run", "check"], generated);
   npm(["run", "build"], generated);
   assert.deepEqual(readFileSync(join(generated, "plugin.js")), prebuilt, "Rebuild and commit the canonical plugin.js when the TS source changes");
@@ -211,6 +225,14 @@ defineFlareSocialPlugin({ capabilities: { accountHttp: {
     const body: string | null | undefined = request.bodyBase64;
     const credential = await flare.credential.read();
     return { Authorization: "Bearer " + String(credential), "X-Method": method };
+  },
+} } });
+defineFlareSocialPlugin({ capabilities: { accountCapabilities: {
+  async negotiate(request, context) {
+    const previous: AccountCapabilitiesV1 = request.previous;
+    const credential = await flare.credential.read();
+    const origin: string = context.origin;
+    return { capabilities: { "flare.datasource.timeline/v1": ["page"] }, composeConfig: previous.composeConfig };
   },
 } } });
 // @ts-expect-error Account HTTP uses Host authentication.

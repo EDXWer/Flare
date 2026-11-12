@@ -6,12 +6,54 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ComposeV2Test {
+    @Test
+    fun oldReadonlyLoginConfigStaysValidWithoutGrantingPublish() {
+        val success =
+            PluginJsonV1.decodeFromString<LoginSuccessV1>(
+                """{
+              "accountId":"me","origin":"https://example.com","credential":{},
+              "profile":{"key":{"id":"me","host":"example.com"},"handle":"me","displayName":"Me"},
+              "capabilities":{"flare.datasource.timeline/v1":["page"]},
+              "composeConfig":{"text":{"maxLength":500},"contentWarning":true}
+            }""",
+            )
+        success.requireValid()
+        assertEquals(setOf("flare.datasource.timeline/v1"), success.capabilities.keys)
+        assertFailsWith<IllegalArgumentException> {
+            success.copy(composeConfig = ComposeConfigV2(text = ComposeConfigV2.TextConfigV1(-1))).requireValid()
+        }
+    }
+
+    @Test
+    fun legacyRequestsPreserveRepliesAndCannotPublishQuotes() {
+        val key = EntityKeyV1("opaque/42", "remote.example")
+        val newPost = ComposeRequestV2("new", VisibilityV1.Public)
+        val plain = PluginJsonV1.parseToJsonElement(PluginJsonV1.encodeToString(LegacyComposeRequestV1Serializer, newPost)).jsonObject
+        assertFalse("replyTo" in plain || "reference" in plain)
+        val reply =
+            PluginJsonV1
+                .parseToJsonElement(
+                    PluginJsonV1.encodeToString(LegacyComposeRequestV1Serializer, newPost.copy(reference = ComposeReferenceV2.Reply(key))),
+                ).jsonObject
+        assertEquals(
+            "opaque/42",
+            reply
+                .getValue("replyTo")
+                .jsonObject
+                .getValue("id")
+                .jsonPrimitive.content,
+        )
+        assertFalse("reference" in reply)
+        assertFailsWith<IllegalArgumentException> {
+            PluginJsonV1.encodeToString(LegacyComposeRequestV1Serializer, newPost.copy(reference = ComposeReferenceV2.Quote(key)))
+        }
+    }
+
     @Test
     fun referenceHasOneTypedTargetAndPreservesOpaqueKeys() {
         val key = EntityKeyV1("opaque/id:42", "remote.example")
@@ -42,7 +84,7 @@ class ComposeV2Test {
     }
 
     @Test
-    fun modeDeclarationsAreRequiredAndOldNegotiatedComposeIsRejected() {
+    fun v2ModesStayRequiredWhileLegacyNegotiatedComposeIsAccepted() {
         assertFailsWith<IllegalArgumentException> {
             PluginJsonV1.decodeFromString<ComposeConfigV2>("""{"text":{"maxLength":100}}""").requireValid()
         }
@@ -52,16 +94,15 @@ class ComposeV2Test {
                     """{"supportedTypes":[]}""",
                 ).requireValid()
         }
-        val failure =
-            assertFails {
-                PluginJsonV1.decodeFromString<LoginSuccessV1>(
-                    """{
+        val success =
+            PluginJsonV1.decodeFromString<LoginSuccessV1>(
+                """{
               "accountId":"me","origin":"https://example.com","credential":{},
               "profile":{"key":{"id":"me","host":"example.com"},"handle":"me","displayName":"Me"},
               "capabilities":{"flare.datasource.compose/v1":["publish"]}
             }""",
-                )
-            }
-        assertTrue(failure.message.orEmpty().contains("compose/v1"))
+            )
+        success.requireValid()
+        assertEquals(setOf("publish"), success.capabilities["flare.datasource.compose/v1"])
     }
 }

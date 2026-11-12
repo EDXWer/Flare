@@ -1,8 +1,10 @@
 package dev.dimension.flare.feature.plugin.installer
 
 import okio.FileSystem
+import okio.ForwardingFileSystem
 import okio.Path
 import okio.Path.Companion.toOkioPath
+import okio.Path.Companion.toPath
 import java.nio.file.Files
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -47,6 +49,39 @@ class PluginDevelopmentSourceV1Test {
         val scriptHash = PluginDevelopmentSourceV1.read(files, root).hash
         files.write(root / "locales/en.json") { writeUtf8("{}") }
         assertNotEquals(scriptHash, PluginDevelopmentSourceV1.read(files, root).hash)
+    }
+
+    @Test
+    fun windowsDevelopmentPathsProducePortableSettingsEntries() {
+        files.createDirectories(root / "settings/scripts")
+        files.write(root / "settings/index.html") { writeUtf8("<html></html>") }
+        files.write(root / "settings/scripts/main.js") { writeUtf8("export {};") }
+        val expected = PluginDevelopmentSourceV1.read(files, root)
+        val windowsRoot = "C:\\plugins\\example".toPath()
+        val windowsFiles =
+            object : ForwardingFileSystem(files) {
+                override fun onPathParameter(
+                    path: Path,
+                    functionName: String,
+                    parameterName: String,
+                ): Path = root / path.relativeTo(windowsRoot).segments.joinToString("/")
+
+                override fun onPathResult(
+                    path: Path,
+                    functionName: String,
+                ): Path = windowsRoot / path.relativeTo(root).segments.joinToString("\\")
+            }
+
+        val actual = PluginDevelopmentSourceV1.read(windowsFiles, windowsRoot)
+
+        assertEquals(expected.hash, actual.hash)
+        assertEquals(expected.archive.entries, actual.archive.entries)
+        assertEquals(
+            "export {};",
+            actual.archive.files
+                .getValue("settings/scripts/main.js")
+                .decodeToString(),
+        )
     }
 
     @Test

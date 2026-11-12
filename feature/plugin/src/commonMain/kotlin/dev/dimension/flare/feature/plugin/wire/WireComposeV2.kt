@@ -1,12 +1,17 @@
 package dev.dimension.flare.feature.plugin.wire
 
 import dev.dimension.flare.data.datasource.microblog.ComposeType
+import dev.dimension.flare.feature.plugin.abi.PluginAbiV1
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonTransformingSerializer
+import kotlinx.serialization.json.jsonObject
 
 @Serializable
 public data class ComposeConfigV2(
-    // Empty modes allow disabled installation metadata to load; validation still requires a declaration.
+    // V1 did not declare modes; only its adapter supplies the legacy defaults.
     val supportedTypes: Set<ComposeType> = emptySet(),
     val text: TextConfigV1? = null,
     val media: MediaConfigV1? = null,
@@ -73,6 +78,23 @@ public data class ComposeRequestV2(
     val reference: ComposeReferenceV2? = null,
     val poll: ComposePollV1? = null,
 )
+
+internal fun Set<String>.usesLegacyCompose(): Boolean =
+    PluginAbiV1.Capabilities.COMPOSE_V1 in this && PluginAbiV1.Capabilities.COMPOSE !in this
+
+internal fun ComposeConfigV2?.withLegacyComposeTypes(legacy: Boolean): ComposeConfigV2? =
+    if (legacy) this?.copy(supportedTypes = legacyComposeTypes) else this
+
+internal val legacyComposeTypes: Set<ComposeType> = setOf(ComposeType.New, ComposeType.Reply)
+
+internal object LegacyComposeRequestV1Serializer : JsonTransformingSerializer<ComposeRequestV2>(ComposeRequestV2.serializer()) {
+    override fun transformSerialize(element: JsonElement): JsonElement {
+        val request = element.jsonObject
+        val reference = request["reference"]?.jsonObject
+        require(reference == null || reference["type"]?.toString() == "\"reply\"") { "compose/v1 does not support quotes" }
+        return JsonObject((request - "reference") + reference?.get("key")?.let { mapOf("replyTo" to it) }.orEmpty())
+    }
+}
 
 @Serializable
 public sealed interface ComposeReferenceV2 {

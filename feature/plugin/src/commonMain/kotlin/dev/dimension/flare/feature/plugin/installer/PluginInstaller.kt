@@ -473,7 +473,7 @@ private fun buildWarnings(
             add(
                 PluginInstallWarningV1(
                     PluginInstallWarningTypeV1.Compatibility,
-                    "API v2 can read application response headers, including Set-Cookie, from its approved HTTP origins. Existing v1 accounts need to log in again.",
+                    "API v2 can read application response headers, including Set-Cookie, from its approved HTTP origins.",
                 ),
             )
         }

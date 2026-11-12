@@ -130,7 +130,7 @@ first plugin is offered an update. The second keeps its installed tag/SHA until
 its own runtime files change. A missing directory or failed check appears as a
 plugin issue; retry after fixing the snapshot or connection.
 
-Install, update, and uninstall take effect immediately. Installed plugins are always enabled. There are no plugin lifecycle/migration callbacks. Media
+Install, update, and uninstall take effect immediately. Installed plugins are always enabled. There are no general plugin lifecycle or credential migration callbacks. Optional account capability renegotiation runs in the background after upgrades. Media
 grants follow the running package; cached media retains plugin ownership and
 rechecks that package's permission. Missing plugins cannot restore their media.
 Uninstall records removal before account cleanup. Once that record is saved,
@@ -138,7 +138,7 @@ account-cleanup or final-index-write failures keep the plugin stopped across
 restart; retry deletion from management to finish. Updating or reinstalling
 cannot bypass incomplete removal. Unused package-file cleanup can be retried
 separately from management after deletion completes.
-Publishing controls follow the current account capabilities after replacement or
+Publishing controls follow the current account capabilities after capability renegotiation, replacement or
 relogin, without requiring the account list to change.
 
 Plugin storage survives updates; the plugin owns schema changes and downgrade
@@ -150,8 +150,8 @@ may add its first platform. Settings-only plugins do not need a synthetic platfo
 
 | Change | Author consequence |
 | --- | --- |
-| Adopt compose/v2 | Replace the retired compose/v1 capability, declare supportedTypes and handle typed reference instead of replyTo; old compose accounts need a new login. No compatibility adapter is provided |
-| Adopt v2 header/session features | Set apiVersion to 2; older Hosts reject the package. Existing v1 accounts need one relogin; installation review explains application response-header access |
+| Adopt compose/v2 | Old compose/v1 packages remain supported. To adopt v2, declare supportedTypes and handle typed reference; existing accounts retain publish access and restrictions without a new login |
+| Adopt v2 header/session features | Set apiVersion to 2; older Hosts reject the package. Existing accounts with unchanged credentialSchemaVersion get Host session metadata atomically without relogin; installation review explains application response-header access |
 | Add storage, text translation or offline settings | Use Host API v2 and matching SDK types/resources; feature declarations can be combined or used without a social platform |
 | Change plugin data/configuration | Manage the JSON schema and migrations inside the plugin; storage writes update revisions, and declared translation dependencies invalidate cached/in-progress results |
 | Remove or restore the social platform | Retain its owned ID for account cleanup; restore that same ID, or add a first ID only if none has ever been owned |
@@ -160,8 +160,8 @@ may add its first platform. Settings-only plugins do not need a synthetic platfo
 | Timeline IDs/parameters change incompatibly | Consider timelineSchemaVersion; it changes timeline identities and retires old specs. Explain that existing selections may need reconfiguration |
 | Capabilities removed | Running capabilities are filtered by the new manifest |
 | Ordinary datasource operations newly declared compared with the account's saved manifest | Current Host admits those new operations without re-negotiating login; do not assume a new login will gate them |
-| Add `flare.datasource.account-http/v1` | This account-authentication capability requires explicit login negotiation; existing accounts log in again before other plugins can request access |
-| Previously declared operation was not negotiated for the account | It remains unavailable unless account negotiation changes |
+| Add account-http, compose/v3, or new compose modes | Implement [account capability renegotiation](authentication.md#account-capability-renegotiation) to enable them for existing accounts without login; manifest declarations alone do not bypass saved restrictions |
+| Previously declared operation was not negotiated for the account | A successful renegotiation can enable it; otherwise it remains unavailable |
 | Package hash changes | Account adapter invalidates cached content when refreshing its persisted package snapshot |
 | Additive fields, detail types, item/media/action variants, capabilities or operations | Compatible Hosts ignore unsupported extensions; known content keeps its behavior and validation. Unknown detail/navigation types are inert, with no URL fallback |
 | Host predates additive compatibility, or an existing contract changes incompatibly | Require a compatible app release; a plugin update cannot retrofit Host behavior. API/schema version checks remain enforced |

@@ -467,11 +467,17 @@ internal class AccountRepository internal constructor(
             dataSourceCacheMutex.withLock { dataSourceRevisions.value[account.accountKey] to dataSourceCache[account.accountKey] }
         if (existing?.first === spec) return existing.second
         val dbAccount =
-            appDatabase.accountDao().getAccount(account.accountKey)
-                ?: throw NoSuchElementException("Account not found: ${account.accountKey}")
+            appDatabase.connect {
+                val stored =
+                    appDatabase.accountDao().getAccount(account.accountKey)
+                        ?: throw NoSuchElementException("Account not found: ${account.accountKey}")
+                val prepared = spec.prepareCredential(stored.credential_json)
+                if (prepared != stored.credential_json) appDatabase.accountDao().setCredential(account.accountKey, prepared)
+                stored.copy(credential_json = prepared)
+            }
         val created =
             spec.createDataSource(
-                RepositoryPlatformDataSourceContext(account.accountKey, dbAccount.credential_json, dbAccount.session_id),
+                RepositoryPlatformDataSourceContext(account.accountKey, dbAccount.credential_json, dbAccount.session_id, spec, revision),
             )
         val cached =
             dataSourceCacheMutex.withLock {
@@ -495,6 +501,8 @@ internal class AccountRepository internal constructor(
         override val accountKey: MicroBlogKey,
         private val credentialJson: String,
         private val sessionId: String,
+        private val spec: PlatformSpec,
+        private val revision: Long?,
     ) : PlatformDataSourceContext {
         override fun <T : Any> credential(serializer: KSerializer<T>): T = credentialJson.decodeJson(serializer)
 
@@ -530,6 +538,23 @@ internal class AccountRepository internal constructor(
 
         override suspend fun invalidateCachedContent() {
             this@AccountRepository.invalidateCachedContent(accountKey)
+        }
+
+        override suspend fun invalidateDataSource() {
+            val previous =
+                appDatabase.connect {
+                    val record = appDatabase.accountDao().getAccount(accountKey)
+                    if (record?.session_id != sessionId) throw CancellationException("Account session was replaced")
+                    dataSourceCacheMutex.withLock {
+                        if (platformRegistry.get(spec.platformId) !== spec || dataSourceRevisions.value[accountKey] != revision) {
+                            return@withLock null
+                        }
+                        val cached = dataSourceCache.remove(accountKey)?.second
+                        dataSourceRevisions.update { it + (accountKey to ((it[accountKey] ?: 0) + 1)) }
+                        cached
+                    }
+                }
+            (previous as? AutoCloseable)?.close()
         }
     }
 
