@@ -11,6 +11,7 @@ import dev.dimension.flare.feature.plugin.PluginSubsystemV1
 import dev.dimension.flare.feature.plugin.adapter.accountCredential
 import dev.dimension.flare.feature.plugin.lifecycle.RunningPluginV1
 import dev.dimension.flare.feature.plugin.management.PluginManagementPresenterV1
+import dev.dimension.flare.feature.plugin.manifest.socialPlatform
 import dev.dimension.flare.feature.plugin.wire.EntityKeyV1
 import dev.dimension.flare.feature.plugin.wire.LoginSuccessV1
 import dev.dimension.flare.feature.plugin.wire.PluginAccountCredentialV1
@@ -29,6 +30,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
@@ -87,7 +90,7 @@ class PluginRelationIntegrationTest {
             plugin =
                 subsystem.running.value.plugins.values
                     .single()
-            platform = application.koin.get<PlatformRegistry>().require(plugin.installed.manifest.platform.id)
+            platform = application.koin.get<PlatformRegistry>().require(plugin.installed.manifest.socialPlatform.id)
         }
 
     @After
@@ -151,7 +154,7 @@ class PluginRelationIntegrationTest {
                     credential = JsonObject(emptyMap()),
                     profile = ProfileV1(EntityKeyV1(accountId, userKey.host), "$accountId@plugin.example", "Test"),
                     capabilities =
-                        plugin.installed.manifest.platform.capabilities
+                        plugin.installed.manifest.socialPlatform.capabilities
                             .mapValues { it.value.operations.keys },
                 ),
             )
@@ -234,6 +237,7 @@ private class RelationAccountContext(
     credential: PluginAccountCredentialV1,
 ) : PlatformDataSourceContext {
     private val value = MutableStateFlow(Json.encodeToString(PluginAccountCredentialV1.serializer(), credential))
+    private val mutex = Mutex()
 
     override fun <T : Any> credential(serializer: KSerializer<T>): T = Json.decodeFromString(serializer, value.value)
 
@@ -243,6 +247,16 @@ private class RelationAccountContext(
         serializer: KSerializer<T>,
         credential: T,
     ) {
-        value.value = Json.encodeToString(serializer, credential)
+        mutex.withLock {
+            value.value = Json.encodeToString(serializer, credential)
+        }
     }
+
+    override suspend fun <T : Any> mutateCredential(
+        serializer: KSerializer<T>,
+        update: (T) -> T?,
+    ): T? =
+        mutex.withLock {
+            update(credential(serializer))?.also { value.value = Json.encodeToString(serializer, it) }
+        }
 }

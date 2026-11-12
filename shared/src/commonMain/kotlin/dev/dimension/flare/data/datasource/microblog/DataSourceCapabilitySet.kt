@@ -7,6 +7,7 @@ import dev.dimension.flare.data.datasource.microblog.datasource.NotificationData
 import dev.dimension.flare.data.datasource.microblog.datasource.PinnableTimelineTabDataSource
 import dev.dimension.flare.data.datasource.microblog.datasource.PostDataSource
 import dev.dimension.flare.data.datasource.microblog.datasource.RelationDataSource
+import dev.dimension.flare.data.datasource.microblog.datasource.TimelinePageDataSource
 import dev.dimension.flare.data.datasource.microblog.datasource.TimelineTabConfigurationDataSource
 import dev.dimension.flare.data.datasource.microblog.datasource.UserDataSource
 import dev.dimension.flare.data.datasource.microblog.paging.RemoteLoader
@@ -37,6 +38,8 @@ public data class DataSourceCapabilitySet(
     public val article: ArticleDataSource? = null,
     public val gallery: GalleryDataSource? = null,
     public val tabCatalog: TabCatalogCapability? = null,
+    public val timelinePage: TimelinePageDataSource? = null,
+    public val accountHttp: AccountHttpCapability? = null,
 )
 
 @HiddenFromObjC
@@ -78,9 +81,23 @@ public class TimelineCapability(
 }
 
 @HiddenFromObjC
+public enum class SearchOperation {
+    Posts,
+    Profiles,
+    DiscoverPosts,
+    DiscoverProfiles,
+    DiscoverHashtags,
+}
+
+@HiddenFromObjC
 public class SearchCapability(
     private val delegate: MicroblogDataSource,
 ) {
+    public fun supports(operation: SearchOperation): Boolean = operation in delegate.searchOperations
+
+    public val canSearch: Boolean
+        get() = supports(SearchOperation.Posts) || supports(SearchOperation.Profiles)
+
     public fun searchStatus(query: String): RemoteLoader<UiTimelineV2> = delegate.searchStatus(query)
 
     public fun searchUser(query: String): RemoteLoader<UiProfile> = delegate.searchUser(query)
@@ -136,7 +153,7 @@ private fun MicroblogDataSource.legacyCapabilitySet(): DataSourceCapabilitySet {
     val pinnableTabs = this as? PinnableTimelineTabDataSource
     return DataSourceCapabilitySet(
         timeline = TimelineCapability(this),
-        search = SearchCapability(this),
+        search = if (searchOperations.isNotEmpty()) SearchCapability(this) else null,
         profile = (this as? UserDataSource)?.let { ProfileCapability(this, it) },
         post = (this as? PostDataSource)?.let { PostCapability(this, it) },
         relation = this as? RelationDataSource,
@@ -157,5 +174,6 @@ private fun MicroblogDataSource.legacyCapabilitySet(): DataSourceCapabilitySet {
             } else {
                 null
             },
+        accountHttp = this as? AccountHttpCapability,
     )
 }

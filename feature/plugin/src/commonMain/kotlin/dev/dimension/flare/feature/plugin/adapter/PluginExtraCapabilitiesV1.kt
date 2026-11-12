@@ -40,6 +40,7 @@ import dev.dimension.flare.feature.plugin.abi.PluginAbiV1
 import dev.dimension.flare.feature.plugin.lifecycle.RunningPluginV1
 import dev.dimension.flare.feature.plugin.manifest.NotificationFilterKindV1
 import dev.dimension.flare.feature.plugin.manifest.RelationActionKindV1
+import dev.dimension.flare.feature.plugin.manifest.socialPlatform
 import dev.dimension.flare.feature.plugin.manifest.toUiText
 import dev.dimension.flare.feature.plugin.wire.ArticleV1
 import dev.dimension.flare.feature.plugin.wire.BooleanResultV1
@@ -181,7 +182,7 @@ internal class PluginExtraCapabilitiesV1(
         private val loader =
             object : RelationLoader {
                 override val supportedTypes: Set<RelationActionType> =
-                    plugin.installed.manifest.platform.capabilities
+                    plugin.installed.manifest.socialPlatform.capabilities
                         .getValue(PluginAbiV1.Capabilities.RELATION)
                         .relationActions
                         .mapTo(linkedSetOf(), RelationActionKindV1::toHost)
@@ -245,7 +246,7 @@ internal class PluginExtraCapabilitiesV1(
         NotificationDataSource,
         MicroblogDataSource by base {
         override val supportedNotificationFilter: List<NotificationFilter> =
-            plugin.installed.manifest.platform.capabilities
+            plugin.installed.manifest.socialPlatform.capabilities
                 .getValue(PluginAbiV1.Capabilities.NOTIFICATION)
                 .notificationFilters
                 .map(NotificationFilterKindV1::toHost)
@@ -291,7 +292,7 @@ internal class PluginExtraCapabilitiesV1(
     internal inner class ListAdapter(
         private val account: MicroBlogKey,
     ) : ListDataSource {
-        private val cached = MutableStateFlow<Map<String, SocialListV1>>(emptyMap())
+        private val cached = MutableStateFlow<Map<String, ListAccess>>(emptyMap())
         private val listLoader =
             object : ListLoader<UiList.List> {
                 override suspend fun load(
@@ -305,7 +306,7 @@ internal class PluginExtraCapabilitiesV1(
                         serializer = SocialListV1.serializer(),
                         validate = SocialListV1::requireValid,
                         map = mapper::socialList,
-                        onItem = { value -> cached.update { it + (value.id to value) } },
+                        onItem = ::rememberList,
                     )
 
                 override suspend fun info(listId: String): UiList.List = this@ListAdapter.info(listId)
@@ -324,7 +325,9 @@ internal class PluginExtraCapabilitiesV1(
                 override val supportedMetaData = persistentListOf(ListMetaDataType.TITLE)
             }
 
-        internal suspend fun info(listId: String): UiList.List =
+        internal suspend fun info(listId: String): UiList.List = mapper.socialList(loadInfo(listId))
+
+        private suspend fun loadInfo(listId: String): SocialListV1 =
             invoker
                 .invoke(
                     capabilityId = PluginAbiV1.Capabilities.LIST,
@@ -332,9 +335,21 @@ internal class PluginExtraCapabilitiesV1(
                     request = EntityRequestV1(EntityKeyV1(listId, account.host), cached.value[listId]?.entityToken),
                     requestSerializer = EntityRequestV1.serializer(),
                     responseSerializer = SocialListV1.serializer(),
-                    validate = SocialListV1::requireValid,
-                ).also { value -> cached.update { it + (value.id to value) } }
-                .let(mapper::socialList)
+                    validate = { value ->
+                        value.requireValid()
+                        require(value.id == listId) { "Plugin list detail identity mismatch" }
+                    },
+                ).also(::rememberList)
+
+        private fun rememberList(value: SocialListV1) {
+            cached.update { it + (value.id to value.toListAccess()) }
+        }
+
+        private suspend fun writableListToken(listId: String): String? {
+            val access = cached.value[listId] ?: loadInfo(listId).toListAccess()
+            require(!access.readOnly) { "Plugin list is read-only" }
+            return access.entityToken
+        }
 
         private suspend fun create(metaData: ListMetaData): UiList.List =
             invoker
@@ -345,7 +360,7 @@ internal class PluginExtraCapabilitiesV1(
                     requestSerializer = ListMutationRequestV1.serializer(),
                     responseSerializer = SocialListV1.serializer(),
                     validate = SocialListV1::requireValid,
-                ).also { value -> cached.update { it + (value.id to value) } }
+                ).also(::rememberList)
                 .let(mapper::socialList)
 
         internal suspend fun update(
@@ -356,18 +371,21 @@ internal class PluginExtraCapabilitiesV1(
                 .invoke(
                     capabilityId = PluginAbiV1.Capabilities.LIST,
                     operation = "update",
-                    request = ListMutationRequestV1(id = listId, title = metaData.title, entityToken = cached.value[listId]?.entityToken),
+                    request = ListMutationRequestV1(id = listId, title = metaData.title, entityToken = writableListToken(listId)),
                     requestSerializer = ListMutationRequestV1.serializer(),
                     responseSerializer = SocialListV1.serializer(),
-                    validate = SocialListV1::requireValid,
-                ).also { value -> cached.update { it + (value.id to value) } }
+                    validate = { value ->
+                        value.requireValid()
+                        require(value.id == listId) { "Plugin list update identity mismatch" }
+                    },
+                ).also(::rememberList)
                 .let(mapper::socialList)
 
         private suspend fun delete(listId: String) {
             invoker.invoke(
                 capabilityId = PluginAbiV1.Capabilities.LIST,
                 operation = "delete",
-                request = ListMutationRequestV1(id = listId, entityToken = cached.value[listId]?.entityToken),
+                request = ListMutationRequestV1(id = listId, entityToken = writableListToken(listId)),
                 requestSerializer = ListMutationRequestV1.serializer(),
                 responseSerializer = MutationResultV1.serializer(),
                 validate = MutationResultV1::requireDeleteResult,
@@ -375,7 +393,7 @@ internal class PluginExtraCapabilitiesV1(
             cached.update { it - listId }
         }
 
-        private val memberLoader =
+        internal val memberLoader: ListMemberLoader =
             object : ListMemberLoader {
                 override suspend fun loadMembers(
                     pageSize: Int,
@@ -398,7 +416,7 @@ internal class PluginExtraCapabilitiesV1(
                         .invoke(
                             capabilityId = PluginAbiV1.Capabilities.LIST,
                             operation = "addMember",
-                            request = ListMemberRequestV1(listId, userKey.toWire(), cached.value[listId]?.entityToken),
+                            request = ListMemberRequestV1(listId, userKey.toWire(), writableListToken(listId)),
                             requestSerializer = ListMemberRequestV1.serializer(),
                             responseSerializer = ProfileV1.serializer(),
                             validate = ProfileV1::requireValid,
@@ -411,7 +429,7 @@ internal class PluginExtraCapabilitiesV1(
                     invoker.invoke(
                         capabilityId = PluginAbiV1.Capabilities.LIST,
                         operation = "removeMember",
-                        request = ListMemberRequestV1(listId, userKey.toWire(), cached.value[listId]?.entityToken),
+                        request = ListMemberRequestV1(listId, userKey.toWire(), writableListToken(listId)),
                         requestSerializer = ListMemberRequestV1.serializer(),
                         responseSerializer = MutationResultV1.serializer(),
                         validate = MutationResultV1::requireDeleteResult,
@@ -429,8 +447,15 @@ internal class PluginExtraCapabilitiesV1(
                         page = request.toWire(pageSize),
                         serializer = SocialListV1.serializer(),
                         validate = SocialListV1::requireValid,
-                        map = { mapper.socialList(it) },
+                        map = { value -> mapper.socialList(value.copy(readOnly = value.readOnly ?: cached.value[value.id]?.readOnly)) },
                         entity = userKey,
+                        onItem = { value ->
+                            cached.update { current ->
+                                val token = value.entityToken ?: current[value.id]?.entityToken
+                                val readOnly = value.readOnly ?: current[value.id]?.readOnly ?: false
+                                current + (value.id to ListAccess(token, readOnly))
+                            }
+                        },
                     )
             }
 
@@ -451,12 +476,12 @@ internal class PluginExtraCapabilitiesV1(
         scope: CoroutineScope,
     ) : DirectMessageDataSource,
         MicroblogDataSource by base {
-        private val rooms = MutableStateFlow<Map<MicroBlogKey, DirectMessageRoomV1>>(emptyMap())
-        private val messages = MutableStateFlow<Map<MicroBlogKey, DirectMessageV1>>(emptyMap())
+        private val roomTokens = MutableStateFlow<Map<MicroBlogKey, String?>>(emptyMap())
+        private val messageTokens = MutableStateFlow<Map<MicroBlogKey, String?>>(emptyMap())
         private val newerCursors = MutableStateFlow<Map<MicroBlogKey, String?>>(emptyMap())
         internal val loader =
             object : DirectMessageLoader {
-                override val platformId: String = plugin.installed.manifest.platform.id
+                override val platformId: String = plugin.installed.manifest.socialPlatform.id
 
                 override suspend fun loadRooms(
                     pageSize: Int,
@@ -469,7 +494,7 @@ internal class PluginExtraCapabilitiesV1(
                         serializer = DirectMessageRoomV1.serializer(),
                         validate = DirectMessageRoomV1::requireValid,
                         map = mapper::directMessageRoom,
-                        onItem = { value -> rooms.update { it + (value.key.toKey() to value) } },
+                        onItem = { value -> roomTokens.update { it + (value.key.toKey() to value.entityToken) } },
                     )
 
                 override suspend fun loadMessages(
@@ -493,14 +518,15 @@ internal class PluginExtraCapabilitiesV1(
                                     DirectMessagePageRequestV1(
                                         roomKey.toWire(),
                                         pageRequest,
-                                        rooms.value[roomKey]?.entityToken,
+                                        roomTokens.value[roomKey],
                                     ),
                                 requestSerializer = DirectMessagePageRequestV1.serializer(),
                                 responseSerializer = PageV1.serializer(DirectMessageV1.serializer()),
                                 validate = { value -> value.requireValid(DirectMessageV1::requireValid) },
                             )
                     val result = page.toPagingResult { mapper.directMessage(it).copy(remoteCursor = page.newerCursor) }
-                    page.items.forEach { value -> messages.update { it + (value.key.toKey() to value) } }
+                    val tokens = page.items.associate { it.key.toKey() to it.entityToken }
+                    messageTokens.update { it + tokens }
                     if (request !is PagingRequest.Append) {
                         newerCursors.update { it + (roomKey to page.newerCursor) }
                     }
@@ -567,11 +593,11 @@ internal class PluginExtraCapabilitiesV1(
                 .invoke(
                     capabilityId = PluginAbiV1.Capabilities.DIRECT_MESSAGE,
                     operation = "room",
-                    request = EntityRequestV1(roomKey.toWire(), rooms.value[roomKey]?.entityToken),
+                    request = EntityRequestV1(roomKey.toWire(), roomTokens.value[roomKey]),
                     requestSerializer = EntityRequestV1.serializer(),
                     responseSerializer = DirectMessageRoomV1.serializer(),
                     validate = DirectMessageRoomV1::requireValid,
-                ).also { value -> rooms.update { it + (value.key.toKey() to value) } }
+                ).also { value -> roomTokens.update { it + (value.key.toKey() to value.entityToken) } }
                 .let(mapper::directMessageRoom)
 
         private suspend fun sendMessage(
@@ -582,11 +608,11 @@ internal class PluginExtraCapabilitiesV1(
                 .invoke(
                     capabilityId = PluginAbiV1.Capabilities.DIRECT_MESSAGE,
                     operation = "send",
-                    request = DirectMessageSendRequestV1(roomKey.toWire(), message, rooms.value[roomKey]?.entityToken),
+                    request = DirectMessageSendRequestV1(roomKey.toWire(), message, roomTokens.value[roomKey]),
                     requestSerializer = DirectMessageSendRequestV1.serializer(),
                     responseSerializer = DirectMessageV1.serializer(),
                     validate = DirectMessageV1::requireValid,
-                ).also { value -> messages.update { it + (value.key.toKey() to value) } }
+                ).also { value -> messageTokens.update { it + (value.key.toKey() to value.entityToken) } }
                 .let { mapper.directMessage(it).copy(remoteCursor = newerCursors.value[roomKey]) }
 
         private suspend fun deleteMessage(
@@ -600,26 +626,26 @@ internal class PluginExtraCapabilitiesV1(
                     DirectMessageDeleteRequestV1(
                         roomKey.toWire(),
                         messageKey.toWire(),
-                        rooms.value[roomKey]?.entityToken,
-                        messages.value[messageKey]?.entityToken,
+                        roomTokens.value[roomKey],
+                        messageTokens.value[messageKey],
                     ),
                 requestSerializer = DirectMessageDeleteRequestV1.serializer(),
                 responseSerializer = MutationResultV1.serializer(),
                 validate = MutationResultV1::requireDeleteResult,
             )
-            messages.update { it - messageKey }
+            messageTokens.update { it - messageKey }
         }
 
         private suspend fun leaveRoom(roomKey: MicroBlogKey) {
             invoker.invoke(
                 capabilityId = PluginAbiV1.Capabilities.DIRECT_MESSAGE,
                 operation = "leave",
-                request = EntityRequestV1(roomKey.toWire(), rooms.value[roomKey]?.entityToken),
+                request = EntityRequestV1(roomKey.toWire(), roomTokens.value[roomKey]),
                 requestSerializer = EntityRequestV1.serializer(),
                 responseSerializer = MutationResultV1.serializer(),
                 validate = MutationResultV1::requireDeleteResult,
             )
-            rooms.update { it - roomKey }
+            roomTokens.update { it - roomKey }
             newerCursors.update { it - roomKey }
         }
 
@@ -636,7 +662,7 @@ internal class PluginExtraCapabilitiesV1(
                                 requestSerializer = EntityRequestV1.serializer(),
                                 responseSerializer = DirectMessageRoomV1.serializer(),
                                 validate = DirectMessageRoomV1::requireValid,
-                            ).also { value -> rooms.update { it + (value.key.toKey() to value) } }
+                            ).also { value -> roomTokens.update { it + (value.key.toKey() to value.entityToken) } }
                             .let(mapper::directMessageRoom)
                     emit(UiState.Success(room))
                 } catch (error: Throwable) {
@@ -764,7 +790,7 @@ internal class PluginExtraCapabilitiesV1(
             listOf(
                 PinnableTimelineTabSection(
                     title =
-                        plugin.installed.manifest.platform.name
+                        plugin.installed.manifest.socialPlatform.name
                             .toUiText(plugin.installed.pluginId),
                     data =
                         Pager(
@@ -871,6 +897,13 @@ internal data class PluginTimelineDataV1(
 private fun MicroBlogKey.toWire(): EntityKeyV1 = EntityKeyV1(id, host)
 
 private fun EntityKeyV1.toKey(): MicroBlogKey = MicroBlogKey(id, host)
+
+private data class ListAccess(
+    val entityToken: String?,
+    val readOnly: Boolean,
+)
+
+private fun SocialListV1.toListAccess(): ListAccess = ListAccess(entityToken, readOnly == true)
 
 private fun NotificationFilter.toWire(): String? =
     when (this) {

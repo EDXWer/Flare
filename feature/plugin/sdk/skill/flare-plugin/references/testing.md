@@ -7,7 +7,7 @@ No demonstration backend is required for authoring this SDK.
 
 ## Checks in a generated repository
 
-The generated TS project includes a prebuilt root `plugin.js`. From its root:
+The social-adapter TS starter includes a prebuilt root `plugin.js`. From its root:
 
 ```sh
 npm install
@@ -23,13 +23,24 @@ do not replace Host validation, and parsing JSON does not validate the manifest.
 
 - Required root files and a valid supported icon; stable IDs and version/tag consistency.
 - Every declared known operation has its required registration and full method
-  set. Login negotiates supported subsets with a displayable capability.
+  set. Social login negotiates supported subsets with a displayable capability.
 - Top-level initialization has no Host calls; bundled output has no module or
   runtime platform dependency.
 - Each remote response is mapped explicitly. Fixtures cover missing fields,
   invalid JSON, HTTP errors, pagination continuation, and stable identities.
 - Auth/cursor/action data is not accidentally inserted into public content or
   media URLs. No real secrets enter checked-in fixtures.
+- Compose fixtures distinguish new/reply/quote, preserve opaque target keys,
+  reject unsupported modes before upload and keep quote/reply attachment rules
+  aligned with the editor. Unchanged compose/v1 packages and saved accounts must keep working; v1 quote
+  controls stay hidden and rejected. Verify upgrade initialization is idempotent,
+  preserves credentials, and does not revive removed or replaced accounts.
+- Temporary page fixtures cover post/quote entry, nested replies, page.parameters,
+  opaque cursors and empty-page continuation. Keep entity keys and targets stable
+  through detail/mutation results and recover reply context after runtime eviction.
+- Media headers reach previews/downloads; test same-origin and cross-origin
+  redirects, HLS children, account cache isolation and media permission denial.
+  Use dummy short-lived tokens: media headers follow ordinary cache/navigation persistence.
 
 The generated tsconfig loads the SDK's ambient types with strict checking and no
 browser/Node globals. Keep manifest/Host validation even when the
@@ -39,25 +50,29 @@ capability requirements, and optionality does not make every null value valid.
 ## Develop locally in Desktop
 
 In Settings > Plugins, open the overflow menu and choose **Plugin development**.
-Choose the directory containing `manifest.json`, `plugin.js`, and the plugin assets.
+Choose the runtime directory containing the manifest, icon, background script
+when declared, and packaged settings resources.
 Click **Start development** and review access to your existing accounts. Both Compose Desktop and native macOS support this flow.
 
 For the TS starter, run `npm run dev` and edit `src/plugin.ts` or its local modules.
 The watcher rebuilds the root `plugin.js`; syntax/build failures preserve the last
 script through atomic replacement. Watch mode does not type-check; use editor
 diagnostics or `npm run check` separately. Changes to the built script,
-`manifest.json`, `assets/icon.<extension>`, or `locales/*.json` are automatically
+`manifest.json`, `assets/icon.<extension>`, `locales/*.json`, or `settings/` resources are automatically
 validated by Flare; click **Reload plugin** to apply the validated
 snapshot to this plugin's accounts and open pages. An invalid edit keeps the last
 working version running. Keep the starter project root selected. Other build
 layouts must select their runtime output directory; Flare does not execute build scripts.
 
 Only one development directory can be active. Reload is refused while publishing,
-uploading, deleting, or sending is in progress; retry after the operation finishes.
+uploading, deleting, sending or protected storage writes are in progress; retry after the operation finishes.
 Reload clears this plugin's derived account caches and restarts its login flows;
 drafts, credentials, routes, and other plugins are retained. Changing the plugin ID
-or platform ID requires stopping first. An override must retain the installed
-plugin's platform ID. A credential schema change may require logging in again.
+requires stopping first. Social declarations may be removed or restored, but an
+already owned platform ID cannot be replaced, including after stopping. A plugin
+without previous platform ownership may preview its first platform. A credential
+schema change may require logging in again. Settings UI is available on native
+macOS, iOS and Android; Compose Desktop development does not render that page.
 
 **Stop development** restores the version that was running before development.
 Restarting the app loads its installed plugins normally; the last directory is
@@ -101,12 +116,41 @@ PostEventHandlerTest, UserHandlerTest and NotificationTimelineTest cover SQLite
 hydration, profile updates, and failed optimistic votes. The showcase has no
 remote side effects; it can also be used for manual existing-UI acceptance.
 
+For temporary pages, `PluginDetailCapabilityTest` also covers independent capability
+negotiation, account/parameter isolation and Zhihu/Tieba-shaped reply contexts with
+mock HTTP. Shared `TimelineRemoteMediatorAppendTest` covers flat order and stored
+cursor continuation; `TimelinePageRefreshTest` covers invalidation during loading,
+hidden pages and an in-flight refresh. These fixtures do not call real child-reply APIs.
+
 For changes to manifests or wire contracts, relevant existing suites include
 PluginManifestV1Test and WireV1Test. Runtime/HTTP/login suites cover their own Host
 contracts. Run the affected suites rather than requiring a full app build for a
 documentation edit. The opt-in Pixelfed live test requires PIXELFED_TEST_HOST and
 PIXELFED_TEST_TOKEN; it is read-only unless PIXELFED_TEST_ALLOW_WRITE=1. Do not
 enable live writes without the user's current authorization.
+
+## Translation, storage and settings acceptance
+
+For the [v2 interface example](../examples/translation-settings/README.md), install
+the complete package on a matching Host, select its translation provider and open
+its settings page from plugin management. No social account is required. Check:
+
+- Single and batch documents preserve locked tokens, IDs, entity keys and fields.
+- A dependent namespace edit affects new translations and prevents old requests
+  from committing; unrelated state and no-op writes retain the cache identity.
+- Page writes are visible to background methods and survive reopening/restart.
+  Concurrent conditional writes reject stale revisions without losing data.
+- Only packaged resources load. Remote requests use SDK HTTP and declared origins;
+  blocked navigation, frames and direct network access cannot reach the Host.
+- Settings-only packages omit `plugin.js`, and GitHub page-resource edits alone
+  are detected as updates. Installed updates and development reloads revoke old pages.
+- Exercise iOS, Android and native macOS separately. The demo verifies the contract;
+  it does not establish a real translation provider's correctness.
+
+Focused Host regressions include PluginStorageV1Test, PluginTranslationIntegrationTest,
+GitHubPluginFingerprintTest, PluginDevelopmentSourceV1Test and TranslatePresenterTest.
+PluginSettingsWebViewTest exercises the real Android renderer and bridge. Keep
+those checks separate from live translation-service and physical-device evidence.
 
 ## Website and UI acceptance
 
@@ -125,6 +169,12 @@ After an adapter has real endpoints and authorized credentials:
    and removed permissions/capabilities that affect cached content.
 5. Record Android, JVM Desktop, iOS, and native macOS evidence separately.
    Simulator/compilation results do not establish physical-device UI behavior.
+
+For temporary pages, enter from both a post and a quote, open a deeper reply,
+return to check scroll position, and refresh/paginate through an empty continued
+page. Verify reply/like/delete targets, refresh after publishing while the parent
+page is hidden, and failure after account removal or plugin replacement. Sort
+parameters do not provide a native sort picker; see the [page contract](capabilities.md#api-v2-temporary-timeline-pages).
 
 The generic template's API is illustrative. Passing its fixture tests does not
 turn it into a working adapter for an arbitrary website; replace and validate
@@ -162,8 +212,10 @@ GitHub repository and stable tag, if publication was authorized and completed:
 | --- | --- |
 | Quick start and AI workflow | README.md, SKILL.md, GitHub template |
 | Manifest fields, defaults, validation | manifest.md; template and Pixelfed manifests |
-| Capability/UI matrix and all twelve services | capabilities.md, recipes.md |
+| Capability/UI matrix and service recipes | capabilities.md, recipes.md |
+| Temporary pages, reply context and refresh | capabilities.md; timeline showcase; Host page/paging/refresh tests |
 | Platform engines, HTTP, credentials, permissions | runtime-http.md; template requestJson helper |
+| Translation, generic storage and offline settings | storage-and-settings.md; translation-settings example and focused acceptance above |
 | Five login methods and detection | authentication.md; template token login and Pixelfed OAuth |
 | Mapping, identity, paging, tokens | wire-data.md; template and Pixelfed |
 | Advanced features, guest, localization, Deep Links | recipes.md |

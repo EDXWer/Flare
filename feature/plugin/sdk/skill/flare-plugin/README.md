@@ -2,9 +2,17 @@
 
 Use this directory as the `flare-plugin` skill to build a website adapter with an
 AI coding agent, or read the same references directly. All material describes
-Social Plugin API v1 in the accompanying Flare source. Use a Flare build that
+Flare Plugin API v1/v2 in the accompanying Flare source. Use a Flare build that
 includes this subsystem; this directory does not promise a minimum public app
 release. The module targets Android, JVM Desktop, iOS, and native macOS, not Web.
+
+For text translation, generic storage or offline settings, use the
+[v2 contract](references/storage-and-settings.md) and
+[complete offline example](examples/translation-settings/README.md) with matching
+Host/SDK source revisions. Host API v2 is unreleased; these source documents do
+not promise a published SDK/app version. Settings pages support iOS, Android and
+native macOS. The CLI starter and social-adapter walkthrough below remain useful
+for the social branch; a settings-only plugin needs no social platform or login.
 
 ## Install the skill
 
@@ -23,8 +31,8 @@ your plugin project; Node is needed for the documented syntax and package checks
 
 ### Install from GitHub with Codex
 
-The [development source](https://github.com/flaresocialapp/Flare/tree/master/feature/plugin/sdk/skill/flare-plugin)
-is on the `master` branch of `flaresocialapp/Flare`. It is a development
+The [development source](https://github.com/flaresocialapp/Flare/tree/feature/plugin-v2/feature/plugin/sdk/skill/flare-plugin)
+is on the `feature/plugin-v2` branch of `flaresocialapp/Flare`. It is a development
 branch, not a released SDK version. For reproducible installation, select the
 full commit SHA containing the skill in GitHub and use it in place of the branch.
 
@@ -32,13 +40,13 @@ Ask Codex's built-in installer:
 
 ```text
 $skill-installer Install the flare-plugin skill from repository flaresocialapp/Flare,
-ref master, path feature/plugin/sdk/skill/flare-plugin.
+ref feature/plugin-v2, path feature/plugin/sdk/skill/flare-plugin.
 Copy the complete skill directory, including its supporting files.
 ```
 
-Give the repository, ref, and path separately. If you use the installer's Python
-CLI directly, the equivalent arguments are
-`--repo flaresocialapp/Flare --ref master --path feature/plugin/sdk/skill/flare-plugin`.
+Give the repository, ref, and path separately: this ref contains a slash. If you
+use the installer's Python CLI directly, the equivalent arguments are
+`--repo flaresocialapp/Flare --ref feature/plugin-v2 --path feature/plugin/sdk/skill/flare-plugin`.
 Record the resolved commit SHA when you need to reproduce an installation. If a
 skill already exists, follow [Update or remove](#update-or-remove) first.
 
@@ -48,7 +56,7 @@ Check out a revision that contains this directory. For example, clone the
 development branch into a new directory, then enter its repository root:
 
 ```sh
-git clone --branch master --single-branch https://github.com/flaresocialapp/Flare.git
+git clone --branch feature/plugin-v2 --single-branch https://github.com/flaresocialapp/Flare.git
 cd Flare
 ```
 
@@ -186,8 +194,8 @@ cases matter. It should identify gaps rather than invent website endpoints.
    **Reload plugin** after automatic validation. Follow the syntax, behavior and
    platform checks. Stop development before installing/updating the same plugin.
 5. Prefer GitHub distribution: run `npm run build`, commit the TS source, build
-   configuration, lockfile and root `plugin.js`, then push a stable tag matching
-   `manifest.version`. In Flare's plugin
+   configuration, lockfile and built `plugin.js`, then push a stable repository
+   snapshot tag. Each plugin's `manifest.version` is independent. In Flare's plugin
    management, enter `https://github.com/OWNER/REPO` and click **Install**. Review
    source and permissions, then confirm to use the plugin immediately. Follow the
    plugin's README to select the platform, origin, and login method.
@@ -196,8 +204,8 @@ The generated [project README](assets/github-template/README.md) contains the fu
 adaptation, local debugging, Git setup/tagging, GitHub installation and update path.
 See [publishing](references/publishing.md) for exact tag rules, updates, and
 [optional local `.fpp` installation](references/publishing.md#optional-local-installation).
-Flare reads the tagged repository root; a subdirectory in the Flare repository itself
-is not a plugin installation URL. A GitHub Release or `.fpp` upload is unnecessary.
+Flare reads the selected directory in the latest stable repository snapshot. Add
+`?path=/plugins/example` for a subdirectory; omit it for the repository root. A GitHub Release or `.fpp` upload is unnecessary.
 
 ## Reference and example index
 
@@ -208,8 +216,10 @@ is not a plugin installation URL. A GitHub Release or `.fpp` upload is unnecessa
 | Exact JavaScript signatures and field comments | [flare-plugin.d.ts](flare-plugin.d.ts) |
 | Manifest fields, defaults, enums, and validation | [Manifest](references/manifest.md) |
 | JSON editor completion and static manifest checks | [JSON Schema](manifest.schema.json), [editor setup](references/manifest.md#json-schema-and-editor-support) |
-| All twelve capabilities, minimum methods, and UI requirements | [Capabilities](references/capabilities.md) |
+| Capabilities, minimum methods, and UI requirements | [Capabilities](references/capabilities.md) |
+| API v2 post/quote navigation and temporary reply lists | [Page contract](references/capabilities.md#api-v2-temporary-timeline-pages), [recipe](references/recipes.md#temporary-timeline-pages-api-v2), [offline showcase](examples/timeline-showcase/README.md) |
 | Platform engines, async completion, HTTP, permissions, credentials, and state | [Runtime and HTTP](references/runtime-http.md) |
+| Text translation, plugin storage revisions and offline settings SDK | [Storage, translation and settings](references/storage-and-settings.md) |
 | Detection and all five login methods | [Authentication](references/authentication.md) |
 | DTO mapping, pagination, media, and opaque tokens | [Wire data](references/wire-data.md) |
 | Capability implementations, guest, localization, and Deep Links | [Recipes](references/recipes.md) |
@@ -217,6 +227,11 @@ is not a plugin installation URL. A GitHub Release or `.fpp` upload is unnecessa
 | Author checks, Host tests, and acceptance evidence | [Testing](references/testing.md) |
 | GitHub publication, upgrades, and optional local installation | [Publishing](references/publishing.md) |
 | Complete website adapter | [Pixelfed](examples/pixelfed/README.md) |
+| Complete offline translation/settings interface example | [Translation/settings demo](examples/translation-settings/README.md) |
 
 Rules have one canonical reference; the skill links to it when needed. Recipe
 fragments explain adaptation points and are not separate installable plugins.
+
+For operations on existing built-in or plugin-provided accounts, including optional daily foreground
+actions, read [platform extensions](references/platform-extensions.md) and the
+[read-only Weibo example](examples/platform-extension/README.md).

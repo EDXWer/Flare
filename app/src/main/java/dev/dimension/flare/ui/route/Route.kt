@@ -110,6 +110,19 @@ internal sealed interface Route : NavKey {
         data object Plugins : Settings
 
         @Serializable
+        data class PluginExtensions(
+            val pluginId: String,
+        ) : Settings
+
+        @Serializable
+        data class PluginSettings(
+            val pluginId: String,
+        ) : Settings
+
+        @Serializable
+        data object PluginMarketplace : Settings
+
+        @Serializable
         data object AppearanceTheme : Settings
 
         @Serializable
@@ -208,6 +221,11 @@ internal sealed interface Route : NavKey {
 
     @Serializable
     data object Home : Route
+
+    @Serializable
+    data class TimelinePage(
+        val page: DeeplinkRoute.Timeline.Page,
+    ) : Route
 
     data class Timeline(
         val tabItem: UiTimelineTabItem,
@@ -548,6 +566,10 @@ internal sealed interface Route : NavKey {
 
         public fun from(deeplinkRoute: DeeplinkRoute): Route? {
             return when (deeplinkRoute) {
+                is DeeplinkRoute.Timeline.Page -> {
+                    TimelinePage(deeplinkRoute)
+                }
+
                 is DeeplinkRoute.Timeline.Source -> {
                     TimelineDeepLinkRouteResolver.resolve(deeplinkRoute)?.let(Route::Timeline)
                 }

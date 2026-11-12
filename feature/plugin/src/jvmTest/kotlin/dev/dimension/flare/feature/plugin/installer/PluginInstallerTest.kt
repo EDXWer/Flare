@@ -5,6 +5,7 @@ import dev.dimension.flare.feature.plugin.abi.PluginJsonV1
 import dev.dimension.flare.feature.plugin.lifecycle.PluginIndexCorruptException
 import dev.dimension.flare.feature.plugin.lifecycle.PluginStateIndexV1
 import dev.dimension.flare.feature.plugin.lifecycle.PluginStateStore
+import dev.dimension.flare.feature.plugin.manifest.socialPlatform
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -50,6 +51,41 @@ class PluginInstallerTest {
     fun tearDown() {
         fileSystem.deleteRecursively(root, mustExist = false)
     }
+
+    @Test
+    fun removingTheSocialCapabilityPreservesOwnershipAcrossRestartAndPreventsReassignment() =
+        runBlocking<Unit> {
+            TestFppFactory.write(input)
+            val original = installer.commit(installer.inspect(input), true, stateStore::install)
+            val settingsManifest =
+                """
+                {"apiVersion":2,"id":"${original.pluginId}","version":"2.0.0","name":"Settings",
+                 "settings":{"entry":"settings/index.html"}}
+                """.trimIndent()
+            TestFppFactory.write(
+                input,
+                listOf(
+                    "manifest.json" to settingsManifest.encodeToByteArray(),
+                    "assets/icon.png" to TestFppFactory.validPng,
+                    "settings/index.html" to "<!doctype html><title>Settings</title>".encodeToByteArray(),
+                ),
+            )
+            val updated = installer.commit(installer.inspect(input), true, stateStore::install)
+            assertEquals(null, updated.manifest.platform)
+            assertEquals(original.ownedPlatformId, updated.ownedPlatformId)
+            val restarted = PluginStateStore.open(fileSystem, stateStore.paths.root)
+            assertEquals(
+                original.ownedPlatformId,
+                restarted.desired.value.plugins
+                    .getValue(original.pluginId)
+                    .ownedPlatformId,
+            )
+            TestFppFactory.write(
+                input,
+                TestFppFactory.validEntries(manifest = TestFppFactory.validManifest.replace("TestPlugin", "OtherPlatform")),
+            )
+            assertFails { PluginInstaller(fileSystem, restarted).inspect(input) }
+        }
 
     @Test
     fun rasterIconsKeepTheirBytesFormatAndPathAcrossInstallRestartAndRecovery() =
@@ -125,6 +161,35 @@ class PluginInstallerTest {
         }
 
     @Test
+    fun inputCloseFailureReleasesTheStagingReservation() =
+        runBlocking<Unit> {
+            TestFppFactory.write(input)
+            var failClose = true
+            val failingFileSystem =
+                object : ForwardingFileSystem(fileSystem) {
+                    override fun source(file: Path): Source {
+                        val source = super.source(file)
+                        if (file != input) return source
+                        return object : okio.ForwardingSource(source) {
+                            override fun close() {
+                                super.close()
+                                if (failClose) throw IOException("synthetic close failure")
+                            }
+                        }
+                    }
+                }
+            val failingInstaller = PluginInstaller(failingFileSystem, stateStore)
+
+            assertFailsWith<IOException> { failingInstaller.inspect(input) }
+            assertFalse(fileSystem.exists(stateStore.paths.incoming))
+            failClose = false
+
+            val preview = failingInstaller.inspect(input)
+            failingInstaller.commit(preview, confirmed = true, activate = stateStore::install)
+            assertEquals(1, stateStore.desired.value.plugins.size)
+        }
+
+    @Test
     fun discardedPreviewDoesNotBlockCleanupAfterADeletionFailure() =
         runBlocking<Unit> {
             TestFppFactory.write(input)
@@ -163,7 +228,8 @@ class PluginInstallerTest {
             val preview = installer.inspect(input)
             val replacement =
                 installed.copy(
-                    manifest = installed.manifest.copy(platform = installed.manifest.platform.copy(id = "ChangedPlatform")),
+                    manifest = installed.manifest.copy(platform = installed.manifest.socialPlatform.copy(id = "ChangedPlatform")),
+                    ownedPlatformId = "ChangedPlatform",
                 )
             stateStore.install(replacement)
             assertFailsWith<IllegalArgumentException> { installer.commit(preview, confirmed = true, activate = stateStore::install) }
@@ -209,6 +275,45 @@ class PluginInstallerTest {
                 assertTrue(restarted.running.plugins.isEmpty())
                 assertTrue(fileSystem.exists(stateStore.paths.packagePath(installed.packageHash)))
             }
+        }
+
+    @Test
+    fun apiV2IsReviewedInspectedAndRestoredWhileUnknownVersionsAreRejectedBeforeScriptExecution() =
+        runBlocking {
+            TestFppFactory.write(
+                input,
+                TestFppFactory.validEntries(manifest = TestFppFactory.validManifest.replace("\"apiVersion\": 1", "\"apiVersion\": 2")),
+            )
+            val preview = installer.inspect(input)
+            assertEquals(2, PluginRegistrationInspector().inspect(TestFppFactory.validScript, apiVersion = 2).apiVersion)
+            assertTrue(
+                preview.warnings.any { it.type == PluginInstallWarningTypeV1.Compatibility && it.detail.orEmpty().contains("Set-Cookie") },
+            )
+            installer.commit(preview, confirmed = true, activate = stateStore::install)
+            assertEquals(
+                2,
+                PluginStateStore
+                    .open(
+                        fileSystem,
+                        root / "social-plugins-v2",
+                    ).running.plugins
+                    .getValue(preview.pluginId)
+                    .installed.manifest.apiVersion,
+            )
+            TestFppFactory.write(
+                input,
+                TestFppFactory.validEntries(
+                    manifest = TestFppFactory.validManifest.replace("\"apiVersion\": 1", "\"apiVersion\": 3"),
+                    script = "throw new Error('script must not run');",
+                ),
+            )
+            assertTrue(
+                assertFailsWith<IllegalArgumentException> {
+                    installer.inspect(
+                        input,
+                    )
+                }.message.orEmpty().contains("Unsupported API version"),
+            )
         }
 
     @Test

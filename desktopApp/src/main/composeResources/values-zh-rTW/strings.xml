@@ -332,6 +332,8 @@
     <string name="users">使用者</string>
     <string name="hashtags">標籤</string>
     <string name="statues">貼文</string>
+    <string name="search_unavailable">此帳號暫不支援搜尋</string>
+    <string name="search_empty">沒有搜尋結果</string>
     <string name="compose_title">發布</string>
     <string name="compose_hint">在想些什麼？</string>
     <string name="compose_poll_option_hint">選項 %1$s</string>
@@ -725,4 +727,16 @@
     <string name="settings_ai_config_agent_api">API 協定</string>
     <string name="settings_ai_config_agent_api_auto">自動</string>
     <string name="settings_ai_config_agent_server_url_requirement">請輸入 API 基礎網址，例如 https://api.openai.com/v1。Agent 會附加所選協定的路徑。</string>
+    <string name="plugin_installed">已安裝</string>
+    <string name="plugin_marketplace">外掛市集</string>
+    <string name="plugin_marketplace_empty">暫無可用外掛</string>
+    <string name="plugin_marketplace_failed">暫時無法載入外掛市集</string>
+    <string name="plugin_marketplace_cached">正在顯示上次儲存的清單。</string>
+    <string name="plugin_marketplace_refresh">重新整理</string>
+    <string name="plugin_marketplace_loading">正在載入外掛…</string>
+    <string name="plugin_marketplace_repository">查看儲存庫</string>
+    <string name="plugin_marketplace_manage">管理</string>
+    <string name="plugin_marketplace_install">安裝</string>
+    <string name="plugin_marketplace_local">本機外掛</string>
+    <string name="plugin_marketplace_search">搜尋外掛程式</string>
 </resources>

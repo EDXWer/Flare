@@ -1,6 +1,7 @@
 package dev.dimension.flare.feature.plugin.lifecycle
 
 import dev.dimension.flare.feature.plugin.github.GitHubPluginRepositoryV1
+import dev.dimension.flare.feature.plugin.github.gitHubPluginUrl
 import dev.dimension.flare.feature.plugin.manifest.PluginManifestV1
 import dev.dimension.flare.feature.plugin.runtime.PluginSessionV1
 import kotlinx.serialization.SerialName
@@ -29,6 +30,7 @@ public data class InstalledPluginV1(
     val runtimeGeneration: Long = 0,
     val iconExtension: String = "png",
     val removing: Boolean = false,
+    val ownedPlatformId: String? = manifest.platform?.id,
 )
 
 @Serializable
@@ -43,7 +45,10 @@ public sealed interface PluginInstallSourceV1 {
         val repository: GitHubPluginRepositoryV1,
         val tag: String,
         val commitSha: String,
-    ) : PluginInstallSourceV1
+        val path: String = "",
+    ) : PluginInstallSourceV1 {
+        public val url: String get() = gitHubPluginUrl(repository.url, path)
+    }
 }
 
 public data class RunningPluginV1(
@@ -52,6 +57,7 @@ public data class RunningPluginV1(
     val iconPath: String,
     val developmentSource: String? = null,
     val generation: Long = 0,
+    internal val developmentResources: Map<String, ByteArray>? = null,
 ) {
     internal val session = PluginSessionV1()
     internal var diagnostic: ((RunningPluginV1, String) -> Unit)? = null

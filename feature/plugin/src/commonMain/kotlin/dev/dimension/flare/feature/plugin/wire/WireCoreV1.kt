@@ -42,6 +42,10 @@ public data class ProfileV1(
     val entityToken: String? = null,
     @Serializable(with = KnownActionsV1Serializer::class)
     val actions: List<ActionDescriptorV1> = emptyList(),
+    val verified: Boolean? = null,
+    val cat: Boolean? = null,
+    val displayNameRichText: RichTextV1? = null,
+    val sourceLanguages: List<String> = emptyList(),
 )
 
 @Serializable
@@ -84,6 +88,7 @@ public data class MediaV1(
     val downloadUrl: String? = null,
     val ugoiraKey: EntityKeyV1? = null,
     val originalFrameUrl: String? = null,
+    val customHeaders: Map<String, String> = emptyMap(),
 )
 
 @Serializable
@@ -102,6 +107,25 @@ public enum class VisibilityV1 {
 
     @SerialName("channel")
     Channel,
+
+    @SerialName("friends")
+    Friends,
+
+    @SerialName("selfOnly")
+    SelfOnly,
+    ;
+
+    internal val isExtended: Boolean
+        get() = this == Friends || this == SelfOnly
+}
+
+@Serializable
+public enum class MediaClickPolicyV1 {
+    @SerialName("openMedia")
+    OpenMedia,
+
+    @SerialName("openTarget")
+    OpenTarget,
 }
 
 @Serializable(with = PostDetailTypeV1Serializer::class)
@@ -148,6 +172,10 @@ public data class PostV1(
     val card: CardV1? = null,
     val poll: PollV1? = null,
     val emojiReactions: List<EmojiReactionV1> = emptyList(),
+    val target: NavigationTargetV1? = null,
+    val authorSubtitle: String? = null,
+    val mediaClickPolicy: MediaClickPolicyV1? = null,
+    val extendedVisibility: VisibilityV1? = null,
 )
 
 @Serializable
@@ -166,6 +194,7 @@ public enum class SemanticActionV1 {
     Unbookmark,
     Delete,
     Reply,
+    Quote,
     Follow,
     Unfollow,
     Block,

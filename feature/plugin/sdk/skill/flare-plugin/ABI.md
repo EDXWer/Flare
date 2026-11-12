@@ -1,19 +1,20 @@
-# Flare Social Plugin API v1
+# Flare Plugin API v1/v2
 
-This directory is the authoring contract for Social Plugin API v1. Prefer
+This directory is the authoring contract for Flare Plugin API v1 and v2. Prefer
 [GitHub distribution](references/publishing.md); local `.fpp` installation is
 also supported. Start with the [authoring guide](README.md) or [agent skill](SKILL.md).
 The Host implementation remains authoritative when this document and code disagree.
 
 ## Package
 
-An API v1 package is a ZIP with a `.fpp` extension and exactly these files:
+An API v1/v2 package is a ZIP with a `.fpp` extension containing these runtime files:
 
 ```text
 manifest.json
-plugin.js
+plugin.js             # required when platform, translation or platformExtension is declared
 assets/icon.png
 locales/<bcp47>.json   # optional
+settings/             # optional packaged HTML, JS, CSS, JSON, fonts and raster images
 ```
 
 The package must contain exactly one `assets/icon.<extension>`: `png`, `jpg`,
@@ -21,39 +22,48 @@ The package must contain exactly one `assets/icon.<extension>`: `png`, `jpg`,
 The icon is kept unchanged, limited to 2 MiB and 1024×1024 pixels. SVG is not
 supported. PNG remains the default in the templates.
 
-`plugin.js` is one self-contained classic script. Static modules, dynamic
+Declare at least one of `platform`, `translation`, `platformExtension` or `settings`. Translation and
+settings require the unreleased Host API v2; use a matching Host and SDK revision.
+Settings-only packages can omit `plugin.js` and all social/login declarations.
+
+When present, `plugin.js` is one self-contained classic background script. Static modules, dynamic
 imports, remote code, filesystem access, and native access are unavailable.
+Settings pages have a separate browser environment and SDK; their packaged ES
+modules are supported. See [storage, translation and settings](references/storage-and-settings.md).
 Run `node pack.mjs <directory> [output.fpp]` to produce a deterministic package
 using only Node's standard library.
 
 ## GitHub installation and updates
 
 Flare can install from a public `https://github.com/<owner>/<repository>` URL
-(an optional `.git` suffix is accepted). Each repository contains one plugin at
-its root: `manifest.json`, the self-contained, already-built `plugin.js`,
-one supported `assets/icon.<extension>`, and optional `locales/*.json`. Other development files are
-ignored. Flare does not run package managers, build scripts, or repository code
-outside the existing plugin sandbox.
+(optional `.git` suffix). Use `?path=/plugins/example` for a plugin directory;
+omitting it selects the repository root. Every selected directory contains
+`manifest.json`, one supported `assets/icon.<extension>`, the background script
+when required, and all declared settings resources and optional locale catalogs.
+Multiple plugins can share a repository using unique plugin IDs and, when
+provided, platform IDs. Resources stay within the
+selected directory. Other development files are ignored.
 
-Publish a stable SemVer tag such as `1.2.3` or `v1.2.3`; removing the optional
-lowercase `v` must exactly match `manifest.version`. Pre-release and arbitrary
-tags are excluded from the version picker and update checks. A GitHub Release
-or uploaded `.fpp` asset is not required.
+Publish stable SemVer repository snapshot tags such as `1.2.3` or `v1.2.3`.
+Flare selects the highest stable tag and pins its commit SHA. Each plugin's
+`manifest.version` is independent of that repository tag. Prerelease repository
+tags and branch/SHA URL fragments are unsupported. A GitHub Release or `.fpp` asset is
+not required; Flare installs committed build output without running build tools.
 
-The Host lists tags, compares semantic versions, resolves the selected commit,
-and downloads its source ZIP by commit SHA. It imports the plugin files into a
-canonical `.fpp` and applies the same package, registration, compatibility, and
-permission checks as local installation. The repository archive is limited to
-20 MiB compressed, 50 MiB uncompressed, and 4,096 entries; existing per-file and
-plugin package limits still apply. Traversal paths, symlinks, duplicate paths,
-and multiple archive roots are rejected, including in ignored files.
+The Host compares selected runtime-file Git blob hashes before offering updates,
+then downloads the snapshot ZIP to temporary storage and imports only the
+selected directory into a canonical `.fpp`. It rechecks the package hash before
+review. Unchanged plugin files do not offer an update. Downloads exceeding 20 MiB
+require confirmation; hard repository limits are 200 MiB compressed, 512 MiB
+uncompressed, and 50,000 entries. Existing per-file and single-plugin limits
+still apply. Traversal paths, symlinks, duplicate paths, and multiple archive
+roots are rejected, including in ignored files.
 
-GitHub installation records the repository ID, canonical owner/name, tag, and
-commit SHA. Updates must retain that repository ID, plugin ID, and platform ID.
-Checks only offer updates; downloading and confirming the existing install
-review remain separate user actions, and changes take effect immediately.
-New permissions, source changes, and a tag pointing to a different commit are
-shown in the review. Cancellation or failure leaves the installed plugin intact.
+GitHub installation records repository ID, canonical owner/name, directory,
+tag, and commit SHA. Updates retain repository ID, directory, plugin ID, and
+any previously owned platform ID. Source/permission review and confirmation remain required. Directory
+moves use an explicit new install review. Cancellation or failure preserves the
+installed plugin and removes temporary downloads. Changes take effect immediately.
 
 Opening plugin management checks for updates using a five-minute metadata cache;
 manual checks bypass it. Checks include all tag pages up to 1,000 tags and report
@@ -64,8 +74,11 @@ branch tracking, client-side builds, and automatic installation are unsupported.
 
 ## Registration
 
-The social plugin script calls `defineFlareSocialPlugin` once. It registers named
-services; it does not implement a universal dispatcher:
+The background script registers each provided type once, synchronously. Use
+`defineFlareSocialPlugin` for social detection, login and capability services; use
+`defineFlareTranslatePlugin` for the two text-translation handlers. A combined
+package calls both in either order. Each definition is frozen, and registration
+closes when script initialization finishes. The social example is:
 
 ```js
 defineFlareSocialPlugin({
@@ -88,7 +101,12 @@ defineFlareSocialPlugin({
 
 The manifest is the static upper bound. Every declared known operation must
 have the corresponding function, or installation fails. Login returns the
-subset supported by that account and instance. Unknown capability IDs and
+subset supported by that account and instance. An optional
+`flare.datasource.account-capabilities/v1` declaration maps `negotiate` to
+`capabilities.accountCapabilities.negotiate`; after an upgrade it returns that
+complete subset and compose configs using existing credentials, without login.
+See [account capability renegotiation](references/authentication.md#account-capability-renegotiation).
+Unknown capability IDs and
 operation names are silently ignored during installation, login, account
 restoration, and updates. Known operations still require their declared methods
 and complete required operation sets. A capability containing only unsupported
@@ -105,7 +123,8 @@ Current method paths are:
 | `flare.datasource.profile/v1` | `profile.byId`, `byHandle`, `timeline`, `following`, `followers` |
 | `flare.datasource.post/v1` | `post.detail`, `context`, `delete`, `mutate` |
 | `flare.datasource.relation/v1` | `relation.state`, `mutate` |
-| `flare.datasource.compose/v1` | `compose.publish` |
+| `flare.datasource.compose/v2` | `compose.publish` |
+| `flare.datasource.compose/v3` | `composeV3.publish` |
 | `flare.datasource.notification/v1` | `notification.page`, `badge` |
 | `flare.datasource.list/v1` | `list.page`, `detail`, `create`, `update`, `delete`, `timeline`, `members`, `memberships`, `addMember`, `removeMember` |
 | `flare.datasource.direct-message/v1` | `directMessage.rooms`, `room`, `messages`, `send`, `delete`, `leave`, `create`, `badge`, `canSend` |
@@ -115,8 +134,31 @@ Current method paths are:
 
 The [capability matrix](references/capabilities.md) distinguishes required and
 optional operations and explains UI dependencies. `PluginAbiV1.kt` defines the
-Host contract. Use [flare-plugin.d.ts](flare-plugin.d.ts) for the complete v1
+Host contract. Use [flare-plugin.d.ts](flare-plugin.d.ts) for the complete
 JavaScript types and [recipes](references/recipes.md) for implementation guidance.
+
+Text translation uses `defineFlareTranslatePlugin({ translateDocumentJson,
+translateBatchDocumentJson })`. The Host keeps the internal method paths
+`translation.translateDocumentJson` and `translation.translateBatchDocumentJson`; see the [translation contract](references/storage-and-settings.md#text-translation).
+Settings-only packages have no background registration to execute.
+
+Compose capability versions are independent of the runtime API version.
+`compose/v1` packages and saved accounts remain supported without modification.
+The Host sends legacy `replyTo` requests and exposes new posts and replies only;
+quote controls are hidden because that contract cannot represent a quote.
+For `compose/v2`, declare `supportedTypes` and handle
+`reference: { type: "reply" | "quote", key }`. Existing v1 accounts retain their
+negotiated publish access and restrictions when the plugin adopts v2, without a
+new login. See the [compose recipe](references/recipes.md#compose).
+
+Use `compose/v3` to publish with `friends` or `selfOnly` visibility. The Host
+selects `composeV3.publish` when the account negotiates it. A package can include
+`compose/v2` with its own explicit legacy visibility config. Older Hosts with
+additive compatibility ignore the v3 capability and config and use the declared
+v2 config when available. See [compose defaults](references/manifest.md#compose-defaults).
+
+Installed compose/v1 records remain runnable and uninstallable. Legacy config
+omission preserves manifest defaults; the Host does not rewrite the package.
 
 Capabilities that map to a full Host interface must declare its required
 operation set; installation rejects partial interfaces. Notification filters
@@ -137,11 +179,12 @@ limits are described in [Runtime and HTTP](references/runtime-http.md).
 Every method receives immutable request and context values. JavaScript globals
 are disposable cache only. Plugins have no lifecycle or migration hooks.
 
-Runtime scopes are detector attempt, login flow, account, and guest origin.
+Runtime scopes are detector attempt, login flow, account, guest origin, and plugin.
+Translation uses plugin scope, without an account origin or account credentials.
 Calls in one Runtime serialize. A fatal JavaScript error, timeout, cancellation,
 out-of-memory condition, or invalid Wire result retires that Runtime.
 
-All values crossing the boundary are JSON Wire v1 DTOs. IDs use
+Social operations exchange JSON Wire v1 DTOs. IDs use
 `{ "id": "...", "host": "..." }`; page responses use `items`,
 `olderCursor`, `newerCursor`, and `endReached`. Timestamps are ISO-8601 strings.
 Rich text is `{ "format": "plain|html", "value": "..." }`; Flare sanitizes
@@ -208,6 +251,9 @@ permission or invoke an operation.
 - Unknown capability IDs and operations do not become available to the account
   or guest. An account still needs at least one supported displayable capability.
 
+The known `flare.datasource.compose/v1` contract uses its own request adapter;
+it is not dropped as an unknown extension or sent v2 request fields.
+
 Known malformed data still fails validation. Other enums and control results,
 including login transitions, mutation results, and Host errors, remain strict;
 an unfamiliar outcome is never reported as a successful write. Resource limits
@@ -216,13 +262,31 @@ required methods, or semantics needs a new API/schema contract rather than an
 additive extension. Previously released Hosts without this handling must be
 upgraded; a newer plugin cannot retrofit compatibility into them.
 
+## API v2 sessions
+
+Declare `apiVersion: 2` for application response headers (including Set-Cookie),
+manual redirects, versioned credential updates, and WebCookie pending state and
+Cookie metadata. The same unreleased v2 also provides storage, translation and
+offline settings; it does not introduce a global v3. New Hosts keep API v1
+support; older Hosts reject API v2. The manifest schema remains 1, and capability
+versions are independent of the Host API version. Shared `V1` type names
+continue to describe both APIs; fields marked v2 require the v2 manifest.
+
+API v2 exposes headers only from requests the plugin explicitly makes to approved
+origins. It does not read browser traffic or maintain a Cookie jar. The plugin
+owns Cookie scope/deletion/expiry and any custom header/body token protocol.
+Native Apple can fold repeated headers; Set-Cookie is normalized into separate
+cookie-pair values, but raw header-line fidelity is unavailable. Native retries
+are platform dependent; see [HTTP behavior](references/runtime-http.md#http-request-and-response).
+
 ## Host API
 
 The frozen `flare` object exposes:
 
 - `flare.http.request`: JSON, text, form, and streaming multipart HTTP;
+- `flare.storage.open(namespace).read/write`: plugin-owned storage, API v2;
 - `flare.credential.read/replace`: the current account credential only;
-- `flare.crypto.randomHex/uuid/sha256`;
+- `flare.crypto.randomHex/uuid/sha256/md5`;
 - `flare.locale.current`;
 - `flare.error`: marks a typed error safe to cross the ABI.
 
@@ -255,7 +319,22 @@ Account and guest calls may use their selected origin and `permissions.httpOrigi
 Additional HTTP origins do not grant authorization-page, Cookie-probe, or Deep Link
 access. Credentials are sent only when explicitly supplied in the request;
 extra destinations do not change account identity or proxy routing.
-Redirects stay on the current origin, even when both origins are approved.
+Automatic redirects stay on the current origin, even when both origins are approved.
+API v2 `redirect: "manual"` returns the current hop, including POST 3xx and raw
+Location. `response.url` identifies that response and optional `redirectUrl` is
+an approved HTTPS target resolved without a fragment. A subsequent explicit
+request rechecks permissions, account session, and proxy. Response names are
+lowercase and values are arrays. V1 hides sensitive headers; v2 exposes source
+application headers while filtering proxy and hop-by-hop fields.
+
+In account scope, API v2 `credential.read({withRevision:true})` returns
+`{value, revision}` and `replace(next, {expectedRevision})` returns false on a
+local conflict. Unconditional replace remains available. Revisions are opaque;
+every successful replacement changes one. A new login or account restore changes
+the private session epoch and rejects old calls. When a plugin upgrades to v2 without changing credentialSchemaVersion, the Host
+atomically initializes missing session metadata before creating its runtime.
+Existing credential JSON and account identity are preserved; no login runs. Never replay a remote refresh or
+business write simply because local persistence conflicted or failed.
 
 Automatic media loading is a separate permission, disabled by default. A plugin
 that returns avatars, images, audio, video, covers, or HTML images must declare
@@ -269,6 +348,12 @@ the running package's grant when restored, including translated and nested media
 Permission removal and uninstall take effect immediately, like the
 package change itself; absent plugins cannot restore media.
 Development caches predating ownership metadata are rebuilt on upgrade.
+
+`MediaV1.customHeaders` optionally supplies explicit headers to native media
+loaders; it does not change HTTP origin permissions or attach credentials
+automatically. It shares the existing media cache/navigation persistence and
+applies to all URLs in that media item. See [media headers](references/wire-data.md#text-and-media)
+for validation, redirect rules and credential lifetime constraints.
 
 Flare owns HTTP routing: detector, guest, and new-login requests follow the
 global proxy policy; account requests and relogin requests follow that account's
@@ -365,15 +450,44 @@ navigation, and owns pagination gaps. Poll/reaction mutations use post.mutate;
 user-card buttons use relation.mutate. See [wire data](references/wire-data.md#timeline-items-and-interactions)
 for all fields, limits, permission checks and mutation parameters/results.
 
+API v2 WebCookie `pending` may carry at most 64 KiB `pendingPayload`; the next
+check receives it even after runtime eviction. Each pending result replaces the
+whole payload; omission/null clears it. The flow lasts at most 15 minutes and
+is kept in memory, not restored after app restart. Cookie `attributes` are
+optional and duplicate names are preserved; unknown fields remain absent.
+After a verified success, local save retries reuse that result until the flow
+expires or closes rather than repeating a remote exchange. V1 Cookie checks
+keep their original selection and completion behavior.
+
+## Storage, translation and settings
+
+Host API v2 adds independent `translation` and offline `settings` declarations and generic plugin-scoped storage. Read [storage, translation and settings](references/storage-and-settings.md) for the exact contract, namespace revision dependencies, page SDK and lifecycle. API v1 social plugins keep their behavior; the unreleased v2 also includes its HTTP/session extensions. Background code registers each provided type with `defineFlareSocialPlugin` or `defineFlareTranslatePlugin`.
+
+For actions on existing built-in or plugin-provided accounts, use `defineFlarePlatformExtensionPlugin`.
+Read the [platform extension contract](references/platform-extensions.md) for account
+grants, authenticated HTTP, scheduling and structured results.
+
+## API v2 temporary timeline pages
+
+`flare.datasource.timeline-page/v1` registers `capabilities.timelinePage.load`.
+It accepts `{ pageId, page: PageRequestV1 }` and returns `PageV1<TimelineItemV1>`.
+`PostV1.target` and quote posts can select the new `timelinePage` navigation target
+with `pageId`, a required `WireTextV1` title and optional string parameters.
+The Host binds plugin/package/account identity; target parameters live only in
+`page.parameters`. This capability does not register any home tab or catalog.
+Existing `detailType` hit handling, paging limits and validation still apply.
+See [the complete page contract](references/capabilities.md#api-v2-temporary-timeline-pages).
+
 ## Lifecycle and trust
 
 Install, update, and uninstall take effect immediately. Installed plugins are always enabled. Local packages are always unverified. Repository trust is
 Host-owned; a manifest cannot claim official status or broader runtime access.
 
 Uninstall removes the plugin's accounts, credentials, account-scoped caches,
-selections/tabs, and draft targets from this device, together with local source
+selections/tabs, plugin-owned storage, and draft targets from this device, together with local source
 and package files. Shared drafts and attachments remain while another account
-uses them. Updates preserve accounts. Loading failures or restoring accounts
+uses them. Updates preserve accounts and plugin storage; plugins manage their
+own storage schemas and migrations. Loading failures or restoring accounts
 without their plugin leave accounts unavailable; they do not delete them.
 Login, publishing, and uploads can delay or block replacement/removal. Closed
 sessions cannot recreate accounts through a late callback. Account ownership and

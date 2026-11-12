@@ -396,6 +396,8 @@
     <string name="users">用户</string>
     <string name="hashtags">话题</string>
     <string name="statues">动态</string>
+    <string name="search_unavailable">此账号暂不支持搜索</string>
+    <string name="search_empty">没有搜索结果</string>
     <string name="compose_title">发布</string>
     <string name="compose_hint">在想些什么？</string>
     <string name="compose_poll_option_hint">选项 %1$s</string>
@@ -867,4 +869,20 @@
     <string name="settings_ai_config_agent_api">API 协议</string>
     <string name="settings_ai_config_agent_api_auto">自动</string>
     <string name="settings_ai_config_agent_server_url_requirement">请输入 API 基础 URL，例如 https://api.openai.com/v1。Agent 会附加所选协议的路径。</string>
+    <string name="plugin_large_repository_title">下载较大的仓库？</string>
+    <string name="plugin_large_repository_message">此仓库下载超过 20 MiB，会使用更多流量和存储空间。是否继续下载？</string>
+    <string name="plugin_continue_download">继续下载</string>
+    <string name="plugin_github_path_hint">安装子目录中的插件时，在链接末尾添加 ?path=/plugins/example。</string>
+    <string name="plugin_installed">已安装</string>
+    <string name="plugin_marketplace">插件市场</string>
+    <string name="plugin_marketplace_empty">暂无可用插件</string>
+    <string name="plugin_marketplace_failed">暂时无法加载插件市场</string>
+    <string name="plugin_marketplace_cached">正在显示上次保存的列表。</string>
+    <string name="plugin_marketplace_refresh">刷新</string>
+    <string name="plugin_marketplace_loading">正在加载插件…</string>
+    <string name="plugin_marketplace_repository">查看仓库</string>
+    <string name="plugin_marketplace_manage">管理</string>
+    <string name="plugin_marketplace_install">安装</string>
+    <string name="plugin_marketplace_local">本地插件</string>
+    <string name="plugin_marketplace_search">搜索插件</string>
 </resources>

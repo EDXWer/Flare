@@ -11,12 +11,15 @@ enum MacWindowID {
     static let compose = "compose"
     static let media = "media"
     static let rssManagement = "rss-management"
+    static let pluginMarketplace = "plugin-marketplace"
     static let agentHistory = "agent-history"
     static let directMessages = "direct-messages"
 }
 
 @main
 struct FlareApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var selectedSettingsPane: MacSettingsPane = .accountManagement
     init() {
         configureKingfisherCache()
 
@@ -40,6 +43,9 @@ struct FlareApp: App {
             }
         }
         .defaultSize(width: 480, height: 600)
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            PluginRuntimeLifecycleFacadeV1().setForeground(active: phase == .active)
+        }
         .windowResizability(.contentSize)
         .windowSizeFitContent()
         .commands {
@@ -96,9 +102,24 @@ struct FlareApp: App {
         .windowToolbarStyle(.unified)
         .disableRestorationBehavior()
 
+        Window("plugin_marketplace", id: MacWindowID.pluginMarketplace) {
+            FlareTheme {
+                NavigationStack {
+                    PluginManagementView(
+                        marketplace: true,
+                        onSelectPluginSettings: { selectedSettingsPane = .plugins },
+                        onCreateWithAI: {}
+                    )
+                }
+            }
+        }
+        .defaultSize(width: 720, height: 520)
+        .windowToolbarStyle(.unified)
+        .disableRestorationBehavior()
+
         Settings {
             FlareTheme {
-                MacSettingsScreen()
+                MacSettingsScreen(selectedPane: $selectedSettingsPane)
             }
         }
         .windowToolbarStyle(.expanded)

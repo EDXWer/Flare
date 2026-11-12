@@ -10,9 +10,12 @@ logging API; do not invent `flare.log` or assume a developer console is availabl
 
 | Symptom / message | Check and repair |
 | --- | --- |
-| No stable version tags | Public repo, stable SemVer tag, matching manifest.version; branches/prereleases are not install choices |
-| Missing required file / nested plugin | Put manifest.json, plugin.js, one supported assets/icon.<extension> at the tagged repository root |
-| Unknown field / unsupported schema | Compatible Hosts ignore extra fields; keep known field types correct and API/schema 1. Older Hosts require an app upgrade. The editor schema still flags unknown authoring properties |
+| No stable version tags | Public repo with a stable SemVer snapshot tag; plugin manifest.version is independent, branches/prereleases are not install choices |
+| Missing required file / nested plugin | Put the manifest, icon, script when background capabilities are declared, and all settings resources in the selected directory; settings-only packages need no script. Use ?path=/plugins/example for a subdirectory |
+| Plugin directory not found | Check the case-sensitive path in the latest stable tag, including committed build output; a directory present only on the default branch is insufficient |
+| Invalid plugin repository path | Use a relative path with forward slashes, encode spaces/reserved characters once, and provide one path parameter; remove dot/empty interior segments and backslashes |
+| New repository tag, no plugin update | Only changes to selected runtime files, including settings resources, count; unchanged plugins keep their installed tag/SHA |
+| Unknown field / unsupported schema | Compatible Hosts ignore extra fields; use apiVersion 1 or 2 and schemaVersion 1 with correct field types. Older Hosts require an app upgrade. The editor schema still flags unknown authoring properties |
 | Missing method / incomplete capability | Compare full capability ID, required operation set, registration path, and login negotiation |
 | Host API called during registration / undefined global | Keep top-level work to definitions and synchronous registration; move HTTP/crypto into methods |
 | Platform ID already registered | Choose a distinct stable platform ID; do not impersonate a built-in platform |
@@ -34,10 +37,17 @@ logging API; do not invent `flare.log` or assume a developer console is availabl
 | Runtime retired/paused | Find an unmarked exception, invalid Wire output, or exceeded budget before retrying |
 | JavaScript unavailable on Android | Update Android System WebView; the provider must support message ports, Promise results, and large evaluations |
 | Invocation succeeds despite an async error | Put required work in the method's await/return chain; detached rejections do not automatically fail the call |
+| Translation/settings declaration rejected | Use Host API v2 with matching SDK/build; translation.apiVersion and settings.bridgeVersion are separate interfaces, currently 1 |
+| Translation still uses old configuration | Declare the correct storage namespace dependencies and reread plugin-side cached configuration; see the v2 storage contract |
+| storage.conflict | Reread the namespace snapshot and reconcile before retrying; do not replay a stale whole-form save |
+| storage.invalid / storage.quota | Check JSON values, Unicode, finite numbers, depth and per-plugin limits; the failed write preserves existing data |
+| storage.corrupt / storage.io / storage.unavailable | Preserve existing data, resolve the local read/write failure and retry or restart; unreadable data is not reset automatically |
+| Settings page or bridge unavailable | Check native target support, packaged entry/dependencies, SDK handshake and current document; reopen after a plugin update. Android needs message-listener, document-start script and multi-profile WebView support |
+| Settings page fetch/import blocked | Bundle every module/resource under settings; use sdk.http.request with declared httpOrigins for remote requests; inline scripts and form navigation are blocked |
 
 ## Typed errors
 
-Only errors created with `flare.error` cross as recoverable plugin errors:
+Use `flare.error` for expected recoverable errors from background methods:
 
 ```js
 throw flare.error({
@@ -73,6 +83,11 @@ plugin misconduct. Retry after the provider/sandbox recovers; writes are not rep
 Fix the underlying issue, then use the Host's retry mechanism where available or
 restart. Global state is disposable, so recovery must not depend on it.
 
+Host storage failures are an exception to unmarked-error retirement: uncaught
+`storage.invalid`, `storage.conflict` and `storage.quota` become Validation
+errors; other storage failures become Remote errors. Their stable storage code
+is preserved in `remoteCode`. Page SDK calls reject with the storage `code` directly.
+
 ## Limits
 
 These are current implementation bounds, not targets. Byte limits apply to UTF-8
@@ -81,9 +96,10 @@ requests/responses well below them.
 
 | Resource | Bound |
 | --- | --- |
-| GitHub source archive | 20 MiB compressed, 50 MiB uncompressed, 4096 entries |
+| GitHub source archive | Confirm above 20 MiB; hard limits: 200 MiB compressed, 512 MiB uncompressed, 50,000 entries |
 | Canonical plugin package | 20 MiB compressed, 50 MiB uncompressed, 256 files |
 | manifest / plugin.js / icon | 256 KiB / 4 MiB / 2 MiB |
+| Each packaged settings resource | 4 MiB; supported paths/types are in the v2 settings contract |
 | Icon dimensions | 1..1024 for each dimension |
 | Locale files | 32 catalogs; 256 KiB each; 2048 keys each; 4096 characters per value |
 | Registration evaluation | 2-second caller deadline |
@@ -93,19 +109,23 @@ requests/responses well below them.
 | Invocation JSON request / response | 1 MiB / 5 MiB |
 | HTTP response body | 4 MiB |
 | HTTP request headers | 32 headers, 8192 characters/value, 64 KiB aggregate name/value length |
+| Media custom headers | 32 headers, 128-character names, 8192 characters/value, 64 KiB aggregate UTF-8 bytes; case-insensitive unique names |
 | HTTP text/JSON/form body | 2 MiB; form also max 256 entries |
 | HTTP redirects | 5; GET/HEAD, same origin only |
 | Page request limit / returned items | 1..100 / at most 200 |
 | ID / host | 512 / 253 characters |
 | Cursor / entity token / action token | 4096 / 8192 / 8192 characters |
 | Credential / OAuth pending JSON | 64 KiB each |
+| Plugin storage | 64 namespaces, 4096 total keys, 4 MiB encoded total; 1 MiB/value and depth 64 |
+| Storage namespace/key names | 256 UTF-8 bytes, nonempty, no control characters; names are opaque strings |
+| Settings bridge | 5 MiB/request; 32 pending, four executing, 30-second Host deadline |
 | OAuth pending lifetime | 15 minutes |
 | Rich text | 1000000 characters |
 | Post media / gallery images | At most 100; gallery must have at least 1 media entry |
 | Inline-parent presentation depth | 4 recursive levels beyond the root item |
 | Inline parents / quotes / user list / reactions | At most 100 each; user lists cannot be empty |
 | Poll options | 2..100, distinct valid ownVotes indices |
-| Crypto randomHex input / sha256 input | 1..1024 random bytes / 1 MiB UTF-8 text |
+| Crypto randomHex input / sha256 and md5 input | 1..1024 random bytes / 1 MiB UTF-8 text |
 
 Multipart calls have at most 64 parts; text parts are at most 256 KiB. Assets have
 their own Host/compose constraints, up to 1 GiB per asset at the bridge boundary;

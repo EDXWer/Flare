@@ -62,6 +62,13 @@ empty and booleans default false. Counts are nonnegative. Do not include unknown
 optional website fields by spreading objects.
 See [navigation](capabilities.md#entry-points-and-actions) before choosing detailType.
 
+Profiles can supply `displayNameRichText` for inline formatted text and custom
+emoji, with `displayName` as a plain fallback. `sourceLanguages` supplies
+language hints for profile translation. `verified` and `cat` are
+platform-reported badges. Omission leaves a cached badge unspecified and
+explicit `false` clears it. A supplied `url` opens the website when the native
+profile capability is unavailable.
+
 Omitting `detailType` means `post`. An unfamiliar string such as `manga` or
 `novel` keeps the preview but disables post, cover, and grid navigation; it does
 not fall back to `post` or `url`. Author and known action clicks remain independent.
@@ -95,6 +102,46 @@ durationMillis. Preserve accurate dimensions/duration and accessibility text.
 Remote media needs the manifest's mediaNetwork permission, including profile
 avatars, article covers, and images inside HTML. Returning text successfully does
 not prove media permission is correct.
+
+`MediaV1.customHeaders` is an optional string-to-string map, defaulting to empty.
+The Host passes these explicit headers to native image, video, GIF, audio and
+ugoira loaders, including previews, downloads and supported HLS child requests.
+The same map applies to every URL declared in that media item, even when those
+URLs have different origins; only group resources that may share these headers.
+Avatars, article covers and HTML images use separate URL fields and do not inherit
+this map. The existing `mediaNetwork` grant is still required.
+
+```js
+{ id: "video", type: "video", url: playUrl, previewUrl: thumbnailUrl,
+  customHeaders: { Referer: "https://www.bilibili.com/", "User-Agent": providerUa,
+    "X-Media-Token": shortLivedToken } }
+```
+
+Cookie, Authorization and provider-specific headers are accepted explicitly;
+the Host never adds account credentials or a browser Cookie jar. Header names
+must be unique ignoring case and valid HTTP tokens of at most 128 characters.
+Limits are 32 headers, 8192 characters per value and 64 KiB aggregate UTF-8 name/value
+bytes. Control characters are rejected. Host, connection/hop-by-hop, proxy-*, sec-*,
+Content-Length, Accept-Encoding, Range, If-Range, If-None-Match and If-Modified-Since
+are transport-managed and cannot be overridden.
+
+Same-origin redirects retain headers. Across an origin change, only Accept,
+Accept-Language, Origin, Referer and User-Agent custom headers are retained;
+Cookie, Authorization and unknown custom headers are removed. The relay applies
+this rule to HLS child playlists, segments and keys as well, without restoring
+removed headers when a later relay child returns to the original origin.
+The five retained names are treated as public; do not embed secrets in them.
+For a CDN requiring a private header, return its final URL explicitly instead
+of relying on cross-origin redirects to forward the credential.
+
+Headers use the existing native media cache and internal-navigation serialization;
+they are not a secret store. Keep long-lived credentials in `credential`, and use
+short-lived media tokens or signed URLs where available. Refresh expired media
+metadata through the plugin's existing data operations. Cache identities hash the
+header values and include the viewing account scope when headers are present.
+An older Host may ignore this optional field; require an appropriate Host version
+if the media cannot load without it. Web/browser media does not gain native header
+support from this field.
 
 `presentation.repost` holds the original PostV1 with its own key and detailType; do not
 overwrite it with the wrapper ID. `replyTo` is an EntityKey, not a full post.
@@ -138,7 +185,24 @@ URLs represent the same feed entry. Gap rows, account identity, media proxies,
 translation state, render hashes and callbacks remain Host-owned.
 
 Navigation targets are `{ type: "post" | "profile" | "article" | "gallery", key }`
-or `{ type: "link", url }`. Internal targets require the negotiated capability;
+or `{ type: "link", url }`. API v2 also accepts
+`{ type: "timelinePage", pageId, title: WireTextV1, parameters?: Record<string, string> }`
+on posts (including quote posts), feeds and messages. A Post's optional target
+overrides navigation without changing existing detailType hit/media handling.
+Keep the target stable for an entity key and include it in full entity updates.
+See [temporary pages](capabilities.md#api-v2-temporary-timeline-pages).
+
+`authorSubtitle` is optional plain text for the post author header. The Host
+uses the author's handle by default. `mediaClickPolicy: "openTarget"` lets a
+media thumbnail use the same navigation as the post. `"openMedia"` uses the
+post media viewer when `post.detail` is available and uses the post target
+otherwise. Omission uses the `detailType` behavior.
+
+Report friends-only and self-only posts with `extendedVisibility: "friends"`
+or `"selfOnly"` and omit `visibility`. An older additive Host omits the
+visibility indicator for these posts. For publishing to these audiences,
+see [compose defaults](manifest.md#compose-defaults).
+Internal targets require the negotiated capability;
 unavailable or unknown target types become inert. Feed defaults to opening its
 URL in the browser only when the target is absent; an unknown target does not
 use that fallback. The same rule prevents a message's unknown target from
@@ -157,6 +221,10 @@ references, poll, emojiReactions, and channel visibility. Counts are nonnegative
 media in cards, feeds and image reactions uses the same mediaNetwork checks as
 post images. Unicode reactions need no network permission. Media may specify a
 video downloadUrl. URLs must be credential-free HTTPS, including nested content.
+
+For declared like, repost and reply controls, the Host prefers
+`actions[].count`. When that count is absent it uses the corresponding
+`favouritesCount`, `repostsCount` or `repliesCount`.
 
 Polls have 2..100 options, zero-based ownVotes, multiple, optional expiresAt,
 enabled and actionToken. The Host calculates percentages and renders its normal
@@ -245,11 +313,11 @@ credentials in `flare.credential`, and do not encode URLs that bypass origin che
 | DTO | Required fields / notable semantics |
 | --- | --- |
 | HashtagV1 | name; optional HTTPS url |
-| RelationV1 | profileKey; following/followedBy/blocking/muting default false; actionTokens map semantic actions to opaque strings |
-| SocialListV1 | id, title; optional memberCount/entityToken |
+| RelationV1 | profileKey, optional following/followedBy/blocking/muting/blockedBy and incoming/outgoing follow request flags, plus actionTokens |
+| SocialListV1 | id, title, optional description/avatarUrl/creator/readOnly/memberCount/entityToken |
 | DirectMessageRoomV1 | key, title, participants; lastMessage must belong to this room |
-| DirectMessageV1 | key, roomKey, sender, createdAt, content; fromCurrentAccount defaults false |
-| ArticleV1 | key, title, content; optional author/createdAt/url/coverUrl |
+| DirectMessageV1 | key, roomKey, sender, createdAt, content, optional body. fromCurrentAccount defaults false. |
+| ArticleV1 | key, title, content, optional author/attribution/createdAt/url/coverUrl/blocks |
 | GalleryV1 | key, title, createdAt, url, nonempty images; all MediaV1 types are supported; orientation defaults vertical |
 | TimelineDescriptorV1 | id, title as WireText, icon; display defaults List; optional string parameters |
 | TimelineSectionV1 | id, title as WireText, timelines as PageV1 of descriptors |
@@ -257,3 +325,32 @@ credentials in `flare.credential`, and do not encode URLs that bypass origin che
 Gallery orientations are `horizontal`/`vertical`. These enum spellings intentionally
 differ from manifest notification filter IDs and List/Grid display values.
 See [recipes](recipes.md) for operation-specific result requirements and mutations.
+
+`hasPendingFollowRequestFromYou` drives the profile's requested-follow state.
+Return the full relation state after mutations. Set `readOnly: true` consistently
+in list results to hide edit, delete and membership controls. The plugin must
+also enforce list permissions in its mutation handlers, including on older Hosts.
+Membership results can omit `readOnly` and `entityToken` to retain the Host's
+cached values for that list.
+
+### Articles and direct messages
+
+Use `attribution: { siteName, byline, iconUrl }` for a publication byline in
+place of a profile author. Articles may contain up to 200 ordered `blocks`.
+An empty or omitted array displays `content`. Keep a useful `content` fallback
+for older Hosts.
+
+| Block `type` | Fields |
+| --- | --- |
+| `text` | `content` as rich text |
+| `image`, `video` | `media` of the matching type |
+| `file` | `name` and HTTPS `url`, optional `sizeBytes`, `extension` and `customHeaders` |
+| `embed` | HTTPS `url`, optional `title`, `description` and `imageUrl` for a native link card |
+| `contentGate` | Subscription prompt with optional HTTPS `actionUrl` and `feeRequired` in Japanese yen |
+
+The media grant applies to article media, attachments and preview images.
+File headers follow the same rules as media headers.
+
+For incoming direct messages, set `body` to `{ type: "media", media }`,
+`{ type: "post", post }` or `{ type: "deleted" }`. Keep the required
+`content` as a readable text fallback. The send request carries text.

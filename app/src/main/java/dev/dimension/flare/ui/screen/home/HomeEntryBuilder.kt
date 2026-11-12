@@ -24,9 +24,10 @@ internal fun EntryProviderScope<NavKey>.homeEntryBuilder(
     uriHandler: UriHandler,
 ) {
     entry<Route.Home>(
-        metadata = ListDetailSceneStrategy.detailPane(
-            "home",
-        )
+        metadata =
+            ListDetailSceneStrategy.detailPane(
+                "home",
+            ),
     ) { args ->
         HomeTimelineScreen(
             toQuickMenu = {
@@ -40,6 +41,9 @@ internal fun EntryProviderScope<NavKey>.homeEntryBuilder(
             },
             uriHandler = uriHandler,
         )
+    }
+    entry<Route.TimelinePage> { args ->
+        TimelinePageScreen(args.page, onBack)
     }
     entry<Route.Timeline> { args ->
         TimelineScreen(
@@ -63,9 +67,6 @@ internal fun EntryProviderScope<NavKey>.homeEntryBuilder(
     }
     entry<Route.Discover> { args ->
         DiscoverScreen(
-            onUserClick = { accountType, userKey ->
-                navigate(Route.Profile.User(accountType, userKey))
-            },
             onAskAiClick = { initialMessage ->
                 navigate(newGenericChatRoute(initialMessage))
             },
@@ -95,21 +96,19 @@ internal fun EntryProviderScope<NavKey>.homeEntryBuilder(
         SearchScreen(
             initialQuery = args.query,
             accountType = args.accountType,
-            onUserClick = { accountType, userKey ->
-                navigate(Route.Profile.User(accountType, userKey))
-            },
             onAskAiClick = { initialMessage ->
                 navigate(newGenericChatRoute(initialMessage))
             },
         )
     }
     entry<Route.TabSettings>(
-        metadata = ListDetailSceneStrategy.extraPane(
-            "home",
-        ),
+        metadata =
+            ListDetailSceneStrategy.extraPane(
+                "home",
+            ),
     ) { args ->
         CompositionLocalProvider(
-            LocalWindowSizeClass provides WindowSizeClass.Compact
+            LocalWindowSizeClass provides WindowSizeClass.Compact,
         ) {
             TabSettingScreen(
                 onBack = onBack,
@@ -123,12 +122,13 @@ internal fun EntryProviderScope<NavKey>.homeEntryBuilder(
         }
     }
     entry<Route.TabGroupConfig>(
-        metadata = ListDetailSceneStrategy.extraPane(
-            "home",
-        ),
+        metadata =
+            ListDetailSceneStrategy.extraPane(
+                "home",
+            ),
     ) { args ->
         CompositionLocalProvider(
-            LocalWindowSizeClass provides WindowSizeClass.Compact
+            LocalWindowSizeClass provides WindowSizeClass.Compact,
         ) {
             GroupConfigScreen(
                 groupId = args.groupId,
@@ -140,7 +140,7 @@ internal fun EntryProviderScope<NavKey>.homeEntryBuilder(
         }
     }
     entry<Route.AccountSelection>(
-        metadata = BottomSheetSceneStrategy.bottomSheet()
+        metadata = BottomSheetSceneStrategy.bottomSheet(),
     ) {
         AccountSelectionModal(
             onBack = onBack,
@@ -148,10 +148,10 @@ internal fun EntryProviderScope<NavKey>.homeEntryBuilder(
         )
     }
     entry<Route.DeepLinkAccountPicker>(
-        metadata = BottomSheetSceneStrategy.bottomSheet()
+        metadata = BottomSheetSceneStrategy.bottomSheet(),
     ) {
         CompositionLocalProvider(
-            LocalUriHandler provides uriHandler
+            LocalUriHandler provides uriHandler,
         ) {
             DeepLinkAccountPickerModal(
                 originalUrl = it.originalUrl,

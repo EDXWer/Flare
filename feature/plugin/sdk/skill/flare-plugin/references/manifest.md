@@ -5,7 +5,8 @@ fields; comments and trailing commas remain invalid. Known fields and enum
 spellings are case-sensitive and retain their validation.
 Defaults below apply when a field is omitted; use omission for optional fields
 rather than sending null for non-nullable values. Start from the complete
-[template manifest](../assets/github-template/manifest.json).
+[social template manifest](../assets/github-template/manifest.json), or the
+[translation/settings example](../examples/translation-settings/manifest.json).
 
 ## JSON Schema and editor support
 
@@ -57,14 +58,24 @@ length in the Host rather than JSON Schema's Unicode code point count.
 | --- | --- | --- |
 | `$schema` | Omitted | Editor schema URL/path only; never loaded by Flare |
 | `schemaVersion` | `1` | Manifest schema, currently exactly 1 |
-| `apiVersion` | Required | Runtime ABI, currently exactly 1 |
+| `apiVersion` | Required | Host API, 1 or 2; storage, translation, settings, platform actions, header/session extensions and temporary timeline pages require v2 |
 | `id` | Required | Stable reverse-domain plugin ID; `[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+` |
-| `version` | Required | SemVer; use stable `major.minor.patch` for GitHub distribution |
+| `version` | Required | Plugin SemVer, independent of the repository snapshot tag and npm SDK version |
 | `defaultLocale` | `"en"` | BCP-47 locale tag |
 | `name` | Required | Manifest text |
 | `description` | Omitted | Manifest text |
 | `permissions` | `{}` | Permission object below |
-| `platform` | Required | Exactly one platform object |
+| `platform` | Omitted or `null` | One social platform object, when providing social capabilities |
+| `translation` | Omitted or `null` | `{ "apiVersion": 1, "cache": { "storageNamespaces": ["options"] } }`; Host API v2 |
+| `settings` | Omitted or `null` | `{ "entry": "settings/index.html", "bridgeVersion": 1 }`; Host API v2 |
+
+Provide at least one of `platform`, `translation`, `platformExtension` or `settings`; any combination
+is allowed. `platform`, `translation` and `platformExtension` require a background `plugin.js`.
+A settings-only package needs no platform, login methods or background registration.
+`translation.apiVersion` and `settings.bridgeVersion` are separate interface
+versions, currently 1 within Host API v2. See the
+[storage, translation and settings contract](storage-and-settings.md) for cache
+dependency semantics, page resource rules and a minimal settings-only manifest.
 
 Manifest text is either a nonblank string or `{ "key": "plugin.name", "fallback":
 "Example" }`. Every localized key used by the manifest must exist in the default
@@ -76,7 +87,7 @@ runtime `WireTextV1`; see [localization](recipes.md#localization).
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `authOrigins` | `[]` | Up to 16 additional exact HTTPS origins for login, e.g. `https://login.example.org` |
-| `httpOrigins` | `[]` | Up to 16 additional exact HTTPS origins for HTTP requests during login, account, and guest calls |
+| `httpOrigins` | `[]` | Up to 16 exact HTTPS origins for plugin-scoped translation/settings HTTP, or additional origins for login/account/guest HTTP |
 | `mediaNetwork` | `false` | Allows automatic remote media loading, including avatars, HTML images, audio/video, and covers |
 
 Auth and HTTP origins have no paths, trailing slash, query, fragment, wildcard, or URL
@@ -90,6 +101,10 @@ not expand the HTTP API. See [origin rules](runtime-http.md#origins-and-permissi
 
 ## Platform object
 
+This object and the social declarations below apply only when `platform` is
+provided. A plugin that has owned a platform ID retains that identity if a later
+version omits the platform; see [update compatibility](publishing.md#updates-and-compatibility).
+
 | Field | Required / default | Contract |
 | --- | --- | --- |
 | `id` | Required | Stable platform ID, `[A-Za-z][A-Za-z0-9_.-]{0,63}`; avoid built-in and other plugin platform IDs |
@@ -101,6 +116,7 @@ not expand the HTTP API. See [origin rules](runtime-http.md#origins-and-permissi
 | `profileTabs` | `[]` | Profile tab declarations; requires `profile.timeline` |
 | `deepLinks` | `[]` | Up to 64 structured rules; see [Deep Links](recipes.md#deep-links) |
 | `composeDefaults` | Omitted | Required conservative defaults when declaring `compose.publish` |
+| `composeDefaultsV3` | Omitted | Required defaults with visibility when declaring `composeV3.publish` |
 | `guest` | Omitted | `{ "enabled": true }` enables guest datasource access; object defaults enabled to true |
 | `credentialSchemaVersion` | `1` | Integer 1..1000000; changing it requires existing accounts to log in again |
 | `timelineSchemaVersion` | `1` | Integer 1..1000000; changes timeline identity; see [upgrades](publishing.md#updates-and-compatibility) |
@@ -138,6 +154,12 @@ must be nonempty when `page` is declared. Values: `all`, `mention`, `comment`,
 nonempty. Values: `follow`, `block`, `mute`. Both default to empty and are static
 arrays; placing them on another capability is invalid.
 
+Host API v2 `flare.datasource.account-http/v1` requires `authenticate` and
+`authOrigins`: 1–16 unique exact HTTPS origins or `$accountOrigin`. Other known
+capabilities cannot declare authentication origins. It is account-only and must
+be negotiated at login; it is not a displayable entry. See
+[account HTTP providers](platform-extensions.md#supplying-authentication-from-a-social-plugin).
+
 ### Timelines and profile tabs
 
 | Field | Timeline default | Profile-tab default |
@@ -151,6 +173,11 @@ arrays; placing them on another capability is invalid.
 IDs must be unique within each list. At least one declared timeline must have
 `defaultForNewAccount: true`. `display` is `List` or `Grid`, not lowercase.
 `tabCatalog.page` still requires a static timeline and `timeline.page`.
+
+The API v2 [temporary page capability](capabilities.md#api-v2-temporary-timeline-pages)
+is independent: `timelinePage.load` does not require `timelines`, `timeline.page`
+or `tabCatalog`. Keep the plugin's ordinary displayable entry capability and
+declare a post/quote navigation target for the temporary page.
 
 Icons use these Host semantic names:
 `Home`, `Notification`, `Search`, `Profile`, `Local`, `World`, `Featured`,
@@ -215,8 +242,14 @@ See the [complete login recipes](authentication.md).
 
 ### Compose defaults
 
+Declare `flare.datasource.compose/v2` for typed `compose.publish` references.
+Existing `compose/v1` packages remain supported with `replyTo`, implicit new/reply
+modes and no quote controls. Their composeDefaults do not require supportedTypes.
+The table below describes v2; v1 retains the other limits and optional sections.
+
 | Field | Shape and defaults |
 | --- | --- |
+| `supportedTypes` | Required nonempty set of `new`, `reply`, `quote`; declare only modes the handler implements |
 | `text` | Optional `{ "maxLength": 500 }`; limit 1..1000000 |
 | `media` | Optional object; required `maxCount` (0..100), `maxBytes` (1..1073741824) |
 | `media.minCountForNew` | Default 0, between 0 and maxCount |
@@ -228,7 +261,7 @@ See the [complete login recipes](authentication.md).
 | `poll` | Optional `{ "maxOptions": 4 }`, range 2..100 |
 | `language` | Optional `{ "maxCount": 1 }`, range 1..32 |
 
-Visibility values are `public`, `unlisted`, `followers`, `direct`. Describe what
+Legacy visibility values are `public`, `unlisted`, `followers`, `direct`, and `channel`. Describe what
 the website actually supports. Login may return an instance config. When both sides define a section, the Host
 uses the stricter limits, intersects visibility/MIME constraints, and rejects
 empty intersections. When only one side defines an optional section, that section
@@ -236,13 +269,50 @@ is retained; omission is not a prohibition. Content-warning support requires
 both sides when both configs exist. Implement every resulting enabled field in
 `compose.publish`; see [compose](recipes.md#compose).
 
+Login must also include supportedTypes when returning a compose config. Its
+intersection with manifest supportedTypes must be nonempty; login cannot enable
+an undeclared mode. `media.minCountForNew` also applies to quotes. Only replies
+are exempt from the minimum attachment count.
+
+Declare `flare.datasource.compose/v3` and implement `composeV3.publish` for
+`friends` (friends only) and `selfOnly` (only the author). Supply the usual
+compose settings as `platform.composeDefaultsV3`, including a visibility
+object. For example, a platform that supports both private audiences can use
+
+```json
+{
+  "supportedTypes": ["new"],
+  "visibility": { "allowed": ["friends", "selfOnly"], "default": "selfOnly" }
+}
+```
+
+Login must negotiate `flare.datasource.compose/v3`. It can narrow the manifest
+settings with `composeConfigV3`. Accounts established on a Host that lacks v3
+can log in again on a supporting Host to negotiate it. The service receives
+the selected audience in `request.visibility` and must enforce its exact
+meaning on the website.
+
+For legacy publishing from the same package, declare and negotiate
+`flare.datasource.compose/v2` as well, with its own explicit
+`composeDefaults.visibility`. Use `composeConfig` for any per-account narrowing
+of that legacy config. A package with only v3 can still provide timelines on
+older additive Hosts.
+
 ## Frequent invalid combinations
 
 - Timeline capability without a static/default timeline.
 - A profile tab without the profile timeline operation.
 - Compose capability without compose defaults, or defaults without the capability.
-- Only `search.posts` declared when the search Host interface requires all five operations.
+- An empty `operations` object for `flare.datasource.search/v1`.
 - A login method ID that differs from the corresponding `login` object key.
 - Localized manifest keys absent from the default catalog.
 - Extra root properties such as `author`, `homepage`, `entry`, or a trust badge:
-  API v1 defines no such manifest fields; put human-facing information in README.
+  API v1/v2 define no such manifest fields; put human-facing information in README.
+
+For `platformExtension` targets (including other plugins' platforms), action IDs,
+optional per-action `platformIds`, daily timezones and account authorization,
+read [existing-platform actions](platform-extensions.md). Extensions require Host API v2.
+
+Account-only `flare.datasource.account-capabilities/v1` declares `negotiate` on
+runtime APIs 1 and 2. It adds no permissions and enables optional
+[capability renegotiation without login](authentication.md#account-capability-renegotiation).

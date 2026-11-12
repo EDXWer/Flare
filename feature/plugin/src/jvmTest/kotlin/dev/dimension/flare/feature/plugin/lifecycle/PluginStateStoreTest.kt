@@ -1,10 +1,17 @@
 package dev.dimension.flare.feature.plugin.lifecycle
 
 import dev.dimension.flare.data.model.IconType
+import dev.dimension.flare.feature.plugin.abi.PluginAbiV1
+import dev.dimension.flare.feature.plugin.abi.PluginJsonV1
 import dev.dimension.flare.feature.plugin.adapter.platformMetadata
 import dev.dimension.flare.feature.plugin.installer.PluginInstaller
 import dev.dimension.flare.feature.plugin.installer.TestFppFactory
+import dev.dimension.flare.feature.plugin.manifest.CapabilityManifestV1
+import dev.dimension.flare.feature.plugin.manifest.CapabilityOperationManifestV1
+import dev.dimension.flare.feature.plugin.manifest.socialPlatform
+import dev.dimension.flare.feature.plugin.wire.ComposeConfigV2
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.encodeToString
 import okio.FileSystem
 import okio.ForwardingFileSystem
 import okio.Path
@@ -41,6 +48,50 @@ class PluginStateStoreTest {
     fun tearDown() {
         fileSystem.deleteRecursively(root, mustExist = false)
     }
+
+    @Test
+    fun legacyComposeRecordStaysRunnableAndUninstallable() =
+        runBlocking {
+            val installed = installValid(fileSystem)
+            val retiredId = installed.pluginId + ".retired"
+            val retired =
+                installed.copy(
+                    pluginId = retiredId,
+                    ownedPlatformId = installed.manifest.socialPlatform.id + "Retired",
+                    manifest =
+                        installed.manifest.copy(
+                            id = retiredId,
+                            platform =
+                                installed.manifest.socialPlatform.copy(
+                                    id = installed.manifest.socialPlatform.id + "Retired",
+                                    capabilities =
+                                        installed.manifest.socialPlatform.capabilities +
+                                            (
+                                                PluginAbiV1.Capabilities.COMPOSE_V1 to
+                                                    CapabilityManifestV1(operations = mapOf("publish" to CapabilityOperationManifestV1()))
+                                            ),
+                                    composeDefaults = ComposeConfigV2(supportedTypes = emptySet()),
+                                ),
+                        ),
+                )
+            val paths = PluginStoragePaths(namespace)
+            val oldIndex =
+                PluginJsonV1
+                    .encodeToString(PluginStateIndexV1(plugins = listOf(installed, retired)))
+                    .replace("\"supportedTypes\":[],", "")
+            assertFalse(oldIndex.contains("supportedTypes"))
+            fileSystem.write(paths.index) { writeUtf8(oldIndex) }
+            val reopened = PluginStateStore.open(fileSystem, namespace)
+            assertTrue(reopened.desired.value.indexHealthy)
+            assertTrue(installed.pluginId in reopened.running.plugins)
+            assertTrue(retiredId in reopened.running.plugins)
+            assertTrue(reopened.running.issues.isEmpty())
+            assertTrue(fileSystem.exists(paths.packagePath(retired.packageHash)))
+            reopened.uninstall(retiredId)
+            val after = PluginStateStore.open(fileSystem, namespace)
+            assertTrue(after.desired.value.indexHealthy)
+            assertEquals(setOf(installed.pluginId), after.desired.value.plugins.keys)
+        }
 
     @Test
     fun atomicIndexFailureKeepsPreviousDesiredState() =
