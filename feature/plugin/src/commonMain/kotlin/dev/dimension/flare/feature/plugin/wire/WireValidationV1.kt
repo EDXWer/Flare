@@ -444,6 +444,24 @@ public fun LoginTransitionV1.requireValid() {
             require(startUrl.isNotBlank() && startUrl.length <= 8_192) { "Invalid Cookie login URL" }
         }
 
+        is LoginTransitionV1.QrCode -> {
+            require(
+                content.isNotBlank() && content.none(Char::isISOControl) &&
+                    content.encodeToByteArray(throwOnInvalidSequence = true).size <= 1_024,
+            ) { "Invalid login QR content" }
+            require(expiresInMillis in 1..900_000) { "Invalid login QR lifetime" }
+            require(pollIntervalMillis in 1_000..30_000) { "Invalid login QR polling interval" }
+            require(encodedJsonSize(pendingPayload) <= WireLimitsV1.MAX_PENDING_PAYLOAD_BYTES) { "Login pending payload is too large" }
+        }
+
+        is LoginTransitionV1.QrPending -> {
+            require(pendingPayload == null || encodedJsonSize(pendingPayload) <= WireLimitsV1.MAX_PENDING_PAYLOAD_BYTES) {
+                "Login pending payload is too large"
+            }
+        }
+
+        LoginTransitionV1.QrExpired -> {}
+
         is LoginTransitionV1.Success -> {
             value.requireValid()
         }

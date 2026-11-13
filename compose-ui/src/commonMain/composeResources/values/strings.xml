@@ -520,6 +520,13 @@
     <string name="nostr_login_qr_hint">Scan with Amber, Alby, or another Nostr Connect signer.</string>
     <string name="nostr_login_qr_waiting">Waiting for signer approval…</string>
     <string name="nostr_login_qr_link_label">Nostr Connect link</string>
+    <string name="plugin_login_qr_hint">Scan this code with your phone.</string>
+    <string name="plugin_login_qr_label">Sign-in QR code</string>
+    <string name="plugin_login_qr_waiting">Waiting for you to scan…</string>
+    <string name="plugin_login_qr_scanned">Confirm sign-in on your phone.</string>
+    <string name="plugin_login_qr_expired">This QR code has expired.</string>
+    <string name="plugin_login_qr_new_code">Generate a new code</string>
+    <string name="plugin_login_qr_retry_save">Retry saving account</string>
     <string name="cancel_button">Cancel</string>
     <string name="nostr_login_generate_button">Generate and log in</string>
     <string name="nostr_login_npub_hint">npub or hex pubkey (optional if nsec is set)</string>

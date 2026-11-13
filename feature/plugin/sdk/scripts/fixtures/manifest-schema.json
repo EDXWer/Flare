@@ -19,6 +19,38 @@
       "hostValid": true
     },
     {
+      "name": "QR login is available in API v2",
+      "patch": {
+        "apiVersion": 2,
+        "platform": {
+          "loginMethods": [{ "id": "scan", "interaction": "QrCode", "title": "Scan" }]
+        }
+      },
+      "schemaValid": true,
+      "hostValid": true
+    },
+    {
+      "name": "API v1 rejects QR login",
+      "patch": {
+        "platform": {
+          "loginMethods": [{ "id": "scan", "interaction": "QrCode", "title": "Scan" }]
+        }
+      },
+      "schemaValid": false,
+      "hostValid": false
+    },
+    {
+      "name": "QR login rejects form fields",
+      "patch": {
+        "apiVersion": 2,
+        "platform": {
+          "loginMethods": [{ "id": "scan", "interaction": "QrCode", "title": "Scan", "fields": [{ "id": "token", "type": "Secret", "label": "Token" }] }]
+        }
+      },
+      "schemaValid": false,
+      "hostValid": false
+    },
+    {
       "name": "additional HTTP origins",
       "patch": {
         "permissions": {

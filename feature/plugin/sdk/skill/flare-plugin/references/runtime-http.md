@@ -37,7 +37,7 @@ Requests and contexts are deeply frozen. Copy data before modifying it.
 Calls in one runtime serialize. Globals may cache derived data but are not
 persistent storage. Login begin/resume can use different runtime generations;
 OAuth state that your code needs belongs in `pendingPayload`; API v2 WebCookie
-checks can also return a pendingPayload for the next check. API v2 supplies
+checks and QR login polls can also return a payload for the next call. API v2 supplies
 [plugin-owned storage](storage-and-settings.md#opaque-plugin-storage), shared
 between background capabilities and settings pages. Plugins own its data schema
 and migrations; there are no lifecycle or migration callbacks.

@@ -313,6 +313,8 @@ private val UiStrings.desktopStringResource: StringResource
 
             UiStrings.QrConnect -> Res.string.ok
 
+            UiStrings.QrLoginNewCode, UiStrings.QrLoginRetrySave -> Res.string.ok
+
             UiStrings.CredentialImport -> Res.string.ok
 
             UiStrings.ExternalSigner -> Res.string.ok

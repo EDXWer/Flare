@@ -129,6 +129,9 @@ public class PluginOAuthLoginCoordinatorV1(
 
             is LoginTransitionV1.Pending,
             is LoginTransitionV1.WebCookie,
+            is LoginTransitionV1.QrCode,
+            is LoginTransitionV1.QrPending,
+            LoginTransitionV1.QrExpired,
             -> {
                 throw PluginLoginException("login.transition", "OAuth begin returned an unsupported transition")
             }

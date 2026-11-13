@@ -379,6 +379,13 @@
     <string name="nostr_login_qr_hint">使用 Amber, Alby 或其他 Nostr Connect 签名器扫描。</string>
     <string name="nostr_login_qr_waiting">等待签名器批准…</string>
     <string name="nostr_login_qr_link_label">Nostr Connect 链接</string>
+    <string name="plugin_login_qr_hint">请用手机扫描此二维码。</string>
+    <string name="plugin_login_qr_label">登录二维码</string>
+    <string name="plugin_login_qr_waiting">等待扫码…</string>
+    <string name="plugin_login_qr_scanned">请在手机上确认登录。</string>
+    <string name="plugin_login_qr_expired">二维码已过期。</string>
+    <string name="plugin_login_qr_new_code">重新生成二维码</string>
+    <string name="plugin_login_qr_retry_save">重试保存账号</string>
     <string name="cancel_button">取消</string>
     <string name="nostr_login_generate_button">生成并登录</string>
     <string name="nostr_login_npub_hint">npub 或 hex 公钥 (如果已设置 nsec 则可选)</string>

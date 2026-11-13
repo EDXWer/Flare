@@ -377,6 +377,13 @@
     <string name="nostr_login_qr_hint">使用 Amber, Alby 或其他 Nostr Connect 簽章器掃描。</string>
     <string name="nostr_login_qr_waiting">等待簽章器批准…</string>
     <string name="nostr_login_qr_link_label">Nostr Connect 連結</string>
+    <string name="plugin_login_qr_hint">請用手機掃描此 QR Code。</string>
+    <string name="plugin_login_qr_label">登入 QR Code</string>
+    <string name="plugin_login_qr_waiting">等待掃描…</string>
+    <string name="plugin_login_qr_scanned">請在手機上確認登入。</string>
+    <string name="plugin_login_qr_expired">QR Code 已過期。</string>
+    <string name="plugin_login_qr_new_code">重新產生 QR Code</string>
+    <string name="plugin_login_qr_retry_save">重試儲存帳號</string>
     <string name="cancel_button">取消</string>
     <string name="nostr_login_generate_button">產生並登入</string>
     <string name="nostr_login_npub_hint">npub 或 hex 公鑰 (如果已設置 nsec 則為選填)</string>

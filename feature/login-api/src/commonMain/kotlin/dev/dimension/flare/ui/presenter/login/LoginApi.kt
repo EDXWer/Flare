@@ -92,6 +92,14 @@ public data class LoginFlowState(
     val actions: List<LoginAction> = emptyList(),
     val loading: Boolean = false,
     val error: String? = null,
+    val qrCode: LoginQrCode? = null,
+)
+
+public data class LoginQrCode(
+    /** The content is cleared when the challenge expires. */
+    val content: String?,
+    val hint: UiText? = null,
+    val scanned: Boolean = false,
 )
 
 public data class ReloginTarget(

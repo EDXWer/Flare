@@ -465,7 +465,7 @@ Deep Links, when needed, are manifest-only structured rules; JavaScript cannot
 resolve them.
 
 For full field defaults and validation, read the [manifest reference](references/manifest.md).
-All five authentication interactions are covered in [authentication](references/authentication.md).
+See [authentication](references/authentication.md) for each supported login interaction.
 
 ## Timeline contract
 
@@ -488,6 +488,11 @@ optional and duplicate names are preserved; unknown fields remain absent.
 After a verified success, local save retries reuse that result until the flow
 expires or closes rather than repeating a remote exchange. V1 Cookie checks
 keep their original selection and completion behavior.
+
+On API v2 Hosts with QR support, the `QrCode` interaction calls `begin` for
+each new challenge and `poll` for its current status. The Host renders the code,
+owns the polling lifetime, and carries `pendingPayload` across Runtime eviction.
+See the [QR login contract](references/authentication.md#qr-login-api-v2).
 
 ## Storage, translation and settings
 
