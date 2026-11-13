@@ -869,7 +869,7 @@
     <string name="rss_open_mode_checking">Recherche du mode d\'ouverture le plus adapté…</string>
     <string name="rss_open_mode_recommended">Mode recommandé d\'après les articles récents. Vous pouvez le modifier.</string>
     <string name="rss_open_mode_unknown">Impossible de recommander un mode d\'ouverture. Vous pouvez en choisir un.</string>
-    <string name="rss_detail_unavailable">Aperçu</string>
+    <string name="rss_detail_unavailable">Impossible de charger cet article. Vous pouvez ouvrir la page d\'origine.</string>
     <string name="settings_appearance_limit_single_media_height">Limiter la hauteur des pièces jointes uniques</string>
     <string name="settings_remember_home_timeline_position">Se souvenir de la position de lecture de l\'accueil</string>
     <string name="settings_remember_home_timeline_position_description">Gardez votre place après un rafraîchissement et une nouvelle ouverture. Utilisez Voir le dernier pour passer aux nouveaux messages.</string>

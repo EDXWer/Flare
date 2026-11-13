@@ -975,7 +975,7 @@
     <string name="rss_open_mode_checking">Recherche du mode d\'ouverture le plus adapté…</string>
     <string name="rss_open_mode_recommended">Mode recommandé d\'après les articles récents. Vous pouvez le modifier.</string>
     <string name="rss_open_mode_unknown">Impossible de recommander un mode d\'ouverture. Vous pouvez en choisir un.</string>
-    <string name="rss_detail_unavailable">Aperçu</string>
+    <string name="rss_detail_unavailable">Impossible de charger cet article. Vous pouvez ouvrir la page d\'origine.</string>
     <string name="search_unavailable">Aucun résultat trouvé</string>
     <string name="plugin_extension_foreground_notice">Les tâches ne s\'exécutent que lorsque vous utilisez Flare.</string>
     <string name="plugin_extension_automatic">Exécuter automatiquement chaque jour</string>
