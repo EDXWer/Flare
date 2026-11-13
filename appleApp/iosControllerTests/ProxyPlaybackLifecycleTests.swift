@@ -153,6 +153,39 @@ final class ProxyPlaybackLifecycleTests: XCTestCase {
         XCTAssertEqual(diagnostic.localizedDescription, "Target returned HTTP 503")
     }
 
+    func testRetryingTheSameVideoAfterRelayRetirementReplacesTheItem() async throws {
+        let server = try PlaybackHTTPServer(statusCode: 503)
+        defer { server.stop() }
+        try await eventually { (server.listener.port?.rawValue ?? 0) > 0 }
+        let session = VideoPlaybackSession()
+        defer {
+            MediaProxy.shared.setRelayForeground(active: true)
+            session.detach()
+            VideoPlaybackSession.releaseIdleBuffer()
+        }
+        let video = UiMediaVideo(url: server.url, thumbnailUrl: "", description: nil, height: 0, width: 0,
+                                 customHeaders: ["Authorization": "Bearer video-test"], proxy: ProxyRef.System.shared,
+                                 downloadUrl: nil, kind: .video)
+        session.play(media: video)
+        try await eventually {
+            if case .error = session.state { return true }
+            return false
+        }
+        let item = try XCTUnwrap(session.player?.currentItem)
+        let retiredURL = try XCTUnwrap((item.asset as? AVURLAsset)?.url)
+
+        MediaProxy.shared.setRelayForeground(active: false)
+        MediaProxy.shared.setRelayForeground(active: true)
+        server.statusCode = 200
+        session.play(media: video)
+        try await eventually { session.player?.currentItem !== item && session.isPlaying }
+        let replacementURL = try XCTUnwrap((session.player?.currentItem?.asset as? AVURLAsset)?.url)
+        XCTAssertNotEqual(replacementURL, retiredURL)
+        let (bytes, response) = try await readRange(replacementURL)
+        XCTAssertEqual(response.statusCode, 206)
+        XCTAssertEqual(bytes.count, 4)
+    }
+
     func testSetupFailureUsesLocalizedTextAndRetainsDiagnostic() async throws {
         let session = VideoPlaybackSession()
         defer { session.detach() }
@@ -332,7 +365,7 @@ private final class PlaybackHTTPServer {
     let listener: NWListener
     private var connections: [NWConnection] = []
     private let bytes: Data
-    private let statusCode: Int
+    var statusCode: Int
     private let contentType: String
     private let pathExtension: String
     private let supportsRanges: Bool

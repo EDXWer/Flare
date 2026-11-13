@@ -5,6 +5,13 @@ import SwiftUI
 @preconcurrency import KotlinSharedUI
 #if os(iOS)
 import GSPlayer
+
+private nonisolated func playbackErrorCodes(_ error: any Error) -> String {
+    let error = error as NSError
+    let codes = "\(error.domain):\(error.code)"
+    guard let cause = error.userInfo[NSUnderlyingErrorKey] as? NSError else { return codes }
+    return "\(codes) <- \(cause.domain):\(cause.code)"
+}
 #endif
 
 public enum VideoState {
@@ -48,11 +55,15 @@ final class SharedVideoPlayer {
     private var memoryPressure: DispatchSourceMemoryPressure?
     #if os(iOS)
     private var holdsAudioSession = false
+    private var logNextClockRead = false
     #endif
 
     private init() {
         #if os(iOS)
         let background = UIApplication.didEnterBackgroundNotification
+        VideoLoadManager.shared.reportError = { error in
+            VideoPlaybackDiagnostics.shared.record(message: "GSPlayer error=\(playbackErrorCodes(error))")
+        }
         NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)
             .sink { _ in Task { @MainActor in Self.shared.clearIfIdle() } }
             .store(in: &lifecycleSubscriptions)
@@ -82,6 +93,9 @@ final class SharedVideoPlayer {
         handoffTask = nil
         if loadedSource?.key == source.key, playbackError == nil, player.error == nil,
            player.currentItem?.status != .failed, player.currentItem?.error == nil, !player.items().isEmpty {
+            #if os(iOS)
+            VideoPlaybackDiagnostics.shared.record(message: "queue reused id=\(source.diagnosticId)")
+            #endif
             MediaProxy.shared.release(source: source)
             player.isMuted = true
             player.preventsDisplaySleepDuringVideoPlayback = false
@@ -89,6 +103,10 @@ final class SharedVideoPlayer {
             return (player, self.position(session))
         }
         let position = position ?? MediaPlaybackMemory.shared.position(for: source.originalUrl)
+        #if os(iOS)
+        logNextClockRead = true
+        VideoPlaybackDiagnostics.shared.record(message: "queue replace begin id=\(source.diagnosticId) cache=\(usesVideoCache) resume=\(position > 0)")
+        #endif
         self.usesVideoCache = usesVideoCache
         generation += 1
         stopObserving()
@@ -117,6 +135,9 @@ final class SharedVideoPlayer {
         // Observe before queuing the item: a local file can fail immediately.
         observePlayback()
         replenishQueue()
+        #if os(iOS)
+        VideoPlaybackDiagnostics.shared.record(message: "queue replace end id=\(source.diagnosticId)")
+        #endif
         return (player, position)
     }
 
@@ -160,12 +181,18 @@ final class SharedVideoPlayer {
         request.httpMethod = "HEAD"
         request.timeoutInterval = 5
         // GSPlayer requires video MIME and byte ranges; keep other responses on native AVFoundation.
-        guard let (_, response) = try? await URLSession.shared.data(for: request),
-              let response = response as? HTTPURLResponse,
-              (200..<300).contains(response.statusCode),
-              response.mimeType?.lowercased().hasPrefix("video/") == true,
-              response.value(forHTTPHeaderField: "Accept-Ranges")?.lowercased().contains("bytes") == true else { return false }
-        return true
+        VideoPlaybackDiagnostics.shared.record(message: "cache HEAD begin id=\(source.diagnosticId)")
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let response = response as? HTTPURLResponse else { return false }
+            let video = response.mimeType?.lowercased().hasPrefix("video/") == true
+            let ranges = response.value(forHTTPHeaderField: "Accept-Ranges")?.lowercased().contains("bytes") == true
+            VideoPlaybackDiagnostics.shared.record(message: "cache HEAD id=\(source.diagnosticId) status=\(response.statusCode) video=\(video) byteRanges=\(ranges)")
+            return (200..<300).contains(response.statusCode) && video && ranges
+        } catch {
+            VideoPlaybackDiagnostics.shared.record(message: "cache HEAD failed id=\(source.diagnosticId) error=\(playbackErrorCodes(error))")
+            return false
+        }
         #else
         return false
         #endif
@@ -279,7 +306,19 @@ final class SharedVideoPlayer {
     func position(_ session: VideoPlaybackSession) -> Double {
         guard owner === session else { return session.position }
         if let pendingPosition { return pendingPosition }
+        #if os(iOS)
+        let diagnosticId = logNextClockRead ? loadedSource?.diagnosticId : nil
+        logNextClockRead = false
+        if let diagnosticId {
+            VideoPlaybackDiagnostics.shared.record(message: "clock read begin id=\(diagnosticId)")
+        }
+        #endif
         let seconds = player.currentTime().seconds
+        #if os(iOS)
+        if let diagnosticId {
+            VideoPlaybackDiagnostics.shared.record(message: "clock read end id=\(diagnosticId) valid=\(seconds.isFinite)")
+        }
+        #endif
         return seconds.isFinite ? seconds : session.position
     }
 
@@ -317,11 +356,17 @@ final class SharedVideoPlayer {
         seeking = true
         let generation = generation
         let seekGeneration = seekGeneration
+        #if os(iOS)
+        VideoPlaybackDiagnostics.shared.record(message: "resume seek begin id=\(loadedSource?.diagnosticId ?? "-")")
+        #endif
         player.seek(to: CMTime(seconds: pendingPosition, preferredTimescale: 600),
                     toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] finished in
             Task { @MainActor in
                     guard let self, self.generation == generation,
                       self.seekGeneration == seekGeneration else { return }
+                #if os(iOS)
+                VideoPlaybackDiagnostics.shared.record(message: "resume seek end id=\(self.loadedSource?.diagnosticId ?? "-") finished=\(finished)")
+                #endif
                 self.seeking = false
                     if finished {
                         self.pendingPosition = nil
@@ -372,9 +417,15 @@ final class SharedVideoPlayer {
     }
 
     func suspend() {
+        #if os(iOS)
+        VideoPlaybackDiagnostics.shared.record(message: "background suspend begin id=\(loadedSource?.diagnosticId ?? "-") owner=\(owner != nil)")
+        #endif
         finishHandoff()
         owner?.detach()
         clearIfIdle()
+        #if os(iOS)
+        VideoPlaybackDiagnostics.shared.record(message: "background suspend end")
+        #endif
     }
 
     func clearIfIdle() {
@@ -419,6 +470,9 @@ public final class VideoPlaybackSession {
     public private(set) var hasDisplayedFrame = false
     private var url: String?
     private var allowsAudio = false
+    #if os(iOS)
+    private var lastDiagnosticState: String?
+    #endif
 
     var mediaURL: String? { url }
     var isRestoringPosition: Bool { SharedVideoPlayer.shared.isRestoring(self) }
@@ -458,7 +512,11 @@ public final class VideoPlaybackSession {
         let nextRequest = PlaybackRequest(media: media, position: position, muted: muted, rate: rate, playing: playing)
         request = nextRequest
         if mediaIdentity == identity, player != nil {
-            setPlaying(playing, rate: rate)
+            if playing, media.isRemote, case .error = state {
+                reloadInvalidatedSource()
+            } else {
+                setPlaying(playing, rate: rate)
+            }
             return
         }
         mediaIdentity = identity
@@ -491,6 +549,7 @@ public final class VideoPlaybackSession {
             do {
                 #if os(iOS)
                 let forceRelay = URL(string: request.media.url)?.pathExtension.lowercased() == "mp4"
+                VideoPlaybackDiagnostics.shared.record(message: "source resolve begin mp4=\(forceRelay)")
                 #else
                 let forceRelay = false
                 #endif
@@ -501,6 +560,11 @@ public final class VideoPlaybackSession {
                     MediaProxy.shared.release(source: source)
                     source = try await MediaProxy.shared.playbackSource(media: request.media, forceRelay: false)
                 }
+                #if os(iOS)
+                let relay = URL(string: source.url)?.host == "127.0.0.1"
+                let route = source.snapshot?.connection.mode.name ?? "-"
+                VideoPlaybackDiagnostics.shared.record(message: "source resolved id=\(source.diagnosticId) relay=\(relay) cache=\(usesVideoCache) route=\(route)")
+                #endif
                 let playbackFile: LivePhotoPlaybackFile?
                 do {
                     #if os(iOS)
@@ -519,6 +583,9 @@ public final class VideoPlaybackSession {
                 try self.attach(source, request: request, position: position, usesVideoCache: usesVideoCache, playbackFile: playbackFile)
             } catch {
                 guard !Task.isCancelled, let self else { return }
+                #if os(iOS)
+                VideoPlaybackDiagnostics.shared.record(message: "source setup failed error=\(playbackErrorCodes(error))")
+                #endif
                 SharedVideoPlayer.shared.detach(self)
                 SharedVideoPlayer.shared.clearIfIdle()
                 self.player = nil
@@ -535,6 +602,9 @@ public final class VideoPlaybackSession {
         player = nil
         hasRestoredPosition = false
         hasDisplayedFrame = false
+        #if os(iOS)
+        lastDiagnosticState = nil
+        #endif
         resolvePlayback()
         updateSubject.send()
     }
@@ -571,7 +641,23 @@ public final class VideoPlaybackSession {
 
     public func refresh() {
         guard let player else { return }
-        defer { updateSubject.send() }
+        defer {
+            #if os(iOS)
+            let details: String
+            switch state {
+            case .idle: details = "idle"
+            case .loading: details = "loading"
+            case .playing: details = "playing"
+            case .paused: details = "paused"
+            case .error(let error): details = "failed error=\(playbackErrorCodes(error))"
+            }
+            if details != lastDiagnosticState {
+                lastDiagnosticState = details
+                VideoPlaybackDiagnostics.shared.record(message: "session \(details) restored=\(hasRestoredPosition)")
+            }
+            #endif
+            updateSubject.send()
+        }
         if let error = SharedVideoPlayer.shared.error(self) ?? player.currentItem?.error {
             state = .error(playbackFailure(error))
             if player.timeControlStatus != .paused { player.pause() }

@@ -3,6 +3,7 @@ package dev.dimension.flare.data.network
 import dev.dimension.flare.common.PlatformDispatchers
 import dev.dimension.flare.data.model.ProxyMode
 import dev.dimension.flare.data.model.ProxyRef
+import dev.dimension.flare.data.repository.VideoPlaybackDiagnostics
 import dev.dimension.flare.ui.model.UiMedia
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
@@ -17,6 +18,7 @@ import io.ktor.http.takeFrom
 import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
@@ -28,6 +30,7 @@ import okio.Buffer
 import okio.ByteString.Companion.decodeBase64
 import okio.ByteString.Companion.decodeHex
 import okio.ByteString.Companion.encodeUtf8
+import kotlin.time.TimeSource
 import kotlin.uuid.Uuid
 
 public actual object MediaProxy {
@@ -43,14 +46,18 @@ public actual object MediaProxy {
         }
         resolveMediaUrl(media.url, media.url)
         val resource = Resource(media.url, media.proxy, media.customHeaders.orEmpty().toMap(), null, snapshot.key)
-        val url = register(resource)
-        lock.withLock {
-            entry(url)?.let {
-                it.leases++
-                it.failure = null
-            }
+        val context = currentCoroutineContext()
+        return lock.withLock {
+            context.ensureActive()
+            check(relayForeground) { "Media relay is suspended" }
+            val relay = server ?: startRelay()
+            val root = entries.getValue(token(resource))
+            root.leases++
+            root.failure = null
+            root.logPlayback = root.logPlayback || forceRelay
+            val url = localUrl(relay, root.token, resource.url)
+            MediaPlaybackSource(url, url, media.url, snapshot)
         }
-        return MediaPlaybackSource(url, snapshot.key + "|" + media.cacheKey, media.url, snapshot)
     }
 
     public actual fun retain(source: MediaPlaybackSource) {
@@ -82,62 +89,92 @@ public actual object MediaProxy {
         val secret = Uuid.random().toString().encodeUtf8()
         var failure: String? = null
         var leases: Int = 0
+        var logPlayback: Boolean = false
+    }
+
+    private class Relay {
+        val listener = MediaRelayListener()
+        val host = "127.0.0.1:${listener.port}"
+        lateinit var job: Job
     }
 
     private val lock = MediaRelayLock()
     private val entries = LinkedHashMap<String, Entry>()
     private val tokens = mutableMapOf<Resource, String>()
     private val scope = CoroutineScope(SupervisorJob() + PlatformDispatchers.IO)
-    private val permits = Semaphore(64)
-    private var serverFailure: Throwable? = null
-    private val server by lazy {
-        MediaRelayListener().also { listener ->
+    private var relayForeground = true
+    private var server: Relay? = null
+
+    public actual fun setRelayForeground(active: Boolean) {
+        val relay =
+            lock.withLock {
+                relayForeground = active
+                if (active) null else retireRelay()
+            } ?: return
+        relay.job.cancel()
+        relay.listener.interrupt()
+        VideoPlaybackDiagnostics.record("relay listener stopped reason=background")
+    }
+
+    private fun retireRelay(): Relay? {
+        val relay = server ?: return null
+        server = null
+        entries.clear()
+        tokens.clear()
+        return relay
+    }
+
+    private fun startRelay(): Relay {
+        val relay = Relay()
+        server = relay
+        val job =
             scope.launch {
                 try {
-                    runMediaRelay(permits, listener::accept, ::serve) { error ->
-                        lock.withLock { serverFailure = error }
+                    runMediaRelay(Semaphore(64), relay.listener::accept, { serve(relay, it) }) { error ->
+                        val retired = lock.withLock { if (server === relay) retireRelay() else null }
+                        if (retired != null) {
+                            relay.listener.interrupt()
+                            val errno = (error as? MediaRelayAcceptException)?.errno
+                            VideoPlaybackDiagnostics.record("relay listener stopped type=${error::class.simpleName} errno=${errno ?: "-"}")
+                        }
                     }
                 } catch (error: Throwable) {
                     if (error is CancellationException) throw error
                     error.printStackTrace()
-                } finally {
-                    try {
-                        listener.close()
-                    } catch (error: Exception) {
-                        error.printStackTrace()
-                    }
                 }
             }
+        relay.job = job
+        job.invokeOnCompletion {
+            runCatching { relay.listener.close() }.onFailure { it.printStackTrace() }
         }
+        VideoPlaybackDiagnostics.record("relay listener started")
+        return relay
     }
 
-    public actual fun failureMessage(localUrl: String): String? =
-        lock.withLock {
-            entry(localUrl)?.let { if (serverFailure != null) "Media relay unavailable" else it.failure }
-        }
+    public actual fun failureMessage(localUrl: String): String? = lock.withLock { entry(localUrl)?.failure }
 
     private fun entry(localUrl: String): Entry? = entries[localUrl.substringBefore('?').substringAfterLast('/').substringBefore('.')]
 
-    private fun register(resource: Resource): String {
-        val port = server.port
-        return lock.withLock {
-            serverFailure?.let { throw IllegalStateException("Media relay unavailable", it) }
-            val token =
-                if (resource.root == null) {
-                    token(resource)
-                } else {
-                    val root = entries[resource.root]
-                    check(root != null && root.leases > 0) { "Expired media request" }
-                    // Signed child URLs avoid retaining every segment of a long-running live stream.
-                    // shortcut: payloads expose CDN queries to the player; encrypt if URL confidentiality becomes required.
-                    val data =
-                        ("${if (resource.opaque) 1 else 0}${if (resource.headers == root.resource.headers) 1 else 0}" + resource.url)
-                            .encodeUtf8()
-                    "${root.token}.${data.base64Url()}.${data.hmacSha256(root.secret).hex()}"
-                }
-            "http://127.0.0.1:$port/$token${suffix(resource.url)}"
+    private fun localUrl(
+        relay: Relay,
+        token: String,
+        url: String,
+    ): String = "http://${relay.host}/$token${suffix(url)}"
+
+    private fun registerChild(
+        relay: Relay,
+        resource: Resource,
+    ): String =
+        lock.withLock {
+            val root = entries[resource.root]
+            check(server === relay && root != null && root.leases > 0) { "Expired media request" }
+            // Signed child URLs avoid retaining every segment of a long-running live stream.
+            // shortcut: payloads expose CDN queries to the player; encrypt if URL confidentiality becomes required.
+            val data =
+                ("${if (resource.opaque) 1 else 0}${if (resource.headers == root.resource.headers) 1 else 0}" + resource.url)
+                    .encodeUtf8()
+            localUrl(relay, "${root.token}.${data.base64Url()}.${data.hmacSha256(root.secret).hex()}", resource.url)
         }
-    }
 
     private fun suffix(url: String): String =
         Url(url)
@@ -188,15 +225,22 @@ public actual object MediaProxy {
         )
     }
 
-    private suspend fun serve(connection: MediaRelayConnection) {
+    private suspend fun serve(
+        relay: Relay,
+        connection: MediaRelayConnection,
+    ) {
+        val start = TimeSource.Monotonic.markNow()
         var responseStarted = false
         var root: Entry? = null
+        var diagnostic: String? = null
+        var sentBytes = 0L
+        var failureStage = "upstream"
         try {
             val raw = readHeaders(connection)
             val lines = raw.split("\r\n")
             val request = lines.first().split(' ')
             require(request.size == 3 && request[0] in listOf("GET", "HEAD")) { "Unsupported method" }
-            root = lock.withLock { entry(request[1]) } ?: error("Expired media request")
+            root = lock.withLock { if (server === relay) entry(request[1]) else null } ?: error("Expired media request")
             val selected = resource(request[1], root)
             val rootToken = root.token
             check(ProxyNetwork.snapshot(selected.proxy).key == selected.routeKey) { "Proxy configuration changed" }
@@ -205,7 +249,13 @@ public actual object MediaProxy {
                     it.substringBefore(':').lowercase() to
                         it.substringAfter(':').trim()
                 }
-            require(headers["host"] == "127.0.0.1:${server.port}") { "Invalid loopback host" }
+            require(headers["host"] == relay.host) { "Invalid loopback host" }
+            if (lock.withLock { root.logPlayback }) {
+                diagnostic = "relay id=${root.resource.url.hashCode().toUInt().toString(16)} method=${request[0]}"
+            }
+            diagnostic?.let {
+                VideoPlaybackDiagnostics.record("$it begin range=${headers.containsKey("range")}")
+            }
             val client =
                 HttpClient(ProxyRoutingEngine(selected.proxy)) {
                     install(HttpTimeout) {
@@ -255,6 +305,13 @@ public actual object MediaProxy {
                             }
                             require(response.headers["Content-Encoding"].orEmpty().let { it.isBlank() || it.equals("identity", true) }) {
                                 "Media server ignored the uncompressed transfer request"
+                            }
+                            diagnostic?.let {
+                                val length = response.headers["Content-Length"]?.toLongOrNull()
+                                VideoPlaybackDiagnostics.record(
+                                    "$it upstream status=${response.status.value} length=$length " +
+                                        "contentRange=${response.headers["Content-Range"] != null} ms=${start.elapsedNow().inWholeMilliseconds}",
+                                )
                             }
                             val type =
                                 response.headers["Content-Type"]
@@ -335,7 +392,8 @@ public actual object MediaProxy {
                                     }
                                     body.closedCause?.let { throw it }
                                     rewriteProxyPlaylist(buffer.readUtf8(), target) { url, opaque ->
-                                        register(
+                                        registerChild(
+                                            relay,
                                             Resource(
                                                 url,
                                                 selected.proxy,
@@ -371,6 +429,7 @@ public actual object MediaProxy {
                                     }.forEach(responseHeaders::remove)
                                 responseHeaders["Content-Length"] = rewritten.size.toString()
                             }
+                            failureStage = "write response"
                             responseStarted = true
                             connection.write(
                                 (
@@ -382,16 +441,27 @@ public actual object MediaProxy {
                             if (request[0] != "HEAD") {
                                 if (rewritten != null) {
                                     connection.write(rewritten)
+                                    sentBytes += rewritten.size
                                 } else {
-                                    if (prefix.size > 0) connection.write(prefix.readByteArray())
+                                    if (prefix.size > 0) {
+                                        val bytes = prefix.readByteArray()
+                                        connection.write(bytes)
+                                        sentBytes += bytes.size
+                                    }
                                     val bytes = ByteArray(64 * 1024)
                                     while (true) {
+                                        failureStage = "read body"
                                         val count = body.readAvailable(bytes)
                                         if (count < 0) break
+                                        failureStage = "write body"
                                         connection.write(bytes, count)
+                                        sentBytes += count
                                     }
                                     body.closedCause?.let { throw it }
                                 }
+                            }
+                            diagnostic?.let {
+                                VideoPlaybackDiagnostics.record("$it end bytes=$sentBytes ms=${start.elapsedNow().inWholeMilliseconds}")
                             }
                         }
                     if (next == null) return
@@ -403,6 +473,12 @@ public actual object MediaProxy {
                 client.engine.close()
             }
         } catch (error: Exception) {
+            diagnostic?.let {
+                VideoPlaybackDiagnostics.record(
+                    "$it failed stage=$failureStage type=${error::class.simpleName} " +
+                        "started=$responseStarted bytes=$sentBytes ms=${start.elapsedNow().inWholeMilliseconds}",
+                )
+            }
             lock.withLock {
                 root?.failure = error.message ?: "Media request failed"
             }
@@ -612,6 +688,10 @@ internal class UnsupportedProxyMedia(
     message: String,
 ) : Exception(message)
 
+internal class MediaRelayAcceptException(
+    val errno: Int,
+) : IllegalStateException("Cannot accept media request (errno=$errno)")
+
 internal expect class MediaRelayLock() {
     fun <T> withLock(block: () -> T): T
 }
@@ -620,6 +700,8 @@ internal expect class MediaRelayListener() {
     val port: Int
 
     fun accept(): MediaRelayConnection
+
+    fun interrupt()
 
     fun close()
 }

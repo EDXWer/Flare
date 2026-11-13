@@ -91,7 +91,14 @@ final class TimelineAutoplay: NSObject {
     private func setupVideoAutoplay() {
         autoplayLifecycleSubscription = NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)
             .merge(with: NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification))
-            .sink { [weak self] _ in self?.handleAutoplayAvailabilityChanged() }
+            .sink { [weak self] notification in
+                if let self, self.isAutoplayViewVisible {
+                    VideoPlaybackDiagnostics.shared.record(
+                        message: "timeline lifecycle active=\(notification.name == UIApplication.didBecomeActiveNotification) allowed=\(self.isVideoAutoplayAllowed) scrolling=\(self.collectionView.isScrollInteractionActive)"
+                    )
+                }
+                self?.handleAutoplayAvailabilityChanged()
+            }
         autoplayReadinessSubscription = autoplaySession.updates.sink { [weak self] in
             guard let self else { return }
             self.autoplayPlayerView.canDisplayFrame = self.autoplaySession.hasRestoredPosition
