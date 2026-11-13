@@ -1,0 +1,376 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "NSLocalNetworkUsageDescription" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "af" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare koppel aan die instaanbedieners wat jy opgestel het en aan die plaaslike diens vir die speel van media."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يتصل Flare بالخوادم الوكيلة التي أعددتها وبخدمة تشغيل الوسائط المحلية."
+          }
+        },
+        "bg" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare се свързва с настроените от вас прокси сървъри и с локалната услуга за възпроизвеждане на мултимедия."
+          }
+        },
+        "ca" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare es connecta als servidors intermediaris que heu configurat i al servei local de reproducció multimèdia."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare se připojuje k proxy serverům, které jste nastavili, a k místní službě pro přehrávání médií."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare opretter forbindelse til de proxyservere, du har konfigureret, og til den lokale tjeneste til medieafspilning."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare verbindet sich mit den von dir eingerichteten Proxyservern und dem lokalen Dienst zur Medienwiedergabe."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Το Flare συνδέεται στους διακομιστές μεσολάβησης που έχετε ρυθμίσει και στην τοπική υπηρεσία αναπαραγωγής πολυμέσων."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare connects to your configured proxy servers and local media playback service."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare muodostaa yhteyden määrittämiisi välityspalvelimiin ja paikalliseen mediantoistopalveluun."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare se connecte aux serveurs proxy que vous avez configurés et au service local de lecture multimédia."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare מתחברת לשרתי הפרוקסי שהגדרתם ולשירות המקומי להפעלת מדיה."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A Flare a beállított proxyszerverekhez és a helyi médialejátszó szolgáltatáshoz csatlakozik."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare si connette ai server proxy che hai configurato e al servizio locale di riproduzione multimediale."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare は、設定したプロキシサーバーとローカルのメディア再生サービスに接続します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare는 설정한 프록시 서버와 로컬 미디어 재생 서비스에 연결합니다."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare kobler til proxyserverne du har konfigurert, og den lokale tjenesten for medieavspilling."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare maakt verbinding met de proxyservers die je hebt ingesteld en met de lokale dienst voor het afspelen van media."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare łączy się ze skonfigurowanymi przez Ciebie serwerami proxy i lokalną usługą odtwarzania multimediów."
+          }
+        },
+        "pt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Flare estabelece ligação aos servidores proxy que configuraste e ao serviço local de reprodução de conteúdos multimédia."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Flare se conecta aos servidores proxy que você configurou e ao serviço local de reprodução de mídia."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare se conectează la serverele proxy pe care le-ai configurat și la serviciul local de redare media."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare подключается к настроенным вами прокси-серверам и локальной службе воспроизведения медиа."
+          }
+        },
+        "sr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare се повезује са прокси серверима које сте подесили и са локалном услугом за репродукцију медија."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare ansluter till proxyservrarna du har konfigurerat och till den lokala tjänsten för medieuppspelning."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare, yapılandırdığınız proxy sunucularına ve yerel medya oynatma hizmetine bağlanır."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare підключається до налаштованих вами проксі-серверів і локальної служби відтворення медіа."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare kết nối với các máy chủ proxy bạn đã thiết lập và dịch vụ phát nội dung đa phương tiện cục bộ."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare 会连接到你配置的代理服务器和本地媒体播放服务。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare 會連線至你設定的代理伺服器和本機媒體播放服務。"
+          }
+        }
+      }
+    },
+    "NSPhotoLibraryAddUsageDescription" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "af" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare voeg die foto’s en video’s wat jy stoor by jou fotobiblioteek."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يضيف Flare الصور ومقاطع الفيديو التي تحفظها إلى مكتبة الصور."
+          }
+        },
+        "bg" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare добавя снимките и видеоклиповете, които запазвате, към вашата фотобиблиотека."
+          }
+        },
+        "ca" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare afegeix a la fototeca les fotos i els vídeos que deseu."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare přidá fotky a videa, která uložíte, do knihovny fotografií."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare føjer de billeder og videoer, du gemmer, til dit fotobibliotek."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare fügt die Fotos und Videos, die du speicherst, deiner Fotomediathek hinzu."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Το Flare προσθέτει στη βιβλιοθήκη φωτογραφιών τις φωτογραφίες και τα βίντεο που αποθηκεύετε."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare adds the photos and videos you save to your photo library."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare lisää tallentamasi kuvat ja videot kuvakirjastoosi."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare ajoute à votre photothèque les photos et vidéos que vous enregistrez."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare מוסיפה לספריית התמונות את התמונות והסרטונים שתשמרו."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A Flare a mentett fotókat és videókat hozzáadja a fotókönyvtáradhoz."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare aggiunge alla libreria foto le foto e i video che salvi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare は、保存する写真や動画をフォトライブラリに追加します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare는 저장하는 사진과 동영상을 사진 보관함에 추가합니다."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare legger bildene og videoene du lagrer, til i bildebiblioteket ditt."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare voegt de foto’s en video’s die je bewaart toe aan je fotobibliotheek."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare dodaje zapisywane zdjęcia i filmy do biblioteki zdjęć."
+          }
+        },
+        "pt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Flare adiciona à fototeca as fotografias e os vídeos que guardas."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Flare adiciona à sua fototeca as fotos e os vídeos que você salva."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare adaugă fotografiile și videoclipurile pe care le salvezi în biblioteca foto."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare добавляет сохраняемые вами фото и видео в медиатеку приложения «Фото»."
+          }
+        },
+        "sr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare додаје фотографије и видео-снимке које сачувате у фототеку."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare lägger till de bilder och videor du sparar i ditt bildbibliotek."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare, kaydettiğiniz fotoğraf ve videoları fotoğraf arşivinize ekler."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare додає збережені вами фото й відео до фототеки."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare thêm ảnh và video bạn lưu vào thư viện ảnh."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare 会将你保存的照片和视频添加到照片图库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flare 會將你儲存的照片和影片加入照片圖庫。"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

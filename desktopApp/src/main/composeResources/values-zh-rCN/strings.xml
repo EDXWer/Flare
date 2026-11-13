@@ -30,7 +30,7 @@
     <string name="service_select_next_button">下一步</string>
     <string name="service_select_empty_message">未发现实例</string>
     <string name="service_select_welcome_title">欢迎使用 Flare</string>
-    <string name="service_select_welcome_message">Flare 是一款支持 %1$s 的社交媒体客户端。\n请选择一个服务进行连接并开始使用。</string>
+    <string name="service_select_welcome_message">输入服务器地址以开始。</string>
     <string name="mastodon_login_verify_message">正在验证您的凭据…</string>
     <string name="profile_tab_timeline">动态</string>
     <string name="profile_tab_timeline_with_reply">动态与回复</string>
@@ -45,10 +45,10 @@
     <string name="manga_title">漫画</string>
     <string name="pixiv_ranking_week_title">每周排名</string>
     <string name="pixiv_ranking_month_title">每月排名</string>
-    <string name="pixiv_ranking_day_male_title">男性排名</string>
-    <string name="pixiv_ranking_day_female_title">女性排名</string>
+    <string name="pixiv_ranking_day_male_title">受男性欢迎</string>
+    <string name="pixiv_ranking_day_female_title">受女性欢迎</string>
     <string name="pixiv_ranking_week_original_title">原始排名</string>
-    <string name="pixiv_ranking_week_rookie_title">Rookie 排名</string>
+    <string name="pixiv_ranking_week_rookie_title">新人榜</string>
     <string name="pixiv_ranking_day_manga_title">Manga Ranking</string>
     <string name="report_title">举报</string>
     <string name="report_description">此内容有什么问题？</string>
@@ -885,4 +885,8 @@
     <string name="plugin_marketplace_install">安装</string>
     <string name="plugin_marketplace_local">本地插件</string>
     <string name="plugin_marketplace_search">搜索插件</string>
+    <string name="pixiv_ranking_day_ai_title">AI 日榜</string>
+    <string name="pixiv_ranking_day_r18_title">R-18 日榜</string>
+    <string name="pixiv_ranking_week_r18_title">R-18 周榜</string>
+    <string name="pixiv_ranking_day_r18_ai_title">R-18 AI 日榜</string>
 </resources>

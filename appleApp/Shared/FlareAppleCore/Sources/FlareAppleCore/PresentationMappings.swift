@@ -205,9 +205,9 @@ public extension UiStrings {
         case .pixivRankingMonth:
             localizedPresentationString("pixiv_ranking_month_title", fallback: "Monthly Ranking")
         case .pixivRankingDayMale:
-            localizedPresentationString("pixiv_ranking_day_male_title", fallback: "Male Ranking")
+            localizedPresentationString("pixiv_ranking_day_male_title", fallback: "Popular with men")
         case .pixivRankingDayFemale:
-            localizedPresentationString("pixiv_ranking_day_female_title", fallback: "Female Ranking")
+            localizedPresentationString("pixiv_ranking_day_female_title", fallback: "Popular with women")
         case .pixivRankingWeekOriginal:
             localizedPresentationString("pixiv_ranking_week_original_title", fallback: "Original Ranking")
         case .pixivRankingWeekRookie:

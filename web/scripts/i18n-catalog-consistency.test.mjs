@@ -9,15 +9,30 @@ const americanEnglish = JSON.parse(
   readFileSync(new URL("../messages/en-US.json", import.meta.url), "utf8"),
 );
 
-test("en-US mirrors base English outside temporarily exempt AI settings", () => {
-  assert.deepEqual(
-    Object.keys(americanEnglish).sort(),
-    Object.keys(baseEnglish).sort(),
-  );
+test("en-US mirrors base English", () => {
+  assert.deepEqual(americanEnglish, baseEnglish);
+});
 
-  for (const [key, value] of Object.entries(baseEnglish)) {
-    if (!key.startsWith("settingsAi")) {
-      assert.equal(americanEnglish[key], value, key);
+const { locales } = JSON.parse(
+  readFileSync(new URL("../project.inlang/settings.json", import.meta.url), "utf8"),
+);
+const placeholders = (text) =>
+  (text.match(/\{\w+\}|%(?:\d+\$)?(?:ll|l)?[@diufs]/g) ?? []).sort();
+
+test("every supported locale covers the catalog and keeps message variables", () => {
+  const keys = Object.keys(baseEnglish).sort();
+  for (const locale of locales) {
+    const messages = JSON.parse(
+      readFileSync(new URL(`../messages/${locale}.json`, import.meta.url), "utf8"),
+    );
+    assert.deepEqual(Object.keys(messages).sort(), keys, locale);
+    for (const key of keys) {
+      assert.ok(messages[key].trim(), `${locale}: ${key} is empty`);
+      assert.deepEqual(
+        placeholders(messages[key]),
+        placeholders(baseEnglish[key]),
+        `${locale}: ${key}`,
+      );
     }
   }
 });
