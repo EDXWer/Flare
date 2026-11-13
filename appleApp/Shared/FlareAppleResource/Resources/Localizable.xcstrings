@@ -5237,7 +5237,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Contrôles de tâche, autorisation et historique d'exécution"
+            "value" : "Exécuter automatiquement chaque jour"
           }
         },
         "he" : {
@@ -5422,7 +5422,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Historique d'exécution"
+            "value" : "Exécuter maintenant"
           }
         },
         "he" : {
@@ -5607,7 +5607,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "S'exécute automatiquement chaque jour"
+            "value" : "Historique des exécutions"
           }
         },
         "he" : {
@@ -5792,7 +5792,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Exécuter maintenant"
+            "value" : "En cours d'exécution…"
           }
         },
         "he" : {
@@ -6717,7 +6717,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "En cours d'exécution…"
+            "value" : "Veuillez vous reconnecter. L'exécution automatique est désactivée."
           }
         },
         "he" : {
@@ -7087,7 +7087,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Veuillez vous reconnecter ; l'exécution automatique est désactivée"
+            "value" : "Ignoré"
           }
         },
         "he" : {
@@ -36923,7 +36923,7 @@
   "ja": {
     "stringUnit": {
       "state": "translated",
-      "value": "認証されたタイムラインを使用するにはアカウントを追加してください。"
+      "value": "このアカウントを削除できませんでした。もう一度お試しください。"
     }
   },
   "ko": {

@@ -999,7 +999,7 @@
     <string name="share_replies_cancel">キャンセル</string>
     <string name="share_replies_clear">クリア</string>
     <string name="share_replies_done">完了</string>
-    <string name="settings_accounts_remove_failed">認証されたタイムラインを使用するにはアカウントを追加してください。</string>
+    <string name="settings_accounts_remove_failed">このアカウントを削除できませんでした。もう一度お試しください。</string>
     <string name="settings_plugins_title">ソーシャルプラットフォームプラグインをインストールおよび管理します</string>
     <string name="settings_plugins_subtitle">ルール</string>
     <string name="weibo_friends_circle_title">友達のサークル</string>
