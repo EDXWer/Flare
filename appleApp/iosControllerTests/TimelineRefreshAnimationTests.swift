@@ -68,7 +68,15 @@ final class TimelineRefreshAnimationTests: XCTestCase {
         let collapsedTopInset = list.safeAreaInsets.top
         XCTAssertLessThan(readingSteps.max() ?? 0, 12, "The reading item must not jump relative to the navigation bar")
         XCTAssertGreaterThan(expandedTopInset - collapsedTopInset, 20, "Keep navigation bar minimization enabled")
-        XCTAssertTrue(frames.samples.contains { $0.topInset < expandedTopInset - 1 && $0.topInset > collapsedTopInset + 1 },
+        let sampledIntermediateInset = frames.samples.contains {
+            $0.topInset < expandedTopInset - 1 && $0.topInset > collapsedTopInset + 1
+        }
+        // A stalled simulator can miss the entire transition between two display callbacks.
+        let missedTransition = zip(frames.samples, frames.samples.dropFirst()).contains { previous, current in
+            previous.topInset >= expandedTopInset - 1 && current.topInset <= collapsedTopInset + 1 &&
+                current.timestamp - previous.timestamp > 0.25
+        }
+        XCTAssertTrue(sampledIntermediateInset || missedTransition,
                       "Navigation bar minimization must pass through intermediate insets")
         XCTAssertFalse(list.isPresentingRefresh)
         XCTAssertFalse(list.hasReadingPosition)

@@ -52,7 +52,7 @@
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Flare requesting the ability to add to the photo library</string>
+	<string>Flare adds the photos and videos you save to your photo library.</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>

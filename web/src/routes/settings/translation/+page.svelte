@@ -27,6 +27,8 @@
 
 	function providerLabel(value: TranslateProviderOption): string {
 		switch (value) {
+			case 'Plugin':
+				return m.settingsTranslationProviderPlugin();
 			case 'AI':
 				return m.settingsTranslationProviderAI();
 			case 'GoogleWeb':

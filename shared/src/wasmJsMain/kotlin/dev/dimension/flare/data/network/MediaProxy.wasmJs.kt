@@ -12,5 +12,7 @@ public actual object MediaProxy {
 
     public actual fun release(source: MediaPlaybackSource): Unit = Unit
 
+    public actual fun setRelayForeground(active: Boolean): Unit = Unit
+
     public actual fun failureMessage(localUrl: String): String? = null
 }

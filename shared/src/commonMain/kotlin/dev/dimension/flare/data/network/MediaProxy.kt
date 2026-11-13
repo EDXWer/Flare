@@ -21,5 +21,7 @@ public expect object MediaProxy {
 
     public fun release(source: MediaPlaybackSource)
 
+    public fun setRelayForeground(active: Boolean)
+
     public fun failureMessage(localUrl: String): String?
 }

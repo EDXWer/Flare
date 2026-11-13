@@ -25,6 +25,7 @@ import dev.dimension.flare.feature.agent.runtime.AgentAvailability
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterNotNull
@@ -32,6 +33,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
@@ -149,10 +151,12 @@ class AgentChatRetryTest {
                     assertEquals(null, nextGrant.await(), failurePoint)
                     finished.first { it == 2 }
                 } finally {
-                    collection.cancelAndJoin()
-                    AgentChatRunRegistry.resetForTesting()
-                    stopKoin()
-                    database.close()
+                    withContext(NonCancellable) {
+                        collection.cancelAndJoin()
+                        AgentChatRunRegistry.resetForTesting()
+                        stopKoin()
+                        database.close()
+                    }
                 }
             }
         }
@@ -169,6 +173,7 @@ class AgentChatRetryTest {
             val history = AgentChatHistoryProvider(database) { null }
             val persistenceStarted = CompletableDeferred<Unit>()
             val allowPersistence = CompletableDeferred<Unit>()
+            val allowRetryToFail = CompletableDeferred<Unit>()
             val requests = mutableListOf<Pair<String?, AgentRetryMode?>>()
             val states = MutableStateFlow<AgentChatPresenterController<Unit, Unit>?>(null)
             val contextReady = CompletableDeferred<Unit>()
@@ -193,8 +198,14 @@ class AgentChatRetryTest {
                                 flow<AgentConversationEvent<Unit, AgentTrace>> {
                                     requests += input to retryMode
                                     when (requests.size) {
-                                        1 -> throw AgentRetryableException(IllegalStateException("Provider failure"), AgentRetryMode.Resume)
-                                        2 -> throw AgentConfigurationException("Restore the original protocol to retry this turn.")
+                                        1 -> {
+                                            throw AgentRetryableException(IllegalStateException("Provider failure"), AgentRetryMode.Resume)
+                                        }
+
+                                        2 -> {
+                                            allowRetryToFail.await()
+                                            throw AgentConfigurationException("Restore the original protocol to retry this turn.")
+                                        }
                                     }
                                 }
                             },
@@ -229,6 +240,7 @@ class AgentChatRetryTest {
                 assertEquals("My next draft", failed.input)
                 failed.retry()
                 failed.retry()
+                allowRetryToFail.complete(Unit)
                 Snapshot.sendApplyNotifications()
                 val rejected =
                     states.filterNotNull().first { !it.room.isRunning && it.room.error?.kind == AgentFailureKind.Configuration }
@@ -243,10 +255,12 @@ class AgentChatRetryTest {
                 assertEquals(1, history.observeMessages("retry-test").first().count { it.isUser })
                 assertTrue(retried.canSend)
             } finally {
-                collection.cancelAndJoin()
-                AgentChatRunRegistry.resetForTesting()
-                stopKoin()
-                database.close()
+                withContext(NonCancellable) {
+                    collection.cancelAndJoin()
+                    AgentChatRunRegistry.resetForTesting()
+                    stopKoin()
+                    database.close()
+                }
             }
         }
 }

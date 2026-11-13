@@ -129,6 +129,7 @@ public enum class LoginInteractionV1 {
     CredentialImport,
     WebCookie,
     Form,
+    QrCode,
 }
 
 @Serializable

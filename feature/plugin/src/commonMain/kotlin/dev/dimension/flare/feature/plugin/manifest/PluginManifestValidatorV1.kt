@@ -319,7 +319,15 @@ public fun PluginManifestV1.validate(methodTable: PluginMethodTableV1? = null): 
                                 methods.joinToString { it.id },
                     )
             }
-        platform.loginMethods.forEachIndexed { index, method -> validateLogin(method, index, permissions, errors) }
+        platform.loginMethods.forEachIndexed { index, method ->
+            check(
+                method.interaction != LoginInteractionV1.QrCode || apiVersion >= 2,
+                "login.qr.version",
+                "platform.loginMethods[$index].interaction",
+                "QR login requires Host API v2",
+            )
+            validateLogin(method, index, permissions, errors)
+        }
         check(platform.deepLinks.size <= 64, "deepLink.count", "platform.deepLinks", "Too many Deep Link rules")
         val timelineIds = platform.timelines.mapTo(hashSetOf(), TimelineManifestV1::id)
         platform.deepLinks.forEachIndexed { index, rule -> validateDeepLink(rule, index, permissions, timelineIds, errors) }
@@ -381,23 +389,24 @@ public fun PluginManifestV1.requiredMethods(): Set<String> =
         platform?.let { platform ->
             if (platform.detector != null) add("detector.detect")
             platform.loginMethods.forEach { method ->
+                add("login.${method.id}.begin")
                 when (method.interaction) {
                     LoginInteractionV1.OAuth -> {
-                        add("login.${method.id}.begin")
                         add("login.${method.id}.resume")
                     }
 
                     LoginInteractionV1.WebCookie -> {
-                        add("login.${method.id}.begin")
                         add("login.${method.id}.check")
+                    }
+
+                    LoginInteractionV1.QrCode -> {
+                        add("login.${method.id}.poll")
                     }
 
                     LoginInteractionV1.Password,
                     LoginInteractionV1.CredentialImport,
                     LoginInteractionV1.Form,
-                    -> {
-                        add("login.${method.id}.begin")
-                    }
+                    -> {}
                 }
             }
             platform.capabilities.forEach { (capability, declaration) ->
@@ -439,6 +448,11 @@ private fun validateLogin(
             val cookie = method.cookie
             addErrorUnless(cookie != null, errors, "login.cookie.config", "$path.cookie", "WebCookie requires Cookie configuration")
             cookie?.let { validateCookie(it, path, permissions, errors) }
+        }
+
+        LoginInteractionV1.QrCode -> {
+            addErrorUnless(method.fields.isEmpty(), errors, "login.qr.fields", "$path.fields", "QR login cannot declare form fields")
+            addErrorUnless(method.cookie == null, errors, "login.qr.cookie", "$path.cookie", "QR login cannot declare Cookie probes")
         }
 
         LoginInteractionV1.Password,

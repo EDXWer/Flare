@@ -98,6 +98,14 @@ public data class CookieCheckRequestV1(
 )
 
 @Serializable
+public data class QrPollRequestV2(
+    val methodId: String,
+    val origin: String,
+    val flowId: String,
+    val pendingPayload: JsonElement,
+)
+
+@Serializable
 public sealed interface LoginTransitionV1 {
     @Serializable
     @SerialName("pending")
@@ -117,6 +125,26 @@ public sealed interface LoginTransitionV1 {
     public data class WebCookie(
         val startUrl: String,
     ) : LoginTransitionV1
+
+    @Serializable
+    @SerialName("qrCode")
+    public data class QrCode(
+        val content: String,
+        val expiresInMillis: Long,
+        val pendingPayload: JsonElement,
+        val pollIntervalMillis: Long = 2_000,
+    ) : LoginTransitionV1
+
+    @Serializable
+    @SerialName("qrPending")
+    public data class QrPending(
+        val scanned: Boolean,
+        val pendingPayload: JsonElement? = null,
+    ) : LoginTransitionV1
+
+    @Serializable
+    @SerialName("qrExpired")
+    public data object QrExpired : LoginTransitionV1
 
     @Serializable
     @SerialName("success")

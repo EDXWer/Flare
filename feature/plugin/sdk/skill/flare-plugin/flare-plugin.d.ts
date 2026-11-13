@@ -117,12 +117,14 @@ type PluginDefinitionV1 = SocialPluginDefinitionV1;
  * OAuth: begin -> externalBrowser/success, resume -> success.
  * Password/CredentialImport/Form: begin -> success.
  * WebCookie: begin -> webCookie, check -> pending/success.
+ * API v2 QrCode: begin -> qrCode, poll -> qrPending/qrExpired/success.
  * @see references/authentication.md
  */
 interface LoginServiceV1 {
   begin(request: LoginBeginRequestV1, context: PluginInvocationContextV1): MaybePromise<LoginTransitionV1>;
   resume?(request: LoginResumeRequestV1, context: PluginInvocationContextV1): MaybePromise<LoginTransitionV1>;
   check?(request: CookieCheckRequestV1, context: PluginInvocationContextV1): MaybePromise<LoginTransitionV1>;
+  poll?(request: QrPollRequestV2, context: PluginInvocationContextV1): MaybePromise<LoginTransitionV1>;
 }
 
 interface SearchServiceV1 {
@@ -234,6 +236,12 @@ interface CookieCheckRequestV1 {
   /** API v2: latest Pending payload for this flow; survives runtime eviction, not app restart. */
   pendingPayload?: JsonValue;
 }
+interface QrPollRequestV2 {
+  methodId: string;
+  origin: string;
+  flowId: string;
+  pendingPayload: JsonValue;
+}
 /** sourceUrl is the declared probe URL; do not merge Cookies across probes/origins blindly. */
 interface CookieValueV1 {
   sourceUrl: string;
@@ -257,6 +265,9 @@ type LoginTransitionV1 =
   | { type: "pending"; /** API v2: whole replacement, omitted/null clears; at most 64 KiB JSON. */ pendingPayload?: JsonValue }
   | { type: "externalBrowser"; url: string; pendingPayload: JsonValue }
   | { type: "webCookie"; startUrl: string }
+  | { type: "qrCode"; content: string; expiresInMillis: number; pendingPayload: JsonValue; pollIntervalMillis?: number }
+  | { type: "qrPending"; scanned: boolean; /** Omission or null retains the current payload. */ pendingPayload?: JsonValue }
+  | { type: "qrExpired" }
   | { type: "success"; value: LoginSuccessV1 };
 /** Complete current account capability/config snapshot, bounded by the manifest. */
 interface AccountCapabilitiesV1 {

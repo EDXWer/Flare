@@ -71,6 +71,8 @@ public enum class UiStrings {
     PixivRankingDayR18,
     PixivRankingWeekR18,
     PixivRankingDayR18Ai,
+    QrLoginNewCode,
+    QrLoginRetrySave,
 }
 
 public fun UiStrings.asText(): UiText = UiText.Localized(this)

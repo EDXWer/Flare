@@ -221,6 +221,9 @@ public class PluginWebCookieSessionV1 internal constructor(
 
                 is LoginTransitionV1.ExternalBrowser,
                 is LoginTransitionV1.WebCookie,
+                is LoginTransitionV1.QrCode,
+                is LoginTransitionV1.QrPending,
+                LoginTransitionV1.QrExpired,
                 -> {
                     throw PluginLoginException("login.transition", "Cookie check returned an unsupported transition")
                 }

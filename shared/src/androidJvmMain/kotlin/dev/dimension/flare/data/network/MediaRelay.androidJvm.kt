@@ -18,6 +18,8 @@ internal actual class MediaRelayListener actual constructor() {
     private val server = ServerSocket(0, 64, InetAddress.getByName("127.0.0.1"))
     actual val port: Int get() = server.localPort
 
+    actual fun interrupt() = close()
+
     actual fun close() = server.close()
 
     actual fun accept(): MediaRelayConnection {

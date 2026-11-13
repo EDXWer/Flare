@@ -62,6 +62,7 @@ API on a build that implements the capability.
 | --- | --- |
 | Social adapter using API v1 features | `1` |
 | Application response headers, manual redirects, credential revisions or V2 WebCookie state and metadata | `2` |
+| QR login (`QrCode`) | `2` |
 | Plugin storage, text translation or offline settings | `2` |
 | Existing-account actions or `flare.datasource.account-http/v1` | `2` |
 | Temporary timelines using `flare.datasource.timeline-page/v1` | `2` |
@@ -242,6 +243,7 @@ Each method has required `id`, `interaction`, `title`; optional `description`;
 | `CredentialImport` | `login.<id>.begin` | At least one field |
 | `Form` | `login.<id>.begin` | At least one field |
 | `WebCookie` | `login.<id>.begin`, `.check` | Cookie configuration; no fields |
+| `QrCode` | `login.<id>.begin`, `.poll` | API v2 with QR support. No fields or Cookie configuration. |
 
 Fields require `id`, `type`, `label`; `placeholder` is optional and `required`
 defaults to true. Label/placeholder use manifest text. Field types are `Text`,

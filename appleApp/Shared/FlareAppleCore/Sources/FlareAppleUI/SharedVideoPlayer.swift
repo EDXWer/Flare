@@ -458,7 +458,11 @@ public final class VideoPlaybackSession {
         let nextRequest = PlaybackRequest(media: media, position: position, muted: muted, rate: rate, playing: playing)
         request = nextRequest
         if mediaIdentity == identity, player != nil {
-            setPlaying(playing, rate: rate)
+            if playing, media.isRemote, case .error = state {
+                reloadInvalidatedSource()
+            } else {
+                setPlaying(playing, rate: rate)
+            }
             return
         }
         mediaIdentity = identity
