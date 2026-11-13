@@ -35,6 +35,12 @@ struct FlareApp: App {
                 MediaCacheMaintenance.handleScenePhase(phase)
                 PluginRuntimeLifecycleFacadeV1().setForeground(active: phase == .active)
             }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+                MediaProxy.shared.setRelayForeground(active: false)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                MediaProxy.shared.setRelayForeground(active: true)
+            }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
                 Task.detached {
                     try? await PluginRuntimeLifecycleFacadeV1().onMemoryPressure()
