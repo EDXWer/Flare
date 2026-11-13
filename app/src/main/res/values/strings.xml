@@ -597,8 +597,8 @@
     <string name="manga_title">Manga</string>
     <string name="pixiv_ranking_week_title">Weekly Ranking</string>
     <string name="pixiv_ranking_month_title">Monthly Ranking</string>
-    <string name="pixiv_ranking_day_male_title">Male Ranking</string>
-    <string name="pixiv_ranking_day_female_title">Female Ranking</string>
+    <string name="pixiv_ranking_day_male_title">Popular with men</string>
+    <string name="pixiv_ranking_day_female_title">Popular with women</string>
     <string name="pixiv_ranking_week_original_title">Original Ranking</string>
     <string name="pixiv_ranking_week_rookie_title">Rookie Ranking</string>
     <string name="pixiv_ranking_day_manga_title">Manga Ranking</string>
