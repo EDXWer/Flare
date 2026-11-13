@@ -7,10 +7,7 @@ public data class MediaPlaybackSource(
     val key: String,
     val originalUrl: String = url,
     val snapshot: ProxySnapshot? = null,
-) {
-    public val diagnosticId: String
-        get() = originalUrl.hashCode().toUInt().toString(16)
-}
+)
 
 // Only native players without a per-request network adapter use this loopback relay.
 public expect object MediaProxy {

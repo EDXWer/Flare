@@ -158,7 +158,7 @@ internal actual class MediaRelayListener actual constructor() {
                     if (kevent(queue, null, 0, event.ptr, 1, null) < 0) {
                         val code = errno
                         if (code == EINTR) continue
-                        throw MediaRelayAcceptException(code)
+                        error("Cannot wait for media requests (errno=$code)")
                     }
                     client =
                         lock.withLock {
@@ -166,10 +166,8 @@ internal actual class MediaRelayListener actual constructor() {
                             accept(descriptor, null, null).also {
                                 if (it < 0) {
                                     val code = errno
-                                    if (code == EAGAIN && event.flags.toInt() and EV_EOF != 0) {
-                                        throw MediaRelayAcceptException(event.fflags.toInt().takeIf { it != 0 } ?: code)
-                                    }
-                                    if (code != EINTR && code != EAGAIN) throw MediaRelayAcceptException(code)
+                                    val retry = code == EINTR || (code == EAGAIN && event.flags.toInt() and EV_EOF == 0)
+                                    check(retry) { "Cannot accept media request (errno=$code)" }
                                 }
                             }
                         }
@@ -180,7 +178,7 @@ internal actual class MediaRelayListener actual constructor() {
         if (fcntl(accepted, F_SETFL, 0) != 0) {
             val code = errno
             close(accepted)
-            throw MediaRelayAcceptException(code)
+            error("Cannot set media connection blocking (errno=$code)")
         }
         memScoped {
             val enabled = alloc<IntVar> { value = 1 }

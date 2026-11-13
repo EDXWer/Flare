@@ -42,16 +42,8 @@ enum MediaCacheMaintenance {
         let backgroundTask = CacheCleanupBackgroundTask()
         let sizeLimit = videoCacheLimit
         DispatchQueue.global(qos: .utility).async {
-            let size = VideoCacheManager.calculateCachedSize()
-            VideoPlaybackDiagnostics.shared.record(message: "cache maintenance bytes=\(size) trim=\(size >= sizeLimit)")
-            if size >= sizeLimit {
-                do {
-                    try VideoCacheManager.cleanAllCache()
-                    VideoPlaybackDiagnostics.shared.record(message: "cache maintenance trim complete")
-                } catch {
-                    let error = error as NSError
-                    VideoPlaybackDiagnostics.shared.record(message: "cache maintenance trim failed error=\(error.domain):\(error.code)")
-                }
+            if VideoCacheManager.calculateCachedSize() >= sizeLimit {
+                try? VideoCacheManager.cleanAllCache()
             }
 
             Task { @MainActor in

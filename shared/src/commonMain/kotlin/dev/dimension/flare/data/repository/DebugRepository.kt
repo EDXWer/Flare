@@ -57,14 +57,12 @@ internal object DebugRepository {
     }
 
     internal fun clear() {
-        VideoPlaybackDiagnostics.clear()
         scope.launch {
             _messages.value = emptyList()
         }
     }
 
-    internal fun printToString(): String =
-        LogSanitizer.sanitize((_messages.value + VideoPlaybackDiagnostics.messages.value).joinToString(separator = "\n"))
+    internal fun printToString(): String = LogSanitizer.sanitize(_messages.value.joinToString(separator = "\n"))
 }
 
 /**

@@ -3,7 +3,6 @@ package dev.dimension.flare.data.network
 import dev.dimension.flare.common.PlatformDispatchers
 import dev.dimension.flare.data.model.ProxyMode
 import dev.dimension.flare.data.model.ProxyRef
-import dev.dimension.flare.data.repository.VideoPlaybackDiagnostics
 import dev.dimension.flare.ui.model.UiMedia
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
@@ -30,7 +29,6 @@ import okio.Buffer
 import okio.ByteString.Companion.decodeBase64
 import okio.ByteString.Companion.decodeHex
 import okio.ByteString.Companion.encodeUtf8
-import kotlin.time.TimeSource
 import kotlin.uuid.Uuid
 
 public actual object MediaProxy {
@@ -54,7 +52,6 @@ public actual object MediaProxy {
             val root = entries.getValue(token(resource))
             root.leases++
             root.failure = null
-            root.logPlayback = root.logPlayback || forceRelay
             val url = localUrl(relay, root.token, resource.url)
             MediaPlaybackSource(url, url, media.url, snapshot)
         }
@@ -89,7 +86,6 @@ public actual object MediaProxy {
         val secret = Uuid.random().toString().encodeUtf8()
         var failure: String? = null
         var leases: Int = 0
-        var logPlayback: Boolean = false
     }
 
     private class Relay {
@@ -113,7 +109,6 @@ public actual object MediaProxy {
             } ?: return
         relay.job.cancel()
         relay.listener.interrupt()
-        VideoPlaybackDiagnostics.record("relay listener stopped reason=background")
     }
 
     private fun retireRelay(): Relay? {
@@ -130,13 +125,9 @@ public actual object MediaProxy {
         val job =
             scope.launch {
                 try {
-                    runMediaRelay(Semaphore(64), relay.listener::accept, { serve(relay, it) }) { error ->
+                    runMediaRelay(Semaphore(64), relay.listener::accept, { serve(relay, it) }) {
                         val retired = lock.withLock { if (server === relay) retireRelay() else null }
-                        if (retired != null) {
-                            relay.listener.interrupt()
-                            val errno = (error as? MediaRelayAcceptException)?.errno
-                            VideoPlaybackDiagnostics.record("relay listener stopped type=${error::class.simpleName} errno=${errno ?: "-"}")
-                        }
+                        retired?.listener?.interrupt()
                     }
                 } catch (error: Throwable) {
                     if (error is CancellationException) throw error
@@ -147,7 +138,6 @@ public actual object MediaProxy {
         job.invokeOnCompletion {
             runCatching { relay.listener.close() }.onFailure { it.printStackTrace() }
         }
-        VideoPlaybackDiagnostics.record("relay listener started")
         return relay
     }
 
@@ -229,12 +219,8 @@ public actual object MediaProxy {
         relay: Relay,
         connection: MediaRelayConnection,
     ) {
-        val start = TimeSource.Monotonic.markNow()
         var responseStarted = false
         var root: Entry? = null
-        var diagnostic: String? = null
-        var sentBytes = 0L
-        var failureStage = "upstream"
         try {
             val raw = readHeaders(connection)
             val lines = raw.split("\r\n")
@@ -250,12 +236,6 @@ public actual object MediaProxy {
                         it.substringAfter(':').trim()
                 }
             require(headers["host"] == relay.host) { "Invalid loopback host" }
-            if (lock.withLock { root.logPlayback }) {
-                diagnostic = "relay id=${root.resource.url.hashCode().toUInt().toString(16)} method=${request[0]}"
-            }
-            diagnostic?.let {
-                VideoPlaybackDiagnostics.record("$it begin range=${headers.containsKey("range")}")
-            }
             val client =
                 HttpClient(ProxyRoutingEngine(selected.proxy)) {
                     install(HttpTimeout) {
@@ -305,13 +285,6 @@ public actual object MediaProxy {
                             }
                             require(response.headers["Content-Encoding"].orEmpty().let { it.isBlank() || it.equals("identity", true) }) {
                                 "Media server ignored the uncompressed transfer request"
-                            }
-                            diagnostic?.let {
-                                val length = response.headers["Content-Length"]?.toLongOrNull()
-                                VideoPlaybackDiagnostics.record(
-                                    "$it upstream status=${response.status.value} length=$length " +
-                                        "contentRange=${response.headers["Content-Range"] != null} ms=${start.elapsedNow().inWholeMilliseconds}",
-                                )
                             }
                             val type =
                                 response.headers["Content-Type"]
@@ -429,7 +402,6 @@ public actual object MediaProxy {
                                     }.forEach(responseHeaders::remove)
                                 responseHeaders["Content-Length"] = rewritten.size.toString()
                             }
-                            failureStage = "write response"
                             responseStarted = true
                             connection.write(
                                 (
@@ -441,27 +413,16 @@ public actual object MediaProxy {
                             if (request[0] != "HEAD") {
                                 if (rewritten != null) {
                                     connection.write(rewritten)
-                                    sentBytes += rewritten.size
                                 } else {
-                                    if (prefix.size > 0) {
-                                        val bytes = prefix.readByteArray()
-                                        connection.write(bytes)
-                                        sentBytes += bytes.size
-                                    }
+                                    if (prefix.size > 0) connection.write(prefix.readByteArray())
                                     val bytes = ByteArray(64 * 1024)
                                     while (true) {
-                                        failureStage = "read body"
                                         val count = body.readAvailable(bytes)
                                         if (count < 0) break
-                                        failureStage = "write body"
                                         connection.write(bytes, count)
-                                        sentBytes += count
                                     }
                                     body.closedCause?.let { throw it }
                                 }
-                            }
-                            diagnostic?.let {
-                                VideoPlaybackDiagnostics.record("$it end bytes=$sentBytes ms=${start.elapsedNow().inWholeMilliseconds}")
                             }
                         }
                     if (next == null) return
@@ -473,12 +434,6 @@ public actual object MediaProxy {
                 client.engine.close()
             }
         } catch (error: Exception) {
-            diagnostic?.let {
-                VideoPlaybackDiagnostics.record(
-                    "$it failed stage=$failureStage type=${error::class.simpleName} " +
-                        "started=$responseStarted bytes=$sentBytes ms=${start.elapsedNow().inWholeMilliseconds}",
-                )
-            }
             lock.withLock {
                 root?.failure = error.message ?: "Media request failed"
             }
@@ -687,10 +642,6 @@ internal fun rewriteProxyPlaylist(
 internal class UnsupportedProxyMedia(
     message: String,
 ) : Exception(message)
-
-internal class MediaRelayAcceptException(
-    val errno: Int,
-) : IllegalStateException("Cannot accept media request (errno=$errno)")
 
 internal expect class MediaRelayLock() {
     fun <T> withLock(block: () -> T): T
