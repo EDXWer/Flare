@@ -29256,7 +29256,7 @@
       "bg": {
         "stringUnit": {
           "state": "translated",
-          "value": "Заявки за автентифициран акаунт за %2$@: %1$@"
+          "value": "Четене на бисквитката %2$@ от %1$@"
         }
       },
       "ca": {
@@ -185925,7 +185925,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cet article n'a pas pu être chargé. Vous pouvez ouvrir la page originale."
+            "value": "Recherche du mode d'ouverture le plus adapté…"
           }
         },
         "he": {
@@ -186109,7 +186109,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vérification du mode d'ouverture RSS…"
+            "value": "Mode recommandé d'après les articles récents. Vous pouvez le modifier."
           }
         },
         "he": {
@@ -186293,7 +186293,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Recommandé à partir d'articles récents. Vous pouvez modifier ceci."
+            "value": "Impossible de recommander un mode d'ouverture. Vous pouvez en choisir un."
           }
         },
         "he": {

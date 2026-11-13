@@ -972,9 +972,9 @@
     <string name="plugin_extension_no_history">Aucune tâche n\'a encore été exécutée.</string>
     <string name="plugin_installed">Installé</string>
     <string name="plugin_marketplace_repository">Voir le dépôt</string>
-    <string name="rss_open_mode_checking">Cet article n\'a pas pu être chargé. Vous pouvez ouvrir la page originale.</string>
-    <string name="rss_open_mode_recommended">Vérification du mode d\'ouverture RSS…</string>
-    <string name="rss_open_mode_unknown">Recommandé à partir d\'articles récents. Vous pouvez modifier ceci.</string>
+    <string name="rss_open_mode_checking">Recherche du mode d\'ouverture le plus adapté…</string>
+    <string name="rss_open_mode_recommended">Mode recommandé d\'après les articles récents. Vous pouvez le modifier.</string>
+    <string name="rss_open_mode_unknown">Impossible de recommander un mode d\'ouverture. Vous pouvez en choisir un.</string>
     <string name="rss_detail_unavailable">Aperçu</string>
     <string name="search_unavailable">Aucun résultat trouvé</string>
     <string name="plugin_extension_foreground_notice">Les tâches ne s\'exécutent que lorsque vous utilisez Flare.</string>

@@ -824,7 +824,7 @@
     <string name="image_translation_automatic">Ключ за API за превод на изображения</string>
     <string name="image_translation_original_file">Оригинален файл</string>
     <string name="image_translation_use_shared_description">Споделете URL на услугата, API ключ и модела. Услугата и моделът трябва да поддържат изход на изображения. Изключете за отделна конфигурация на превода на изображения.</string>
-    <string name="plugin_permission_cookie">Заявки за автентифициран акаунт за %2$s: %1$s</string>
+    <string name="plugin_permission_cookie">Четене на бисквитката %2$s от %1$s</string>
     <string name="plugin_ai_create">Създай с Flare AI</string>
     <string name="plugin_ai_untitled">Нов плагин</string>
     <string name="plugin_ai_source_revision">Локален AI-генериран плагин · Ревизия %1$d</string>
