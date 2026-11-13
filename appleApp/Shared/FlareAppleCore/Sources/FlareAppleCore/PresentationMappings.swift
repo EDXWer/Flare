@@ -192,6 +192,10 @@ public extension UiStrings {
             localizedPresentationString("bluesky_login_use_password_button", fallback: "Password Login")
         case .qrConnect:
             localizedPresentationString("nostr_login_qr_button", fallback: "QR Connect")
+        case .qrLoginNewCode:
+            localizedPresentationString("plugin_login_qr_new_code", fallback: "Generate a new code")
+        case .qrLoginRetrySave:
+            localizedPresentationString("plugin_login_qr_retry_save", fallback: "Retry saving account")
         case .credentialImport:
             localizedPresentationString("nostr_login_title", fallback: "Credential Import")
         case .externalSigner:

@@ -701,7 +701,8 @@
         "Password",
         "CredentialImport",
         "WebCookie",
-        "Form"
+        "Form",
+        "QrCode"
       ]
     },
     "loginFieldType": {
@@ -804,7 +805,8 @@
               "interaction": {
                 "enum": [
                   "OAuth",
-                  "WebCookie"
+                  "WebCookie",
+                  "QrCode"
                 ]
               }
             }
@@ -2646,6 +2648,19 @@
         "properties": {
           "platform": {
             "properties": {
+              "loginMethods": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "interaction": {
+                      "not": {
+                        "const": "QrCode"
+                      }
+                    }
+                  }
+                }
+              },
               "capabilities": {
                 "properties": {
                   "flare.datasource.timeline-page/v1": false,

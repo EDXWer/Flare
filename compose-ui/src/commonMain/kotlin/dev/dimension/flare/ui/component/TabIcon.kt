@@ -70,6 +70,8 @@ import dev.dimension.flare.compose.ui.pixiv_ranking_week_original_title
 import dev.dimension.flare.compose.ui.pixiv_ranking_week_r18_title
 import dev.dimension.flare.compose.ui.pixiv_ranking_week_rookie_title
 import dev.dimension.flare.compose.ui.pixiv_ranking_week_title
+import dev.dimension.flare.compose.ui.plugin_login_qr_new_code
+import dev.dimension.flare.compose.ui.plugin_login_qr_retry_save
 import dev.dimension.flare.compose.ui.posts_title
 import dev.dimension.flare.compose.ui.posts_with_replies_title
 import dev.dimension.flare.compose.ui.profile_tab_articles
@@ -363,7 +365,9 @@ internal val UiStrings.res: StringResource
             UiStrings.Reposts -> Res.string.tab_settings_filter_repost
 
             UiStrings.Articles -> Res.string.profile_tab_articles
+
             UiStrings.WeiboFriendsCircle -> Res.string.weibo_friends_circle_title
+
             UiStrings.WeiboPrivateFollowing -> Res.string.weibo_private_following_title
 
             UiStrings.Media -> Res.string.media_title
@@ -389,6 +393,10 @@ internal val UiStrings.res: StringResource
             UiStrings.PasswordLogin -> Res.string.bluesky_login_use_password_button
 
             UiStrings.QrConnect -> Res.string.nostr_login_qr_button
+
+            UiStrings.QrLoginNewCode -> Res.string.plugin_login_qr_new_code
+
+            UiStrings.QrLoginRetrySave -> Res.string.plugin_login_qr_retry_save
 
             UiStrings.CredentialImport -> Res.string.nostr_login_title
 

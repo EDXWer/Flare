@@ -253,6 +253,8 @@ private val UiStrings.androidStringRes: Int
 
             UiStrings.QrConnect -> R.string.login_button
 
+            UiStrings.QrLoginNewCode, UiStrings.QrLoginRetrySave -> R.string.login_button
+
             UiStrings.CredentialImport -> R.string.login_button
 
             UiStrings.ExternalSigner -> R.string.login_button

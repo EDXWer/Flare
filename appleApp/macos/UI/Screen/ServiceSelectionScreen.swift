@@ -393,7 +393,16 @@ private struct LoginFlowView: View {
                 }
             }
 
-            if let qrContent {
+            if let qr = presenter.state.flowState.qrCode {
+                if let content = qr.content {
+                    QRLoginView(content: content, qrCode: qr)
+                        .frame(maxWidth: .infinity)
+                        .transition(MacOSServiceSelectionAnimation.inline)
+                } else {
+                    Text(ServiceSelectCopy.pluginQRExpired)
+                        .multilineTextAlignment(.center)
+                }
+            } else if let qrContent {
                 QRLoginView(content: qrContent)
                     .frame(maxWidth: .infinity)
                     .transition(MacOSServiceSelectionAnimation.inline)
@@ -588,30 +597,35 @@ private struct LoginFieldView: View {
 
 private struct QRLoginView: View {
     let content: String
+    var qrCode: LoginQrCode? = nil
 
     var body: some View {
         VStack(spacing: 10) {
-            Text(ServiceSelectCopy.nostrQRHint)
+            Text(qrCode.map { $0.hint?.text ?? ServiceSelectCopy.pluginQRHint } ?? ServiceSelectCopy.nostrQRHint)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             QRCodeView(text: content)
                 .frame(width: 200, height: 200)
                 .background(.white, in: RoundedRectangle(cornerRadius: 8))
+                .accessibilityLabel(qrCode == nil ? ServiceSelectCopy.nostrQRLinkLabel : ServiceSelectCopy.pluginQRLabel)
             HStack(spacing: 8) {
                 ProgressView()
                     .controlSize(.small)
-                Text(ServiceSelectCopy.nostrQRWaiting)
+                Text(qrCode.map { $0.scanned ? ServiceSelectCopy.pluginQRScanned : ServiceSelectCopy.pluginQRWaiting }
+                    ?? ServiceSelectCopy.nostrQRWaiting)
                     .font(.caption)
             }
-            Text(ServiceSelectCopy.nostrQRLinkLabel)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(content)
-                .font(.caption2)
-                .textSelection(.enabled)
-                .multilineTextAlignment(.center)
-                .lineLimit(4)
+            if qrCode == nil {
+                Text(ServiceSelectCopy.nostrQRLinkLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(content)
+                    .font(.caption2)
+                    .textSelection(.enabled)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(4)
+            }
         }
     }
 }
@@ -910,6 +924,11 @@ private enum ServiceSelectCopy {
     static let nostrQRHint = String(localized: "nostr_login_qr_hint", defaultValue: "Scan with Amber, Alby, or another Nostr Connect signer.")
     static let nostrQRWaiting = String(localized: "nostr_login_qr_waiting", defaultValue: "Waiting for signer approval...")
     static let nostrQRLinkLabel = String(localized: "nostr_login_qr_link_label", defaultValue: "Nostr Connect link")
+    static let pluginQRHint = localizedPresentationString("plugin_login_qr_hint", fallback: "Scan this code with your phone.")
+    static let pluginQRLabel = localizedPresentationString("plugin_login_qr_label", fallback: "Sign-in QR code")
+    static let pluginQRWaiting = localizedPresentationString("plugin_login_qr_waiting", fallback: "Waiting for you to scan…")
+    static let pluginQRScanned = localizedPresentationString("plugin_login_qr_scanned", fallback: "Confirm sign-in on your phone.")
+    static let pluginQRExpired = localizedPresentationString("plugin_login_qr_expired", fallback: "This QR code has expired.")
     static let eulaPrivacyPolicy = String(localized: "eula_privacy_policy", defaultValue: "EULA and Privacy Policy")
     static let loginAgreementPrefix = String(localized: "login_agreement_prefix", defaultValue: "By logging in, you agree to the ")
     static let loginExpired = String(localized: "login_expired", defaultValue: "Login session expired")

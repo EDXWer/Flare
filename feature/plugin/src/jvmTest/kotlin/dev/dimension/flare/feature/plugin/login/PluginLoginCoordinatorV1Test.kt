@@ -17,6 +17,7 @@ import dev.dimension.flare.feature.plugin.lifecycle.RunningPluginV1
 import dev.dimension.flare.feature.plugin.manifest.socialPlatform
 import dev.dimension.flare.feature.plugin.runtime.PluginRuntimePool
 import dev.dimension.flare.feature.plugin.runtime.PluginRuntimeUnavailableException
+import dev.dimension.flare.feature.plugin.runtime.PluginSessionBusyException
 import dev.dimension.flare.feature.plugin.wire.CookieAttributesV2
 import dev.dimension.flare.feature.plugin.wire.CookieSnapshotV1
 import dev.dimension.flare.feature.plugin.wire.CookieValueV1
@@ -28,16 +29,21 @@ import dev.dimension.flare.ui.presenter.login.LoginContext
 import dev.dimension.flare.ui.presenter.login.LoginCookieSnapshot
 import dev.dimension.flare.ui.presenter.login.LoginCookieValue
 import dev.dimension.flare.ui.presenter.login.LoginMethodType
+import dev.dimension.flare.ui.presenter.login.ReloginTarget
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.jsonArray
@@ -920,6 +926,264 @@ class PluginLoginCoordinatorV1Test {
             }
         }
 
+    @Test
+    fun qrPollKeepsItsFlowAcrossRuntimeEvictionAndRetriesOnlyTheLocalSave() =
+        runBlocking {
+            var exchanges = 0
+            pool.close()
+            pool =
+                PluginRuntimePool(
+                    fileSystem,
+                    object : NoopTransport() {
+                        override suspend fun execute(request: PluginTransportRequestV1): PluginTransportResponseV1 {
+                            exchanges++
+                            return super.execute(request)
+                        }
+                    },
+                )
+            plugin =
+                installQr(
+                    """
+                    if (request.pendingPayload.flow !== request.flowId) throw new Error("flow changed");
+                    if (!request.pendingPayload.scanned) {
+                      return { type: "qrPending", scanned: true, pendingPayload: { flow: request.flowId, scanned: true } };
+                    }
+                    await flare.http.request({ url: request.origin + "/exchange" });
+                    return success(request, { cookies: ["session=fake"], refreshToken: "fake-refresh" });
+                    """.trimIndent(),
+                )
+            val accounts = RecordingAccountService().apply { addFailure = IllegalStateException("save failed") }
+            val handler = qrHandler(accounts)
+            try {
+                val login = async { handler.perform("login") }
+                withTimeout(5_000) { handler.state.first { it.qrCode?.scanned == true } }
+                pool.closeIdle()
+                login.await()
+                assertEquals("save failed", handler.state.value.error)
+                assertTrue(accounts.added.isEmpty())
+                accounts.addFailure = null
+                pool.closeIdle()
+                handler.perform("login")
+                assertEquals(1, exchanges)
+                val saved = assertIs<PluginAccountCredentialV1>(accounts.added.single().second)
+                assertEquals(
+                    "fake-refresh",
+                    saved.credential.jsonObject
+                        .getValue("refreshToken")
+                        .jsonPrimitive.content,
+                )
+                assertNull(handler.state.value.qrCode)
+            } finally {
+                handler.close()
+            }
+        }
+
+    @Test
+    fun qrRetirementBetweenPollsCancelsTheActiveCode() =
+        runBlocking {
+            plugin = installQr("return { type: 'qrPending', scanned: true };")
+            val accounts = RecordingAccountService()
+            val handler = qrHandler(accounts)
+            try {
+                val login = async { handler.perform("login") }
+                withTimeout(5_000) { handler.state.first { it.qrCode?.scanned == true } }
+                pool.retire(plugin)
+                assertFailsWith<CancellationException> { login.await() }
+                assertNull(handler.state.value.qrCode)
+                assertEquals("Plugin reloaded. Start login again.", handler.state.value.error)
+                assertTrue(accounts.added.isEmpty())
+            } finally {
+                handler.close()
+            }
+        }
+
+    @Test
+    fun qrRetirementWaitsUntilTheCredentialWriteFinishes() =
+        runBlocking {
+            plugin = installQr("return success(request, { token: 'qr' });")
+            val checked = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            val accounts =
+                RecordingAccountService().apply {
+                    afterCommitCheck = {
+                        withContext(NonCancellable) {
+                            checked.complete(Unit)
+                            release.await()
+                        }
+                    }
+                }
+            val handler = qrHandler(accounts)
+            try {
+                val login = async { handler.perform("login") }
+                withTimeout(5_000) { checked.await() }
+                withTimeout(5_000) {
+                    assertFailsWith<PluginSessionBusyException> { pool.retire(plugin) }
+                }
+                assertTrue(plugin.session.isActive)
+                release.complete(Unit)
+                login.await()
+                assertEquals(
+                    ACCOUNT_ID,
+                    accounts.added
+                        .single()
+                        .first.accountKey.id,
+                )
+                pool.retire(plugin)
+                assertFalse(plugin.session.isActive)
+            } finally {
+                release.complete(Unit)
+                handler.close()
+            }
+        }
+
+    @Test
+    fun qrCanReturnToWaitingForAScanWithoutReplacingTheCode() =
+        runBlocking {
+            plugin =
+                installQr(
+                    """
+                    const scanned = request.pendingPayload.step === undefined;
+                    return { type: "qrPending", scanned, pendingPayload: { step: 1 } };
+                    """.trimIndent(),
+                )
+            val handler = qrHandler(RecordingAccountService())
+            try {
+                val login = async { handler.perform("login") }
+                val scanned = withTimeout(5_000) { handler.state.first { it.qrCode?.scanned == true } }
+                val waiting = withTimeout(5_000) { handler.state.first { it.qrCode?.scanned == false } }
+                assertEquals(requireNotNull(scanned.qrCode?.content), waiting.qrCode?.content)
+                handler.perform("cancel")
+                assertFailsWith<CancellationException> { login.await() }
+                assertNull(handler.state.value.qrCode)
+            } finally {
+                handler.close()
+            }
+        }
+
+    @Test
+    fun qrExpiryDropsTheCodeAndRetryCreatesANewChallenge() =
+        runBlocking {
+            plugin = installQr("return { type: 'qrExpired' };", content = "request.flowId")
+            val handler = qrHandler(RecordingAccountService())
+            try {
+                val codes = mutableListOf<String>()
+                repeat(2) {
+                    val login = async { handler.perform("login") }
+                    val active = withTimeout(5_000) { handler.state.first { it.qrCode?.content != null } }
+                    codes += requireNotNull(active.qrCode?.content)
+                    login.await()
+                    assertNull(requireNotNull(handler.state.value.qrCode).content)
+                }
+                assertEquals(2, codes.distinct().size)
+            } finally {
+                handler.close()
+            }
+        }
+
+    @Test
+    fun qrHostExpiresBeforeAnyPollWhenTheChallengeLifetimeIsShorterThanTheInterval() =
+        runBlocking {
+            plugin = installQr("throw new Error('polled an expired code');", lifetime = 25)
+            val handler = qrHandler(RecordingAccountService())
+            try {
+                handler.perform("login")
+                assertNull(handler.state.value.error)
+                assertNull(requireNotNull(handler.state.value.qrCode).content)
+            } finally {
+                handler.close()
+            }
+        }
+
+    @Test
+    fun qrCancellationWhileSavingPreventsACommit() =
+        runBlocking {
+            plugin = installQr("return success(request, { token: 'qr' });")
+            val started = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            val accounts =
+                RecordingAccountService().apply {
+                    beforeAdd = {
+                        started.complete(Unit)
+                        release.await()
+                    }
+                }
+            val handler = qrHandler(accounts)
+            try {
+                val login = async { handler.perform("login") }
+                withTimeout(5_000) { started.await() }
+                handler.clear()
+                release.complete(Unit)
+                assertFailsWith<CancellationException> { login.await() }
+                assertTrue(accounts.added.isEmpty())
+                assertNull(handler.state.value.qrCode)
+            } finally {
+                release.complete(Unit)
+                handler.close()
+            }
+        }
+
+    @Test
+    fun qrReloginRejectsTheWrongAccount() =
+        runBlocking {
+            plugin = installQr("return success(request, { token: 'qr' });")
+            val accounts = RecordingAccountService()
+            val target = ReloginTarget(MicroBlogKey("other-account", "plugin.example"), "TestPlugin")
+            val handler = qrHandler(accounts, target)
+            try {
+                handler.perform("login")
+                assertEquals("Relogin account does not match", handler.state.value.error)
+                assertTrue(accounts.added.isEmpty())
+            } finally {
+                handler.close()
+            }
+        }
+
+    private suspend fun installQr(
+        poll: String,
+        content: String = "'https://plugin.example/scan'",
+        lifetime: Long = 10_000,
+    ): RunningPluginV1 =
+        install(
+            LOGIN_SCRIPT.replace(
+                "login: {",
+                """
+                login: {
+                  qr: {
+                    begin(request) {
+                      return { type: "qrCode", content: $content, expiresInMillis: $lifetime, pollIntervalMillis: 1000,
+                        pendingPayload: { flow: request.flowId } };
+                    },
+                    async poll(request) { $poll }
+                  },
+                """.trimIndent(),
+            ),
+            v2Manifest().replace(
+                "\"loginMethods\": [",
+                "\"loginMethods\": [{ \"id\": \"qr\", \"interaction\": \"QrCode\", \"title\": \"Scan\" },",
+            ),
+        )
+
+    private fun CoroutineScope.qrHandler(
+        accounts: AccountService,
+        target: ReloginTarget? = null,
+    ): PluginLoginMethodHandlerV1 {
+        val oauth = oauthCoordinator()
+        return PluginLoginMethodHandlerV1(
+            plugin = plugin,
+            method =
+                plugin.installed.manifest.socialPlatform.loginMethods
+                    .single { it.id == "qr" },
+            context = LoginContext("plugin.example", LoginMethodType.QrConnect, onSuccess = {}, reloginTarget = target),
+            oauth = oauth,
+            oauthCallbacks = PluginOAuthCallbackCoordinatorV1(oauth, accounts),
+            form = PluginFormLoginCoordinatorV1(pool, FixedEntropy),
+            webCookie = PluginWebCookieLoginCoordinatorV1(pool, FixedEntropy),
+            accountService = accounts,
+            coroutineScope = this,
+            runtimePool = pool,
+        )
+    }
+
     private fun wireSnapshot(value: String) = CookieSnapshotV1(listOf(CookieValueV1("$ORIGIN/api/cookie", "session", value)))
 
     private fun v2Manifest() = LOGIN_MANIFEST.replace("\"apiVersion\": 1", "\"apiVersion\": 2")
@@ -951,6 +1215,7 @@ class PluginLoginCoordinatorV1Test {
             webCookie = PluginWebCookieLoginCoordinatorV1(pool, FixedEntropy, nowEpochMillis = clock),
             accountService = accounts,
             coroutineScope = this,
+            runtimePool = pool,
         )
     }
 
@@ -972,6 +1237,7 @@ class PluginLoginCoordinatorV1Test {
             webCookie = PluginWebCookieLoginCoordinatorV1(pool, FixedEntropy),
             accountService = accounts,
             coroutineScope = this,
+            runtimePool = pool,
         )
 
     private fun oauthCoordinator(
@@ -1013,6 +1279,7 @@ private class RecordingAccountService : AccountService {
     val added = mutableListOf<Pair<UiAccount, Any>>()
     var addFailure: Throwable? = null
     var beforeAdd: suspend () -> Unit = {}
+    var afterCommitCheck: suspend () -> Unit = {}
 
     override fun accountServiceFlow(accountType: AccountType): Flow<MicroblogDataSource> = emptyFlow()
 
@@ -1026,6 +1293,7 @@ private class RecordingAccountService : AccountService {
     ) {
         beforeAdd()
         beforeCommit()
+        afterCommitCheck()
         addFailure?.let { throw it }
         added += account to credential
     }

@@ -2,6 +2,7 @@ package dev.dimension.flare.ui.screen.login
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,6 +37,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -65,6 +67,11 @@ import dev.dimension.flare.compose.ui.nostr_login_qr_button
 import dev.dimension.flare.compose.ui.nostr_login_qr_hint
 import dev.dimension.flare.compose.ui.nostr_login_qr_link_label
 import dev.dimension.flare.compose.ui.nostr_login_qr_waiting
+import dev.dimension.flare.compose.ui.plugin_login_qr_expired
+import dev.dimension.flare.compose.ui.plugin_login_qr_hint
+import dev.dimension.flare.compose.ui.plugin_login_qr_label
+import dev.dimension.flare.compose.ui.plugin_login_qr_scanned
+import dev.dimension.flare.compose.ui.plugin_login_qr_waiting
 import dev.dimension.flare.compose.ui.service_select_clear
 import dev.dimension.flare.compose.ui.service_select_compatibility_warning
 import dev.dimension.flare.compose.ui.service_select_detected_platform
@@ -109,6 +116,7 @@ import dev.dimension.flare.ui.presenter.login.LoginField
 import dev.dimension.flare.ui.presenter.login.LoginFieldType
 import dev.dimension.flare.ui.presenter.login.LoginFlowPresenter
 import dev.dimension.flare.ui.presenter.login.LoginMethodSpec
+import dev.dimension.flare.ui.presenter.login.LoginQrCode
 import dev.dimension.flare.ui.presenter.login.ReloginPresenter
 import dev.dimension.flare.ui.presenter.login.ReloginTarget
 import dev.dimension.flare.ui.theme.PlatformTheme
@@ -547,14 +555,20 @@ internal fun LoginFlowContent(
                 )
             }
         }
-        qrContent?.takeIf { !flowState.loading && flowState.error == null }?.let {
+        val qrCode = flowState.qrCode
+        val visibleQr = if (qrCode != null) qrCode.content else qrContent
+        visibleQr?.takeIf { !flowState.loading && flowState.error == null }?.let {
             QrLoginContent(
                 content = it,
+                qrCode = qrCode,
                 onDismiss = {
                     state.clear()
                     onQrDismiss()
                 },
             )
+        }
+        if (qrCode != null && qrCode.content == null) {
+            PlatformText(text = stringResource(Res.string.plugin_login_qr_expired), textAlign = TextAlign.Center)
         }
         flowState.actions.fastForEach { action ->
             PlatformFilledTonalButton(
@@ -687,6 +701,7 @@ private fun LoginFieldInput(
 @Composable
 private fun QrLoginContent(
     content: String,
+    qrCode: LoginQrCode?,
     onDismiss: () -> Unit,
 ) {
     Column(
@@ -695,40 +710,58 @@ private fun QrLoginContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         PlatformText(
-            text = stringResource(Res.string.nostr_login_qr_hint),
+            text =
+                if (qrCode == null) {
+                    stringResource(Res.string.nostr_login_qr_hint)
+                } else {
+                    qrCode.hint?.resolveText() ?: stringResource(Res.string.plugin_login_qr_hint)
+                },
             textAlign = TextAlign.Center,
             style = PlatformTheme.typography.caption,
         )
         Image(
             painter = rememberQrCodePainter(content),
-            contentDescription = stringResource(Res.string.nostr_login_qr_button),
-            modifier = Modifier.size(220.dp),
+            contentDescription = stringResource(if (qrCode == null) Res.string.nostr_login_qr_button else Res.string.plugin_login_qr_label),
+            modifier =
+                Modifier
+                    .size(220.dp)
+                    .background(Color.White, RoundedCornerShape(8.dp))
+                    .padding(20.dp),
         )
         PlatformText(
-            text = stringResource(Res.string.nostr_login_qr_waiting),
+            text =
+                stringResource(
+                    when {
+                        qrCode == null -> Res.string.nostr_login_qr_waiting
+                        qrCode.scanned -> Res.string.plugin_login_qr_scanned
+                        else -> Res.string.plugin_login_qr_waiting
+                    },
+                ),
             textAlign = TextAlign.Center,
         )
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            PlatformText(
-                text = stringResource(Res.string.nostr_login_qr_link_label),
-                style = PlatformTheme.typography.caption,
-            )
-            SelectionContainer {
+        if (qrCode == null) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
                 PlatformText(
-                    text = content,
-                    textAlign = TextAlign.Center,
+                    text = stringResource(Res.string.nostr_login_qr_link_label),
                     style = PlatformTheme.typography.caption,
                 )
+                SelectionContainer {
+                    PlatformText(
+                        text = content,
+                        textAlign = TextAlign.Center,
+                        style = PlatformTheme.typography.caption,
+                    )
+                }
             }
-        }
-        PlatformFilledTonalButton(
-            onClick = onDismiss,
-            modifier = Modifier.width(300.dp),
-        ) {
-            PlatformText(text = stringResource(UiStrings.Cancel.res))
+            PlatformFilledTonalButton(
+                onClick = onDismiss,
+                modifier = Modifier.width(300.dp),
+            ) {
+                PlatformText(text = stringResource(UiStrings.Cancel.res))
+            }
         }
     }
 }

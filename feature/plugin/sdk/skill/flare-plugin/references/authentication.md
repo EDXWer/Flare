@@ -1,6 +1,6 @@
 # Detection and authentication recipes
 
-These recipes describe the five supported interaction kinds. Website paths and
+These recipes describe the supported interaction kinds. Website paths and
 helpers in sketches are adaptation points, not universal endpoints. Use the
 [GitHub template](../assets/github-template/plugin.js) for a complete token-login
 implementation and [Pixelfed](../examples/pixelfed/plugin.js) for complete OAuth.
@@ -41,6 +41,7 @@ name. `id: "token"` registers `login.token.begin`, for example.
 | CredentialImport | begin(values) | success |
 | Form | begin(values) | success |
 | WebCookie | begin → repeated check(snapshot) | begin: webCookie; check: pending or success |
+| QrCode (API v2) | begin → repeated poll(pendingPayload) | begin returns qrCode. Poll returns qrPending, qrExpired or success. |
 
 `pending` is not a general multi-step form mechanism. A form is submitted once;
 include all fields required to complete that submission. Expected login errors
@@ -253,6 +254,40 @@ available for retrying a failed local account save within this lifetime. The
 Host does not repeat the remote exchange for that retry. It clears the result
 once the account is saved. Return final state explicitly in `success.credential`;
 the Host never merges pending state into the account for you.
+
+## QR login (API v2)
+
+Install QR login plugins on a Flare build that supports the `QrCode` interaction.
+Earlier API v2 builds reject this interaction during installation.
+
+Declare `{ "id": "scan", "interaction": "QrCode", "title": "Scan to sign in" }`.
+The optional `description` appears next to the code and can name the app the user
+should scan with. Implement `login.scan.begin` and `login.scan.poll`.
+
+- `begin` requests a challenge from the service and returns `type: "qrCode"`,
+  `content`, `expiresInMillis` and `pendingPayload`. Pass the service's QR text
+  (up to 1,024 UTF-8 bytes) and remaining lifetime (up to 15 minutes). The Host
+  renders the text as a QR code. Keep the challenge identifier and other data
+  needed by `poll` in `pendingPayload` (up to 64 KiB of JSON).
+- `poll` receives `methodId`, `origin`, `flowId` and the latest `pendingPayload`.
+  Return `{ type: "qrPending", scanned: false }` while waiting for a scan and
+  `scanned: true` while waiting for confirmation. Each response reflects the
+  current status, including when the service returns to waiting for a scan.
+  A non-null `pendingPayload` replaces the full payload for the next poll.
+- Return `{ type: "qrExpired" }` when the service expires the challenge. On
+  approval, verify the account against the service and return the usual
+  `{ type: "success", value: ... }` with the credentials the Host should save.
+
+Flare waits two seconds before each poll by default. A challenge can specify
+`pollIntervalMillis` from 1,000 to 30,000. The Host runs one poll at a time and
+ends the flow on cancellation, dismissal or expiry. Generating another code
+calls `begin` with a fresh `flowId`. A verified result can be saved again if a
+local save fails during the same login panel session. Keep polling state in
+`pendingPayload`, which is scoped to this attempt and held in memory.
+
+Use the login HTTP permissions for challenge and verification requests. API v2
+exposes `Set-Cookie` and JSON response bodies so the plugin can save both a
+session cookie and a refresh token when the service returns them.
 
 ## Account capability renegotiation
 
