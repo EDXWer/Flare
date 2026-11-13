@@ -647,7 +647,7 @@ internal class XQTDataSource(
             text = ComposeConfig.Text.withLength(280, String::xWeightedLength),
             media =
                 ComposeConfig.Media(
-                    maxCount = 4,
+                    maxCount = 20,
                     canSensitive = true,
                     altTextMaxLength = 1000,
                     allowMediaOnly = true,
