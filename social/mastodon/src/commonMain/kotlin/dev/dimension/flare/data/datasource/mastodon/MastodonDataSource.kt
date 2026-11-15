@@ -10,6 +10,7 @@ import dev.dimension.flare.data.datasource.microblog.ComposeType
 import dev.dimension.flare.data.datasource.microblog.DatabaseUpdater
 import dev.dimension.flare.data.datasource.microblog.NotificationFilter
 import dev.dimension.flare.data.datasource.microblog.NotificationTimelineDataSource
+import dev.dimension.flare.data.datasource.microblog.PostDetailTabs
 import dev.dimension.flare.data.datasource.microblog.PostEvent
 import dev.dimension.flare.data.datasource.microblog.ProfileTab
 import dev.dimension.flare.data.datasource.microblog.datasource.ListDataSource
@@ -104,6 +105,7 @@ internal open class MastodonDataSource(
             accessTokenFlow = credentialFlow.map { it.accessToken },
         )
     }
+    private val quoteSupport by lazy { MastodonQuoteSupport(service) }
 
     private val textLimitsFlow by lazy {
         mastodonTextLimitsFlow(
@@ -277,6 +279,16 @@ internal open class MastodonDataSource(
             service,
             accountKey,
             statusOnly = false,
+        )
+
+    override suspend fun postDetailTabs(statusKey: MicroBlogKey): PostDetailTabs? =
+        mastodonPostDetailTabs(
+            service = service,
+            host = accountKey.host,
+            statusKey = statusKey,
+            accountKey = accountKey,
+            includeQuotes = quoteSupport.isAvailable(),
+            repliesLoader = { context(statusKey) },
         )
 
     override suspend fun publish(

@@ -1,6 +1,7 @@
 package dev.dimension.flare.data.datasource.pleroma
 
 import dev.dimension.flare.data.datasource.mastodon.MastodonDataSource
+import dev.dimension.flare.data.datasource.microblog.PostDetailTabs
 import dev.dimension.flare.data.datasource.microblog.ReactionDataSource
 import dev.dimension.flare.data.platform.MastodonCredential
 import dev.dimension.flare.model.MicroBlogKey
@@ -16,6 +17,8 @@ internal class PleromaDataSource(
         credentialFlow = credentialFlow,
     ),
     ReactionDataSource {
+    override suspend fun postDetailTabs(statusKey: MicroBlogKey): PostDetailTabs? = null
+
     // ponytail: Keep the existing Unicode unit until the Pleroma server rule is verified; CW shares its limit.
     override fun countComposeText(
         content: String,

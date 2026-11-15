@@ -146,7 +146,7 @@
 						<button class="btn btn-sm" type="button" onclick={() => listState.retry()}>{m.actionRetry()}</button>
 					</div>
 				</div>
-			{:else if listState.appendState.endOfPaginationReached}
+			{:else if listState.appendState.endOfPaginationReached && (detailStatusKey === null || listState.itemCount === 0 || listState.peek(0)?.type !== 'User')}
 				<div class="timeline-append-end">{m.timelineNoMorePosts()}</div>
 			{/if}
 		</div>

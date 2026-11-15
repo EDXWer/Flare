@@ -492,4 +492,18 @@
     <string name="pixiv_ranking_day_r18_title">R-18 日榜</string>
     <string name="pixiv_ranking_week_r18_title">R-18 周榜</string>
     <string name="pixiv_ranking_day_r18_ai_title">R-18 AI 日榜</string>
+    <string name="status_detail_comments">评论</string>
+    <string name="status_detail_by_popularity">按热度</string>
+    <string name="status_detail_by_time">按时间</string>
+    <string name="status_detail_replies">回复</string>
+    <string name="status_detail_quotes">引用</string>
+    <string name="status_detail_relevance">最相关</string>
+    <string name="status_detail_recency">最新</string>
+    <string name="status_detail_likes">最多点赞</string>
+    <string name="status_detail_oldest">最早</string>
+    <string name="status_detail_reposted_by">转发者</string>
+    <string name="status_detail_liked_by">点赞者</string>
+    <string name="status_detail_reactions">表情回应</string>
+    <string name="status_detail_all_reactions">全部表情</string>
+    <string name="status_detail_filter_empty">当前筛选无结果</string>
 </resources>

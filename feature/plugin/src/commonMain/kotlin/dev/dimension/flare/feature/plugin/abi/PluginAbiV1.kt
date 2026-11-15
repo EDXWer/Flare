@@ -12,6 +12,7 @@ public object PluginAbiV1 {
     public const val ACCOUNT_ORIGIN: String = "\$accountOrigin"
 
     internal val capabilityIdPattern = Regex("[a-z0-9.-]+/[a-z0-9.-]+")
+    internal val postContextTabOperations = setOf("contextTabs", "contextPage")
 
     public object Capabilities {
         public const val ACCOUNT_CAPABILITIES: String = "flare.datasource.account-capabilities/v1"
@@ -49,7 +50,7 @@ public object PluginAbiV1 {
                     "discoverHashtags",
                 ),
             Capabilities.PROFILE to setOf("byId", "byHandle", "timeline", "following", "followers"),
-            Capabilities.POST to setOf("detail", "context", "delete", "mutate"),
+            Capabilities.POST to setOf("detail", "context", "delete", "mutate") + postContextTabOperations,
             Capabilities.RELATION to setOf("state", "mutate"),
             Capabilities.COMPOSE_V1 to setOf("publish"),
             Capabilities.COMPOSE to setOf("publish"),
@@ -100,7 +101,13 @@ public object PluginAbiV1 {
     public fun hasRequiredOperations(
         capabilityId: String,
         operations: Set<String>,
-    ): Boolean = requiredCapabilityOperations[capabilityId]?.let(operations::containsAll) == true && operations.isNotEmpty()
+    ): Boolean =
+        operations.isNotEmpty() &&
+            requiredCapabilityOperations[capabilityId]?.let(operations::containsAll) == true &&
+            (capabilityId != Capabilities.POST || hasPairedPostContextTabOperations(operations))
+
+    internal fun hasPairedPostContextTabOperations(operations: Set<String>): Boolean =
+        operations.none { it in postContextTabOperations } || operations.containsAll(postContextTabOperations)
 
     internal fun knownCapabilities(capabilities: Map<String, Set<String>>): Map<String, Set<String>> {
         return capabilities

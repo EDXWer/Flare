@@ -126,7 +126,7 @@ The following services live under `capabilities` in the social definition.
 | `flare.datasource.timeline/v1` | `timeline.page` |
 | `flare.datasource.search/v1` | `search.posts`, `profiles`, `discoverPosts`, `discoverProfiles`, `discoverHashtags` |
 | `flare.datasource.profile/v1` | `profile.byId`, `byHandle`, `timeline`, `following`, `followers` |
-| `flare.datasource.post/v1` | `post.detail`, `context`, `delete`, `mutate` |
+| `flare.datasource.post/v1` | `post.detail`, `context`, `delete`, `mutate`, `contextTabs` and `contextPage` (API v2 pair) |
 | `flare.datasource.relation/v1` | `relation.state`, `mutate` |
 | `flare.datasource.compose/v1` | `compose.publish` |
 | `flare.datasource.compose/v2` | `compose.publish` |

@@ -40,14 +40,41 @@ import dev.dimension.flare.ui.render.toUiPlainText
 import dev.dimension.flare.ui.route.DeeplinkRoute
 import dev.dimension.flare.ui.route.toUri
 import io.ktor.http.decodeURLPart
+import io.ktor.http.encodeURLParameter
+import io.ktor.http.encodeURLPathPart
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.longOrNull
 import kotlin.time.Clock
 
 internal fun Status.render(accountKey: MicroBlogKey): UiTimelineV2 = renderStatusV2(accountKey)
 
-internal fun Comment.render(accountKey: MicroBlogKey): UiTimelineV2 = renderStatusV2(accountKey)
+internal fun Comment.render(
+    accountKey: MicroBlogKey,
+    rootStatusId: String? = null,
+): UiTimelineV2 = renderStatusV2(accountKey, rootStatusId)
+
+internal fun UiTimelineV2.withVvoExtendedText(originalContent: UiRichText): UiTimelineV2 =
+    when (this) {
+        is Post -> {
+            copy(content = content.copy(original = originalContent))
+        }
+
+        is TimelinePostItem -> {
+            val repost = presentation.repost
+            if (repost != null) {
+                copy(presentation = presentation.copy(repost = repost.copy(content = repost.content.copy(original = originalContent))))
+            } else {
+                copy(post = post.copy(content = post.content.copy(original = originalContent)))
+            }
+        }
+
+        else -> {
+            this
+        }
+    }
 
 internal fun Attitude.render(accountKey: MicroBlogKey): UiTimelineV2 {
     val content = status?.renderStatusV2(accountKey)?.contentPostOrNull()
@@ -336,10 +363,13 @@ private fun Status.renderStatusV2(accountKey: MicroBlogKey): UiTimelineV2 {
     }
 }
 
-private fun Comment.renderStatusV2(accountKey: MicroBlogKey): UiTimelineV2 {
+private fun Comment.renderStatusV2(
+    accountKey: MicroBlogKey,
+    rootStatusId: String? = null,
+): UiTimelineV2 {
     val statusKey = MicroBlogKey(id = id, host = accountKey.host)
     val statusMid =
-        status?.mid ?: analysis_extra
+        rootStatusId ?: status?.mid ?: analysis_extra
             ?.split('|')
             ?.mapNotNull {
                 val pair = it.split(':')
@@ -349,11 +379,10 @@ private fun Comment.renderStatusV2(accountKey: MicroBlogKey): UiTimelineV2 {
     val user = this.user?.render(accountKey)
     val isFromMe = user?.key == accountKey
     val url =
-        buildString {
-            append("https://$vvoHostLong/")
-            append(this@renderStatusV2.user?.id)
-            append('/')
-            append(bid)
+        if (rootStatusId != null) {
+            "https://$vvoHostLong/detail/${rootStatusId.encodeURLPathPart()}?cid=${id.encodeURLParameter()}"
+        } else {
+            "https://$vvoHostLong/${this.user?.id}/$bid"
         }
     val media =
         listOfNotNull(
@@ -378,7 +407,7 @@ private fun Comment.renderStatusV2(accountKey: MicroBlogKey): UiTimelineV2 {
     val quote =
         commentList
             ?.map {
-                it.renderStatusV2(accountKey).contentPostOrNull()?.copy(
+                it.renderStatusV2(accountKey, rootStatusId).contentPostOrNull()?.copy(
                     clickEvent =
                         ClickEvent.Deeplink(
                             DeeplinkRoute.Status.VVOComment(
@@ -432,7 +461,7 @@ private fun Comment.renderStatusV2(accountKey: MicroBlogKey): UiTimelineV2 {
                     },
                     ActionMenu.vvoLikeComment(
                         statusKey = statusKey,
-                        liked = liked == true,
+                        liked = liked?.booleanOrNull ?: (liked?.longOrNull == 1L),
                         count = likeCount ?: 0,
                         accountKey = accountKey,
                     ),

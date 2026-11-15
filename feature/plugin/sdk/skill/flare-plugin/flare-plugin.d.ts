@@ -146,6 +146,10 @@ interface ProfileServiceV1 {
 interface PostServiceV1 {
   detail(request: EntityRequestV1, context: PluginInvocationContextV1): MaybePromise<TimelinePostV1>;
   context(request: EntityPageRequestV1, context: PluginInvocationContextV1): MaybePromise<PageV1<TimelineItemV1>>;
+  /** API v2. Declare and negotiate contextTabs and contextPage together. */
+  contextTabs?(request: EntityRequestV1, context: PluginInvocationContextV1): MaybePromise<PostContextTabsV2>;
+  /** API v2. Return the tab rows. The current post and its parents come from detail. */
+  contextPage?(request: PostContextPageRequestV2, context: PluginInvocationContextV1): MaybePromise<PageV1<TimelineItemV1>>;
   delete(request: EntityRequestV1, context: PluginInvocationContextV1): MaybePromise<DeleteResultV1>;
   mutate(request: MutationRequestV1, context: PluginInvocationContextV1): MaybePromise<PostMutationResultV1>;
 }
@@ -507,6 +511,22 @@ interface SearchRequestV1 { query: string; page: PageRequestV1 }
 /** entityToken is opaque entity context (at most 8192 characters), not a paging cursor. */
 interface EntityRequestV1 { key: EntityKeyV1; entityToken?: string }
 interface EntityPageRequestV1 { key: EntityKeyV1; page: PageRequestV1; entityToken?: string }
+interface PostContextTabsV2 {
+  /** Ordered tabs for this post. An empty list renders the post and its parents alone. */
+  tabs: PostContextTabV2[];
+  /** ID of the declared tab that supplies replies for sharing when legacy context is unavailable. */
+  replyTabId?: string;
+}
+interface PostContextTabV2 { id: string; title: WireTextV1; filter?: PostContextFilterV2 }
+interface PostContextFilterV2 { options: PostContextFilterOptionV2[]; defaultOptionId: string }
+interface PostContextFilterOptionV2 { id: string; title: WireTextV1 }
+interface PostContextPageRequestV2 {
+  key: EntityKeyV1;
+  tabId: string;
+  /** Absent when the tab has no filter group. */
+  filterId?: string;
+  page: PageRequestV1;
+}
 interface HandleRequestV1 { handle: string; host: string }
 interface ProfileTimelineRequestV1 {
   profile: EntityKeyV1;

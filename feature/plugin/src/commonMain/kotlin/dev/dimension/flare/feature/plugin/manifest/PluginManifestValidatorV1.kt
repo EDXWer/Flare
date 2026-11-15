@@ -210,6 +210,21 @@ public fun PluginManifestV1.validate(methodTable: PluginMethodTableV1? = null): 
                 path,
                 "Capability is missing operations required by the Host interface",
             )
+            if (capabilityId == PluginAbiV1.Capabilities.POST) {
+                val operations = declaration.operations.keys
+                check(
+                    apiVersion >= 2 || operations.none { it in PluginAbiV1.postContextTabOperations },
+                    "capability.version",
+                    path,
+                    "Post context tabs require plugin API v2",
+                )
+                check(
+                    PluginAbiV1.hasPairedPostContextTabOperations(operations),
+                    "capability.incomplete",
+                    path,
+                    "Post context tabs require both contextTabs and contextPage",
+                )
+            }
             declaration.operations.forEach { (operation, config) ->
                 if (operation in knownOperations) {
                     check(config.directions.size <= 3, "capability.directions", "$path.$operation.directions", "Invalid paging directions")

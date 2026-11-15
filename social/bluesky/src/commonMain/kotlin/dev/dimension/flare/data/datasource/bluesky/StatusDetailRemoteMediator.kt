@@ -26,6 +26,7 @@ internal class StatusDetailRemoteMediator(
     private val getService: suspend () -> BlueskyService,
     override val accountKey: MicroBlogKey,
     private val statusOnly: Boolean,
+    private val sort: GetPostThreadV2Sort,
 ) : PostContextLoader {
     override val pagingKey: String =
         buildString {
@@ -36,6 +37,10 @@ internal class StatusDetailRemoteMediator(
             append(statusKey.toString())
             append("_")
             append(accountKey.toString())
+            if (sort != GetPostThreadV2Sort.Top) {
+                append("_")
+                append(sort.value)
+            }
         }
     override val collapseReplyChains: Boolean = false
 
@@ -70,7 +75,7 @@ internal class StatusDetailRemoteMediator(
                                         AtUri(statusKey.id),
                                         branchingFactor = 1,
                                         below = 10,
-                                        sort = GetPostThreadV2Sort.Top,
+                                        sort = sort,
                                     ),
                                 ).requireResponse()
                         context.thread.renderThread(

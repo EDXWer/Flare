@@ -2,6 +2,7 @@ package dev.dimension.flare.data.network.vvo.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlin.time.Instant
 
 @Serializable
 internal data class ProfileData(
@@ -149,6 +150,14 @@ internal data class RepostTimeline(
     @SerialName("hot_total_number")
     val hotTotalNumber: Long? = null,
     val max: Long? = null,
+)
+
+@Serializable
+internal data class StatusLiker(
+    val user: User? = null,
+    @SerialName("created_at")
+    @Serializable(with = VVODateSerializer::class)
+    val createdAt: Instant? = null,
 )
 
 @Serializable

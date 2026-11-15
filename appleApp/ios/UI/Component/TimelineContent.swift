@@ -61,6 +61,7 @@ struct TimelineContent {
     var state: State = .unbound
     var items: [Item?] = []
     var header: UiState<UiTimelineV2>?
+    var leadingPosts: [Item] = []
     var key: AnyHashable?
     var isRefreshing = false
     var footer: Footer = .none
@@ -73,11 +74,18 @@ struct TimelineContent {
         if state == .unbound, let header, case .loading = onEnum(of: header) { return true }
         return false
     }
-    var hasPosts: Bool { kind == .timeline && (state == .loaded || header != nil) }
+    var hasPosts: Bool { kind == .timeline && (state == .loaded || header != nil || !leadingPosts.isEmpty) }
 
-    static func timeline(_ data: PagingState<UiTimelineV2>?, header: UiState<UiTimelineV2>?, key: AnyHashable?) -> Self {
+    static func timeline(
+        _ data: PagingState<UiTimelineV2>?,
+        header: UiState<UiTimelineV2>?,
+        leadingPosts: [UiTimelineV2] = [],
+        key: AnyHashable?
+    ) -> Self {
         var content = adapt(data, kind: .timeline, item: Item.post)
         content.header = header
+        var ids = Set<String>()
+        content.leadingPosts = leadingPosts.map(Item.post).filter { ids.insert($0.id).inserted }
         content.key = key
         return content
     }

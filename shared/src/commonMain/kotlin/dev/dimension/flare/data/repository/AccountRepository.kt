@@ -14,8 +14,10 @@ import dev.dimension.flare.data.database.app.model.DbAccount
 import dev.dimension.flare.data.database.cache.CacheDatabase
 import dev.dimension.flare.data.database.cache.clearHomeTimelinesForAccount
 import dev.dimension.flare.data.database.cache.connect
+import dev.dimension.flare.data.datasource.microblog.ComposeData
 import dev.dimension.flare.data.datasource.microblog.MicroblogDataSource
 import dev.dimension.flare.data.datasource.microblog.UnavailableMicroblogDataSource
+import dev.dimension.flare.data.datasource.microblog.capabilities
 import dev.dimension.flare.data.datastore.AppDataStore
 import dev.dimension.flare.data.model.IconType
 import dev.dimension.flare.model.AccountType
@@ -32,6 +34,7 @@ import dev.dimension.flare.ui.model.UiText
 import dev.dimension.flare.ui.model.asType
 import dev.dimension.flare.ui.model.collectAsUiState
 import dev.dimension.flare.ui.model.takeSuccess
+import dev.dimension.flare.ui.presenter.compose.ComposeStatus
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CancellationException
@@ -39,9 +42,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
@@ -127,6 +133,9 @@ internal class AccountRepository internal constructor(
             }.distinctUntilChanged()
     }
     private val dataSourceCacheMutex = Mutex()
+    private val replyPublications =
+        MutableSharedFlow<Pair<MicroBlogKey, MicroBlogKey>>(extraBufferCapacity = 32, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    internal val publishedReplies = replyPublications.asSharedFlow()
     internal val dataSourceRevisions = MutableStateFlow<Map<MicroBlogKey, Long>>(emptyMap())
     private val dataSourceCache by lazy {
         mutableMapOf<MicroBlogKey, Pair<PlatformSpec, MicroblogDataSource>>()
@@ -458,6 +467,22 @@ internal class AccountRepository internal constructor(
             val previous = dataSourceCacheMutex.withLock { dataSourceCache.remove(account.account_key)?.second }
             if (previous is AutoCloseable) previous.close()
             invalidateCachedContent(account.account_key)
+        }
+    }
+
+    internal suspend fun publish(
+        account: UiAccount,
+        data: ComposeData,
+        progress: () -> Unit,
+    ) {
+        val compose =
+            getOrCreateDataSource(account).capabilities.compose
+                ?: error("Account does not support compose: ${account.accountKey}")
+        compose.compose(data, progress)
+        val reply = data.referenceStatus?.composeStatus as? ComposeStatus.Reply
+        if (reply != null) {
+            val post = if (reply is ComposeStatus.VVOComment) reply.statusKey.copy(id = reply.rootId) else reply.statusKey
+            replyPublications.tryEmit(account.accountKey to post)
         }
     }
 

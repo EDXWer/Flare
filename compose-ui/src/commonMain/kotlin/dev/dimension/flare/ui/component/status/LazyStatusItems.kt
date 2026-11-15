@@ -114,7 +114,10 @@ public fun LazyStaggeredGridScope.status(
                     )
                 }
             }
-            appendStateUI(this@onSuccess)
+            appendStateUI(
+                this@onSuccess,
+                showEndOfList = detailStatusKey == null || itemCount == 0 || peek(0) !is UiTimelineV2.User,
+            )
         }
         pagingError(pagingState)
         onLoading {
@@ -159,7 +162,10 @@ public fun LazyStaggeredGridScope.statusLoadingPlaceholders() {
     }
 }
 
-public fun <T : Any> LazyStaggeredGridScope.appendStateUI(success: PagingState.Success<T>) {
+public fun <T : Any> LazyStaggeredGridScope.appendStateUI(
+    success: PagingState.Success<T>,
+    showEndOfList: Boolean = true,
+) {
     success.appendState
         .onError {
             item(
@@ -183,6 +189,7 @@ public fun <T : Any> LazyStaggeredGridScope.appendStateUI(success: PagingState.S
                 )
             }
         }.onEndOfList {
+            if (!showEndOfList) return@onEndOfList
             item(
                 span = StaggeredGridItemSpan.FullLine,
             ) {

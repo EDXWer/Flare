@@ -313,7 +313,11 @@ private val UiStrings.desktopStringResource: StringResource
 
             UiStrings.QrConnect -> Res.string.ok
 
-            UiStrings.QrLoginNewCode, UiStrings.QrLoginRetrySave -> Res.string.ok
+            UiStrings.Comments, UiStrings.ByPopularity, UiStrings.ByTime, UiStrings.Replies,
+            UiStrings.Quotes, UiStrings.Relevance, UiStrings.Recency, UiStrings.Likes, UiStrings.Oldest,
+            UiStrings.RepostedBy, UiStrings.LikedBy, UiStrings.Reactions, UiStrings.AllReactions,
+            UiStrings.QrLoginNewCode, UiStrings.QrLoginRetrySave,
+            -> Res.string.ok
 
             UiStrings.CredentialImport -> Res.string.ok
 

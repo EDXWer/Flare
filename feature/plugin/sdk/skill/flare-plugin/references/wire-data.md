@@ -151,7 +151,7 @@ website. Presentation nesting is bounded to four levels; see [limits](troublesho
 ## Timeline items and interactions
 
 Every timeline-producing operation returns `PageV1<TimelineItemV1>`, including
-search posts, profile/list timelines, context, comments, recommendations and
+search posts, profile/list timelines, `post.context`, `post.contextPage`, comments, recommendations and
 notifications. Each item has a required `type`: `post`, `feed`, `user`, `userList`,
 or `message`. An unfamiliar string discriminator skips only that item. Missing,
 non-string, or null discriminators and malformed known items remain errors.
