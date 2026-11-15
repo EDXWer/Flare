@@ -258,6 +258,7 @@ public struct CommonProfileHeader: View {
             }
             if let desc = user.description_ {
                 RichText(text: desc)
+                    .lineSpacing(1)
                     .textSelection(.enabled)
             }
 
@@ -488,6 +489,7 @@ public struct FieldsView: View {
                         .flareSecondaryText()
                     if let richText = fields[key] {
                         RichText(text: richText)
+                            .lineSpacing(1)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .font(.body)
                     }

@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isShiftPressed
@@ -71,6 +72,8 @@ import dev.dimension.flare.ui.component.FlareScrollBar
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
 import dev.dimension.flare.ui.component.ProxyMarkdown
 import dev.dimension.flare.ui.component.status.CommonStatusComponent
+import dev.dimension.flare.ui.component.status.LocalStatusBackgroundColor
+import dev.dimension.flare.ui.component.status.StatusComponentDefaults
 import dev.dimension.flare.ui.component.status.UserCompat
 import dev.dimension.flare.ui.model.UiProfile
 import dev.dimension.flare.ui.model.UiTimelineV2
@@ -445,9 +448,12 @@ private fun AgentPostCard(
                 ).background(
                     color = FluentTheme.colors.background.layer.default,
                     shape = RoundedCornerShape(8.dp),
-                ).padding(8.dp),
+                ).padding(StatusComponentDefaults.quotePadding),
     ) {
         CompositionLocalProvider(
+            LocalStatusBackgroundColor provides
+                FluentTheme.colors.background.layer.default
+                    .compositeOver(FluentTheme.colors.background.mica.base),
             LocalTimelineAppearance provides
                 LocalTimelineAppearance.current.copy(
                     showMedia = false,

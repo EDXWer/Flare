@@ -25,13 +25,15 @@ final class StatusActionsUIView: UIView, ManualLayoutMeasurable, TimelineHeightP
     private var data: [ActionMenu] = []
     private var postKey: String?
     private var useText: Bool = false
+    private var isPostContent = false
     private var allowSpacer: Bool = true
     private var postActionStyle: PostActionStyle = .leftAligned
     private var postActionLayout: PostActionLayoutConfig = PostActionLayoutConfig.companion.Default
     private var postActionFixedWidth: Bool = true
     private var showNumbers: Bool = true
     private var metrics = StatusActionLayoutMetrics(fontSize: 13, scale: UIScreen.main.scale)
-    private var textStyle: UIFont.TextStyle = .footnote
+    private var textStyle: UIFont.TextStyle = .body
+    private var preferredContentSizeCategory: UIContentSizeCategory?
     private var itemButtonPool: [ActionItemControl] = []
     private var groupButtonPool: [ActionItemControl] = []
     private var textGroupPool: [ActionGroupColumnView] = []
@@ -56,19 +58,23 @@ final class StatusActionsUIView: UIView, ManualLayoutMeasurable, TimelineHeightP
         applyPostActionLayout: Bool = true,
         showNumbers: Bool,
         isDetail: Bool,
-        postKey: String? = nil
+        postKey: String? = nil,
+        isPostContent: Bool = false,
+        preferredContentSizeCategory: UIContentSizeCategory? = nil
     ) {
         self.data = applyPostActionLayout
             ? castActionMenus(PostActionLayoutHelpers.shared.apply(actions: data, config: postActionLayout))
             : data
         self.useText = useText
+        self.isPostContent = isPostContent
         self.postKey = postKey
         self.allowSpacer = allowSpacer
         self.postActionStyle = postActionStyle
         self.postActionLayout = postActionLayout
         self.postActionFixedWidth = postActionFixedWidth
         self.showNumbers = showNumbers
-        self.textStyle = isDetail ? .body : .footnote
+        self.textStyle = useText && !isDetail ? .footnote : .body
+        self.preferredContentSizeCategory = preferredContentSizeCategory
         updateMetrics()
         self.data = self.data.filter { action in
             if case .divider = onEnum(of: action) { return useText }
@@ -78,7 +84,10 @@ final class StatusActionsUIView: UIView, ManualLayoutMeasurable, TimelineHeightP
     }
 
     private func updateMetrics() {
-        let font = UIFont.preferredFont(forTextStyle: textStyle, compatibleWith: traitCollection)
+        let fontTraits = preferredContentSizeCategory.map {
+            UITraitCollection(traitsFrom: [traitCollection, UITraitCollection(preferredContentSizeCategory: $0)])
+        } ?? traitCollection
+        let font = UIFont.preferredFont(forTextStyle: textStyle, compatibleWith: fontTraits)
         let scale = traitCollection.displayScale > 0 ? traitCollection.displayScale : UIScreen.main.scale
         guard metrics.fontSize != font.pointSize || metrics.scale != scale else { return }
         metrics = StatusActionLayoutMetrics(fontSize: font.pointSize,
@@ -95,7 +104,7 @@ final class StatusActionsUIView: UIView, ManualLayoutMeasurable, TimelineHeightP
     }
 
     private var actionContentColor: UIColor {
-        textStyle == .body || useText ? .label : .secondaryLabel
+        useText ? .label : (isPostContent ? .flarePostSecondaryLabel : .secondaryLabel)
     }
 
     private func rebuild() {

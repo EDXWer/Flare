@@ -28,12 +28,12 @@ public struct TimelineView: View {
                     isDetail: detailStatusKey == post.statusKey,
                     showTranslate: showTranslate,
                     allowsMediaCarousel: true,
-                    carouselOuterHorizontalPadding: 16
+                    carouselOuterHorizontalPadding: 10
                 )
             }
         case .timelinePostItem(let item):
             let bodyPost = item.presentation.repost ?? item.post
-            VStack(spacing: 8) {
+            VStack(spacing: 2) {
                 messageView(item.presentation.message, topMessageOnly: false)
                 StatusView(
                     data: bodyPost,
@@ -42,7 +42,7 @@ public struct TimelineView: View {
                     inlineParents: Array(item.presentation.inlineParents),
                     quotes: Array(item.presentation.quotes),
                     allowsMediaCarousel: true,
-                    carouselOuterHorizontalPadding: 16
+                    carouselOuterHorizontalPadding: 10
                 )
             }
         case .user(let user):
@@ -63,15 +63,17 @@ public struct TimelineView: View {
     @ViewBuilder
     private func messageView(_ message: UiTimelineV2.Message?, topMessageOnly: Bool) -> some View {
         if let message {
+            let isPost = data.timelineContentPost != nil
             StatusTopMessageView(topMessage: message)
                 .if(!fullWidthPost && !topMessageOnly, transform: { view in
-                    view.padding(.leading, 44 - iconSize)
+                    view.padding(.leading, (isPost ? 48 : 44) - iconSize)
                 })
                 .if(!topMessageOnly, transform: { view in
                     view.lineLimit(1)
                         .font(.caption)
                         .flareSecondaryText()
                 })
+                .environment(\.isPostContent, isPost)
         }
     }
 }
@@ -88,6 +90,7 @@ public struct TimelinePlaceholderView: View {
     public var body: some View {
         VStack(
             alignment: .leading,
+            spacing: 2
         ) {
             UserLoadingView()
             Text(
@@ -96,7 +99,11 @@ public struct TimelinePlaceholderView: View {
                     "Donec aliquam sem dui, id facilisis velit luctus eget. Nam ac mattis sapien. " +
                     "Morbi ultrices diam at accumsan hendrerit. Donec vitae venenatis nulla. Nullam condimentum pharetra venenatis."
             )
+            .flarePrimaryText()
         }
+        .font(.body)
+        .lineSpacing(1)
+        .environment(\.isPostContent, true)
         .redacted(reason: .placeholder)
     }
 }

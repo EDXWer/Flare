@@ -98,6 +98,7 @@ import dev.dimension.flare.ui.component.status.AdaptiveCard
 import dev.dimension.flare.ui.component.status.LazyStatusVerticalStaggeredGrid
 import dev.dimension.flare.ui.component.status.ListEmptyView
 import dev.dimension.flare.ui.component.status.MediaItem
+import dev.dimension.flare.ui.component.status.StatusComponentDefaults
 import dev.dimension.flare.ui.component.status.StatusPlaceholder
 import dev.dimension.flare.ui.component.status.status
 import dev.dimension.flare.ui.component.status.statusLoadingPlaceholders
@@ -223,7 +224,7 @@ private fun ProfileLoadingScreen(onBack: () -> Unit) {
             }
             items(5) {
                 StatusPlaceholder(
-                    modifier = Modifier.padding(horizontal = screenHorizontalPadding),
+                    modifier = Modifier.padding(horizontal = StatusComponentDefaults.horizontalPadding),
                 )
             }
         }

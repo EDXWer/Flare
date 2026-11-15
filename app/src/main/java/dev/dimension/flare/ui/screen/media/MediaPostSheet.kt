@@ -68,9 +68,10 @@ import androidx.compose.ui.unit.dp
 import dev.dimension.flare.data.model.PostActionStyle
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
 import dev.dimension.flare.ui.component.status.CommonStatusComponent
+import dev.dimension.flare.ui.component.status.LocalStatusBackgroundColor
+import dev.dimension.flare.ui.component.status.StatusComponentDefaults
 import dev.dimension.flare.ui.component.status.StatusSummaryComponent
 import dev.dimension.flare.ui.model.UiTimelineV2
-import dev.dimension.flare.ui.theme.screenHorizontalPadding
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.launch
 
@@ -199,7 +200,10 @@ internal fun MediaPostSheet(
                     },
                     sheetContent = {
                         if (post != null) {
-                            CompositionLocalProvider(LocalUriHandler provides uriHandler) {
+                            CompositionLocalProvider(
+                                LocalUriHandler provides uriHandler,
+                                LocalStatusBackgroundColor provides BottomSheetDefaults.ContainerColor,
+                            ) {
                                 MediaPostContent(
                                     post = post,
                                     quotes = quotes,
@@ -273,7 +277,7 @@ private fun MediaPostContent(
             val semanticsModifier = if (expanded == (progress >= 0.5f)) Modifier else Modifier.clearAndSetSemantics {}
             val padding =
                 Modifier
-                    .padding(horizontal = screenHorizontalPadding, vertical = 8.dp)
+                    .padding(horizontal = StatusComponentDefaults.horizontalPadding, vertical = 8.dp)
                     .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
             if (expanded) {
                 CommonStatusComponent(

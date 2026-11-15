@@ -67,7 +67,7 @@ final class TimelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightProvid
     }
 
     private var managedChildren: [UIView] = []
-    private static let spacing: CGFloat = 8
+    private var spacing: CGFloat { data is UiTimelineV2.TimelinePostItem ? 2 : 8 }
 
     private let messageView = StatusTopMessageUIView()
     private lazy var messageContainer = MutablePaddingContainerView(content: messageView)
@@ -90,7 +90,16 @@ final class TimelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightProvid
     override func layoutSubviews() {
         super.layoutSubviews()
         let w = bounds.width
-        manualLayoutVertical(views: managedChildren, x: 0, y: 0, width: w, spacing: Self.spacing)
+        manualLayoutVertical(views: managedChildren, x: 0, y: 0, width: w, spacing: spacing)
+    }
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard isUserInteractionEnabled, !isHidden, alpha > 0.01 else { return nil }
+        if statusView.superview === self,
+           let control = statusView.hitTestActions(at: convert(point, to: statusView), with: event) {
+            return control
+        }
+        return super.hitTest(point, with: event)
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {
@@ -99,7 +108,7 @@ final class TimelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightProvid
 
     func timelineHeight(for width: CGFloat) -> CGFloat? {
         guard width > 0, width.isFinite else { return nil }
-        return ceil(manualHeightForVertical(views: managedChildren, width: width, spacing: Self.spacing))
+        return ceil(manualHeightForVertical(views: managedChildren, width: width, spacing: spacing))
     }
 
     override func systemLayoutSizeFitting(
@@ -216,14 +225,14 @@ final class TimelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightProvid
                 showTranslate: showTranslate,
                 aiTldrEnabled: aiTldrEnabled,
                 allowsMediaCarousel: true,
-                carouselOuterHorizontalPadding: 16
+                carouselOuterHorizontalPadding: 10
             )
             desired.append(statusView)
 
         case .timelinePostItem(let item):
             statusViewPreparedForReuse = false
             if let message = item.presentation.message {
-                configureMessage(message, topMessageOnly: false)
+                configureMessage(message, topMessageOnly: false, isPost: true)
                 desired.append(messageContainer)
             }
             let bodyPost = item.presentation.repost ?? item.post
@@ -240,7 +249,7 @@ final class TimelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightProvid
                 inlineParents: Array(item.presentation.inlineParents),
                 quotes: Array(item.presentation.quotes),
                 allowsMediaCarousel: true,
-                carouselOuterHorizontalPadding: 16
+                carouselOuterHorizontalPadding: 10
             )
             desired.append(statusView)
 
@@ -405,14 +414,16 @@ final class TimelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightProvid
         }
     }
 
-    private func configureMessage(_ message: UiTimelineV2.Message, topMessageOnly: Bool) {
+    private func configureMessage(_ message: UiTimelineV2.Message, topMessageOnly: Bool, isPost: Bool = false) {
         messageView.onOpenURL = onOpenURL
-        messageView.configure(message: message, topMessageOnly: topMessageOnly)
+        messageView.configure(message: message, topMessageOnly: topMessageOnly,
+                              postTextContentSizeCategory: isPost ? appearance.preferredContentSizeCategory : nil)
 
         let leading: CGFloat
         if !appearance.fullWidthPost && !topMessageOnly {
-            let iconSize = UIFontMetrics(forTextStyle: .caption1).scaledValue(for: 15)
-            leading = 44 - iconSize
+            let traits = isPost ? UITraitCollection(preferredContentSizeCategory: appearance.preferredContentSizeCategory) : traitCollection
+            let iconSize = UIFontMetrics(forTextStyle: isPost ? .body : .caption1).scaledValue(for: 15, compatibleWith: traits)
+            leading = (isPost ? 48 : 44) - iconSize
         } else {
             leading = 0
         }
@@ -527,7 +538,7 @@ private final class PaddingContainerView: UIView, ManualLayoutMeasurable, Timeli
     }
 }
 
-private final class MutablePaddingContainerView: UIView, ManualLayoutMeasurable, TimelineHeightProviding {
+final class MutablePaddingContainerView: UIView, ManualLayoutMeasurable, TimelineHeightProviding {
     var insets: UIEdgeInsets = .zero {
         didSet {
             invalidateIntrinsicContentSize()

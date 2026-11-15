@@ -908,6 +908,7 @@ private final class DMBubbleView: UIView {
                 isTextSelectionEnabled: false,
                 onOpenURL: onOpenURL,
                 baseTextStyle: .body,
+                lineSpacing: 1,
                 baseTextColor: item.isFromMe ? .white : .flareLabel,
                 preferredContentSizeCategory: appearance.preferredContentSizeCategory,
                 contentKey: item.hash

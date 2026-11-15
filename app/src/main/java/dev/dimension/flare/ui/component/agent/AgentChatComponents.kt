@@ -89,6 +89,8 @@ import dev.dimension.flare.ui.component.LocalTimelineAppearance
 import dev.dimension.flare.ui.component.ProxyMarkdown
 import dev.dimension.flare.ui.component.status.CommonStatusComponent
 import dev.dimension.flare.ui.component.status.ListEmptyView
+import dev.dimension.flare.ui.component.status.LocalStatusBackgroundColor
+import dev.dimension.flare.ui.component.status.StatusComponentDefaults
 import dev.dimension.flare.ui.component.status.UserCompat
 import dev.dimension.flare.ui.model.UiProfile
 import dev.dimension.flare.ui.model.UiTimelineV2
@@ -585,6 +587,7 @@ private fun AgentPostCard(
         color = MaterialTheme.colorScheme.surface,
     ) {
         CompositionLocalProvider(
+            LocalStatusBackgroundColor provides MaterialTheme.colorScheme.surface,
             LocalTimelineAppearance provides
                 LocalTimelineAppearance.current.copy(
                     showMedia = false,
@@ -597,7 +600,7 @@ private fun AgentPostCard(
                 item = post,
                 modifier =
                     Modifier
-                        .padding(8.dp)
+                        .padding(StatusComponentDefaults.quotePadding)
                         .fillMaxWidth(),
                 isQuote = true,
                 maxLines = 3,

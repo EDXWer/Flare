@@ -288,8 +288,9 @@ private struct MacTimelineMasonryRowView: View {
                     TimelinePlaceholderView()
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+            .padding(.horizontal, row.item == nil || row.item?.timelineContentPost != nil ? 10 : 16)
+            .padding(.top, row.item == nil || row.item?.timelineContentPost != nil ? 12 : 8)
+            .padding(.bottom, 8)
         }
         .padding(.horizontal, 2)
         .padding(.vertical, 6)

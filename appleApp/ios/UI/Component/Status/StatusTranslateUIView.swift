@@ -22,6 +22,18 @@ final class StatusTranslateUIView: UIView, TimelineHeightProviding {
             setNeedsHeightUpdate()
         }
     }
+    var preferredContentSizeCategory: UIContentSizeCategory = .medium {
+        didSet {
+            let font = UIFont.preferredFont(forTextStyle: .body, compatibleWith: UITraitCollection(
+                preferredContentSizeCategory: preferredContentSizeCategory
+            ))
+            translateButton.titleLabel?.font = font
+            tldrButton.titleLabel?.font = font
+            contentTranslation.preferredContentSizeCategory = preferredContentSizeCategory
+            contentWarningTranslation.preferredContentSizeCategory = preferredContentSizeCategory
+            summaryResult.preferredContentSizeCategory = preferredContentSizeCategory
+        }
+    }
     var onLocalHeightInvalidated: (() -> Void)?
 
     private let buttonRow = UIView()
@@ -355,6 +367,12 @@ final class StatusTranslateUIView: UIView, TimelineHeightProviding {
 }
 
 private final class TranslationResultView: UIView, TimelineHeightProviding {
+    var preferredContentSizeCategory: UIContentSizeCategory = .medium {
+        didSet {
+            richText.preferredContentSizeCategory = preferredContentSizeCategory
+            textResult.preferredContentSizeCategory = preferredContentSizeCategory
+        }
+    }
     private let richText = RichTextUIView()
     private let textResult = TextResultView()
 
@@ -386,6 +404,9 @@ private final class TranslationResultView: UIView, TimelineHeightProviding {
                 lineLimit: nil,
                 isTextSelectionEnabled: false,
                 onOpenURL: nil,
+                lineSpacing: 1,
+                baseTextColor: .flarePostLabel,
+                preferredContentSizeCategory: preferredContentSizeCategory,
                 contentKey: success.data.toTranslatableText().hashValue
             )
             richText.isHidden = false
@@ -420,6 +441,9 @@ private final class TranslationResultView: UIView, TimelineHeightProviding {
 }
 
 private final class TextResultView: UIView, TimelineHeightProviding {
+    var preferredContentSizeCategory: UIContentSizeCategory = .medium {
+        didSet { label.setPostText(label.text, preferredContentSizeCategory: preferredContentSizeCategory) }
+    }
     private let label = UILabel()
     private let spinner = UIActivityIndicatorView(style: .medium)
     private var isLoading = false
@@ -428,7 +452,7 @@ private final class TextResultView: UIView, TimelineHeightProviding {
         super.init(frame: frame)
         label.numberOfLines = 0
         label.font = .preferredFont(forTextStyle: .body)
-        label.textColor = .flareLabel
+        label.textColor = .flarePostLabel
         addSubview(label)
         addSubview(spinner)
     }
@@ -452,7 +476,7 @@ private final class TextResultView: UIView, TimelineHeightProviding {
     func showText(_ text: String) {
         isLoading = false
         spinner.stopAnimating()
-        label.text = text
+        label.setPostText(text, preferredContentSizeCategory: preferredContentSizeCategory)
         invalidateIntrinsicContentSize()
         setNeedsLayout()
     }

@@ -401,6 +401,7 @@ private struct ArticleBlockView: View {
         switch onEnum(of: block) {
         case .text(let text):
             RichText(text: text.richText)
+                .lineSpacing(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
         case .image(let image):
             ArticleImageBlockView(

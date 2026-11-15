@@ -30,14 +30,14 @@ final class StatusCardUIView: UIView, ManualLayoutMeasurable, TimelineHeightProv
         addSubview(mediaContainer)
 
         titleLabel.numberOfLines = 2
-        titleLabel.textColor = .flareLabel
+        titleLabel.textColor = .flarePostLabel
         titleLabel.font = .preferredFont(forTextStyle: .body)
         titleLabel.adjustsFontForContentSizeCategory = true
         addSubview(titleLabel)
 
         subtitleLabel.numberOfLines = 2
         subtitleLabel.font = .preferredFont(forTextStyle: .caption1)
-        subtitleLabel.textColor = .secondaryLabel
+        subtitleLabel.textColor = .flarePostSecondaryLabel
         subtitleLabel.adjustsFontForContentSizeCategory = true
         addSubview(subtitleLabel)
 
@@ -47,7 +47,7 @@ final class StatusCardUIView: UIView, ManualLayoutMeasurable, TimelineHeightProv
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) not supported") }
 
-    func configure(data: UiCard) {
+    func configure(data: UiCard, preferredContentSizeCategory: UIContentSizeCategory = .medium) {
         self.data = data
 
         if let m = data.media {
@@ -66,11 +66,11 @@ final class StatusCardUIView: UIView, ManualLayoutMeasurable, TimelineHeightProv
             textInsets = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
         }
 
-        titleLabel.text = data.title
+        titleLabel.setPostText(data.title, preferredContentSizeCategory: preferredContentSizeCategory)
         if let desc = data.description_, !desc.isEmpty {
-            subtitleLabel.text = desc
+            subtitleLabel.setPostText(desc, preferredContentSizeCategory: preferredContentSizeCategory)
         } else {
-            subtitleLabel.text = data.url
+            subtitleLabel.setPostText(data.url, preferredContentSizeCategory: preferredContentSizeCategory)
         }
         accessibilityLabel = [data.title, subtitleLabel.text, data.media?.accessibleDescription]
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -184,14 +184,14 @@ final class StatusCompatCardUIView: UIView, ManualLayoutMeasurable, TimelineHeig
         addSubview(mediaWrap)
 
         titleLabel.numberOfLines = 1
-        titleLabel.textColor = .flareLabel
+        titleLabel.textColor = .flarePostLabel
         titleLabel.font = .preferredFont(forTextStyle: .body)
         titleLabel.adjustsFontForContentSizeCategory = true
         addSubview(titleLabel)
 
         subtitleLabel.numberOfLines = 1
         subtitleLabel.font = .preferredFont(forTextStyle: .caption1)
-        subtitleLabel.textColor = .secondaryLabel
+        subtitleLabel.textColor = .flarePostSecondaryLabel
         subtitleLabel.adjustsFontForContentSizeCategory = true
         addSubview(subtitleLabel)
 
@@ -201,7 +201,7 @@ final class StatusCompatCardUIView: UIView, ManualLayoutMeasurable, TimelineHeig
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) not supported") }
 
-    func configure(data: UiCard) {
+    func configure(data: UiCard, preferredContentSizeCategory: UIContentSizeCategory = .medium) {
         self.data = data
         if let m = data.media {
             hasMedia = true
@@ -213,11 +213,11 @@ final class StatusCompatCardUIView: UIView, ManualLayoutMeasurable, TimelineHeig
             mediaWrap.isHidden = true
             textInsets = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
         }
-        titleLabel.text = data.title
+        titleLabel.setPostText(data.title, preferredContentSizeCategory: preferredContentSizeCategory)
         if let desc = data.description_, !desc.isEmpty {
-            subtitleLabel.text = desc
+            subtitleLabel.setPostText(desc, preferredContentSizeCategory: preferredContentSizeCategory)
         } else {
-            subtitleLabel.text = data.url
+            subtitleLabel.setPostText(data.url, preferredContentSizeCategory: preferredContentSizeCategory)
         }
         accessibilityLabel = [data.title, subtitleLabel.text, data.media?.accessibleDescription]
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }

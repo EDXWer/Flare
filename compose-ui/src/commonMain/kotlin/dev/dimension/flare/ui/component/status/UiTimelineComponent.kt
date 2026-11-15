@@ -487,7 +487,7 @@ private fun UserListContent(
                                 shape = PlatformTheme.shapes.medium,
                             ).clip(
                                 shape = PlatformTheme.shapes.medium,
-                            ).padding(8.dp),
+                            ).padding(StatusComponentDefaults.quotePadding),
                     isQuote = true,
                 )
             }
@@ -524,12 +524,15 @@ private fun StatusContent(
                                     item = it.displayPost,
                                     quotes = it.presentation.quotes,
                                     isDetail = false,
+                                    showReplyTo = false,
                                     allowMediaCarousel = true,
-                                    carouselOuterHorizontalPadding = screenHorizontalPadding,
+                                    carouselOuterHorizontalPadding = StatusComponentDefaults.horizontalPadding,
                                     modifier =
                                         Modifier.padding(
-                                            horizontal = screenHorizontalPadding,
-                                            vertical = 8.dp,
+                                            start = StatusComponentDefaults.horizontalPadding,
+                                            top = StatusComponentDefaults.topPadding,
+                                            end = StatusComponentDefaults.horizontalPadding,
+                                            bottom = 8.dp,
                                         ),
                                 )
                             }
@@ -540,14 +543,14 @@ private fun StatusContent(
                             Modifier
                                 .zIndex(-1f)
                                 .padding(
-                                    start = screenHorizontalPadding,
+                                    start = StatusComponentDefaults.horizontalPadding,
                                 ).padding(
-                                    start = AvatarComponentDefaults.size / 2,
+                                    start = StatusComponentDefaults.avatarSize / 2,
                                 ).padding(
-                                    top = AvatarComponentDefaults.size / 2,
+                                    top = StatusComponentDefaults.avatarSize / 2,
                                 ).let {
                                     if (presentation.message == null) {
-                                        it.offset(y = AvatarComponentDefaults.size / 2)
+                                        it.offset(y = StatusComponentDefaults.avatarSize / 2)
                                     } else {
                                         it
                                     }
@@ -585,12 +588,13 @@ private fun StatusContent(
                 TopMessageComponent(
                     data = message,
                     topMessageOnly = false,
+                    isPost = true,
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .padding(top = 8.dp)
+                            .padding(top = StatusComponentDefaults.topPadding)
                             .padding(
-                                horizontal = screenHorizontalPadding,
+                                horizontal = StatusComponentDefaults.horizontalPadding,
                             ),
                 )
             }
@@ -598,13 +602,16 @@ private fun StatusContent(
                 item = post,
                 isDetail = post.statusKey == detailStatusKey,
                 maxLines = Int.MAX_VALUE.takeIf { detailStatusKey?.host == vvoHost },
+                showReplyTo = presentation.inlineParents.isEmpty(),
                 allowMediaCarousel = true,
-                carouselOuterHorizontalPadding = screenHorizontalPadding,
+                carouselOuterHorizontalPadding = StatusComponentDefaults.horizontalPadding,
                 modifier =
                     Modifier
                         .padding(
-                            horizontal = screenHorizontalPadding,
-                            vertical = 8.dp,
+                            horizontal = StatusComponentDefaults.horizontalPadding,
+                        ).padding(
+                            top = if (presentation.message == null) StatusComponentDefaults.topPadding else 2.dp,
+                            bottom = 8.dp,
                         ),
                 quotes = presentation.quotes,
             )
@@ -617,6 +624,7 @@ private fun TopMessageComponent(
     data: UiTimelineV2.Message,
     topMessageOnly: Boolean,
     modifier: Modifier = Modifier,
+    isPost: Boolean = false,
 ) {
     val appearance = LocalTimelineAppearance.current
     val uriHandler = LocalUriHandler.current
@@ -754,14 +762,19 @@ private fun TopMessageComponent(
             icon = icon,
             user = data.user,
             text = text,
+            boldName = isPost,
             color =
-                if (topMessageOnly) {
+                if (isPost) {
+                    StatusComponentDefaults.secondaryColor
+                } else if (topMessageOnly) {
                     PlatformContentColor.current
                 } else {
                     PlatformTheme.colorScheme.caption
                 },
             textStyle =
-                if (topMessageOnly) {
+                if (isPost) {
+                    PlatformTheme.typography.postBody
+                } else if (topMessageOnly) {
                     PlatformTextStyle.current
                 } else {
                     PlatformTheme.typography.caption
@@ -779,7 +792,12 @@ private fun TopMessageComponent(
                     }.let {
                         if (!appearance.fullWidthPost && !topMessageOnly) {
                             it.padding(
-                                start = AvatarComponentDefaults.size - PlatformTheme.typography.caption.fontSize.value.dp,
+                                start =
+                                    if (isPost) {
+                                        StatusComponentDefaults.avatarSize - PlatformTheme.typography.postBody.fontSize.value.dp
+                                    } else {
+                                        AvatarComponentDefaults.size - PlatformTheme.typography.caption.fontSize.value.dp
+                                    },
                             )
                         } else {
                             it

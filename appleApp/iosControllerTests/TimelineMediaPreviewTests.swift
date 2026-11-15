@@ -68,7 +68,7 @@ final class TimelineMediaPreviewTests: XCTestCase {
                 let bounds = try cyanBounds(screenshot)
                 XCTAssertEqual(bounds.width, tall ? 400 * 9 / 21 : 400 * 9 / 16, accuracy: 2)
                 XCTAssertEqual(bounds.height, 400, accuracy: 2)
-                XCTAssertEqual(bounds.minX, 16 + 44 + 8, accuracy: 2, "Keep the existing avatar/content indentation")
+                XCTAssertEqual(bounds.minX, 16 + 48 + 8, accuracy: 2, "Keep media aligned with the 48pt avatar and 8pt gap")
             }
         }
     }
@@ -137,10 +137,10 @@ final class TimelineMediaPreviewTests: XCTestCase {
                 }
                 let bounds = try cyanBounds(screenshot)
                 let limited = appearance.limitSingleMediaHeight && appearance.expandMediaSize
-                XCTAssertEqual(bounds.width, limited ? 112.5 : 308, accuracy: 2, "\(renderer), step \(index)")
-                XCTAssertEqual(bounds.height, limited ? 200 : (appearance.expandMediaSize ? 308 * 16 / 9 : 308 * 9 / 16),
+                XCTAssertEqual(bounds.width, limited ? 112.5 : 304, accuracy: 2, "\(renderer), step \(index)")
+                XCTAssertEqual(bounds.height, limited ? 200 : (appearance.expandMediaSize ? 304 * 16 / 9 : 304 * 9 / 16),
                                accuracy: 2, "\(renderer), step \(index)")
-                XCTAssertEqual(bounds.minX, 68, accuracy: 2)
+                XCTAssertEqual(bounds.minX, 72, accuracy: 2)
                 if let native {
                     XCTAssertEqual(native.bounds.height, native.timelineHeight(for: 360) ?? 0, accuracy: 1)
                 }

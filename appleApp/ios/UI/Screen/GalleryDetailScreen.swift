@@ -433,6 +433,7 @@ private struct GalleryInfoCard: View {
                 GalleryMetadataRow(detail: detail)
                 if let content = detail.content {
                     RichText(text: content)
+                        .lineSpacing(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
                 }

@@ -802,6 +802,7 @@ private struct MacDMMessageRow: View {
         switch onEnum(of: item.content) {
         case .text(let message):
             RichText(text: message.text)
+                .lineSpacing(1)
                 .padding(.horizontal, 13)
                 .padding(.vertical, 9)
                 .foregroundStyle(item.isFromMe ? Color.white : Color.primary)

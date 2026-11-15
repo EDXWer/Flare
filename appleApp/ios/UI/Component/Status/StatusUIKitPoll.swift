@@ -23,12 +23,12 @@ final class StatusPollUIView: UIView, ManualLayoutMeasurable, TimelineHeightProv
     override init(frame: CGRect) {
         super.init(frame: frame)
         expiredLabel.font = .preferredFont(forTextStyle: .caption1)
-        expiredLabel.textColor = .secondaryLabel
+        expiredLabel.textColor = .flarePostSecondaryLabel
         expiredLabel.adjustsFontForContentSizeCategory = true
         expiredLabel.text = String(localized: "poll_expired")
 
         expiresAtLabel.font = .preferredFont(forTextStyle: .caption1)
-        expiresAtLabel.textColor = .secondaryLabel
+        expiresAtLabel.textColor = .flarePostSecondaryLabel
         expiresAtLabel.adjustsFontForContentSizeCategory = true
         expiresAtLabel.text = String(localized: "poll_expires_at")
 
@@ -39,7 +39,11 @@ final class StatusPollUIView: UIView, ManualLayoutMeasurable, TimelineHeightProv
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) not supported") }
 
-    func configure(data: UiPoll, absoluteTimestamp: Bool) {
+    func configure(data: UiPoll, absoluteTimestamp: Bool, preferredContentSizeCategory: UIContentSizeCategory = .medium) {
+        expiredLabel.setPostText(String(localized: "poll_expired"), preferredContentSizeCategory: preferredContentSizeCategory)
+        expiresAtLabel.setPostText(String(localized: "poll_expires_at"), preferredContentSizeCategory: preferredContentSizeCategory)
+        expiresAtTime.postTextContentSizeCategory = preferredContentSizeCategory
+        voteButton.titleLabel?.font = expiredLabel.font
         self.data = data
         self.selectedOption = []
 
@@ -51,7 +55,7 @@ final class StatusPollUIView: UIView, ManualLayoutMeasurable, TimelineHeightProv
                     buttonPool.append(PollOptionButton())
                 }
                 let row = buttonPool[index]
-                row.configure(index: index, title: option.title)
+                row.configure(index: index, title: option.title, preferredContentSizeCategory: preferredContentSizeCategory)
                 row.onToggle = { [weak self] idx in
                     guard let self, let data = self.data else { return }
                     if data.multiple {
@@ -75,7 +79,8 @@ final class StatusPollUIView: UIView, ManualLayoutMeasurable, TimelineHeightProv
                     title: option.title,
                     percentage: option.percentage,
                     humanizedPercentage: option.humanizedPercentage,
-                    isOwnVote: data.ownVotes.contains(KotlinInt(value: Int32(index)))
+                    isOwnVote: data.ownVotes.contains(KotlinInt(value: Int32(index))),
+                    preferredContentSizeCategory: preferredContentSizeCategory
                 )
                 optionDesired.append(row)
             }
@@ -192,12 +197,12 @@ private final class PollOptionButton: UIControl, ManualLayoutMeasurable, Timelin
         addSubview(bg)
 
         titleLabel.font = .preferredFont(forTextStyle: .caption1)
-        titleLabel.textColor = .flareLabel
+        titleLabel.textColor = .flarePostLabel
         titleLabel.adjustsFontForContentSizeCategory = true
         titleLabel.numberOfLines = 0
         titleLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
-        checkmark.tintColor = .secondaryLabel
+        checkmark.tintColor = .flarePostSecondaryLabel
         checkmark.contentMode = .scaleAspectFit
         checkmark.setContentHuggingPriority(.required, for: .horizontal)
 
@@ -210,9 +215,9 @@ private final class PollOptionButton: UIControl, ManualLayoutMeasurable, Timelin
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) not supported") }
 
-    func configure(index: Int, title: String) {
+    func configure(index: Int, title: String, preferredContentSizeCategory: UIContentSizeCategory) {
         self.index = index
-        titleLabel.text = title
+        titleLabel.setPostText(title, preferredContentSizeCategory: preferredContentSizeCategory)
         accessibilityLabel = title
         setSelected(false)
         invalidateIntrinsicContentSize()
@@ -294,17 +299,17 @@ private final class PollOptionResultView: UIView, ManualLayoutMeasurable, Timeli
     override init(frame: CGRect) {
         super.init(frame: frame)
         titleLabel.font = .preferredFont(forTextStyle: .caption1)
-        titleLabel.textColor = .flareLabel
+        titleLabel.textColor = .flarePostLabel
         titleLabel.adjustsFontForContentSizeCategory = true
         titleLabel.numberOfLines = 0
         titleLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
-        check.tintColor = .label
+        check.tintColor = .flarePostLabel
         check.contentMode = .scaleAspectFit
         check.setContentHuggingPriority(.required, for: .horizontal)
 
         pct.font = .preferredFont(forTextStyle: .caption1)
-        pct.textColor = .secondaryLabel
+        pct.textColor = .flarePostSecondaryLabel
         pct.adjustsFontForContentSizeCategory = true
         pct.setContentHuggingPriority(.required, for: .horizontal)
 
@@ -317,9 +322,10 @@ private final class PollOptionResultView: UIView, ManualLayoutMeasurable, Timeli
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) not supported") }
 
-    func configure(title: String, percentage: Float, humanizedPercentage: String, isOwnVote: Bool) {
-        titleLabel.text = title
-        pct.text = humanizedPercentage
+    func configure(title: String, percentage: Float, humanizedPercentage: String, isOwnVote: Bool,
+                   preferredContentSizeCategory: UIContentSizeCategory) {
+        titleLabel.setPostText(title, preferredContentSizeCategory: preferredContentSizeCategory)
+        pct.setPostText(humanizedPercentage, preferredContentSizeCategory: preferredContentSizeCategory)
         progress.progress = percentage
         check.isHidden = !isOwnVote
         accessibilityLabel = title

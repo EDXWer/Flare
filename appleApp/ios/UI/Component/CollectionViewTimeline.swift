@@ -2030,7 +2030,10 @@ final class UITimelineCollectionViewController: UIViewController, UICollectionVi
         layout collectionViewLayout: UICollectionViewLayout,
         minimumInteritemSpacingForSectionAt section: Int
     ) -> CGFloat {
-        guard contentKind == .profileMedia else { return columnCount == 1 ? TimelineUIKitLayoutMetrics.rowSpacing : 0 }
+        guard contentKind == .profileMedia else {
+            if contentKind == .timeline && appearance.isPlainTimelineDisplayMode { return 0 }
+            return columnCount == 1 ? TimelineUIKitLayoutMetrics.rowSpacing : 0
+        }
         switch sectionIdentifier(at: section) {
         case Self.sectionAccessories: return 2
         case Self.sectionMain: return 8

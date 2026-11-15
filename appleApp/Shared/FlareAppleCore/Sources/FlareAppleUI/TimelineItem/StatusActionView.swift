@@ -21,10 +21,8 @@ public struct StatusActionsView: View {
     @Environment(\.timelineAppearance.postActionFixedWidth) private var postActionFixedWidth
     @Environment(\.openURL) private var openURL
     #if os(macOS)
-    @ScaledMetric(relativeTo: .callout) private var fontSize = NSFont.preferredFont(forTextStyle: .callout).pointSize
     @ScaledMetric(relativeTo: .body) private var bodyFontSize = NSFont.preferredFont(forTextStyle: .body).pointSize
     #else
-    @ScaledMetric(relativeTo: .footnote) private var fontSize = 13
     @ScaledMetric(relativeTo: .body) private var bodyFontSize = 17
     #endif
     private let data: [ActionMenu]
@@ -32,7 +30,6 @@ public struct StatusActionsView: View {
     private let allowSpacer: Bool
     private let applyPostActionLayout: Bool
     private let topPadding: CGFloat
-    private let isDetail: Bool
     private let postKey: String?
     @Environment(\.displayScale) private var displayScale
 
@@ -50,13 +47,12 @@ public struct StatusActionsView: View {
         self.allowSpacer = allowSpacer
         self.applyPostActionLayout = applyPostActionLayout
         self.topPadding = topPadding
-        self.isDetail = isDetail
         self.postKey = postKey
     }
 
     public var body: some View {
         Group {
-            let metrics = StatusActionLayoutMetrics(fontSize: isDetail || useText ? bodyFontSize : fontSize, scale: displayScale)
+            let metrics = StatusActionLayoutMetrics(fontSize: bodyFontSize, scale: displayScale)
             let actions = resolvedData.filter { action in
                 if case .divider = onEnum(of: action) { return useText }
                 return true
@@ -78,11 +74,12 @@ public struct StatusActionsView: View {
                     }
                 }
                 .font(.system(size: metrics.fontSize))
+                .flareSecondaryText()
                 .padding(.top, topPadding)
             }
         }
         #if os(iOS)
-        .environment(\.flareTextRole, isDetail || useText ? .primary : .secondary)
+        .environment(\.flareTextRole, useText ? .primary : .secondary)
         #endif
     }
 
