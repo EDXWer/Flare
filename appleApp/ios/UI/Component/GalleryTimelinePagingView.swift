@@ -1128,11 +1128,13 @@ private final class GalleryPostTileUIView: UIView, UIGestureRecognizerDelegate {
         ])
 
         bodyText.baseTextStyle = .subheadline
+        bodyText.lineSpacing = 1
         bodyText.lineLimit = 5
         bodyText.fixedVertical = true
         bodyText.setContentHuggingPriority(.required, for: .vertical)
         bodyText.setContentCompressionResistancePriority(.required, for: .vertical)
         bodyTranslationText.baseTextStyle = .subheadline
+        bodyTranslationText.lineSpacing = 1
         bodyTranslationText.lineLimit = 5
         bodyTranslationText.fixedVertical = true
         bodyTranslationText.setContentHuggingPriority(.required, for: .vertical)

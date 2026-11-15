@@ -49,6 +49,7 @@ private fun UserField(
         )
         RichText(
             text = value,
+            useBodySpacing = true,
         )
     }
 }
