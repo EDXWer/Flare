@@ -778,9 +778,12 @@ class ImageTranslationRepositoryTest {
                             ImageTranslationPresenter().body() to ImageTranslationSettingsPresenter().body()
                         }
                     try {
-                        var state = models.first { it.second.config.value("model") == "first-image-model" }.first
+                        var state =
+                            models.first { it.first.configured && it.second.config.value("model") == "first-image-model" }.first
                         state.toggle(f.media)
                         firstStarted.await()
+                        // The adapter can start before the presenter publishes its loading state.
+                        models.first { it.first.item(f.media).loading }
                         store.appSettingsStore.updateData {
                             it.copy(
                                 aiConfig = it.aiConfig.copy(type = basic.copy(model = "second-image-model")),
