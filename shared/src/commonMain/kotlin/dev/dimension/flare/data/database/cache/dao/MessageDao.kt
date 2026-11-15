@@ -74,6 +74,19 @@ internal interface MessageDao {
     @Query("SELECT * FROM DbMessageItem WHERE roomKey = :roomKey AND isLocal = 0 ORDER BY timestamp DESC")
     suspend fun getLatestMessage(roomKey: MicroBlogKey): DbMessageItem?
 
+    @Query(
+        """
+        SELECT remoteCursor FROM DbMessageItem
+        WHERE roomKey = :roomKey AND isLocal = 0 AND (:requireNonNull = 0 OR remoteCursor IS NOT NULL)
+        ORDER BY timestamp DESC
+        LIMIT 1
+        """,
+    )
+    suspend fun getLatestRemoteCursor(
+        roomKey: MicroBlogKey,
+        requireNonNull: Boolean,
+    ): String?
+
     @Query("DELETE FROM DbDirectMessageTimeline WHERE accountType = :accountType")
     suspend fun clearMessageTimeline(accountType: DbAccountType)
 

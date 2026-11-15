@@ -14,6 +14,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.HttpRequestBuilder
+import io.ktor.http.encodedPath
 import kotlinx.serialization.json.Json
 import kotlin.experimental.ExperimentalObjCRefinement
 import kotlin.native.HiddenFromObjC
@@ -57,7 +58,7 @@ public fun ktorClient(
         install(Logging) {
             logger = FlareLogger
             filter {
-                (BuildConfig.debug || DebugRepository.isEnabled) && !it.isMediaUpload()
+                (BuildConfig.debug || DebugRepository.isEnabled) && !it.isMediaUpload() && !it.isPrivateWeiboRequest()
             }
             level =
                 if (BuildConfig.debug) {
@@ -69,6 +70,10 @@ public fun ktorClient(
     }
 
 internal val httpClientEngine: HttpClientEngine get() = ProxyRoutingEngine(ProxyRef.Global)
+
+internal fun HttpRequestBuilder.isPrivateWeiboRequest(): Boolean =
+    url.host == "m.weibo.cn" &&
+        url.encodedPath in setOf("/message/msglist", "/api/chat/list", "/api/chat/send", "/api/config", "/api/remind/unread")
 
 // Logging's BODY mode collects the entire outgoing stream. Keep upload payloads out of it,
 // including X's base64 form chunks and the authenticated retry of a Bluesky upload.

@@ -621,6 +621,10 @@
     <string name="dm_deleted">Deleted message</string>
     <string name="dm_conversation">Direct message conversation</string>
     <string name="dm_sending">Sending…</string>
+    <string name="dm_add_image">Attach image</string>
+    <string name="dm_remove_image">Remove image</string>
+    <string name="dm_image_attached">Image attached</string>
+    <string name="dm_image_send_failed">Could not send image. Try again.</string>
     <string name="dm_leave">Leave conversation</string>
     <string name="dm_to_profile">Open profile</string>
 

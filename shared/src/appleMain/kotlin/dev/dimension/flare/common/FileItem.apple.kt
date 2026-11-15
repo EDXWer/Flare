@@ -35,8 +35,21 @@ public actual class FileItem internal constructor(
         mimeType: String? = null,
     ) : this(
         name = name,
-        source = { FileSystem.SYSTEM.source(path.toPath()) },
-        size = { FileSystem.SYSTEM.metadata(path.toPath()).size },
+        pathProvider = { path },
+        type = type,
+        mimeType = mimeType,
+    )
+
+    /** Retains the provider so streamed uploads can reopen files owned by Swift. */
+    public constructor(
+        name: String?,
+        pathProvider: () -> String,
+        type: FileType,
+        mimeType: String? = null,
+    ) : this(
+        name = name,
+        source = { FileSystem.SYSTEM.source(pathProvider().toPath()) },
+        size = { FileSystem.SYSTEM.metadata(pathProvider().toPath()).size },
         type = type,
         mimeType = mimeType,
     )
