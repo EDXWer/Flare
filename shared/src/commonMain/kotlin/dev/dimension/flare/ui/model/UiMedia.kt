@@ -98,6 +98,7 @@ public sealed interface UiMedia {
         override val downloadUrl: String? = null,
         // shortcut: legacy cached media defaults to video until the next source refresh restores its kind.
         val kind: Kind = Kind.Video,
+        val livePhotoCoverUrl: String? = null,
     ) : UiMedia {
         @Serializable
         public enum class Kind {
@@ -105,6 +106,9 @@ public sealed interface UiMedia {
             Gif,
             LivePhoto,
         }
+
+        val livePhotoCover: Image?
+            get() = if (kind == Kind.LivePhoto) livePhotoCoverUrl.toUiImage(proxy = proxy) else null
 
         val aspectRatio: Float
             get() = (width / (height.takeUnless { it == 0f } ?: 1f)).takeUnless { it == 0f } ?: 1f

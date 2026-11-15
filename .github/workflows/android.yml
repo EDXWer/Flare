@@ -312,6 +312,7 @@ jobs:
             -only-testing:TimelineControllerTests/TimelineMediaPreviewTests/testSwiftUIMediaKeepsItsInitialHeightWhenLazyRowsAppearAndReturn \
             -only-testing:TimelineControllerTests/TimelineMediaPreviewTests/testSwiftUIMediaIgnoresPlaybackViewportAndChromeInsetsButRespondsToResize \
             -only-testing:iOSTests/VideoPlaybackSessionTests \
+            -only-testing:iOSTests/LivePhotoExportTests \
             -only-testing:iOSTests/MediaPlaybackMemoryTests \
             -only-testing:iOSTests/TimelinePlaybackCoordinatorTests \
             -only-testing:iOSTests/MediaTransferCancellationTests \
