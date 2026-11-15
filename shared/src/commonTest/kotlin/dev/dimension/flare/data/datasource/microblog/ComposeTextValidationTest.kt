@@ -14,6 +14,16 @@ import kotlin.test.assertFalse
 
 class ComposeTextValidationTest {
     @Test
+    fun unsupportedPollNeverReachesThePlatformPublishHook() =
+        runTest {
+            val source = TestComposeSource(ComposeConfig.Text(100))
+            val post = ComposeData("Which option?", poll = ComposeData.Poll(listOf("A", "B"), 300_000L, multiple = false))
+
+            assertFailsWith<IllegalArgumentException> { source.compose(post) {} }
+            assertEquals(0, source.published)
+        }
+
+    @Test
     fun unsupportedModesNeverReachThePlatformPublishHook() =
         runTest {
             val source = TestComposeSource(ComposeConfig.Text(100), supportedTypes = setOf(ComposeType.New, ComposeType.Reply))

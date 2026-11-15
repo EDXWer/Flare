@@ -63,12 +63,17 @@ public final class ComposePollViewModel {
         }
     }
 
-    public func makeComposePoll() -> ComposeData.Poll? {
+    public func canSend(config: ComposeConfig.Poll?) -> Bool {
+        guard enabled else { return true }
+        return config?.canPublishOptions(options: choices.map(\.text)) == true
+    }
+
+    public func makeComposePoll(allowsMultiple: Bool) -> ComposeData.Poll? {
         guard enabled else { return nil }
         return ComposeData.Poll(
             options: choices.map(\.text),
             expiredAfter: expired.inWholeMilliseconds,
-            multiple: pollType == .multiple
+            multiple: allowsMultiple && pollType == .multiple
         )
     }
 
@@ -172,28 +177,34 @@ public enum ComposePollExpiration: String, CaseIterable, Hashable, Identifiable 
 
 public struct ComposePollSection: View {
     @Bindable private var viewModel: ComposePollViewModel
+    private let config: ComposeConfig.Poll?
     private let maxChoices: Int
 
     public init(
         viewModel: ComposePollViewModel,
-        maxChoices: Int = ComposePollViewModel.defaultMaxChoiceCount
+        config: ComposeConfig.Poll?
     ) {
         self.viewModel = viewModel
-        self.maxChoices = max(ComposePollViewModel.minimumChoiceCount, maxChoices)
+        self.config = config
+        self.maxChoices = config.map { Int($0.maxOptions) } ?? ComposePollViewModel.defaultMaxChoiceCount
     }
 
     public var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
-                Picker(selection: $viewModel.pollType) {
-                    Text("compose_poll_type_single", bundle: FlareAppleUILocalization.bundle)
-                        .tag(ComposePollType.single)
-                    Text("compose_poll_type_multiple", bundle: FlareAppleUILocalization.bundle)
-                        .tag(ComposePollType.multiple)
-                } label: {
-                    Text("compose_poll_type", bundle: FlareAppleUILocalization.bundle)
+                if config?.allowsMultiple == true {
+                    Picker(selection: $viewModel.pollType) {
+                        Text("compose_poll_type_single", bundle: FlareAppleUILocalization.bundle)
+                            .tag(ComposePollType.single)
+                        Text("compose_poll_type_multiple", bundle: FlareAppleUILocalization.bundle)
+                            .tag(ComposePollType.multiple)
+                    } label: {
+                        Text("compose_poll_type", bundle: FlareAppleUILocalization.bundle)
+                    }
+                    .pickerStyle(.segmented)
+                } else {
+                    Spacer()
                 }
-                .pickerStyle(.segmented)
 
                 Button {
                     withAnimation {
@@ -204,6 +215,22 @@ public struct ComposePollSection: View {
                 }
                 .accessibilityLabel(Text("compose_add_poll_option", bundle: FlareAppleUILocalization.bundle))
                 .disabled(!viewModel.canAdd(maxChoices: maxChoices))
+            }
+
+            if config == nil {
+                Text("compose_poll_unsupported_accounts", bundle: FlareAppleUILocalization.bundle)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else if let limit = config?.maxOptionLength {
+                Text(String(
+                    localized: "compose_poll_option_limits",
+                    defaultValue: "Enter 2 to \(maxChoices) choices, up to \(Int(truncating: limit)) characters each.",
+                    bundle: FlareAppleUILocalization.bundle
+                ))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             ForEach($viewModel.choices) { $choice in

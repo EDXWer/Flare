@@ -27,6 +27,7 @@ public interface ComposeDataSource : AuthenticatedMicroblogDataSource {
         // ponytail: Use cached/default limits like the editor; add provider expiry if stale limits cause failures.
         val config = composeConfig(data.type)
         require(data.type in config.supportedTypes) { "This account does not support ${data.type.name.lowercase()} posts." }
+        require(data.poll == null || config.poll != null) { "This account does not support polls for this post." }
         val visibility = data.visibility ?: config.visibility?.defaultVisibility ?: UiTimelineV2.Post.Visibility.Public
         require(
             config.visibility?.allVisibilities?.contains(visibility)

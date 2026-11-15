@@ -98,7 +98,9 @@ import dev.dimension.flare.compose_poll_expiration_7_days
 import dev.dimension.flare.compose_poll_expiration_at
 import dev.dimension.flare.compose_poll_multiple_choice
 import dev.dimension.flare.compose_poll_option_hint
+import dev.dimension.flare.compose_poll_option_limits
 import dev.dimension.flare.compose_poll_single_choice
+import dev.dimension.flare.compose_poll_unsupported_accounts
 import dev.dimension.flare.compose_remove_media
 import dev.dimension.flare.compose_remove_poll_option
 import dev.dimension.flare.compose_select_accounts
@@ -106,8 +108,14 @@ import dev.dimension.flare.compose_select_accounts_current
 import dev.dimension.flare.compose_send
 import dev.dimension.flare.compose_show_emoji_picker
 import dev.dimension.flare.compose_video_no_alt
+import dev.dimension.flare.compose_x_reply_everyone
+import dev.dimension.flare.compose_x_reply_following
+import dev.dimension.flare.compose_x_reply_mentioned
+import dev.dimension.flare.compose_x_reply_restriction
+import dev.dimension.flare.compose_x_reply_verified
 import dev.dimension.flare.data.datasource.microblog.ComposeConfig
 import dev.dimension.flare.data.datasource.microblog.ComposeData
+import dev.dimension.flare.data.datasource.microblog.ComposeReplyRestriction
 import dev.dimension.flare.data.model.PostActionStyle
 import dev.dimension.flare.draft_box_title
 import dev.dimension.flare.media_save
@@ -658,7 +666,7 @@ fun ComposeDialog(
                     }
                 }
             }
-            state.pollState.onSuccess { pollState ->
+            state.pollState.let { pollState ->
                 AnimatedVisibility(pollState.enabled) {
                     Column(
                         modifier =
@@ -672,10 +680,14 @@ fun ComposeDialog(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             val items =
-                                mapOf(
-                                    true to stringResource(Res.string.compose_poll_single_choice),
-                                    false to stringResource(Res.string.compose_poll_multiple_choice),
-                                )
+                                if (pollState.allowsMultiple) {
+                                    mapOf(
+                                        true to stringResource(Res.string.compose_poll_single_choice),
+                                        false to stringResource(Res.string.compose_poll_multiple_choice),
+                                    )
+                                } else {
+                                    emptyMap()
+                                }
                             Row(
                                 modifier =
                                     Modifier
@@ -707,6 +719,15 @@ fun ComposeDialog(
                                     modifier = Modifier.size(16.dp),
                                 )
                             }
+                        }
+                        if (!pollState.isSupported) {
+                            Text(text = stringResource(Res.string.compose_poll_unsupported_accounts), style = FluentTheme.typography.caption)
+                        }
+                        pollState.maxOptionLength?.let { limit ->
+                            Text(
+                                text = stringResource(Res.string.compose_poll_option_limits, pollState.maxOptions, limit),
+                                style = FluentTheme.typography.caption,
+                            )
                         }
                         pollState.options.forEachIndexed { index, textFieldState ->
                             PollOption(
@@ -749,6 +770,27 @@ fun ComposeDialog(
                                 )
                             }
                         }
+                    }
+                }
+            }
+
+            state.state.replyRestriction?.let { restriction ->
+                MenuFlyoutContainer(
+                    modifier = Modifier.padding(horizontal = screenHorizontalPadding),
+                    flyout = {
+                        ComposeReplyRestriction.entries.forEach { option ->
+                            MenuFlyoutItem(
+                                text = { Text(stringResource(option.labelRes)) },
+                                onClick = {
+                                    state.state.setReplyRestriction(option)
+                                    isFlyoutVisible = false
+                                },
+                            )
+                        }
+                    },
+                ) {
+                    SubtleButton(onClick = { isFlyoutVisible = true }) {
+                        Text(stringResource(Res.string.compose_x_reply_restriction, stringResource(restriction.labelRes)))
                     }
                 }
             }
@@ -833,7 +875,7 @@ fun ComposeDialog(
                         }
                     }
                 }
-                state.pollState.onSuccess {
+                state.pollState.takeIf { it.isSupported || it.enabled }?.let {
                     SubtleButton(
                         onClick = {
                             it.togglePoll()
@@ -1163,13 +1205,7 @@ private fun composePresenter(
             ?.let { UiState.Success(it) }
             ?: UiState.Loading()
 
-    val pollState =
-        state.composeConfig
-            .mapNotNull {
-                it.poll
-            }.map {
-                pollPresenter(it)
-            }
+    val pollState = pollPresenter(state.pollConfig)
 
     val mediaState =
         state.composeConfig
@@ -1226,7 +1262,6 @@ private fun composePresenter(
         val canApplyDraft =
             (composeConfig?.visibility == null || state.visibilityState.takeSuccess() != null) &&
                 (composeConfig?.media == null || mediaState is UiState.Success) &&
-                (composeConfig?.poll == null || pollState is UiState.Success) &&
                 (composeConfig?.contentWarning == null || contentWarningState is UiState.Success) &&
                 (composeConfig?.language == null || languageState is UiState.Success)
         LaunchedEffect(draft.groupId, draft.updatedAt, canApplyDraft) {
@@ -1240,29 +1275,22 @@ private fun composePresenter(
             }
             mediaState.takeSuccess()?.replaceMedias(draft.medias)
             mediaState.takeSuccess()?.setMediaSensitive(draft.data.sensitive)
-            pollState.takeSuccess()?.setPoll(draft.data.poll)
+            pollState.setPoll(draft.data.poll)
             contentWarningState.takeSuccess()?.setText(draft.data.spoilerText)
             languageState.takeSuccess()?.setSelectedLanguages(draft.data.language)
             state.consumeLoadedDraft()
         }
     }
 
-    val canPoll =
-        remember(mediaState) {
-            mediaState !is UiState.Success || mediaState.data.medias.isEmpty()
-        }
-    val canMedia =
-        remember(mediaState, pollState) {
-            (mediaState is UiState.Success && mediaState.data.canAddMedia) &&
-                !(pollState is UiState.Success && pollState.data.enabled)
-        }
+    val canPoll = pollState.enabled || mediaState.takeSuccess()?.medias.isNullOrEmpty()
+    val canMedia = mediaState.takeSuccess()?.canAddMedia == true && !pollState.enabled
     object {
         val remainingLength =
             remainingLength.map {
                 it.toString()
             }
         val textFieldState = textFieldState
-        val canSend = state.canSend
+        val canSend = state.canSend && pollState.canSend
         val canPoll = canPoll
         val canMedia = canMedia
         val pollState = pollState
@@ -1277,7 +1305,7 @@ private fun composePresenter(
             }
         }
 
-        val hasTextContent = textFieldState.text.toString().isNotBlank()
+        val hasTextContent = textFieldState.text.toString().isNotBlank() || pollState.enabled
 
         fun buildComposeData() =
             ComposeData(
@@ -1293,7 +1321,7 @@ private fun composePresenter(
                         )
                     },
                 poll =
-                    pollState.takeSuccess()?.takeIf { it.enabled }?.let {
+                    pollState.takeIf { it.enabled }?.let {
                         ComposeData.Poll(
                             multiple = !it.pollSingleChoice,
                             expiredAfter = it.expiredAt.duration.inWholeMilliseconds,
@@ -1306,6 +1334,7 @@ private fun composePresenter(
                 sensitive = mediaState.takeSuccess()?.isMediaSensitive ?: false,
                 spoilerText = spoilerText,
                 visibility = state.visibility,
+                replyRestriction = state.replyRestriction,
                 referenceStatus =
                     state.composeStatus?.let {
                         ComposeData.ReferenceStatus(
@@ -1324,7 +1353,7 @@ private fun composePresenter(
                         this.delete(0, this.length)
                     }
                     mediaState.takeSuccess()?.clear()
-                    pollState.takeSuccess()?.clear()
+                    pollState.clear()
                     contentWarningState.takeSuccess()?.clear()
                     state.visibilityState.takeSuccess()?.clear()
                     onDispatched()
@@ -1457,7 +1486,7 @@ private fun createMediaData(
 )
 
 @Composable
-private fun pollPresenter(config: ComposeConfig.Poll) =
+private fun pollPresenter(config: ComposeConfig.Poll?) =
     run {
         var enabled by remember {
             mutableStateOf(false)
@@ -1471,16 +1500,16 @@ private fun pollPresenter(config: ComposeConfig.Poll) =
         var expiredAt by remember {
             mutableStateOf(PollExpiration.Minutes5)
         }
-        val canAddPollOption =
-            remember(options) {
-                options.size < config.maxOptions
-            }
-
         object {
             val enabled = enabled
             val options = options.toImmutableList()
-            val pollSingleChoice = pollSingleChoice
-            val canAddPollOption = canAddPollOption
+            val isSupported = config != null
+            val allowsMultiple = config?.allowsMultiple != false
+            val maxOptions = config?.maxOptions ?: 0
+            val maxOptionLength = config?.maxOptionLength
+            val pollSingleChoice = !allowsMultiple || pollSingleChoice
+            val canAddPollOption = options.size < maxOptions
+            val canSend = !enabled || config?.canPublishOptions(options.map { it.text.toString() }) == true
             val expiredAt = expiredAt
 
             fun togglePoll() {
@@ -1524,7 +1553,7 @@ private fun pollPresenter(config: ComposeConfig.Poll) =
                             } else {
                                 current
                             }
-                        }.take(config.maxOptions)
+                        }
                 pollSingleChoice = !value.multiple
                 expiredAt = PollExpiration.fromDuration(value.expiredAfter)
             }
@@ -1617,6 +1646,15 @@ internal enum class PollExpiration(
             } ?: Minutes5
     }
 }
+
+private val ComposeReplyRestriction.labelRes: StringResource
+    get() =
+        when (this) {
+            ComposeReplyRestriction.Everyone -> Res.string.compose_x_reply_everyone
+            ComposeReplyRestriction.Following -> Res.string.compose_x_reply_following
+            ComposeReplyRestriction.Mentioned -> Res.string.compose_x_reply_mentioned
+            ComposeReplyRestriction.Verified -> Res.string.compose_x_reply_verified
+        }
 
 internal val UiTimelineV2.Post.Visibility.localName: StringResource
     get() =

@@ -8,10 +8,12 @@ import dev.dimension.flare.createTestFileSystem
 import dev.dimension.flare.createTestRootPath
 import dev.dimension.flare.data.database.app.AppDatabase
 import dev.dimension.flare.data.database.app.model.DbAccount
+import dev.dimension.flare.data.database.app.model.DraftConverters
 import dev.dimension.flare.data.database.app.model.DraftMediaType
 import dev.dimension.flare.data.database.app.model.DraftReferenceType
 import dev.dimension.flare.data.database.createDatabaseDriver
 import dev.dimension.flare.data.datasource.microblog.ComposeData
+import dev.dimension.flare.data.datasource.microblog.ComposeReplyRestriction
 import dev.dimension.flare.data.io.OkioFileStorage
 import dev.dimension.flare.data.repository.ComposeDraftBundle
 import dev.dimension.flare.data.repository.DraftMediaStore
@@ -144,6 +146,33 @@ class SaveDraftUseCaseTest : RobolectricTest() {
             assertContentEquals(firstBytes, fileSystem.read(draft.medias[0].cachePath.toPath()) { readByteArray() })
             assertContentEquals(secondBytes, fileSystem.read(draft.medias[1].cachePath.toPath()) { readByteArray() })
         }
+
+    @Test
+    fun draftRestoresReplyRestrictionAndPoll() =
+        runTest {
+            val bundle =
+                ComposeDraftBundle(
+                    accounts = listOf(mastodonAccount("alice", "mastodon.social")),
+                    groupId = "poll-draft",
+                    template =
+                        ComposeData(
+                            content = "Which option?",
+                            replyRestriction = ComposeReplyRestriction.Mentioned,
+                            poll = ComposeData.Poll(listOf("A", "B"), 300_000L, multiple = false),
+                        ),
+                )
+
+            val groupId = useCase(bundle)
+            val restored = assertNotNull(repository.draft(groupId).first()).content.toComposeData(emptyList())
+            assertEquals(ComposeReplyRestriction.Mentioned, restored.replyRestriction)
+            assertEquals(bundle.template.poll, restored.poll)
+        }
+
+    @Test
+    fun draftWithoutReplyRestrictionUsesPlatformDefault() {
+        val content = DraftConverters().toDraftContent("""{"text":"old draft","language":[],"sensitive":false}""")
+        assertNull(content.toComposeData(emptyList()).replyRestriction)
+    }
 
     @Test
     fun saveDraftUsesBundleGroupId() =

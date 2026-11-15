@@ -1,6 +1,7 @@
 package dev.dimension.flare.data.datasource.microblog
 
 import androidx.compose.runtime.Immutable
+import de.cketti.codepoints.deluxe.codePointSequence
 import dev.dimension.flare.common.CacheData
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.model.UiEmoji
@@ -25,6 +26,7 @@ public data class ComposeConfig public constructor(
     val visibility: Visibility? = null,
     val language: Language? = null,
     val supportedTypes: Set<ComposeType> = ComposeType.entries.toSet(),
+    val canRestrictReplies: Boolean = false,
 ) {
     @Immutable
     public class Text private constructor(
@@ -354,10 +356,22 @@ public data class ComposeConfig public constructor(
     @Immutable
     public data class Poll public constructor(
         val maxOptions: Int,
+        val allowsMultiple: Boolean = true,
+        val maxOptionLength: Int? = null,
     ) {
+        public fun areOptionsValid(options: List<String>): Boolean {
+            val choices = options.map(String::trim).filter(String::isNotEmpty)
+            return choices.size in 2..maxOptions &&
+                (maxOptionLength == null || choices.all { it.codePointSequence().count() <= maxOptionLength })
+        }
+
+        public fun canPublishOptions(options: List<String>): Boolean = maxOptionLength == null || areOptionsValid(options)
+
         internal fun merge(other: Poll): Poll =
             Poll(
                 maxOptions = minOf(maxOptions, other.maxOptions),
+                allowsMultiple = allowsMultiple && other.allowsMultiple,
+                maxOptionLength = listOfNotNull(maxOptionLength, other.maxOptionLength).minOrNull(),
             )
     }
 
@@ -461,6 +475,7 @@ public data class ComposeConfig public constructor(
             visibility = visibility,
             language = language,
             supportedTypes = supportedTypes intersect other.supportedTypes,
+            canRestrictReplies = canRestrictReplies || other.canRestrictReplies,
         )
     }
 }
