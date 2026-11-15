@@ -128,6 +128,7 @@ private struct UiChannelRow: View {
             if let desc = data.description_, !desc.isEmpty {
                 RichText(text: desc)
                     .font(.caption)
+                    .lineSpacing(1)
                     .flareSecondaryText()
             }
         }

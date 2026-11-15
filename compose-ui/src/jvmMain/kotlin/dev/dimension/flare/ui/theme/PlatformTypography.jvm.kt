@@ -63,5 +63,10 @@ internal actual object PlatformTypography {
 
     actual val postBody: TextStyle
         @Composable
-        get() = FluentTheme.typography.body.let { it.copy(lineHeight = (it.lineHeight.value - 2).sp, letterSpacing = 0.sp) }
+        get() =
+            FluentTheme.typography.body.let {
+                it.copy(lineHeight = (it.lineHeight.value - richTextLineHeightReduction).sp, letterSpacing = 0.sp)
+            }
+
+    actual val richTextLineHeightReduction: Float = 2f
 }

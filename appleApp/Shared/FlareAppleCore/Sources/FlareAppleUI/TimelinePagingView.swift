@@ -301,6 +301,7 @@ public struct TimelineGalleryItemView: View {
                         if !content.isEmpty {
                             RichText(text: content)
                                 .font(.subheadline)
+                                .lineSpacing(1)
                                 .lineLimit(5)
                         }
                     }

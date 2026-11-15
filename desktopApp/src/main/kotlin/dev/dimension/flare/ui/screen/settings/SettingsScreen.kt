@@ -2268,7 +2268,7 @@ internal fun SettingsScreen(
                                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                             Text(stringResource(Res.string.settings_translation_ai_test_description))
                                             Text(stringResource(Res.string.settings_translation_ai_test_original))
-                                            RichText(state.aiConfigState.aiTranslationTestState.sampleText)
+                                            RichText(state.aiConfigState.aiTranslationTestState.sampleText, useBodySpacing = true)
                                             Button(
                                                 onClick = {
                                                     state.aiConfigState.aiTranslationTestState.runTest()
@@ -2287,7 +2287,7 @@ internal fun SettingsScreen(
                                             }
                                             state.aiConfigState.aiTranslationTestState.translatedText?.let { translated ->
                                                 Text(stringResource(Res.string.settings_translation_ai_test_result))
-                                                RichText(translated)
+                                                RichText(translated, useBodySpacing = true)
                                             }
                                         }
                                     },

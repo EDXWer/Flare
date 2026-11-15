@@ -619,6 +619,7 @@ private fun ArticleBlock(
                 text = block.richText,
                 modifier = Modifier.fillMaxWidth(),
                 overflow = TextOverflow.Clip,
+                useBodySpacing = true,
             )
         }
 

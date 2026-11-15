@@ -235,6 +235,7 @@ private struct TranslationConfigSettingsSectionsContent: View {
                     .font(.caption)
                     .flareSecondaryText()
                 RichText(text: state.aiTranslationTestPresenter.state.sampleText)
+                    .lineSpacing(1)
                 Button {
                     state.aiTranslationTestPresenter.state.runTest()
                 } label: {
@@ -253,6 +254,7 @@ private struct TranslationConfigSettingsSectionsContent: View {
                         .font(.caption)
                         .flareSecondaryText()
                     RichText(text: translatedText)
+                        .lineSpacing(1)
                 }
             }
             .padding(.vertical, 4)
