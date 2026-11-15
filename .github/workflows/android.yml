@@ -376,6 +376,25 @@ jobs:
       - *install-xcodegen
       - *firebase-config
       - *generate-xcode
+      - name: Resolve native macOS Swift packages
+        if: ${{ ! startsWith(github.ref, 'refs/tags/') }}
+        working-directory: ./appleApp
+        run: |
+          for attempt in 1 2 3; do
+            if xcodebuild -resolvePackageDependencies \
+              -project Flare.xcodeproj \
+              -scheme macOS \
+              -configuration Release \
+              -destination "generic/platform=macOS" \
+              -derivedDataPath build/DerivedData; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "SwiftPM resolution failed (attempt $attempt of 3). Retrying."
+              sleep "$((attempt * 10))"
+            fi
+          done
+          exit 1
       - name: Compile native macOS Kotlin libraries
         run: |
           ./gradlew :apple-shared:compileKotlinMacosArm64 --no-daemon --stacktrace \
@@ -456,6 +475,8 @@ jobs:
             -configuration Release \
             -destination "generic/platform=macOS" \
             -derivedDataPath build/DerivedData \
+            -disableAutomaticPackageResolution \
+            -skipPackageUpdates \
             -skipPackagePluginValidation \
             -skipMacroValidation \
             GRADLE_JVM_ARGS="-Xmx5G -Dfile.encoding=UTF-8" \
