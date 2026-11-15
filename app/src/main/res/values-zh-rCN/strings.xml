@@ -19,6 +19,8 @@
     <string name="compose_vvo_comment_title">评论</string>
     <string name="compose_hint">在想什么？</string>
     <string name="compose_poll_option_hint">选项 %1$s</string>
+    <string name="compose_poll_unsupported_accounts">有选中的账号不支持发布投票。</string>
+    <string name="compose_poll_option_limits">填写 2 到 %1$d 个选项，每项最多 %2$d 个字符。</string>
     <string name="compose_poll_single_choice">单选</string>
     <string name="compose_poll_multiple_choice">多选</string>
     <string name="compose_poll_expiration_at">截止时间：%1$s</string>

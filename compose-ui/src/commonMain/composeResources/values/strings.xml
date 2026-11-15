@@ -602,4 +602,9 @@
     <string name="weibo_private_following_title">Private Following</string>
     <string name="visibility_friends">Friends circle</string>
     <string name="visibility_self">Only me</string>
+    <string name="compose_x_reply_restriction">Who can reply on X</string>
+    <string name="compose_x_reply_everyone">Everyone</string>
+    <string name="compose_x_reply_following">Accounts you follow</string>
+    <string name="compose_x_reply_mentioned">Only mentioned accounts</string>
+    <string name="compose_x_reply_verified">Verified accounts</string>
 </resources>

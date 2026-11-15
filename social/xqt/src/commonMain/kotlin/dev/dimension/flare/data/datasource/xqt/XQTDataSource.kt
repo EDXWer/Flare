@@ -41,6 +41,9 @@ import dev.dimension.flare.data.model.tab.ShortcutSpec
 import dev.dimension.flare.data.model.tab.TimelineSpec
 import dev.dimension.flare.data.network.xqt.XQTMediaUploader
 import dev.dimension.flare.data.network.xqt.XQTService
+import dev.dimension.flare.data.network.xqt.api.XQT_POLL_CONFIG
+import dev.dimension.flare.data.network.xqt.api.createPoll
+import dev.dimension.flare.data.network.xqt.api.publishTweet
 import dev.dimension.flare.data.network.xqt.model.CreateBookmarkRequest
 import dev.dimension.flare.data.network.xqt.model.CreateBookmarkRequestVariables
 import dev.dimension.flare.data.network.xqt.model.DeleteBookmarkRequest
@@ -61,6 +64,7 @@ import dev.dimension.flare.data.network.xqt.model.PostMediaMetadataCreateRequest
 import dev.dimension.flare.data.network.xqt.model.PostUnfavoriteTweetRequest
 import dev.dimension.flare.data.network.xqt.model.TweetUnion
 import dev.dimension.flare.data.network.xqt.model.User
+import dev.dimension.flare.data.network.xqt.model.toXqtConversationControl
 import dev.dimension.flare.data.platform.CommonTimelineSpecs
 import dev.dimension.flare.data.platform.XQTCredential
 import dev.dimension.flare.data.platform.XqtPlatformSpec
@@ -537,6 +541,14 @@ internal class XQTDataSource(
                     it as? ComposeStatus.Reply
                 }?.statusKey
                 ?.id
+        val conversationControl = data.replyRestriction.toXqtConversationControl()
+        require(inReplyToID == null || conversationControl == null) { "X replies inherit the conversation's reply settings." }
+        val cardUri =
+            data.poll?.let {
+                require(data.content.isNotBlank()) { "X polls require a question." }
+                require(data.medias.isEmpty()) { "X polls cannot include media attachments." }
+                service.createPoll(it)
+            }
         val quoteId =
             data.referenceStatus
                 ?.composeStatus
@@ -551,36 +563,31 @@ internal class XQTDataSource(
                 ?.handle
                 ?.normalizedRaw
         val mediaIds =
-            data.medias.mapIndexed { index, (item, altText) ->
+            data.medias.map { (item, altText) ->
                 val upload = item.uploadMedia().compressImage(imageCompressor, MEDIA_COMPRESSION)
                 XQTMediaUploader(service).upload(upload).also {
                     if (data.sensitive || !altText.isNullOrEmpty()) {
-                        service.postMediaMetadataCreate(
-                            body =
-                                PostMediaMetadataCreateRequest(
-                                    mediaId = it,
-                                    sensitiveMediaWarning =
-                                        if (data.sensitive) {
-                                            listOf(
-                                                PostMediaMetadataCreateRequest.SensitiveMediaWarning.Other,
-                                            )
-                                        } else {
-                                            null
-                                        },
-                                    altText =
-                                        if (!altText.isNullOrEmpty()) {
-                                            PostMediaMetadataCreateRequest.AltText(altText)
-                                        } else {
-                                            null
-                                        },
-                                ),
-                        )
+                        val response =
+                            service.postMediaMetadataCreate(
+                                body =
+                                    PostMediaMetadataCreateRequest(
+                                        mediaId = it,
+                                        sensitiveMediaWarning =
+                                            if (data.sensitive) {
+                                                listOf(PostMediaMetadataCreateRequest.SensitiveMediaWarning.Other)
+                                            } else {
+                                                null
+                                            },
+                                        altText = altText?.takeIf(String::isNotEmpty)?.let { PostMediaMetadataCreateRequest.AltText(it) },
+                                    ),
+                            )
+                        check(response.isSuccessful) { "X could not save media settings (HTTP ${response.code})." }
                     }
                     progress()
                 }
             }
-        service.postCreateTweet(
-            postCreateTweetRequest =
+        service.publishTweet(
+            request =
                 PostCreateTweetRequest(
                     features = PostCreateTweetRequestFeatures(),
                     variables =
@@ -596,6 +603,8 @@ internal class XQTDataSource(
                                         },
                                 ),
                             tweetText = data.content,
+                            conversationControl = conversationControl,
+                            cardUri = cardUri,
                             reply =
                                 inReplyToID?.let {
                                     PostCreateTweetRequestVariablesReply(
@@ -645,6 +654,8 @@ internal class XQTDataSource(
     override fun composeConfig(type: ComposeType): ComposeConfig =
         ComposeConfig(
             text = ComposeConfig.Text.withLength(280, String::xWeightedLength),
+            poll = XQT_POLL_CONFIG,
+            canRestrictReplies = type != ComposeType.Reply,
             media =
                 ComposeConfig.Media(
                     maxCount = 20,

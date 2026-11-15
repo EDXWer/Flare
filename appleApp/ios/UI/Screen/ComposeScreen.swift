@@ -128,7 +128,7 @@ struct ComposeScreen: View {
                     if viewModel.pollViewModel.enabled {
                         ComposePollSection(
                             viewModel: viewModel.pollViewModel,
-                            maxChoices: maxPollOptions
+                            config: presenter.state.pollConfig
                         )
                     }
                     if let replyState = presenter.state.replyState,
@@ -270,7 +270,11 @@ struct ComposeScreen: View {
                         Image(systemName: "paperplane.fill")
                     }
                 }
-                .disabled(!presenter.state.canSend || mediaViewModel.items.contains { !$0.isReady })
+                .disabled(
+                    !presenter.state.canSend ||
+                    !viewModel.pollViewModel.canSend(config: presenter.state.pollConfig, hasMedia: !mediaViewModel.items.isEmpty) ||
+                    mediaViewModel.items.contains { !$0.isReady }
+                )
             }
         }
     }
@@ -283,6 +287,7 @@ struct ComposeScreen: View {
             canUseContentWarning: presenter.state.contentWarningEnabled,
             visibility: composeVisibility,
             allVisibilities: composeVisibilities,
+            replyRestriction: presenter.state.replyRestriction,
             emojiState: presenter.state.emojiState,
             isEmojiPresented: $viewModel.showEmoji,
             languageCodes: Array(presenter.state.languageCodes),
@@ -305,6 +310,7 @@ struct ComposeScreen: View {
                 }
             },
             onSelectVisibility: setVisibility,
+            onSelectReplyRestriction: { presenter.state.setReplyRestriction(value: $0) },
             onSelectEmoji: { item in
                 viewModel.addEmoji(emoji: item)
                 insert(item.insertText)
@@ -561,7 +567,9 @@ struct ComposeScreen: View {
             visibility: getVisibility(),
             medias: getMedia(),
             sensitive: mediaViewModel.sensitive,
-            composeStatus: presenter.state.composeStatus
+            composeStatus: presenter.state.composeStatus,
+            replyRestriction: presenter.state.replyRestriction,
+            pollConfig: presenter.state.pollConfig
         )
     }
 
@@ -630,10 +638,6 @@ struct ComposeScreen: View {
 
     private var remainingTextLength: Int? {
         presenter.state.remainingLength.map { Int(truncating: $0) }
-    }
-
-    private var maxPollOptions: Int {
-        presenter.state.pollMaxOptions.map { Int(truncating: $0) } ?? ComposePollViewModel.defaultMaxChoiceCount
     }
 
     private var languageMaxCount: Int {

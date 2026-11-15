@@ -14,6 +14,7 @@ import dev.dimension.flare.common.FileType
 import dev.dimension.flare.common.combineLatestFlowLists
 import dev.dimension.flare.data.datasource.microblog.ComposeConfig
 import dev.dimension.flare.data.datasource.microblog.ComposeData
+import dev.dimension.flare.data.datasource.microblog.ComposeReplyRestriction
 import dev.dimension.flare.data.datasource.microblog.ComposeType
 import dev.dimension.flare.data.datasource.microblog.MicroblogDataSource
 import dev.dimension.flare.data.datasource.microblog.accountKeyOrNull
@@ -148,6 +149,8 @@ public class ComposePresenter(
     private val loadedDraftStateFlow by lazy {
         MutableStateFlow<UiState<UiDraft>?>(null)
     }
+
+    private val replyRestrictionFlow = MutableStateFlow(ComposeReplyRestriction.Everyone)
 
     private val enableCrossPostFlow by lazy {
         selectedComposeAccountKeysFlow.map { accountKeys ->
@@ -434,6 +437,7 @@ public class ComposePresenter(
         val textCheck by textCheckFlow.collectAsState(null)
         val canSend by canSendFlow.collectAsState(false)
         val loadedDraftState by loadedDraftStateFlow.collectAsState()
+        val replyRestriction by replyRestrictionFlow.collectAsState()
         val editingDraftGroupId by editingDraftGroupIdFlow.collectAsState()
         val composeStatus by activeStatusFlow.collectAsState()
         var directSendState by remember {
@@ -611,9 +615,14 @@ public class ComposePresenter(
             emojis = webEmojis,
             visibility = visibilityState.takeSuccess()?.visibility,
             allVisibilities = visibilityState.takeSuccess()?.allVisibilities ?: persistentListOf(),
+            replyRestriction = replyRestriction.takeIf { composeConfig.takeSuccess()?.canRestrictReplies == true },
         ) {
             override fun setVisibility(value: UiTimelineV2.Post.Visibility) {
                 selection.setVisibility(value)
+            }
+
+            override fun setReplyRestriction(value: ComposeReplyRestriction) {
+                replyRestrictionFlow.value = value
             }
 
             override fun send(
@@ -829,6 +838,7 @@ public class ComposePresenter(
             selectedAccountsKeyFlow.value =
                 draft.accounts.map { it.account.accountKey }.toImmutableList()
             textFlow.value = draft.data.content
+            replyRestrictionFlow.value = draft.data.replyRestriction ?: ComposeReplyRestriction.Everyone
             mediaMimeTypesFlow.value = List(draft.medias.size) { "" }
             loadedDraftStateFlow.value = UiState.Success(draft)
         }.onFailure {
@@ -1083,8 +1093,17 @@ public abstract class ComposeState(
     public val emojis: ImmutableList<UiEmoji>,
     public val visibility: UiTimelineV2.Post.Visibility?,
     public val allVisibilities: ImmutableList<UiTimelineV2.Post.Visibility>,
+    @WebIgnore
+    public val replyRestriction: ComposeReplyRestriction?,
 ) {
+    @WebIgnore
+    public val pollConfig: ComposeConfig.Poll?
+        get() = composeConfig.takeSuccess()?.poll
+
     public abstract fun setVisibility(value: UiTimelineV2.Post.Visibility)
+
+    @WebIgnore
+    public abstract fun setReplyRestriction(value: ComposeReplyRestriction)
 
     @WebIgnore
     public abstract fun send(

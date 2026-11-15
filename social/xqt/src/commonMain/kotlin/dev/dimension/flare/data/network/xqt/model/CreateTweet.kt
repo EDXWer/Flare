@@ -26,5 +26,12 @@ import kotlinx.serialization.Serializable
 @Serializable
 internal data class CreateTweet(
     @SerialName(value = "result")
-    val result: Tweet,
-)
+    val result: Result? = null,
+) {
+    @Serializable
+    data class Result(
+        @SerialName("rest_id")
+        val restId: String? = null,
+        val tweet: Result? = null,
+    )
+}

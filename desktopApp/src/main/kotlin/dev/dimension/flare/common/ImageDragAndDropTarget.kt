@@ -11,10 +11,12 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 class ImageDragAndDropTarget(
+    private val canAcceptImages: () -> Boolean,
     private val onImageDropped: (List<File>) -> Unit,
 ) : DragAndDropTarget {
     @OptIn(ExperimentalComposeUiApi::class, ExperimentalUuidApi::class)
     override fun onDrop(event: DragAndDropEvent): Boolean {
+        if (!canAcceptImages()) return false
         event.awtTransferable.let {
             if (it.isDataFlavorSupported(DataFlavor.imageFlavor)) {
                 it

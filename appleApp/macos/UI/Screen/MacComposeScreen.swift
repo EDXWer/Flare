@@ -141,7 +141,10 @@ struct MacComposeScreen: View {
                         Image(systemName: "paperplane.fill")
                     }
                 }
-                .disabled(!presenter.state.canSend)
+                .disabled(
+                    !presenter.state.canSend ||
+                    !viewModel.pollViewModel.canSend(config: presenter.state.pollConfig, hasMedia: !mediaItems.isEmpty)
+                )
                 .keyboardShortcut(.return, modifiers: .command)
             }
         }
@@ -326,7 +329,7 @@ struct MacComposeScreen: View {
     }
 
     private var pollSection: some View {
-        ComposePollSection(viewModel: viewModel.pollViewModel, maxChoices: maxPollOptions)
+        ComposePollSection(viewModel: viewModel.pollViewModel, config: presenter.state.pollConfig)
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
     }
@@ -348,6 +351,7 @@ struct MacComposeScreen: View {
             canUseContentWarning: presenter.state.contentWarningEnabled,
             visibility: composeVisibility,
             allVisibilities: composeVisibilities,
+            replyRestriction: presenter.state.replyRestriction,
             emojiState: presenter.state.emojiState,
             isEmojiPresented: $showEmojiPopover,
             languageCodes: Array(presenter.state.languageCodes),
@@ -365,6 +369,7 @@ struct MacComposeScreen: View {
                 viewModel.toggleContentWarning()
             },
             onSelectVisibility: setVisibility,
+            onSelectReplyRestriction: { presenter.state.setReplyRestriction(value: $0) },
             onSelectEmoji: { emoji in
                 viewModel.text += emoji.insertText
                 showEmojiPopover = false
@@ -413,6 +418,7 @@ struct MacComposeScreen: View {
     }
 
     private var canAcceptMediaInput: Bool {
+        !viewModel.pollViewModel.enabled &&
         presenter.state.mediaEnabled &&
         remainingMediaSlots > 0
     }
@@ -423,10 +429,6 @@ struct MacComposeScreen: View {
 
     private var remainingTextLength: Int? {
         presenter.state.remainingLength.map { Int(truncating: $0) }
-    }
-
-    private var maxPollOptions: Int {
-        presenter.state.pollMaxOptions.map { Int(truncating: $0) } ?? ComposePollViewModel.defaultMaxChoiceCount
     }
 
     private var languageMaxCount: Int {
@@ -484,7 +486,9 @@ struct MacComposeScreen: View {
             visibility: currentVisibility,
             medias: mediaItems.map(\.composeMedia),
             sensitive: sensitive,
-            composeStatus: presenter.state.composeStatus
+            composeStatus: presenter.state.composeStatus,
+            replyRestriction: presenter.state.replyRestriction,
+            pollConfig: presenter.state.pollConfig
         )
     }
 
@@ -535,7 +539,7 @@ struct MacComposeScreen: View {
     }
 
     private func appendMediaItems(_ items: [MacComposeMediaItem]) {
-        guard presenter.state.mediaEnabled, remainingMediaSlots > 0 else {
+        guard canAcceptMediaInput else {
             return
         }
 
@@ -544,7 +548,6 @@ struct MacComposeScreen: View {
             return
         }
 
-        viewModel.pollViewModel.reset()
         mediaItems.append(contentsOf: accepted)
         syncMediaMimeTypes()
     }

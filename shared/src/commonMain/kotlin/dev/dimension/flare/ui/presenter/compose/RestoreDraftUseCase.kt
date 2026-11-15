@@ -72,6 +72,7 @@ internal fun DraftContent.toComposeData(
                 )
             },
         localOnly = localOnly,
+        replyRestriction = replyRestriction,
         referenceStatus =
             reference?.let { reference ->
                 dev.dimension.flare.data.datasource.microblog.ComposeData.ReferenceStatus(
