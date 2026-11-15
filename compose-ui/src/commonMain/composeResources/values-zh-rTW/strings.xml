@@ -505,4 +505,9 @@
     <string name="status_detail_reactions">表情回應</string>
     <string name="status_detail_all_reactions">全部表情</string>
     <string name="status_detail_filter_empty">目前篩選沒有結果</string>
+    <string name="compose_x_reply_restriction">誰能在 X 上回覆</string>
+    <string name="compose_x_reply_everyone">所有人</string>
+    <string name="compose_x_reply_following">你跟隨的帳號</string>
+    <string name="compose_x_reply_mentioned">僅提及的帳號</string>
+    <string name="compose_x_reply_verified">已認證的帳號</string>
 </resources>

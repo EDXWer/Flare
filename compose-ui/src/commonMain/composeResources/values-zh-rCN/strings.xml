@@ -506,4 +506,9 @@
     <string name="status_detail_reactions">表情回应</string>
     <string name="status_detail_all_reactions">全部表情</string>
     <string name="status_detail_filter_empty">当前筛选无结果</string>
+    <string name="compose_x_reply_restriction">谁能在 X 上回复</string>
+    <string name="compose_x_reply_everyone">所有人</string>
+    <string name="compose_x_reply_following">你关注的账号</string>
+    <string name="compose_x_reply_mentioned">仅提及的账号</string>
+    <string name="compose_x_reply_verified">已认证的账号</string>
 </resources>

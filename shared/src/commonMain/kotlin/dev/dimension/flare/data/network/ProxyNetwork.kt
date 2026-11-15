@@ -13,6 +13,7 @@ import io.ktor.client.engine.HttpClientEngineConfig
 import io.ktor.client.engine.callContext
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.HttpResponseData
+import io.ktor.http.Headers
 import io.ktor.utils.io.InternalAPI
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -64,28 +65,48 @@ internal class ProxyRoutingEngine(
         val sameOrigin = origin.protocol == data.url.protocol && origin.host == data.url.host && origin.port == data.url.port
         if (!sameOrigin && data.attributes.contains(requestMediaHeaders)) data.attributes.put(requestCrossedOrigin, true)
         val mediaHeaders = data.attributes.getOrNull(requestMediaHeaders).orEmpty()
-        val request =
+        val selectedProxy = data.attributes.getOrNull(requestProxy) ?: proxy
+        val headers =
             if (sameOrigin && data.attributes.getOrNull(requestCrossedOrigin) != true) {
+                val accountHeaders =
+                    if (!plugin && (media || data.attributes.contains(requestMediaHeaders))) {
+                        MediaRequestHeaders.accountHeaders(data.url.toString(), selectedProxy)
+                    } else {
+                        emptyMap()
+                    }
+                if (accountHeaders.isEmpty()) {
+                    data.headers
+                } else {
+                    Headers.build {
+                        appendAll(data.headers)
+                        accountHeaders.forEach { (name, value) -> set(name, value) }
+                    }
+                }
+            } else {
+                Headers.build {
+                    data.headers.forEach { key, values ->
+                        if (!key.equals("Authorization", true) && !key.equals("Cookie", true) &&
+                            (key.lowercase() !in mediaHeaders || MediaRequestHeaders.mayForwardAcrossOrigins(key))
+                        ) {
+                            appendAll(key, values)
+                        }
+                    }
+                }
+            }
+        val request =
+            if (headers === data.headers) {
                 data
             } else {
                 HttpRequestData(
                     data.url,
                     data.method,
-                    io.ktor.http.Headers.build {
-                        data.headers.forEach { key, values ->
-                            if (!key.equals("Authorization", true) && !key.equals("Cookie", true) &&
-                                (key.lowercase() !in mediaHeaders || MediaRequestHeaders.mayForwardAcrossOrigins(key))
-                            ) {
-                                appendAll(key, values)
-                            }
-                        }
-                    },
+                    headers,
                     data.body,
                     data.executionContext,
                     data.attributes,
                 )
             }
-        return ProxyNetwork.execute(data.attributes.getOrNull(requestProxy) ?: proxy, request, plugin)
+        return ProxyNetwork.execute(selectedProxy, request, plugin)
     }
 }
 

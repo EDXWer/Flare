@@ -39,7 +39,7 @@ public struct NetworkImage: View {
             if let prepared, preparedIdentity == identity || keepsCurrentImage {
                 ResolvedNetworkImage(source: prepared.source, downloader: prepared.downloader, redirectHandler: prepared.redirectHandler,
                     mediaPlaceholder: placeholder, data: data.flatMap { URL(string: $0.url) },
-                    customHeader: data?.customHeaders, contentMode: contentMode,
+                    requestModifier: prepared.requestModifier, contentMode: contentMode,
                     usesCrossfade: usesCrossfade && !keepsCurrentImage, onProgress: onProgress, onImageSize: onImageSize,
                     onImageFailure: preparedIdentity == identity ? onImageFailure : nil,
                     downsamplingEnabled: downsamplingEnabled, shareImageID: shareImageID, keepsCurrentImage: keepsCurrentImage)
@@ -77,7 +77,7 @@ private struct ResolvedNetworkImage: View {
     let redirectHandler: AnyRedirectHandler
     let mediaPlaceholder: UiMedia?
     let data: URL?
-    let customHeader: [String: String]?
+    let requestModifier: AnyModifier
     let contentMode: SwiftUI.ContentMode
     let usesCrossfade: Bool
     let onProgress: ((Double?) -> Void)?
@@ -108,9 +108,7 @@ private struct ResolvedNetworkImage: View {
                     .flareAsyncCacheTypeCheck()
                     .loadDiskFileSynchronously(false)
                     .fade(duration: keepsCurrentImage ? 0 : (shareImageLoading == nil ? 0.25 : 0))
-                    .requestModifier { request in
-                        customHeader?.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
-                    }
+                    .requestModifier(requestModifier)
                     .onProgress { receivedSize, totalSize in
                         reportProgress(receivedSize: receivedSize, totalSize: totalSize)
                     }
@@ -132,7 +130,7 @@ private struct ResolvedNetworkImage: View {
             } else if usesCrossfade && shareImageLoading == nil {
                 CrossfadeNetworkImage(
                     source: source, downloader: downloader, redirectHandler: redirectHandler,
-                    mediaPlaceholder: mediaPlaceholder, data: data, customHeader: customHeader,
+                    mediaPlaceholder: mediaPlaceholder, data: data, requestModifier: requestModifier,
                     contentMode: contentMode, onProgress: onProgress, onImageSize: onImageSize, onImageFailure: onImageFailure,
                     processor: processor, displayScale: displayScale
                 )
@@ -149,9 +147,7 @@ private struct ResolvedNetworkImage: View {
                     .loadDiskFileSynchronously(false)
                     .resizable()
                     .fade(duration: keepsCurrentImage ? 0 : (shareImageLoading == nil ? 0.25 : 0))
-                    .requestModifier { request in
-                        customHeader?.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
-                    }
+                    .requestModifier(requestModifier)
                     .onProgress { receivedSize, totalSize in
                         reportProgress(receivedSize: receivedSize, totalSize: totalSize)
                     }
@@ -234,7 +230,7 @@ private struct CrossfadeNetworkImage: View {
     let redirectHandler: AnyRedirectHandler
     let mediaPlaceholder: UiMedia?
     let data: URL?
-    let customHeader: [String: String]?
+    let requestModifier: AnyModifier
     let contentMode: SwiftUI.ContentMode
     let onProgress: ((Double?) -> Void)?
     let onImageSize: ((CGSize) -> Void)?
@@ -267,13 +263,7 @@ private struct CrossfadeNetworkImage: View {
                 .flareBackgroundDecodeIfSupported()
                 .loadDiskFileSynchronously(false)
                 .resizable()
-                .requestModifier { request in
-                    if let customHeader {
-                        for (key, value) in customHeader {
-                            request.setValue(value, forHTTPHeaderField: key)
-                        }
-                    }
-                }
+                .requestModifier(requestModifier)
                 .cancelOnDisappear(true)
                 .onProgress { receivedSize, totalSize in
                     reportProgress(receivedSize: receivedSize, totalSize: totalSize)

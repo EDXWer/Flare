@@ -392,5 +392,5 @@ final class VideoPlaybackSessionTests: XCTestCase {
 
 @MainActor
 func testVideo(_ url: String) -> UiMediaVideo {
-    UiMediaVideo(url: url, thumbnailUrl: "", description: nil, height: 0, width: 0, customHeaders: nil, proxy: ProxyRef.System.shared, downloadUrl: nil, kind: .video)
+    UiMediaVideo(url: url, thumbnailUrl: "", description: nil, height: 0, width: 0, customHeaders: nil, proxy: ProxyRef.System.shared, downloadUrl: nil, kind: .video, livePhotoCoverUrl: nil)
 }

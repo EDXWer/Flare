@@ -616,4 +616,9 @@
     <string name="status_detail_reactions">Reactions</string>
     <string name="status_detail_all_reactions">All reactions</string>
     <string name="status_detail_filter_empty">No results for this filter</string>
+    <string name="compose_x_reply_restriction">Who can reply on X</string>
+    <string name="compose_x_reply_everyone">Everyone</string>
+    <string name="compose_x_reply_following">Accounts you follow</string>
+    <string name="compose_x_reply_mentioned">Only mentioned accounts</string>
+    <string name="compose_x_reply_verified">Verified accounts</string>
 </resources>

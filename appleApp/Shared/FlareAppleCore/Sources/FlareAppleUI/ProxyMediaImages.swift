@@ -18,6 +18,7 @@ public struct PreparedMediaImage {
     public let options: KingfisherOptionsInfo
     public let redirectHandler: AnyRedirectHandler
     public let downloader: ImageDownloader
+    let requestModifier: AnyModifier
     public let key: String
 }
 
@@ -53,10 +54,12 @@ public final class ProxyMediaImages {
         if !media.isRemote {
             let fileURL = url.isFileURL ? url : URL(fileURLWithPath: media.url)
             return PreparedMediaImage(source: .provider(LocalFileImageDataProvider(fileURL: fileURL)),
-                                      options: [], redirectHandler: AnyRedirectHandler { _, _, request, completion in completion(request) }, downloader: .default, key: media.cacheKey)
+                                      options: [], redirectHandler: AnyRedirectHandler { _, _, request, completion in completion(request) },
+                                      downloader: .default, requestModifier: AnyModifier { $0 }, key: media.cacheKey)
         }
         let route = try await ProxyNetwork.shared.snapshot(ref: media.proxy)
-        let headers = media.customHeaders ?? [:]
+        let accountHeaders = try await MediaRequestHeaders.shared.accountHeaders(url: url.absoluteString, proxy: media.proxy)
+        let headers = (media.customHeaders ?? [:]).merging(accountHeaders) { _, accountValue in accountValue }
         let headerData = headers.sorted { $0.key < $1.key }.map { "\($0.key):\($0.value)" }.joined(separator: "\n")
         let headerKey = SHA256.hash(data: Data(headerData.utf8)).map { String(format: "%02x", $0) }.joined()
         let key = route.key + "|" + headerKey
@@ -86,7 +89,8 @@ public final class ProxyMediaImages {
             options: [.downloader(downloader), .requestModifier(modifier), .redirectHandler(redirect)],
             redirectHandler: redirect,
             downloader: downloader,
-            key: route.key + "|" + media.cacheKey
+            requestModifier: modifier,
+            key: key + "|" + media.cacheKey
         )
     }
 

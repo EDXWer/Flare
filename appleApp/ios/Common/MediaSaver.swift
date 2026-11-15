@@ -85,6 +85,33 @@ class MediaSaver: NSObject, UIDocumentPickerDelegate {
             return
         }
 
+        if let video = media as? UiMediaVideo, let cover = video.livePhotoCover {
+            if showsDownloadStarted {
+                showDownloadStarted(mediaType: .image)
+            }
+            Task {
+                do {
+                    let (videoURL, response) = try await MediaTransfer.download(video)
+                    defer { try? FileManager.default.removeItem(at: videoURL) }
+                    if let (coverURL, _) = try? await MediaTransfer.download(cover) {
+                        defer { try? FileManager.default.removeItem(at: coverURL) }
+                        if try await LivePhotoExport.saveIfSupported(cover: coverURL, movie: videoURL) {
+                            finishSave(success: true, mediaType: .image, showsSaveResult: showsSaveResult, completion: completion)
+                            return
+                        }
+                    }
+                    try Task.checkCancellation()
+                    saveDownloadedVideoToPhotos(
+                        videoURL, sourceURL: remoteUrl, response: response,
+                        showsSaveResult: showsSaveResult, completion: completion
+                    )
+                } catch {
+                    finishSave(success: false, mediaType: .image, showsSaveResult: showsSaveResult, completion: completion)
+                }
+            }
+            return
+        }
+
         if showsDownloadStarted {
             showDownloadStarted(mediaType: .video)
         }
@@ -170,27 +197,32 @@ class MediaSaver: NSObject, UIDocumentPickerDelegate {
             }
 
             defer { try? FileManager.default.removeItem(at: temporaryURL) }
-            let fileExtension = AppleMediaFileExtension.video(url: url, response: response)
-            let targetURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("flare-video-\(UUID().uuidString)")
-                .appendingPathExtension(fileExtension)
+            saveDownloadedVideoToPhotos(
+                temporaryURL, sourceURL: url, response: response,
+                showsSaveResult: showsSaveResult, completion: completion
+            )
+        }
+    }
 
-            do {
-                try FileManager.default.copyItem(at: temporaryURL, to: targetURL)
-                self.saveVideoFileToPhotos(
-                    targetURL,
-                    removeWhenDone: true,
-                    showsSaveResult: showsSaveResult,
-                    completion: completion
-                )
-            } catch {
-                self.finishSave(
-                    success: false,
-                    mediaType: .video,
-                    showsSaveResult: showsSaveResult,
-                    completion: completion
-                )
-            }
+    private func saveDownloadedVideoToPhotos(
+        _ temporaryURL: URL,
+        sourceURL: URL,
+        response: URLResponse,
+        showsSaveResult: Bool,
+        completion: (@Sendable (Bool) -> Void)?
+    ) {
+        let fileExtension = AppleMediaFileExtension.video(url: sourceURL, response: response)
+        let targetURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("flare-video-\(UUID().uuidString)")
+            .appendingPathExtension(fileExtension)
+        do {
+            try FileManager.default.copyItem(at: temporaryURL, to: targetURL)
+            saveVideoFileToPhotos(
+                targetURL, removeWhenDone: true, showsSaveResult: showsSaveResult, completion: completion
+            )
+        } catch {
+            try? FileManager.default.removeItem(at: targetURL)
+            finishSave(success: false, mediaType: .video, showsSaveResult: showsSaveResult, completion: completion)
         }
     }
 

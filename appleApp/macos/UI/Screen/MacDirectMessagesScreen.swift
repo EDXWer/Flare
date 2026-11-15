@@ -1,9 +1,12 @@
+import Accessibility
 import AppKit
 import FlareAppleCore
 import FlareAppleUI
+import ImageIO
 @preconcurrency import KotlinSharedUI
 import SwiftUI
 import SwiftUIBackports
+import UniformTypeIdentifiers
 
 struct MacDirectMessagesScreen: View {
     private let windowCoordinator: MacDirectMessageWindowCoordinator
@@ -487,8 +490,12 @@ private struct MacDMRoomRow: View {
 private struct MacDMConversationColumn: View {
     let selection: MacDMRoomSelection
     @Environment(\.openURL) private var openURL
+    @Environment(\.openWindow) private var openWindow
     @State private var presenter: KotlinPresenter<DMConversationState>
     @State private var inputText = ""
+    @State private var showImageImporter = false
+    @State private var pickedImage: URL?
+    @State private var imageImportFailed = false
 
     init(selection: MacDMRoomSelection) {
         self.selection = selection
@@ -529,9 +536,7 @@ private struct MacDMConversationColumn: View {
                         onRetry: {
                             presenter.state.retry(key: item.key)
                         },
-                        onOpenURL: { url in
-                            openURL(url)
-                        }
+                        onOpenMedia: openMedia
                     )
                 }
             }
@@ -541,18 +546,108 @@ private struct MacDMConversationColumn: View {
         }
         .defaultScrollAnchor(.bottom)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            MacDMChatInputBar(
-                draft: $inputText,
-                canSend: canSend,
-                onSend: send
-            )
+            VStack(alignment: .leading, spacing: 8) {
+                if presenter.state.canSendImage {
+                    imageAttachment
+                }
+                HStack(spacing: 8) {
+                    if presenter.state.canSendImage {
+                        Button {
+                            showImageImporter = true
+                        } label: {
+                            Image(systemName: "photo")
+                                .frame(width: 24, height: 24)
+                        }
+                        .buttonBorderShape(.circle)
+                        .backport
+                        .glassButtonStyle()
+                        .disabled(attachmentBusy)
+                        .help(Text("dm_add_image"))
+                        .accessibilityLabel(Text("dm_add_image"))
+                    }
+                    MacDMChatInputBar(
+                        draft: $inputText,
+                        canSend: canSend,
+                        onSend: send
+                    )
+                }
+            }
+            .padding(.horizontal)
+            .padding(.bottom)
+        }
+        .fileImporter(isPresented: $showImageImporter, allowedContentTypes: [.image]) { result in
+            switch result {
+            case .success(let url):
+                pickedImage = url
+            case .failure:
+                imageImportFailed = true
+            }
+        }
+        .task(id: pickedImage) {
+            await loadPickedImage()
+        }
+        .onDisappear {
+            pickedImage = nil
+        }
+        .onChange(of: attachmentStatus) { _, status in
+            if let status {
+                AccessibilityNotification.Announcement(status).post()
+            }
         }
         .timelineMediaViewport()
         .navigationTitle(dynamicTitle)
     }
 
+    @ViewBuilder
+    private var imageAttachment: some View {
+        if let file = presenter.state.selectedImage {
+            HStack {
+                Label(file.name ?? String(localized: "dm_image_attached"), systemImage: "photo")
+                    .lineLimit(1)
+                Button {
+                    presenter.state.selectImage(file: nil)
+                    imageImportFailed = false
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                }
+                .buttonStyle(.borderless)
+                .disabled(attachmentBusy)
+                .help(Text("dm_remove_image"))
+                .accessibilityLabel(Text("dm_remove_image"))
+            }
+            .font(.subheadline)
+        }
+        if let attachmentStatus {
+            if attachmentBusy {
+                ProgressView(attachmentStatus)
+                    .controlSize(.small)
+            } else {
+                Text(attachmentStatus)
+                    .font(.caption)
+                    .foregroundStyle(Color.red)
+            }
+        }
+    }
+
+    private var attachmentBusy: Bool {
+        pickedImage != nil || presenter.state.isSendingImage
+    }
+
+    private var attachmentStatus: String? {
+        guard presenter.state.canSendImage else { return nil }
+        if presenter.state.isSendingImage { return String(localized: "dm_sending") }
+        if pickedImage != nil { return String(localized: "#loading") }
+        if imageImportFailed { return String(localized: "import_error") }
+        if presenter.state.imageSendFailed { return String(localized: "dm_image_send_failed") }
+        return nil
+    }
+
     private var canSend: Bool {
-        !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !attachmentBusy && (presenter.state.selectedImage != nil || !trimmedInput.isEmpty)
+    }
+
+    private var trimmedInput: String {
+        inputText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var dynamicTitle: String {
@@ -568,8 +663,66 @@ private struct MacDMConversationColumn: View {
         }
     }
 
+    private func openMedia(_ media: any UiMedia) {
+        let rawURL: String
+        switch onEnum(of: media) {
+        case .image(let image):
+            MacMediaWindowCoordinator.shared.open(
+                medias: [image],
+                initialIndex: 0,
+                preview: image.previewUrl,
+                accountType: selection.accountType,
+                openWindow: openWindow
+            )
+            return
+        case .ugoira(let animation):
+            rawURL = animation.url
+        case .gif(let gif):
+            rawURL = gif.url
+        case .video(let video):
+            rawURL = video.url
+        case .audio:
+            return
+        }
+        if let url = URL(string: rawURL) {
+            openURL(url)
+        }
+    }
+
+    private func loadPickedImage() async {
+        guard let url = pickedImage else { return }
+        let image = try? await Self.copyImage(from: url)
+        guard !Task.isCancelled, pickedImage == url else { return }
+        pickedImage = nil
+        imageImportFailed = image == nil
+        if let image, presenter.state.canSendImage {
+            presenter.state.selectImage(file: FileItem(
+                name: image.file.url.lastPathComponent,
+                pathProvider: { @Sendable [file = image.file] in file.url.path },
+                type: .image,
+                mimeType: image.mimeType
+            ))
+        }
+    }
+
+    @concurrent
+    private static func copyImage(from url: URL) async throws -> (file: ComposeMediaFile, mimeType: String?) {
+        let file = try ComposeMediaFile(copying: url)
+        guard let source = CGImageSourceCreateWithURL(file.url as CFURL, nil),
+              let identifier = CGImageSourceGetType(source) else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        return (file, UTType(identifier as String)?.preferredMIMEType)
+    }
+
     private func send() {
-        let message = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !attachmentBusy else { return }
+        if presenter.state.selectedImage != nil {
+            imageImportFailed = false
+            presenter.state.sendImage()
+            return
+        }
+        let message = trimmedInput
         guard !message.isEmpty else {
             return
         }
@@ -604,15 +757,13 @@ private struct MacDMChatInputBar: View {
             }
             .backport
             .glassEffect()
-            .padding(.horizontal)
-            .padding(.bottom)
     }
 }
 
 private struct MacDMMessageRow: View {
     let item: UiDMItem
     let onRetry: () -> Void
-    let onOpenURL: (URL) -> Void
+    let onOpenMedia: (any UiMedia) -> Void
 
     var body: some View {
         VStack(alignment: item.isFromMe ? .trailing : .leading, spacing: 4) {
@@ -670,9 +821,7 @@ private struct MacDMMessageRow: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .onTapGesture {
-                    if let url = message.media.primaryURL {
-                        onOpenURL(url)
-                    }
+                    onOpenMedia(message.media)
                 }
         case .status(let message):
             StatusView(
@@ -881,22 +1030,5 @@ private extension UiDMRoom {
 private extension AccountType {
     var specificAccountKey: MicroBlogKey? {
         (self as? AccountType.Specific)?.accountKey
-    }
-}
-
-private extension UiMedia {
-    var primaryURL: URL? {
-        switch onEnum(of: self) {
-        case .image(let image):
-            URL(string: image.url)
-        case .ugoira(let animation):
-            URL(string: animation.url)
-        case .gif(let gif):
-            URL(string: gif.url)
-        case .video(let video):
-            URL(string: video.url)
-        case .audio:
-            nil
-        }
     }
 }

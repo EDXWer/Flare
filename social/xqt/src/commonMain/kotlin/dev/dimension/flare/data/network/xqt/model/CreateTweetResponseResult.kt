@@ -26,5 +26,5 @@ import kotlinx.serialization.Serializable
 @Serializable
 internal data class CreateTweetResponseResult(
     @SerialName(value = "tweet_results")
-    val tweetResults: CreateTweet,
+    val tweetResults: CreateTweet? = null,
 )

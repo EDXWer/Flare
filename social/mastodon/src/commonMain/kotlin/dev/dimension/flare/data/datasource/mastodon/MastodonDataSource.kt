@@ -70,6 +70,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.uuid.Uuid
 
 private val MEDIA_COMPRESSION =
@@ -350,7 +351,7 @@ internal open class MastodonDataSource(
                     data.poll?.let { poll ->
                         PostPoll(
                             options = poll.options,
-                            expiresIn = poll.expiredAfter,
+                            expiresIn = poll.expiredAfter.milliseconds.inWholeSeconds,
                             multiple = poll.multiple,
                         )
                     },

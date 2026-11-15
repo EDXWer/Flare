@@ -3,9 +3,13 @@ package dev.dimension.flare.ui.presenter.dm
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.paging.compose.collectAsLazyPagingItems
+import dev.dimension.flare.common.FileItem
 import dev.dimension.flare.common.PagingState
 import dev.dimension.flare.common.collectAsState
 import dev.dimension.flare.common.toPagingState
@@ -24,7 +28,9 @@ import dev.dimension.flare.ui.model.onSuccess
 import dev.dimension.flare.ui.model.toUi
 import dev.dimension.flare.ui.presenter.PresenterBase
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.seconds
 
 public class DMConversationPresenter(
@@ -41,6 +47,10 @@ public class DMConversationPresenter(
                 serviceState.map { requireNotNull(it.capabilities.directMessage) }
             }
         val scope = rememberCoroutineScope()
+        val directMessage = (directMessageState as? UiState.Success)?.data
+        var image by remember(directMessage, roomKey) { mutableStateOf<FileItem?>(null) }
+        var imageSending by remember(directMessage, roomKey) { mutableStateOf(false) }
+        var imageFailed by remember(directMessage, roomKey) { mutableStateOf(false) }
         val items =
             directMessageState
                 .map { directMessage ->
@@ -72,6 +82,41 @@ public class DMConversationPresenter(
 
             override val users = users
 
+            override val canLeave = directMessage?.supportsLeavingDirectMessage == true
+
+            override val canSendImage = directMessage?.supportsSendingDirectMessageImage == true
+
+            override val selectedImage = image
+
+            override val isSendingImage = imageSending
+
+            override val imageSendFailed = imageFailed
+
+            override fun selectImage(file: FileItem?) {
+                if (!canSendImage || imageSending) return
+                image = file
+                imageFailed = false
+            }
+
+            override fun sendImage() {
+                val file = image ?: return
+                if (!canSendImage || directMessage == null || imageSending) return
+                imageSending = true
+                imageFailed = false
+                scope.launch {
+                    try {
+                        directMessage.sendDirectMessageImage(roomKey, file)
+                        image = null
+                    } catch (error: CancellationException) {
+                        throw error
+                    } catch (_: Exception) {
+                        imageFailed = true
+                    } finally {
+                        imageSending = false
+                    }
+                }
+            }
+
             override fun send(message: String) {
                 directMessageState.onSuccess {
                     it.sendDirectMessage(roomKey, message)
@@ -86,7 +131,7 @@ public class DMConversationPresenter(
 
             override fun leave() {
                 directMessageState.onSuccess {
-                    it.leaveDirectMessage(roomKey)
+                    if (it.supportsLeavingDirectMessage) it.leaveDirectMessage(roomKey)
                 }
             }
         }
@@ -97,8 +142,17 @@ public class DMConversationPresenter(
 public interface DMConversationState {
     public val items: PagingState<UiDMItem>
     public val users: UiState<ImmutableList<UiProfile>>
+    public val canLeave: Boolean
+    public val canSendImage: Boolean
+    public val selectedImage: FileItem?
+    public val isSendingImage: Boolean
+    public val imageSendFailed: Boolean
 
     public fun send(message: String)
+
+    public fun selectImage(file: FileItem?)
+
+    public fun sendImage()
 
     public fun retry(key: MicroBlogKey)
 

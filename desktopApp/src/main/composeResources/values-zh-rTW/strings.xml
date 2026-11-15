@@ -337,6 +337,8 @@
     <string name="compose_title">發布</string>
     <string name="compose_hint">在想些什麼？</string>
     <string name="compose_poll_option_hint">選項 %1$s</string>
+    <string name="compose_poll_unsupported_accounts">有已選帳號不支援發佈投票。</string>
+    <string name="compose_poll_option_limits">填寫 2 到 %1$d 個選項，每項最多 %2$d 個字元。</string>
     <string name="compose_poll_single_choice">單選</string>
     <string name="compose_poll_multiple_choice">複選</string>
     <string name="compose_poll_expiration_at">截止時間：%1$s</string>

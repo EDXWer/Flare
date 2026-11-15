@@ -21,7 +21,7 @@ import kotlin.uuid.Uuid
 
 @OptIn(ExperimentalComposeUiApi::class)
 class ImageClipboardManager(
-    private val onImagePasted: (File) -> Unit,
+    private val onImagePasted: suspend (File) -> Unit,
 ) : Clipboard {
     private val systemClipboard by lazy {
         try {

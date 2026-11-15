@@ -9,6 +9,7 @@ public struct ComposeActionBarContent<MediaControl: View>: View {
     private let canUseContentWarning: Bool
     private let visibility: UiTimelineV2.PostVisibility?
     private let allVisibilities: [UiTimelineV2.PostVisibility]
+    private let replyRestriction: ComposeReplyRestriction?
     private let emojiState: UiState<EmojiData>
     private let isEmojiPresented: Binding<Bool>
     private let languageCodes: [String]
@@ -18,6 +19,7 @@ public struct ComposeActionBarContent<MediaControl: View>: View {
     private let onTogglePoll: () -> Void
     private let onToggleContentWarning: () -> Void
     private let onSelectVisibility: (UiTimelineV2.PostVisibility) -> Void
+    private let onSelectReplyRestriction: (ComposeReplyRestriction) -> Void
     private let onSelectEmoji: (UiEmoji) -> Void
     private let mediaControl: () -> MediaControl
 
@@ -28,6 +30,7 @@ public struct ComposeActionBarContent<MediaControl: View>: View {
         canUseContentWarning: Bool,
         visibility: UiTimelineV2.PostVisibility?,
         allVisibilities: [UiTimelineV2.PostVisibility],
+        replyRestriction: ComposeReplyRestriction?,
         emojiState: UiState<EmojiData>,
         isEmojiPresented: Binding<Bool>,
         languageCodes: [String],
@@ -37,6 +40,7 @@ public struct ComposeActionBarContent<MediaControl: View>: View {
         onTogglePoll: @escaping () -> Void,
         onToggleContentWarning: @escaping () -> Void,
         onSelectVisibility: @escaping (UiTimelineV2.PostVisibility) -> Void,
+        onSelectReplyRestriction: @escaping (ComposeReplyRestriction) -> Void,
         onSelectEmoji: @escaping (UiEmoji) -> Void,
         @ViewBuilder mediaControl: @escaping () -> MediaControl
     ) {
@@ -46,6 +50,7 @@ public struct ComposeActionBarContent<MediaControl: View>: View {
         self.canUseContentWarning = canUseContentWarning
         self.visibility = visibility
         self.allVisibilities = allVisibilities
+        self.replyRestriction = replyRestriction
         self.emojiState = emojiState
         self.isEmojiPresented = isEmojiPresented
         self.languageCodes = languageCodes
@@ -55,6 +60,7 @@ public struct ComposeActionBarContent<MediaControl: View>: View {
         self.onTogglePoll = onTogglePoll
         self.onToggleContentWarning = onToggleContentWarning
         self.onSelectVisibility = onSelectVisibility
+        self.onSelectReplyRestriction = onSelectReplyRestriction
         self.onSelectEmoji = onSelectEmoji
         self.mediaControl = mediaControl
     }
@@ -67,7 +73,7 @@ public struct ComposeActionBarContent<MediaControl: View>: View {
                         mediaControl()
                     }
 
-                    if canAddPoll && !hasMedia {
+                    if isPollEnabled || (canAddPoll && !hasMedia) {
                         Button(action: onTogglePoll) {
                             Label {
                                 Text("compose_poll_type", bundle: FlareAppleUILocalization.bundle)
@@ -89,6 +95,10 @@ public struct ComposeActionBarContent<MediaControl: View>: View {
                             allVisibilities: allVisibilities,
                             onSelect: onSelectVisibility
                         )
+                    }
+
+                    if let replyRestriction {
+                        replyRestrictionMenu(replyRestriction)
                     }
 
                     if canUseContentWarning {
@@ -127,6 +137,40 @@ public struct ComposeActionBarContent<MediaControl: View>: View {
                     .monospacedDigit()
             }
         }
+    }
+
+    private func replyRestrictionMenu(_ restriction: ComposeReplyRestriction) -> some View {
+        let title = Text("compose_x_reply_restriction", bundle: FlareAppleUILocalization.bundle)
+        let selection = Binding(get: { restriction }, set: { onSelectReplyRestriction($0) })
+
+        return Menu {
+            Button {} label: {
+                title
+            }
+            .disabled(true)
+
+            Divider()
+
+            Picker(selection: selection) {
+                ForEach([ComposeReplyRestriction.everyone, .following, .mentioned, .verified], id: \.self) { option in
+                    Label {
+                        Text(verbatim: option.localizedLabel)
+                    } icon: {
+                        Image(fontAwesome: option.icon)
+                    }
+                    .tag(option)
+                }
+            } label: {
+                title
+            }
+            .labelsHidden()
+            .pickerStyle(.inline)
+        } label: {
+            Image(fontAwesome: restriction.icon)
+        }
+        .menuOrder(.fixed)
+        .accessibilityLabel(title)
+        .accessibilityValue(Text(verbatim: restriction.localizedLabel))
     }
 }
 
@@ -285,6 +329,30 @@ private struct ComposeLanguageMenu: View {
             }
         } else {
             selectedLanguages.wrappedValue = [code]
+        }
+    }
+}
+
+private extension ComposeReplyRestriction {
+    var icon: FontAwesomeIcon {
+        switch self {
+        case .everyone: .globe
+        case .following: .users
+        case .mentioned: .at
+        case .verified: .circleCheck
+        }
+    }
+
+    var localizedLabel: String {
+        switch self {
+        case .everyone:
+            String(localized: "compose_x_reply_everyone", defaultValue: "Everyone", bundle: FlareAppleUILocalization.bundle)
+        case .following:
+            String(localized: "compose_x_reply_following", defaultValue: "Accounts you follow", bundle: FlareAppleUILocalization.bundle)
+        case .mentioned:
+            String(localized: "compose_x_reply_mentioned", defaultValue: "Only mentioned accounts", bundle: FlareAppleUILocalization.bundle)
+        case .verified:
+            String(localized: "compose_x_reply_verified", defaultValue: "Verified accounts", bundle: FlareAppleUILocalization.bundle)
         }
     }
 }

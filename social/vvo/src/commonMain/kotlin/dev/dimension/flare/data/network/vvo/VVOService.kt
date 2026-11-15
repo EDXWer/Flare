@@ -6,13 +6,16 @@ import dev.dimension.flare.common.UploadMedia
 import dev.dimension.flare.common.decodeJson
 import dev.dimension.flare.data.model.ProxyRef
 import dev.dimension.flare.data.network.appendMedia
+import dev.dimension.flare.data.network.isWeiboDirectMessageAttachment
 import dev.dimension.flare.data.network.ktorClient
 import dev.dimension.flare.data.network.nullableFallbackJson
 import dev.dimension.flare.data.network.vvo.api.ConfigApi
+import dev.dimension.flare.data.network.vvo.api.DirectMessageApi
 import dev.dimension.flare.data.network.vvo.api.StatusApi
 import dev.dimension.flare.data.network.vvo.api.TimelineApi
 import dev.dimension.flare.data.network.vvo.api.UserApi
 import dev.dimension.flare.data.network.vvo.api.createConfigApi
+import dev.dimension.flare.data.network.vvo.api.createDirectMessageApi
 import dev.dimension.flare.data.network.vvo.api.createStatusApi
 import dev.dimension.flare.data.network.vvo.api.createTimelineApi
 import dev.dimension.flare.data.network.vvo.api.createUserApi
@@ -118,6 +121,15 @@ private class VVOApis(
     val userApi: UserApi = ktorfit.createUserApi()
     val configApi: ConfigApi = ktorfit.createConfigApi()
     val statusApi: StatusApi = ktorfit.createStatusApi()
+    val directMessageApi: DirectMessageApi by lazy {
+        vvoKtorfit(chocolateProvider = chocolateProvider) { config ->
+            httpClientFactory {
+                config()
+                followRedirects = false
+                expectSuccess = true
+            }
+        }.createDirectMessageApi()
+    }
 }
 
 internal class VVOService private constructor(
@@ -153,6 +165,17 @@ internal class VVOService private constructor(
 
     private val refreshMutex = Mutex()
     private val webClient by lazy { httpClientFactory { followRedirects = false } }
+
+    suspend fun directMessageApi(): DirectMessageApi {
+        refreshChocolateIfNeeded()
+        return apis.directMessageApi
+    }
+
+    suspend fun directMessageImageHeaders(url: String): Map<String, String> {
+        require(Url(url).isWeiboDirectMessageAttachment())
+        val cookie = refreshChocolateIfNeeded()?.chocolate ?: currentChocolate()
+        return if (cookie.isNullOrBlank()) emptyMap() else mapOf(HttpHeaders.Cookie to cookie)
+    }
 
     suspend fun extensionAuthHeaders(url: String): Map<String, String> {
         val target = Url(url)
@@ -667,6 +690,6 @@ private val VVOHeaderPlugin =
                     request.headers.append("Cookie", chocolate)
                 }
             }
-            request.headers.append("Referer", "https://$vvoHost/")
+            if (request.headers["Referer"] == null) request.headers.append("Referer", "https://$vvoHost/")
         }
     }

@@ -21,22 +21,36 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.awt.ComposeWindow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import compose.icons.FontAwesomeIcons
 import compose.icons.fontawesomeicons.Solid
 import compose.icons.fontawesomeicons.solid.ArrowRightFromBracket
 import compose.icons.fontawesomeicons.solid.CircleUser
 import compose.icons.fontawesomeicons.solid.EllipsisVertical
+import compose.icons.fontawesomeicons.solid.Image
 import compose.icons.fontawesomeicons.solid.PaperPlane
+import compose.icons.fontawesomeicons.solid.Xmark
 import dev.dimension.flare.LocalWindowPadding
 import dev.dimension.flare.Res
+import dev.dimension.flare.common.FileItem
+import dev.dimension.flare.common.MimeTypes
 import dev.dimension.flare.common.onSuccess
+import dev.dimension.flare.dm_add_image
 import dev.dimension.flare.dm_conversation
+import dev.dimension.flare.dm_image_attached
+import dev.dimension.flare.dm_image_send_failed
 import dev.dimension.flare.dm_leave
+import dev.dimension.flare.dm_remove_image
 import dev.dimension.flare.dm_send_placeholder
+import dev.dimension.flare.dm_sending
 import dev.dimension.flare.dm_to_profile
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.MicroBlogKey
@@ -53,6 +67,7 @@ import dev.dimension.flare.ui.model.onSuccess
 import dev.dimension.flare.ui.presenter.dm.DMConversationPresenter
 import dev.dimension.flare.ui.presenter.dm.DMConversationState
 import dev.dimension.flare.ui.presenter.invoke
+import dev.dimension.flare.ui.theme.LocalComposeWindow
 import dev.dimension.flare.ui.theme.screenHorizontalPadding
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.MenuFlyoutContainer
@@ -62,6 +77,8 @@ import io.github.composefluent.component.Text
 import io.github.composefluent.component.TextField
 import moe.tlaster.precompose.molecule.producePresenter
 import org.jetbrains.compose.resources.stringResource
+import java.awt.FileDialog
+import java.io.FilenameFilter
 
 @Composable
 fun DmConversationScreen(
@@ -82,6 +99,7 @@ fun DmConversationScreen(
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
     }
+    val window = LocalComposeWindow.current
     val listState = rememberLazyListState()
     state.items.onSuccess {
         if (listState.firstVisibleItemIndex == 0) {
@@ -141,26 +159,28 @@ fun DmConversationScreen(
                         }
                     }
 
-                    MenuFlyoutItem(
-                        text = {
-                            Text(
-                                text = stringResource(Res.string.dm_leave),
-                                color = FluentTheme.colors.system.critical,
-                            )
-                        },
-                        icon = {
-                            FAIcon(
-                                imageVector = FontAwesomeIcons.Solid.ArrowRightFromBracket,
-                                contentDescription = stringResource(Res.string.dm_leave),
-                                tint = FluentTheme.colors.system.critical,
-                            )
-                        },
-                        onClick = {
-                            isFlyoutVisible = false
-                            state.leave()
-                            onBack()
-                        },
-                    )
+                    if (state.canLeave) {
+                        MenuFlyoutItem(
+                            text = {
+                                Text(
+                                    text = stringResource(Res.string.dm_leave),
+                                    color = FluentTheme.colors.system.critical,
+                                )
+                            },
+                            icon = {
+                                FAIcon(
+                                    imageVector = FontAwesomeIcons.Solid.ArrowRightFromBracket,
+                                    contentDescription = stringResource(Res.string.dm_leave),
+                                    tint = FluentTheme.colors.system.critical,
+                                )
+                            },
+                            onClick = {
+                                isFlyoutVisible = false
+                                state.leave()
+                                onBack()
+                            },
+                        )
+                    }
                 },
             ) {
                 SubtleButton(
@@ -188,43 +208,74 @@ fun DmConversationScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Bottom),
             ) {
                 stickyHeader {
-                    TextField(
-                        state = state.text,
-                        modifier =
-                            Modifier
-                                .padding(8.dp)
-                                .fillMaxWidth()
-                                .focusRequester(focusRequester),
-                        lineLimits = TextFieldLineLimits.SingleLine,
-                        trailing = {
-                            SubtleButton(
-                                onClick = {
-                                    state.send()
-                                },
-                                disabled = !state.canSend,
-                                iconOnly = true,
-                            ) {
-                                FAIcon(
-                                    FontAwesomeIcons.Solid.PaperPlane,
-                                    contentDescription = stringResource(Res.string.send),
-                                )
-                            }
-                        },
-                        placeholder = {
+                    val image = state.selectedImage
+                    val attachmentIcon = if (image == null) FontAwesomeIcons.Solid.Image else FontAwesomeIcons.Solid.Xmark
+                    val attachmentLabel = if (image == null) Res.string.dm_add_image else Res.string.dm_remove_image
+                    Column(Modifier.padding(8.dp)) {
+                        if (image != null) {
                             Text(
-                                text = stringResource(Res.string.dm_send_placeholder),
+                                text =
+                                    when {
+                                        state.isSendingImage -> stringResource(Res.string.dm_sending)
+                                        state.imageSendFailed -> stringResource(Res.string.dm_image_send_failed)
+                                        else -> image.name ?: stringResource(Res.string.dm_image_attached)
+                                    },
+                                modifier = Modifier.padding(bottom = 4.dp).semantics { liveRegion = LiveRegionMode.Polite },
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                color =
+                                    if (state.imageSendFailed) {
+                                        FluentTheme.colors.system.critical
+                                    } else {
+                                        FluentTheme.colors.text.text.primary
+                                    },
                             )
-                        },
-                        keyboardOptions =
-                            KeyboardOptions(
-                                imeAction = ImeAction.Send,
-                            ),
-                        onKeyboardAction = {
-                            if (state.canSend) {
-                                state.send()
-                            }
-                        },
-                    )
+                        }
+                        TextField(
+                            state = state.text,
+                            modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+                            lineLimits = TextFieldLineLimits.SingleLine,
+                            trailing = {
+                                Row {
+                                    if (state.canSendImage) {
+                                        SubtleButton(
+                                            onClick = {
+                                                if (image == null) {
+                                                    pickImage(window)?.let(state::selectImage)
+                                                } else {
+                                                    state.selectImage(null)
+                                                }
+                                            },
+                                            disabled = state.isSendingImage,
+                                            iconOnly = true,
+                                        ) {
+                                            FAIcon(
+                                                imageVector = attachmentIcon,
+                                                contentDescription = stringResource(attachmentLabel),
+                                            )
+                                        }
+                                    }
+                                    SubtleButton(
+                                        onClick = { state.send() },
+                                        disabled = !state.canSend,
+                                        iconOnly = true,
+                                    ) {
+                                        FAIcon(
+                                            FontAwesomeIcons.Solid.PaperPlane,
+                                            contentDescription = stringResource(Res.string.send),
+                                        )
+                                    }
+                                }
+                            },
+                            placeholder = { Text(stringResource(Res.string.dm_send_placeholder)) },
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                            onKeyboardAction = {
+                                if (state.canSend) {
+                                    state.send()
+                                }
+                            },
+                        )
+                    }
                 }
                 items(
                     state.items,
@@ -257,6 +308,18 @@ fun DmConversationScreen(
     }
 }
 
+private fun pickImage(window: ComposeWindow?): FileItem? {
+    val file =
+        FileDialog(window)
+            .apply {
+                filenameFilter = FilenameFilter { _, name -> MimeTypes.fromFileName(name)?.startsWith("image/") == true }
+                isVisible = true
+            }.files
+            .firstOrNull() ?: return null
+    val mimeType = MimeTypes.fromFileName(file.name)?.takeIf { it.startsWith("image/") } ?: return null
+    return FileItem(file, mimeType = mimeType)
+}
+
 @Composable
 private fun presenter(
     accountType: AccountType,
@@ -276,11 +339,15 @@ private fun presenter(
 
     object : DMConversationState by state {
         val text = text
-        val canSend = text.text.isNotEmpty()
+        val canSend = !isSendingImage && (selectedImage != null || text.text.isNotEmpty())
 
         fun send() {
-            send(text.text.toString())
-            text.clearText()
+            if (selectedImage != null) {
+                sendImage()
+            } else {
+                send(text.text.toString())
+                text.clearText()
+            }
         }
     }
 }
