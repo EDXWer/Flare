@@ -9,6 +9,7 @@ import dev.dimension.flare.ui.render.TranslationDocument
 import dev.dimension.flare.ui.render.TranslationTokenKind
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.expectSuccess
 import io.ktor.client.request.forms.FormDataContent
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -442,12 +443,11 @@ private class GoogleCloudTranslationEngine(
         )
 }
 
-private class LibreTranslateEngine(
+internal class LibreTranslateEngine(
     private val config: AppSettings.TranslateConfig.Provider.LibreTranslate,
+    httpClientFactory: () -> HttpClient = { ktorClient() },
 ) : TranslationEngine {
-    private val httpClient: HttpClient by lazy {
-        ktorClient()
-    }
+    private val httpClient by lazy(httpClientFactory)
 
     override suspend fun translateDocumentJson(
         sourceTemplate: String,
@@ -504,11 +504,13 @@ private class LibreTranslateEngine(
                     httpClient
                         .post {
                             url("$baseUrl/translate")
+                            expectSuccess = true
                             contentType(ContentType.Application.Json)
                             setBody(
                                 LibreTranslateRequest(
                                     q = requestTexts,
-                                    target = targetLanguage,
+                                    source = "auto",
+                                    target = targetLanguage.toLibreTranslateTargetLanguage(),
                                     format = "text",
                                     apiKey = config.apiKey.ifBlank { null },
                                 ),
@@ -615,6 +617,37 @@ internal fun String.toDeepLTargetLanguage(): String {
 
 private fun String.toGoogleCloudTargetLanguage(): String = replace('_', '-').trim()
 
+private fun String.toLibreTranslateTargetLanguage(): String {
+    val parts =
+        trim()
+            .substringBefore('@')
+            .replace('_', '-')
+            .lowercase()
+            .split('-')
+    val language = parts.first()
+    val qualifiers = parts.drop(1).takeWhile { it.length > 1 }
+
+    // The original model codes also work on servers without BCP 47 aliases.
+    return when (language) {
+        "zh" -> {
+            when {
+                "hant" in qualifiers -> "zt"
+                "hans" in qualifiers -> "zh"
+                qualifiers.any { it in setOf("tw", "hk", "mo") } -> "zt"
+                else -> "zh"
+            }
+        }
+
+        "pt" -> {
+            if ("br" in qualifiers) "pb" else "pt"
+        }
+
+        else -> {
+            language
+        }
+    }
+}
+
 @Serializable
 private data class DeepLTranslateResponse(
     val translations: List<DeepLTranslation>,
@@ -651,6 +684,7 @@ private data class GoogleCloudTranslation(
 @Serializable
 private data class LibreTranslateRequest(
     val q: List<String>,
+    val source: String,
     val target: String,
     val format: String,
     @SerialName("api_key")
@@ -660,7 +694,7 @@ private data class LibreTranslateRequest(
 @Serializable
 private data class LibreTranslateResponse(
     @SerialName("translatedText")
-    val translatedText: List<String> = emptyList(),
+    val translatedText: List<String>,
 )
 
 internal object GoogleWebTranslationDocumentSupport {
