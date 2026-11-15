@@ -1,8 +1,10 @@
 package dev.dimension.flare.data.network.mastodon.api
 
+import de.jensklingenberg.ktorfit.Response
 import de.jensklingenberg.ktorfit.http.GET
 import de.jensklingenberg.ktorfit.http.Path
 import de.jensklingenberg.ktorfit.http.Query
+import dev.dimension.flare.data.network.mastodon.api.model.Account
 import dev.dimension.flare.data.network.mastodon.api.model.Context
 import dev.dimension.flare.data.network.mastodon.api.model.MastodonPaging
 import dev.dimension.flare.data.network.mastodon.api.model.Notification
@@ -64,6 +66,27 @@ internal interface TimelineResources {
     suspend fun context(
         @Path("id") id: String,
     ): Context
+
+    @GET("api/v1/statuses/{id}/quotes")
+    suspend fun quotes(
+        @Path("id") id: String,
+        @Query("max_id") cursor: String?,
+        @Query("limit") limit: Int,
+    ): Response<List<Status>>
+
+    @GET("api/v1/statuses/{id}/reblogged_by")
+    suspend fun rebloggedBy(
+        @Path("id") id: String,
+        @Query("max_id") cursor: String?,
+        @Query("limit") limit: Int,
+    ): Response<List<Account>>
+
+    @GET("api/v1/statuses/{id}/favourited_by")
+    suspend fun favouritedBy(
+        @Path("id") id: String,
+        @Query("max_id") cursor: String?,
+        @Query("limit") limit: Int,
+    ): Response<List<Account>>
 
     @GET("api/v1/timelines/tag/{hashtag}")
     suspend fun hashtagTimeline(

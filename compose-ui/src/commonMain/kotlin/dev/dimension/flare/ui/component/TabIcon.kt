@@ -80,6 +80,19 @@ import dev.dimension.flare.compose.ui.rss_title
 import dev.dimension.flare.compose.ui.service_select_next_button
 import dev.dimension.flare.compose.ui.settings_title
 import dev.dimension.flare.compose.ui.social_title
+import dev.dimension.flare.compose.ui.status_detail_all_reactions
+import dev.dimension.flare.compose.ui.status_detail_by_popularity
+import dev.dimension.flare.compose.ui.status_detail_by_time
+import dev.dimension.flare.compose.ui.status_detail_comments
+import dev.dimension.flare.compose.ui.status_detail_liked_by
+import dev.dimension.flare.compose.ui.status_detail_likes
+import dev.dimension.flare.compose.ui.status_detail_oldest
+import dev.dimension.flare.compose.ui.status_detail_quotes
+import dev.dimension.flare.compose.ui.status_detail_reactions
+import dev.dimension.flare.compose.ui.status_detail_recency
+import dev.dimension.flare.compose.ui.status_detail_relevance
+import dev.dimension.flare.compose.ui.status_detail_replies
+import dev.dimension.flare.compose.ui.status_detail_reposted_by
 import dev.dimension.flare.compose.ui.tab_settings_default
 import dev.dimension.flare.compose.ui.tab_settings_filter_repost
 import dev.dimension.flare.compose.ui.weibo_friends_circle_title
@@ -363,6 +376,32 @@ internal val UiStrings.res: StringResource
             UiStrings.Highlights -> Res.string.profile_tab_highlights
 
             UiStrings.Reposts -> Res.string.tab_settings_filter_repost
+
+            UiStrings.Comments -> Res.string.status_detail_comments
+
+            UiStrings.ByPopularity -> Res.string.status_detail_by_popularity
+
+            UiStrings.ByTime -> Res.string.status_detail_by_time
+
+            UiStrings.Replies -> Res.string.status_detail_replies
+
+            UiStrings.Quotes -> Res.string.status_detail_quotes
+
+            UiStrings.Relevance -> Res.string.status_detail_relevance
+
+            UiStrings.Recency -> Res.string.status_detail_recency
+
+            UiStrings.Likes -> Res.string.status_detail_likes
+
+            UiStrings.Oldest -> Res.string.status_detail_oldest
+
+            UiStrings.RepostedBy -> Res.string.status_detail_reposted_by
+
+            UiStrings.LikedBy -> Res.string.status_detail_liked_by
+
+            UiStrings.Reactions -> Res.string.status_detail_reactions
+
+            UiStrings.AllReactions -> Res.string.status_detail_all_reactions
 
             UiStrings.Articles -> Res.string.profile_tab_articles
 

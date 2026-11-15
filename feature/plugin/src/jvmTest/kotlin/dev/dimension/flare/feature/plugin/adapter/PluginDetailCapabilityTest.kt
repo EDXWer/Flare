@@ -24,6 +24,7 @@ import dev.dimension.flare.feature.plugin.installer.PluginInstaller
 import dev.dimension.flare.feature.plugin.installer.TestFppFactory
 import dev.dimension.flare.feature.plugin.lifecycle.PluginStateStore
 import dev.dimension.flare.feature.plugin.lifecycle.RunningPluginV1
+import dev.dimension.flare.feature.plugin.login.requireLoginSuccess
 import dev.dimension.flare.feature.plugin.manifest.socialPlatform
 import dev.dimension.flare.feature.plugin.runtime.PluginCallException
 import dev.dimension.flare.feature.plugin.runtime.PluginRuntimePool
@@ -39,6 +40,7 @@ import dev.dimension.flare.model.ReferenceType
 import dev.dimension.flare.ui.model.ClickContext
 import dev.dimension.flare.ui.model.ClickEvent
 import dev.dimension.flare.ui.model.UiDMItem
+import dev.dimension.flare.ui.model.UiText
 import dev.dimension.flare.ui.model.UiTimelineV2
 import dev.dimension.flare.ui.model.UriLauncher
 import dev.dimension.flare.ui.model.postEventOrNull
@@ -261,6 +263,92 @@ class PluginDetailCapabilityTest {
             assertEquals(1L, pages.revision.value)
             posts.deleteStatus(MicroBlogKey("published", "plugin.example"))
             assertEquals(2L, pages.revision.value)
+        }
+
+    @Test
+    fun postContextTabsKeepSeparatePagesAndShareTheReplyTabDefault() =
+        runBlocking {
+            val source = authenticated(installPostContext())
+            val key = MicroBlogKey("root", "plugin.example")
+            val details = requireNotNull(source.postDetailTabs(key))
+            assertEquals(listOf("replies", "related"), details.tabs.map { it.id })
+            assertEquals("replies", details.replyTabId)
+            val (replies, related) = details.tabs
+            assertEquals(UiText.ExternalRef(PLUGIN_ID, "detail.replies", "Replies"), replies.title)
+            assertEquals(listOf("recent", "top"), replies.filter?.options?.map { it.id })
+            assertEquals("top", replies.filter?.defaultOptionId)
+            val recent = replies.loader("recent")
+            val top = replies.loader("top")
+            val relatedPosts = related.loader(null)
+            val another = requireNotNull(source.postDetailTabs(key.copy(id = "another")))
+            val anotherRoot = another.tabs.first().loader("recent")
+            val pagingKeys = listOf(recent, top, relatedPosts, anotherRoot).map { assertIs<CacheableRemoteLoader<*>>(it).pagingKey }
+            assertEquals(4, pagingKeys.toSet().size)
+            val first = recent.load(20, PagingRequest.Refresh)
+            assertEquals(listOf("root-replies-recent-1"), first.data.map { it.statusKey.id })
+            val second = recent.load(20, PagingRequest.Append(requireNotNull(first.nextKey)))
+            assertEquals(listOf("root-replies-recent-2"), second.data.map { it.statusKey.id })
+            assertNull(second.nextKey)
+            assertEquals(listOf("root-related-1"), relatedPosts.load(20, PagingRequest.Refresh).data.map { it.statusKey.id })
+            val shared = source.shareReplies(key)
+            val sharedFirst = shared.load(20, PagingRequest.Refresh)
+            assertEquals(listOf("root-replies-top-1"), sharedFirst.data.map { it.statusKey.id })
+            val sharedSecond = shared.load(20, PagingRequest.Append(requireNotNull(sharedFirst.nextKey)))
+            assertEquals(listOf("root-replies-top-2"), sharedSecond.data.map { it.statusKey.id })
+        }
+
+    @Test
+    fun postContextTabsCanBeEmptyAndSharingRequiresACanonicalReplyTab(): Unit =
+        runBlocking {
+            val source = authenticated(installPostContext())
+            val key = MicroBlogKey("empty", "plugin.example")
+            assertEquals(emptyList(), source.postDetailTabs(key)?.tabs)
+            val withoutReplies = source.shareReplies(key.copy(id = "no-replies")).load(20, PagingRequest.Refresh)
+            assertTrue(withoutReplies.data.isEmpty())
+            assertFailsWith<PluginRuntimeUnavailableException> {
+                source.shareReplies(key.copy(id = "invalid")).load(20, PagingRequest.Refresh)
+            }
+        }
+
+    @Test
+    fun legacyContextRemainsAvailableAndTakesPriorityForSharing() =
+        runBlocking {
+            val key = MicroBlogKey("root", "plugin.example")
+            for (tabbed in listOf(false, true)) {
+                val source = authenticated(installPostContext(tabbed = tabbed, legacy = true))
+                assertEquals(tabbed, source.postDetailTabs(key) != null)
+                val context = source.context(key).load(20, PagingRequest.Refresh)
+                val replies = source.shareReplies(key).load(20, PagingRequest.Refresh)
+                assertEquals(listOf("root", "legacy-reply"), context.data.map { it.statusKey.id })
+                assertEquals(listOf("legacy-reply"), replies.data.map { it.statusKey.id })
+            }
+        }
+
+    @Test
+    fun accountsMustNegotiateBothPostContextTabOperationsOrNeither() =
+        runBlocking {
+            val plugin = installPostContext()
+            val postCapability = PluginAbiV1.Capabilities.POST
+            val key = MicroBlogKey("root", "plugin.example")
+            val source =
+                authenticated(
+                    plugin,
+                    unavailableOperations = mapOf(postCapability to setOf("contextTabs", "contextPage")),
+                )
+            assertNull(source.postDetailTabs(key))
+            for (operation in listOf("contextTabs", "contextPage")) {
+                val accountId = "account-1"
+                val profile = ProfileV1(EntityKeyV1(accountId, key.host), "test@${key.host}", "Test")
+                val incomplete =
+                    LoginSuccessV1(
+                        accountId,
+                        ORIGIN,
+                        JsonObject(emptyMap()),
+                        profile,
+                        mapOf(postCapability to setOf("detail", operation)),
+                    )
+                assertFailsWith<IllegalArgumentException> { plugin.requireLoginSuccess(incomplete, ORIGIN, accountId) }
+            }
         }
 
     @Test
@@ -1388,6 +1476,25 @@ class PluginDetailCapabilityTest {
             .data
             .map { assertIs<UiTimelineV2.TimelinePostItem>(it).post }
 
+    private suspend fun installPostContext(
+        tabbed: Boolean = true,
+        legacy: Boolean = false,
+    ): RunningPluginV1 {
+        val operations =
+            buildList {
+                add(""""detail": {}""")
+                if (tabbed) add(""""contextTabs": {}, "contextPage": { "directions": ["refresh", "older"] }""")
+                if (legacy) add(""""context": {}""")
+            }.joinToString()
+        return install(
+            manifest =
+                MANIFEST
+                    .replace("\"apiVersion\": 1", "\"apiVersion\": ${if (tabbed) 2 else 1}")
+                    .replace("\"operations\": { \"detail\": {} }", "\"operations\": { $operations }"),
+            script = SCRIPT.replace("post: { detail(request)", "post: { $POST_CONTEXT_METHODS detail(request)"),
+        )
+    }
+
     private suspend fun authenticated(
         plugin: RunningPluginV1,
         unavailableCapabilities: Set<String> = emptySet(),
@@ -1526,6 +1633,42 @@ private const val MANIFEST =
 
 private const val LIST_DETAIL =
     """detail(request) { return { id: request.key.id, title: "Cold list", entityToken: "list-token" }; },"""
+
+private const val POST_CONTEXT_METHODS =
+    """
+    contextTabs(request) {
+      const id = request.key.id;
+      if (id === "empty") return { tabs: [] };
+      const tabs = [
+        { id: "replies", title: { key: "detail.replies", fallback: "Replies" }, filter: {
+          options: [
+            { id: "recent", title: { value: "Recent" } },
+            { id: "top", title: { value: "Top" } },
+          ],
+          defaultOptionId: "top",
+        } },
+        { id: "related", title: { value: "Related" } },
+      ];
+      if (id === "no-replies") return { tabs };
+      return { tabs, replyTabId: id === "invalid" ? "missing" : "replies" };
+    },
+    contextPage(request) {
+      const { key, tabId, filterId, page } = request;
+      if (key.id === "no-replies") throw new Error("Sharing loaded a tab with no reply designation");
+      if (tabId === "related" && "filterId" in request) throw new Error("An unfiltered tab received a filter");
+      const prefix = [key.id, tabId, filterId].filter(Boolean).join("-");
+      const first = page.direction === "refresh";
+      if (!first && page.cursor !== prefix) throw new Error("Cursor crossed detail tabs or filters");
+      return {
+        items: [{ type: "post", post: post(prefix + (first ? "-1" : "-2")) }],
+        olderCursor: first ? prefix : null,
+        endReached: !first,
+      };
+    },
+    context(request) {
+      return { items: [post(request.key.id), post("legacy-reply")].map(post => ({ type: "post", post })), endReached: true };
+    },
+    """
 
 private const val SCRIPT =
     """

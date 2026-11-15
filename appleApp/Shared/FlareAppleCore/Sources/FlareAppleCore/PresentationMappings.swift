@@ -244,6 +244,32 @@ public extension UiStrings {
             localizedPresentationString("posts_with_replies_title", fallback: "Posts and replies")
         case .highlights:
             localizedPresentationString("profile_tab_highlights", fallback: "Highlights")
+        case .comments:
+            localizedPresentationString("status_detail_comments", fallback: "Comments")
+        case .byPopularity:
+            localizedPresentationString("status_detail_by_popularity", fallback: "By popularity")
+        case .byTime:
+            localizedPresentationString("status_detail_by_time", fallback: "By time")
+        case .replies:
+            localizedPresentationString("status_detail_replies", fallback: "Replies")
+        case .quotes:
+            localizedPresentationString("status_detail_quotes", fallback: "Quotes")
+        case .relevance:
+            localizedPresentationString("status_detail_relevance", fallback: "Most relevant")
+        case .recency:
+            localizedPresentationString("status_detail_recency", fallback: "Latest")
+        case .likes:
+            localizedPresentationString("status_detail_likes", fallback: "Most liked")
+        case .oldest:
+            localizedPresentationString("status_detail_oldest", fallback: "Oldest")
+        case .repostedBy:
+            localizedPresentationString("status_detail_reposted_by", fallback: "Reposted by")
+        case .likedBy:
+            localizedPresentationString("status_detail_liked_by", fallback: "Liked by")
+        case .reactions:
+            localizedPresentationString("status_detail_reactions", fallback: "Reactions")
+        case .allReactions:
+            localizedPresentationString("status_detail_all_reactions", fallback: "All reactions")
         case .reposts:
             localizedPresentationString("vvo_status_reposts", fallback: "Reposts")
         case .articles:

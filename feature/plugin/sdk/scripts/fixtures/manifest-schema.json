@@ -19,6 +19,61 @@
       "hostValid": true
     },
     {
+      "name": "API v2 post context tabs can coexist with legacy context",
+      "patch": {
+        "apiVersion": 2,
+        "platform": {
+          "capabilities": {
+            "flare.datasource.post/v1": {
+              "operations": { "detail": {}, "context": {}, "contextTabs": {}, "contextPage": { "directions": ["refresh", "older"] } }
+            }
+          }
+        }
+      },
+      "schemaValid": true,
+      "hostValid": true
+    },
+    {
+      "name": "API v1 rejects post context tabs",
+      "patch": {
+        "platform": {
+          "capabilities": {
+            "flare.datasource.post/v1": {
+              "operations": { "detail": {}, "contextTabs": {}, "contextPage": {} }
+            }
+          }
+        }
+      },
+      "schemaValid": false,
+      "hostValid": false
+    },
+    {
+      "name": "Post context tabs require the page operation",
+      "patch": {
+        "apiVersion": 2,
+        "platform": {
+          "capabilities": {
+            "flare.datasource.post/v1": { "operations": { "detail": {}, "contextTabs": {} } }
+          }
+        }
+      },
+      "schemaValid": false,
+      "hostValid": false
+    },
+    {
+      "name": "Post context pages require the tabs operation",
+      "patch": {
+        "apiVersion": 2,
+        "platform": {
+          "capabilities": {
+            "flare.datasource.post/v1": { "operations": { "detail": {}, "contextPage": {} } }
+          }
+        }
+      },
+      "schemaValid": false,
+      "hostValid": false
+    },
+    {
       "name": "QR login is available in API v2",
       "patch": {
         "apiVersion": 2,

@@ -37,7 +37,7 @@ internal fun EntryProviderScope<NavKey>.statusEntryBuilder(
     }
 
     entry<Route.Status.VVOStatus> { args ->
-        VVOStatusScreen(
+        StatusScreen(
             statusKey = args.statusKey,
             accountType = args.accountType,
             onBack = onBack

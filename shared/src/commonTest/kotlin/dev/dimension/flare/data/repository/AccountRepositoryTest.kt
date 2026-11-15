@@ -29,7 +29,10 @@ import dev.dimension.flare.data.database.cache.model.DbUserRelation
 import dev.dimension.flare.data.database.cache.model.TranslationEntityType
 import dev.dimension.flare.data.database.cache.model.TranslationStatus
 import dev.dimension.flare.data.database.createDatabaseDriver
+import dev.dimension.flare.data.datasource.microblog.ComposeConfig
 import dev.dimension.flare.data.datasource.microblog.ComposeData
+import dev.dimension.flare.data.datasource.microblog.ComposeDataSource
+import dev.dimension.flare.data.datasource.microblog.ComposeType
 import dev.dimension.flare.data.datasource.microblog.MicroblogDataSource
 import dev.dimension.flare.data.datasource.microblog.UnavailableMicroblogDataSource
 import dev.dimension.flare.data.datasource.microblog.datasource.TimelineTabConfigurationDataSource
@@ -66,6 +69,7 @@ import dev.dimension.flare.ui.model.asType
 import dev.dimension.flare.ui.model.createSampleStatus
 import dev.dimension.flare.ui.model.createSampleUser
 import dev.dimension.flare.ui.model.toUi
+import dev.dimension.flare.ui.presenter.compose.ComposeStatus
 import dev.dimension.flare.ui.presenter.compose.SaveDraftUseCase
 import dev.dimension.flare.ui.presenter.home.RememberedAccountSelection
 import dev.dimension.flare.ui.render.toUiPlainText
@@ -114,6 +118,43 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class AccountRepositoryTest : RobolectricTest() {
+    @Test
+    fun publishingAWeiboCommentReplyInvalidatesTheRootPost() =
+        runTest {
+            val registry = testPlatformRegistry()
+            val account = UiAccount(accountKey, "WeiboDetailTest")
+            registry.replaceExternal(
+                account.platformId,
+                object : PlatformSpec by registry.defaultGuest {
+                    override val platformId = account.platformId
+                    override val isDefaultGuest = false
+
+                    override fun createDataSource(context: PlatformDataSourceContext): MicroblogDataSource =
+                        object : ComposeDataSource, MicroblogDataSource by UnavailableMicroblogDataSource {
+                            override val accountKey = account.accountKey
+
+                            override fun composeConfig(type: ComposeType) = ComposeConfig()
+
+                            override suspend fun publish(
+                                data: ComposeData,
+                                progress: () -> Unit,
+                            ) = Unit
+                        }
+                },
+            )
+            val repository = createRepository(backgroundScope, registry = registry)
+            repository.addAccount(account, "{}")
+            val comment = MicroBlogKey("comment", accountKey.host)
+            val refresh = async(start = CoroutineStart.UNDISPATCHED) { withTimeout(5_000) { repository.publishedReplies.first() } }
+
+            repository.publish(
+                account,
+                ComposeData("reply", referenceStatus = ComposeData.ReferenceStatus(ComposeStatus.VVOComment(comment, "root"))),
+            ) {}
+
+            assertEquals(accountKey to comment.copy(id = "root"), refresh.await())
+        }
+
     @Test
     fun failedCommitValidationKeepsTheExistingAccountAndCredential() =
         runTest {

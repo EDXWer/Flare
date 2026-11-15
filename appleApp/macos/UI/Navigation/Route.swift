@@ -28,7 +28,6 @@ enum Route: Hashable, Identifiable {
     case galleryDetail(AccountType, MicroBlogKey)
     case galleryComments(AccountType, MicroBlogKey)
     case statusVVOComment(AccountType, MicroBlogKey)
-    case statusVVOStatus(AccountType, MicroBlogKey)
     case profileUser(AccountType, MicroBlogKey)
     case profileUserNameWithHost(AccountType, String, String)
     case profileInsight(AccountType, MicroBlogKey)
@@ -202,8 +201,6 @@ enum Route: Hashable, Identifiable {
             GalleryCommentsScreen(accountType: accountType, statusKey: statusKey)
         case .statusVVOComment(let accountType, let statusKey):
             VVOCommentScreen(accountType: accountType, statusKey: statusKey)
-        case .statusVVOStatus(let accountType, let statusKey):
-            VVOStatusScreen(accountType: accountType, statusKey: statusKey)
         case .profileUser(let accountType, let userKey):
             ProfileScreen(
                 accountType: accountType,
@@ -585,7 +582,7 @@ extension Route {
         case .vVOComment(let data):
             .statusVVOComment(data.accountType, data.commentKey)
         case .vVOStatus(let data):
-            .statusVVOStatus(data.accountType, data.statusKey)
+            .statusDetail(data.accountType, data.statusKey)
         case .shareSheet(let data):
             .statusShareSheet(data.accountType, data.statusKey, data.shareUrl, data.fxShareUrl, data.fixvxShareUrl)
         default:

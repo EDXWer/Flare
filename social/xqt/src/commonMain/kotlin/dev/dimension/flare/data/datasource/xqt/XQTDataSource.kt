@@ -13,6 +13,10 @@ import dev.dimension.flare.data.datasource.microblog.DatabaseUpdater
 import dev.dimension.flare.data.datasource.microblog.DirectMessageDataSource
 import dev.dimension.flare.data.datasource.microblog.NotificationFilter
 import dev.dimension.flare.data.datasource.microblog.NotificationTimelineDataSource
+import dev.dimension.flare.data.datasource.microblog.PostDetailFilter
+import dev.dimension.flare.data.datasource.microblog.PostDetailFilterOption
+import dev.dimension.flare.data.datasource.microblog.PostDetailTab
+import dev.dimension.flare.data.datasource.microblog.PostDetailTabs
 import dev.dimension.flare.data.datasource.microblog.PostEvent
 import dev.dimension.flare.data.datasource.microblog.ProfileTab
 import dev.dimension.flare.data.datasource.microblog.SearchOperation
@@ -81,6 +85,7 @@ import dev.dimension.flare.ui.model.UiPodcast
 import dev.dimension.flare.ui.model.UiStrings
 import dev.dimension.flare.ui.model.UiText
 import dev.dimension.flare.ui.model.UiTimelineV2
+import dev.dimension.flare.ui.model.asText
 import dev.dimension.flare.ui.model.contentPostOrNull
 import dev.dimension.flare.ui.model.mapper.render
 import dev.dimension.flare.ui.model.mapper.renderArticle
@@ -528,6 +533,42 @@ internal class XQTDataSource(
             service = service,
             accountKey = accountKey,
             statusOnly = false,
+        )
+
+    override suspend fun postDetailTabs(statusKey: MicroBlogKey): PostDetailTabs =
+        PostDetailTabs(
+            tabs =
+                listOf(
+                    PostDetailTab(
+                        id = "replies",
+                        title = UiStrings.Replies.asText(),
+                        filter =
+                            PostDetailFilter(
+                                options = ReplyRanking.entries.map { PostDetailFilterOption(it.name, it.title.asText()) },
+                                defaultOptionId = ReplyRanking.Relevance.name,
+                            ),
+                        includesPostContext = true,
+                        loader = { optionId ->
+                            RankedStatusDetailLoader(
+                                statusKey = statusKey,
+                                service = service,
+                                accountKey = accountKey,
+                                rankingMode = ReplyRanking.entries.firstOrNull { it.name == optionId } ?: ReplyRanking.Relevance,
+                            )
+                        },
+                    ),
+                    PostDetailTab(
+                        id = "quotes",
+                        title = UiStrings.Quotes.asText(),
+                        loader = { SearchStatusPagingSource(service, accountKey, quotedPost = statusKey) },
+                    ),
+                    PostDetailTab(
+                        id = "reposted-by",
+                        title = UiStrings.RepostedBy.asText(),
+                        loader = { RepostedByLoader(service, accountKey, statusKey) },
+                    ),
+                ),
+            replyTabId = "replies",
         )
 
     override suspend fun publish(

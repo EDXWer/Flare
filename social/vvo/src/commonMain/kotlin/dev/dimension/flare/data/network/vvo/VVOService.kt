@@ -21,26 +21,38 @@ import dev.dimension.flare.data.network.vvo.api.createTimelineApi
 import dev.dimension.flare.data.network.vvo.api.createUserApi
 import dev.dimension.flare.data.network.vvo.model.Config
 import dev.dimension.flare.data.network.vvo.model.EmojiData
+import dev.dimension.flare.data.network.vvo.model.HotflowData
+import dev.dimension.flare.data.network.vvo.model.StatusLiker
 import dev.dimension.flare.data.network.vvo.model.UploadResponse
 import dev.dimension.flare.data.network.vvo.model.VVOResponse
+import dev.dimension.flare.data.platform.VVO_PLATFORM_ID
 import dev.dimension.flare.data.platform.VVoCredential
+import dev.dimension.flare.data.repository.LoginExpiredException
+import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.model.vvoHost
+import dev.dimension.flare.model.vvoHostLong
 import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.api.createClientPlugin
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.accept
 import io.ktor.client.request.forms.append
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.forms.submitFormWithBinaryData
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.parameter
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.URLBuilder
 import io.ktor.http.URLProtocol
 import io.ktor.http.Url
+import io.ktor.http.encodeURLPathPart
+import io.ktor.http.isSuccess
 import io.ktor.http.takeFrom
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -48,6 +60,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.longOrNull
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
@@ -55,6 +73,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 
 private val baseUrl = "https://$vvoHost/"
+private val emptyDetailMessages = setOf("暂无数据", "暂无内容", "这里还没有内容", "还没有内容", "没有更多")
 
 // SUB rotates well before the ALF session window ends, so refresh proactively
 // while the app is in use instead of waiting a full day.
@@ -145,6 +164,7 @@ internal class VVOService private constructor(
     )
 
     private val refreshMutex = Mutex()
+    private val webClient by lazy { httpClientFactory { followRedirects = false } }
 
     suspend fun directMessageApi(): DirectMessageApi {
         refreshChocolateIfNeeded()
@@ -208,6 +228,84 @@ internal class VVOService private constructor(
         }
 
         return response
+    }
+
+    suspend fun getWebComments(
+        id: String,
+        flow: Int,
+        maxId: Long?,
+        accountKey: MicroBlogKey,
+    ): HotflowData {
+        val url = "https://$vvoHostLong/ajax/statuses/buildComments"
+        val authHeaders = extensionAuthHeaders(url)
+        val response =
+            webClient.get(url) {
+                authHeaders.forEach { (name, value) -> header(name, value) }
+                headers[HttpHeaders.Referrer] = "https://$vvoHostLong/detail/${id.encodeURLPathPart()}"
+                header("X-Requested-With", "XMLHttpRequest")
+                accept(ContentType.Application.Json)
+                parameter("id", id)
+                parameter("is_reload", 1)
+                parameter("is_show_bulletin", 2)
+                parameter("is_mix", 0)
+                parameter("fetch_level", 0)
+                parameter("flow", flow)
+                parameter("count", 20)
+                maxId?.let { parameter("max_id", it) }
+            }
+        if (response.status == HttpStatusCode.Unauthorized) {
+            throw LoginExpiredException(accountKey, VVO_PLATFORM_ID)
+        }
+        check(response.status.isSuccess()) { "Could not load Weibo comments (HTTP ${response.status.value})" }
+
+        val envelope = response.bodyAsText().decodeJson<JsonObject>()
+        val page = (envelope["data"] as? JsonObject) ?: envelope
+        val errorCode =
+            (envelope["ok"] as? JsonPrimitive)?.longOrNull?.takeUnless { it == 1L }
+                ?: (page["ok"] as? JsonPrimitive)?.longOrNull?.takeUnless { it == 1L }
+        if (errorCode != null) {
+            val message = ((envelope["msg"] ?: page["msg"]) as? JsonPrimitive)?.contentOrNull?.trim()
+            if (errorCode == -100L) throw LoginExpiredException(accountKey, VVO_PLATFORM_ID)
+            if (errorCode == 0L && message in emptyDetailMessages) return HotflowData()
+            error(message ?: "Could not load Weibo comments")
+        }
+        check(page["data"] is JsonArray) { "Weibo comments response is missing its comments array" }
+        return JSON.decodeFromJsonElement<HotflowData>(page)
+    }
+
+    suspend fun getStatusLikers(
+        id: String,
+        page: Int,
+        accountKey: MicroBlogKey,
+    ): List<StatusLiker> {
+        val url = "https://$vvoHost/api/attitudes/show"
+        val authHeaders = extensionAuthHeaders(url)
+        val response =
+            webClient.get(url) {
+                authHeaders.forEach { (name, value) -> header(name, value) }
+                headers[HttpHeaders.Referrer] = "https://$vvoHost/detail/${id.encodeURLPathPart()}"
+                header("X-Requested-With", "XMLHttpRequest")
+                header("MWeibo-Pwa", "1")
+                accept(ContentType.Application.Json)
+                parameter("id", id)
+                parameter("page", page)
+            }
+        if (response.status == HttpStatusCode.Unauthorized) {
+            throw LoginExpiredException(accountKey, VVO_PLATFORM_ID)
+        }
+        check(response.status.isSuccess()) { "Could not load Weibo likes (HTTP ${response.status.value})" }
+        val body = response.bodyAsText()
+        if (body.trimStart().startsWith("<") && body.isVvoNoDataHtml()) return emptyList()
+
+        val envelope = body.decodeJson<JsonObject>()
+        val code = (envelope["ok"] as? JsonPrimitive)?.longOrNull
+        val message = (envelope["msg"] as? JsonPrimitive)?.contentOrNull?.trim()
+        if (code == -100L) throw LoginExpiredException(accountKey, VVO_PLATFORM_ID)
+        if (code == 0L && message in emptyDetailMessages) return emptyList()
+        check(code == 1L) { message ?: "Could not load Weibo likes" }
+        val rows = (envelope["data"] as? JsonObject)?.get("data")
+        check(rows is JsonArray) { "Weibo likes response is missing its user list" }
+        return JSON.decodeFromJsonElement<List<StatusLiker>>(rows)
     }
 
     suspend fun getUid(screenName: String): String? {

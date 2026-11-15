@@ -11,13 +11,23 @@ import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.model.UiTimelineV2
 import dev.dimension.flare.ui.model.mapper.render
 
+internal enum class StatusCommentSort(
+    val id: String,
+    val flow: Int,
+) {
+    Hot("hot", 1),
+    Time("time", 0),
+}
+
 @OptIn(ExperimentalPagingApi::class)
 internal class StatusCommentRemoteMediator(
     private val service: VVOService,
     private val statusKey: MicroBlogKey,
     private val accountKey: MicroBlogKey,
+    private val sort: StatusCommentSort? = StatusCommentSort.Hot,
 ) : CacheableRemoteLoader<UiTimelineV2> {
-    override val pagingKey: String = "status_comments_${statusKey}_$accountKey"
+    override val pagingKey: String =
+        if (sort == null) "status_comments_${statusKey}_$accountKey" else "status_comments_web_${sort.id}_${statusKey}_$accountKey"
 
     override suspend fun load(
         pageSize: Int,
@@ -31,14 +41,10 @@ internal class StatusCommentRemoteMediator(
             )
         }
 
-        val response =
+        val cursor =
             when (request) {
                 PagingRequest.Refresh -> {
-                    service.getHotComments(
-                        id = statusKey.id,
-                        mid = statusKey.id,
-                        maxId = null,
-                    )
+                    null
                 }
 
                 is PagingRequest.Prepend -> {
@@ -48,22 +54,33 @@ internal class StatusCommentRemoteMediator(
                 }
 
                 is PagingRequest.Append -> {
-                    service.getHotComments(
-                        id = statusKey.id,
-                        mid = statusKey.id,
-                        maxId = request.nextKey.toLongOrNull(),
-                    )
+                    val cursor = request.nextKey.toLongOrNull()
+                    if (sort != null && (cursor == null || cursor <= 0L)) {
+                        return PagingResult(endOfPaginationReached = true)
+                    }
+                    cursor
                 }
             }
 
-        val maxId = response.data?.maxID?.takeIf { it != 0L }
+        val page =
+            if (sort == null) {
+                service.getHotComments(id = statusKey.id, mid = statusKey.id, maxId = cursor).data
+            } else {
+                service.getWebComments(id = statusKey.id, flow = sort.flow, maxId = cursor, accountKey = accountKey)
+            }
+        val maxId =
+            page
+                ?.maxID
+                ?.takeIf { it != 0L }
+                ?.takeUnless { sort != null && (it < 0L || it == cursor) }
+        val rootStatusId = statusKey.id.takeIf { sort != null }
         return PagingResult(
             endOfPaginationReached = maxId == null,
             data =
-                response.data
+                page
                     ?.data
                     .orEmpty()
-                    .map { it.render(accountKey) },
+                    .map { it.render(accountKey, rootStatusId) },
             nextKey = maxId?.toString(),
         )
     }

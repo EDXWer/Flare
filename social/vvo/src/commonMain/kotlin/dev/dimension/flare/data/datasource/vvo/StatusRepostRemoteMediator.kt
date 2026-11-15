@@ -9,7 +9,9 @@ import dev.dimension.flare.data.platform.VVO_PLATFORM_ID
 import dev.dimension.flare.data.repository.LoginExpiredException
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.model.UiTimelineV2
+import dev.dimension.flare.ui.model.asTimelinePostItem
 import dev.dimension.flare.ui.model.mapper.render
+import kotlinx.collections.immutable.persistentListOf
 
 @OptIn(ExperimentalPagingApi::class)
 internal class StatusRepostRemoteMediator(
@@ -57,8 +59,13 @@ internal class StatusRepostRemoteMediator(
         val statuses = response.data?.data.orEmpty()
         return PagingResult(
             endOfPaginationReached = statuses.isEmpty(),
-            data = statuses.map { it.render(accountKey) },
+            data = statuses.map { it.render(accountKey).withoutVvoQuotes() },
             nextKey = (page + 1).toString(),
         )
     }
+}
+
+private fun UiTimelineV2.withoutVvoQuotes(): UiTimelineV2 {
+    val item = asTimelinePostItem() ?: return this
+    return item.copy(presentation = item.presentation.copy(quotes = persistentListOf()))
 }

@@ -108,7 +108,7 @@ private val twitterParser by lazy {
     TwitterParser(enableNonAsciiInUrl = false)
 }
 
-private fun TweetUnion.toTweetOrNull(): Tweet? =
+internal fun TweetUnion.toTweetOrNull(): Tweet? =
     when (this) {
         is Tweet -> this
 
