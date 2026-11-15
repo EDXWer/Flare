@@ -67,6 +67,7 @@ import dev.dimension.flare.ui.component.placeholder
 import dev.dimension.flare.ui.component.platform.isBigScreen
 import dev.dimension.flare.ui.component.status.LazyStatusVerticalStaggeredGrid
 import dev.dimension.flare.ui.component.status.MediaItem
+import dev.dimension.flare.ui.component.status.StatusComponentDefaults
 import dev.dimension.flare.ui.component.status.StatusPlaceholder
 import dev.dimension.flare.ui.component.status.status
 import dev.dimension.flare.ui.model.UiMedia
@@ -164,7 +165,7 @@ private fun ProfileLoadingScreen(onBack: () -> Unit) {
             }
             items(5) {
                 StatusPlaceholder(
-                    modifier = Modifier.padding(horizontal = screenHorizontalPadding),
+                    modifier = Modifier.padding(horizontal = StatusComponentDefaults.horizontalPadding),
                 )
             }
         }
@@ -390,7 +391,7 @@ internal fun ProfileScreen(
                                     StatusPlaceholder(
                                         modifier =
                                             Modifier.padding(
-                                                horizontal = screenHorizontalPadding,
+                                                horizontal = StatusComponentDefaults.horizontalPadding,
                                             ),
                                     )
                                 }

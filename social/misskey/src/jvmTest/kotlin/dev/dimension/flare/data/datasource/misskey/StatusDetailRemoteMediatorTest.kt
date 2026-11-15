@@ -4,15 +4,24 @@ import androidx.datastore.core.DataStore
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import dev.dimension.flare.data.datasource.microblog.paging.PagingRequest
+import dev.dimension.flare.data.datasource.microblog.paging.PostContextLoader
 import dev.dimension.flare.data.model.ProxySettings
 import dev.dimension.flare.data.network.misskey.MisskeyService
 import dev.dimension.flare.data.repository.ProxyRepository
 import dev.dimension.flare.model.MicroBlogKey
+import dev.dimension.flare.ui.model.UiStrings
+import dev.dimension.flare.ui.model.UiText
+import dev.dimension.flare.ui.model.UiTimelineV2
+import dev.dimension.flare.ui.model.asText
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
@@ -26,12 +35,15 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 class StatusDetailRemoteMediatorTest {
+    private val accountKey = MicroBlogKey("me", "example.test")
+    private val statusKey = MicroBlogKey("detail", "example.test")
     private lateinit var server: HttpServer
     private lateinit var executor: ExecutorService
     private lateinit var mediator: StatusDetailRemoteMediator
@@ -178,6 +190,144 @@ class StatusDetailRemoteMediatorTest {
         }
 
     @Test
+    fun repliesTabKeepsTheAnchorAndNestedRepliesWithoutLoadingLegacyChildren() =
+        runTest {
+            server.createContext("/api/notes/replies") { exchange ->
+                exchange.respond(
+                    when (exchange.fields()["noteId"]) {
+                        "detail" -> "[$CHILD_JSON]"
+                        "child" -> "[$GRANDCHILD_JSON]"
+                        else -> "[]"
+                    },
+                )
+            }
+            val source = createSource()
+            val tabs = assertNotNull(source.postDetailTabs(statusKey))
+            assertEquals(listOf("replies", "quotes", "reposts", "reactions"), tabs.tabs.map { it.id })
+            assertEquals("replies", tabs.replyTabId)
+            val tab = tabs.tabs.first()
+            assertTrue(tab.includesPostContext)
+            val replies = assertIs<PostContextLoader>(tab.loader(null))
+
+            val refresh = replies.load(20, PagingRequest.Refresh)
+            val prepend = replies.load(20, PagingRequest.Prepend(assertNotNull(refresh.previousKey)))
+            val append = replies.load(20, PagingRequest.Append(assertNotNull(refresh.nextKey)))
+            assertEquals(
+                listOf("grandparent", "parent", "detail", "child", "grandchild"),
+                (prepend.data + refresh.data + append.data).map { it.statusKey.id },
+            )
+            assertEquals("child", append.nextKey)
+            assertEquals(1, showCalls.get())
+            assertEquals(0, childrenCalls.get())
+            assertEquals("status_detail_detail@example.test_me@example.test", source.context(statusKey).pagingKey)
+            assertTrue(replies.pagingKey != source.context(statusKey).pagingKey)
+
+            replies.load(20, PagingRequest.Refresh)
+            assertEquals(2, showCalls.get())
+        }
+
+    @Test
+    fun renoteTabsFollowRawCursorsThroughPagesOfTheOtherKind() =
+        runTest {
+            val repost = renote("n60")
+            val secondRepost = renote("n50")
+            val textQuote = renote("n40", extra = ""","text":"quoted"""")
+            val thirdRepost = renote("n30")
+            val fileQuote = renote("n20", extra = ""","fileIds":["file"]""")
+            val pollQuote = renote("n10", extra = ""","poll":{"multiple":false,"choices":[{"text":"Yes","votes":0}]}""")
+            val pages =
+                mapOf(
+                    null to "[$repost,$secondRepost]",
+                    "n50" to "[$textQuote,$thirdRepost]",
+                    "n30" to "[$fileQuote,$pollQuote]",
+                    "n10" to "[$pollQuote]",
+                )
+            server.createContext("/api/notes/renotes") { exchange ->
+                val fields = exchange.fields()
+                val page = pages[fields["untilId"]]?.takeIf { fields["noteId"] == "detail" && fields["limit"] == "2" }
+                exchange.respond(page ?: "{}", status = if (page == null) 400 else 200)
+            }
+            val tabs = assertNotNull(createSource().postDetailTabs(statusKey))
+            val quotes = tabs.tabs.single { it.id == "quotes" }.loader(null)
+            val quotePage = quotes.load(2, PagingRequest.Refresh)
+            assertEquals(listOf("n40"), quotePage.data.map { it.statusKey.id })
+            assertEquals("n30", quotePage.nextKey)
+            val moreQuotes = quotes.load(2, PagingRequest.Append(assertNotNull(quotePage.nextKey)))
+            assertEquals(listOf("n20", "n10"), moreQuotes.data.map { it.statusKey.id })
+            val fileOnly = assertIs<UiTimelineV2.TimelinePostItem>(moreQuotes.data.first())
+            val quoted = fileOnly.presentation.quotes.single()
+            assertEquals("detail", quoted.statusKey.id)
+            assertNull(fileOnly.presentation.repost)
+            val repeatedQuote = quotes.load(2, PagingRequest.Append(assertNotNull(moreQuotes.nextKey)))
+            assertTrue(repeatedQuote.data.isEmpty())
+            assertNull(repeatedQuote.nextKey)
+
+            val reposts = tabs.tabs.single { it.id == "reposts" }.loader(null)
+            val repostPage = reposts.load(2, PagingRequest.Refresh)
+            assertEquals(listOf("n60", "n50"), repostPage.data.map { it.statusKey.id })
+            val moreReposts = reposts.load(2, PagingRequest.Append(assertNotNull(repostPage.nextKey)))
+            assertEquals(listOf("n30"), moreReposts.data.map { it.statusKey.id })
+            val last = reposts.load(2, PagingRequest.Append(assertNotNull(moreReposts.nextKey)))
+            assertTrue(last.data.isEmpty())
+            assertNull(last.nextKey)
+        }
+
+    @Test
+    fun reactionFiltersSendTheEmojiTypeAndContinueByReactionId() =
+        runTest {
+            server.removeContext("/api/notes/show")
+            server.createContext("/api/notes/show") {
+                it.respond(DETAIL_JSON.replace("\"reactions\":{}", """"reactions":{":party@.:":1,"🎉":2,"👻":0}"""))
+            }
+            server.createContext("/api/notes/reactions") { exchange ->
+                val fields = exchange.fields()
+                val page =
+                    when (fields["type"] to fields["untilId"]) {
+                        null to null -> reaction("r30", "ada", "🎉")
+                        ":party@.:" to null -> reaction("r20", "pat", ":party@.:")
+                        ":party@.:" to "r20" -> reaction("r10", "sam", ":party@.:")
+                        else -> null
+                    }?.takeIf { fields["noteId"] == "detail" && fields["limit"] == "1" }
+                exchange.respond(page ?: "{}", status = if (page == null) 400 else 200)
+            }
+            val tabs = assertNotNull(createSource().postDetailTabs(statusKey))
+            val reactions = tabs.tabs.single { it.id == "reactions" }
+            val filter = assertNotNull(reactions.filter)
+            assertEquals(
+                listOf(UiStrings.AllReactions.asText(), UiText.Raw("🎉"), UiText.Raw(":party@.:")),
+                filter.options.map { it.title },
+            )
+            val all = reactions.loader(filter.defaultOptionId).load(1, PagingRequest.Refresh)
+            assertEquals("ada", assertIs<UiTimelineV2.User>(all.data.single()).value.key.id)
+
+            val loader = reactions.loader(filter.options.last().id)
+            val first = loader.load(1, PagingRequest.Refresh)
+            assertEquals("pat", assertIs<UiTimelineV2.User>(first.data.single()).value.key.id)
+            assertEquals("r20", first.nextKey)
+            val next = loader.load(1, PagingRequest.Append(assertNotNull(first.nextKey)))
+            assertEquals("sam", assertIs<UiTimelineV2.User>(next.data.single()).value.key.id)
+        }
+
+    @Test
+    fun failedReactionMetadataDoesNotBlockTheThread() =
+        runTest {
+            server.removeContext("/api/notes/show")
+            server.createContext("/api/notes/show") {
+                if (showCalls.incrementAndGet() == 1) {
+                    it.respond("""{"error":{"message":"Metadata unavailable","code":"INTERNAL_ERROR"}}""", status = 500)
+                } else {
+                    it.respond(DETAIL_JSON)
+                }
+            }
+            val tabs = assertNotNull(createSource().postDetailTabs(statusKey))
+            assertNull(tabs.tabs.single { it.id == "reactions" }.filter)
+            val replies = tabs.tabs.single { it.id == "replies" }.loader(null)
+            val thread = replies.load(20, PagingRequest.Refresh)
+            assertEquals(statusKey, thread.data.single().statusKey)
+            assertEquals(2, showCalls.get())
+        }
+
+    @Test
     fun emptyConversationKeepsTheEmbeddedParentFallback() =
         runTest {
             server.removeContext("/api/notes/show")
@@ -297,6 +447,26 @@ class StatusDetailRemoteMediatorTest {
         sendResponseHeaders(status, bytes.size.toLong())
         responseBody.use { it.write(bytes) }
     }
+
+    private fun HttpExchange.fields(): Map<String, String?> =
+        Json
+            .parseToJsonElement(requestBody.bufferedReader().use { it.readText() })
+            .jsonObject
+            .mapValues { (_, value) -> value.jsonPrimitive.contentOrNull }
+
+    private fun createSource() = MisskeyDataSource(accountKey, lazy { MisskeyService("http://127.0.0.1:${server.address.port}/api/") })
+
+    private fun renote(
+        id: String,
+        extra: String = "",
+    ): String =
+        """{"id":"$id","createdAt":"2024-01-01T00:00:00Z","userId":"user","user":{"id":"user","username":"tester"},"visibility":"public","reactions":{},"renoteCount":0,"repliesCount":0,"renoteId":"detail","renote":$DETAIL_JSON$extra}"""
+
+    private fun reaction(
+        id: String,
+        user: String,
+        type: String,
+    ): String = """[{"id":"$id","createdAt":"2024-01-01T00:00:00Z","user":{"id":"$user","username":"$user"},"type":"$type"}]"""
 
     private companion object {
         const val GRANDPARENT_JSON =

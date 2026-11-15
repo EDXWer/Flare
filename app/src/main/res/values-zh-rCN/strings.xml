@@ -19,6 +19,8 @@
     <string name="compose_vvo_comment_title">评论</string>
     <string name="compose_hint">在想什么？</string>
     <string name="compose_poll_option_hint">选项 %1$s</string>
+    <string name="compose_poll_unsupported_accounts">有选中的账号不支持发布投票。</string>
+    <string name="compose_poll_option_limits">填写 2 到 %1$d 个选项，每项最多 %2$d 个字符。</string>
     <string name="compose_poll_single_choice">单选</string>
     <string name="compose_poll_multiple_choice">多选</string>
     <string name="compose_poll_expiration_at">截止时间：%1$s</string>
@@ -484,6 +486,10 @@
     <string name="dm_deleted">已删除</string>
     <string name="dm_conversation">私信对话</string>
     <string name="dm_sending">正在发送</string>
+    <string name="dm_add_image">添加图片</string>
+    <string name="dm_remove_image">移除图片</string>
+    <string name="dm_image_attached">已添加图片</string>
+    <string name="dm_image_send_failed">图片发送失败，请重试。</string>
     <string name="dm_leave">退出对话</string>
     <string name="dm_to_profile">显示个人资料</string>
     <string name="notification_login_expired">%1$s 的登录已过期</string>

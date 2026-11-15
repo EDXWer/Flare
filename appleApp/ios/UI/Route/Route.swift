@@ -196,7 +196,7 @@ enum Route: Hashable, Identifiable {
                 }
             )
         case .statusVVOStatus(let accountType, let statusKey):
-            VVOStatusScreen(accountType: accountType, statusKey: statusKey)
+            StatusDetailScreen(accountType: accountType, statusKey: statusKey)
         case .statusShareSheet(let accountType, let statusKey, let shareUrl, let fxShareUrl, let fixvxShareUrl):
             StatusShareSheet(
                 statusKey: statusKey,

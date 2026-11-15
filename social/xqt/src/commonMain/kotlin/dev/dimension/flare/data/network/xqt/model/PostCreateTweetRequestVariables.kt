@@ -15,7 +15,10 @@
 
 package dev.dimension.flare.data.network.xqt.model
 
+import dev.dimension.flare.data.datasource.microblog.ComposeReplyRestriction
 import kotlinx.serialization.Contextual
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -29,6 +32,7 @@ import kotlinx.serialization.Serializable
  * @param reply
  */
 @Serializable
+@OptIn(ExperimentalSerializationApi::class)
 internal data class PostCreateTweetRequestVariables(
     @SerialName(value = "dark_request")
     val darkRequest: kotlin.Boolean = false,
@@ -43,14 +47,17 @@ internal data class PostCreateTweetRequestVariables(
     @SerialName(value = "attachment_url")
     val attachmentUrl: kotlin.String? = null,
     @SerialName(value = "conversation_control")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
     val conversationControl: PostCreateTweetRequestVariablesConversationControl? = null,
+    @SerialName("card_uri")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val cardUri: String? = null,
     @SerialName(value = "disallowed_reply_options")
     val disallowedReplyOptions: kotlinx.serialization.json.JsonElement? = null,
 )
 
 @Serializable
 internal data class PostCreateTweetRequestVariablesConversationControl(
-    @SerialName(value = "value")
     val mode: Mode,
 ) {
     @Serializable
@@ -59,6 +66,17 @@ internal data class PostCreateTweetRequestVariablesConversationControl(
         Verified,
         Community,
     }
+}
+
+internal fun ComposeReplyRestriction?.toXqtConversationControl(): PostCreateTweetRequestVariablesConversationControl? {
+    val mode =
+        when (this) {
+            null, ComposeReplyRestriction.Everyone -> return null
+            ComposeReplyRestriction.Following -> PostCreateTweetRequestVariablesConversationControl.Mode.Community
+            ComposeReplyRestriction.Mentioned -> PostCreateTweetRequestVariablesConversationControl.Mode.ByInvitation
+            ComposeReplyRestriction.Verified -> PostCreateTweetRequestVariablesConversationControl.Mode.Verified
+        }
+    return PostCreateTweetRequestVariablesConversationControl(mode)
 }
 
 @Serializable

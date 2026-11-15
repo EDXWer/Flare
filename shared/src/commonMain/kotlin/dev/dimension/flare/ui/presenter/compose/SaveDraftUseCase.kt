@@ -37,6 +37,7 @@ internal fun dev.dimension.flare.data.datasource.microblog.ComposeData.toDraftCo
         sensitive = sensitive,
         spoilerText = spoilerText,
         localOnly = localOnly,
+        replyRestriction = replyRestriction,
         poll =
             poll?.let {
                 DraftContent.DraftPoll(

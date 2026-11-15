@@ -253,7 +253,11 @@ private val UiStrings.androidStringRes: Int
 
             UiStrings.QrConnect -> R.string.login_button
 
-            UiStrings.QrLoginNewCode, UiStrings.QrLoginRetrySave -> R.string.login_button
+            UiStrings.Comments, UiStrings.ByPopularity, UiStrings.ByTime, UiStrings.Replies,
+            UiStrings.Quotes, UiStrings.Relevance, UiStrings.Recency, UiStrings.Likes, UiStrings.Oldest,
+            UiStrings.RepostedBy, UiStrings.LikedBy, UiStrings.Reactions, UiStrings.AllReactions,
+            UiStrings.QrLoginNewCode, UiStrings.QrLoginRetrySave,
+            -> R.string.login_button
 
             UiStrings.CredentialImport -> R.string.login_button
 

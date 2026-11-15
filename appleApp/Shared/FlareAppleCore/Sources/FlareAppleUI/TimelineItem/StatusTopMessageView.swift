@@ -4,6 +4,7 @@ import FlareAppleCore
 
 public struct StatusTopMessageView: View {
     @Environment(\.openURL) private var openURL
+    @Environment(\.isPostContent) private var isPostContent
     private let topMessage: UiTimelineV2.Message
 
     public init(topMessage: UiTimelineV2.Message) {
@@ -13,15 +14,25 @@ public struct StatusTopMessageView: View {
     public var body: some View {
         HStack(spacing: 8) {
             topMessage.icon.image
+                .if(isPostContent) { view in
+                    view.font(.caption)
+                }
             if let user = topMessage.user {
                 RichText(text: user.name)
+                    .if(isPostContent) { view in
+                        view.bold()
+                    }
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let text = topMessage.type.localizedText {
                 Text(text)
                     .flarePrimaryText()
                     .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(isPostContent ? 1 : 0)
             }
+        }
+        .if(isPostContent) { view in
+            view.font(.body).lineSpacing(1)
         }
         .onTapGesture {
             topMessage.onClicked(ClickContext(launcher: AppleUriLauncher(openUrl: openURL)))

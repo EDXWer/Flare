@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.RichText
@@ -25,6 +26,7 @@ internal fun StatusRetweetHeaderComponent(
     text: String,
     modifier: Modifier = Modifier,
     textStyle: TextStyle = PlatformTheme.typography.caption,
+    boldName: Boolean = false,
     color: androidx.compose.ui.graphics.Color = PlatformContentColor.current,
 ) {
     Row(
@@ -44,7 +46,7 @@ internal fun StatusRetweetHeaderComponent(
             RichText(
                 text = user.name,
                 layoutDirection = LocalLayoutDirection.current,
-                textStyle = textStyle,
+                textStyle = if (boldName) textStyle.copy(fontWeight = FontWeight.Bold) else textStyle,
                 modifier =
                     Modifier
                         .alignByBaseline()

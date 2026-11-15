@@ -3,6 +3,10 @@ import KotlinSharedUI
 import SwiftUIBackports
 import FlareAppleCore
 
+#if os(macOS)
+import AppKit
+#endif
+
 public typealias TimelineMediaOpenAction = (UiTimelineV2.Post, any UiMedia, Int) -> Void
 public enum TimelineMediaMenuAction {
     case download
@@ -31,6 +35,11 @@ public struct StatusView: View {
     @Environment(\.translateConfig) private var translateConfig
     @Environment(\.openURL) private var openURL
     @Environment(\.timelineMediaOpenAction) private var timelineMediaOpenAction
+    #if os(macOS)
+    @ScaledMetric(relativeTo: .body) private var topEndIconSize = NSFont.preferredFont(forTextStyle: .body).pointSize
+    #else
+    @ScaledMetric(relativeTo: .body) private var topEndIconSize: CGFloat = 17
+    #endif
     private let data: UiTimelineV2.Post
     private let isDetail: Bool
     private let isQuote: Bool
@@ -93,9 +102,9 @@ public struct StatusView: View {
     public var body: some View {
         let parents = inlineParents
         let user = data.user
-        let carouselEdgePadding: CGFloat = isQuote ? 8 : carouselOuterHorizontalPadding
-        let carouselLeadingPadding = carouselEdgePadding + (showAsFullWidth && user != nil ? 52 : 0)
-        let replyToHandle = data.replyToHandle
+        let carouselEdgePadding: CGFloat = isQuote ? 12 : carouselOuterHorizontalPadding
+        let carouselLeadingPadding = carouselEdgePadding + (showAsFullWidth && user != nil ? 56 : 0)
+        let replyToHandle = withLeadingPadding || (showParents && !parents.isEmpty) ? nil : data.replyToHandle
         let translationDisplayed = data.translationDisplayState == .translated
         let contentWarnings: [UiRichText] = if let warning = data.contentWarning {
             if translationDisplayed, let translation = warning.translation {
@@ -140,10 +149,13 @@ public struct StatusView: View {
         let contentLineLimit: Int? = isDetail || textExpanded || effectiveLineLimit == Int(Int32.max) ? nil : effectiveLineLimit
         let collapseThreshold = maxLine == nil ? max(15, effectiveLineLimit) : effectiveLineLimit
         let canExpandLineLimitedContent = contentLineLimit != nil && !isDetail && !textExpanded && showExpandTextButton
-        let hasPreMediaBody =
+        let hasPreMediaText =
             replyToHandle != nil ||
             !contentWarningIsEmpty ||
             contents.contains { !$0.isEmpty } ||
+            (isDetail && showTranslate && !data.content.original.isEmpty && (poll == nil || !showMedia))
+        let hasPreMediaBody =
+            hasPreMediaText ||
             (isDetail && showTranslate) ||
             (poll != nil && showMedia)
 
@@ -164,14 +176,14 @@ public struct StatusView: View {
                             carouselOuterHorizontalPadding: carouselOuterHorizontalPadding
                         )
                         Spacer()
-                            .frame(height: 18)
+                            .frame(height: timelinePostBottomPadding + 14)
                     }
                     .overlay(alignment: .leading) {
                         Rectangle()
                             .fill(Color.flareSeparator)
                             .frame(minWidth: 1, maxWidth: 1, alignment: .leading)
-                            .padding(.leading, 22)
-                            .padding(.top, 44)
+                            .padding(.leading, 24)
+                            .padding(.top, 48)
                     }
                 }
             }
@@ -181,7 +193,7 @@ public struct StatusView: View {
             ) {
                 if showAsFullWidth, let user {
                     AvatarView(data: user.avatar)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 48, height: 48)
                         .accessibilityLabel(
                             Text(
                                 verbatim: openProfileAccessibilityLabel(handle: user.handle.display)
@@ -243,26 +255,22 @@ public struct StatusView: View {
                                     } onClicked: {
                                         user.onClicked(ClickContext(launcher: AppleUriLauncher(openUrl: openURL)))
                                     }
-                                    Spacer()
-                                        .frame(height: 4)
                                 }
                             }
                             if hasPreMediaBody {
                                 VStack(
                                     alignment: .leading,
-                                    spacing: 0,
+                                    spacing: 8,
                                 ) {
                                     if let replyToHandle {
                                         HStack(spacing: 4) {
                                             Image(fontAwesome: .reply)
                                             Text("Reply to \(replyToHandle)", bundle: FlareAppleUILocalization.bundle)
                                         }
-                                        .font(.caption)
                                         .flareSecondaryText()
-                                        .padding(.top, showAsFullWidth || isQuote ? 2 : 4)
                                     }
                                     if !contentWarningIsEmpty {
-                                        VStack(alignment: .leading, spacing: 4) {
+                                        VStack(alignment: .leading, spacing: 8) {
                                             ForEach(Array(contentWarnings.enumerated()), id: \.offset) { _, contentWarning in
                                                 if !contentWarning.isEmpty {
                                                     RichText(text: contentWarning)
@@ -293,11 +301,10 @@ public struct StatusView: View {
                                                 .glassProminentButtonStyle()
                                             }
                                         }
-                                        .padding(.vertical, 4)
                                     }
 
                                     if contentWarningExpanded || expandContentWarning || contentWarningIsEmpty {
-                                        VStack(alignment: .leading, spacing: 4) {
+                                        VStack(alignment: .leading, spacing: 8) {
                                             ForEach(Array(contents.enumerated()), id: \.offset) { index, content in
                                                 if !content.isEmpty {
                                                     CollapsibleRichText(
@@ -327,16 +334,9 @@ public struct StatusView: View {
                                             }
 
                                             if let poll, showMedia {
-                                                Spacer()
-                                                    .frame(height: 8)
                                                 StatusPollView(data: poll)
                                             }
                                         }
-                                        .padding(
-                                            .top,
-                                            (showAsFullWidth || isQuote) && contentWarningIsEmpty &&
-                                                (user != nil || replyToHandle != nil) && contents.contains { !$0.isEmpty } ? 2 : 0
-                                        )
                                     }
 
                                     if isDetail, showTranslate {
@@ -346,10 +346,11 @@ public struct StatusView: View {
                                         )
                                     }
                                 }
+                                .padding(.top, user != nil ? (hasPreMediaText ? 2 : 8) : 0)
                             }
                         }
                         .frame(
-                            minHeight: usesSideAvatarCarousel ? 44 : nil,
+                            minHeight: usesSideAvatarCarousel ? 38 : nil,
                             alignment: .topLeading
                         )
                     }
@@ -403,16 +404,16 @@ public struct StatusView: View {
                                     }
                                 }
                             }
-                            .padding(.top, 8)
+                            .padding(.top, 10)
                         }
 
                         if let card, showMedia, !hasImages, !hasQuotes, showLinkPreview {
                             if compatLinkPreview {
                                 StatusCompatCardView(data: card, cornerRadius: isQuote ? 12 : 16)
-                                    .padding(.top, 8)
+                                    .padding(.top, 10)
                             } else {
                                 StatusCardView(data: card, cornerRadius: isQuote ? 12 : 16)
-                                    .padding(.top, 8)
+                                    .padding(.top, 10)
                             }
                         }
 
@@ -430,48 +431,41 @@ public struct StatusView: View {
                                     }
                                 }
                             }
-                            .padding(8)
+                            .padding(12)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 16)
                                     .stroke(Color.flareSeparator, lineWidth: 1)
                             )
-                            .padding(.top, 4)
+                            .padding(.top, hasImages && showMedia && showAttachments ? 8 : 10)
                         }
 
                         if showMedia, !isQuote {
                             if sourceChannelName != nil || hasEmojiReactions {
-                                VStack(alignment: .leading, spacing: 4) {
+                                VStack(alignment: .leading, spacing: 8) {
                                     if let sourceChannelName {
                                         HStack(spacing: 4) {
                                             Image(fontAwesome: .tv)
                                             Text(sourceChannelName)
                                         }
-                                        .font(.footnote)
                                         .flareSecondaryText()
                                     }
                                     if hasEmojiReactions {
                                         StatusReactionView(data: emojiReactions, isDetail: isDetail)
                                     }
                                 }
-                                .padding(.top, 4)
+                                .padding(.top, 8)
                             }
                         }
 
                         if isDetail {
                             DateTimeText(data: createdAt, fullTime: true)
-                                .font(.caption)
                                 .flareSecondaryText()
                                 .padding(.top, 8)
                         }
 
                         if (postActionStyle != .hidden || isDetail) && !forceHideActions {
-                            StatusActionsView(data: actions, useText: false, topPadding: 8, isDetail: isDetail, postKey: String(describing: data.statusKey))
-                            #if os(macOS)
-                                .font(isDetail ? .body : .callout)
-                            #else
-                                .font(isDetail ? .body : .footnote)
-                            #endif
-                                .foregroundStyle(isDetail ? .primary : .secondary)
+                            StatusActionsView(data: actions, useText: false, topPadding: 2, isDetail: isDetail, postKey: String(describing: data.statusKey))
+                                .padding(.horizontal, -4)
                         }
                     }
                 }
@@ -488,6 +482,9 @@ public struct StatusView: View {
 //                }
             }
         }
+        .font(.body)
+        .lineSpacing(1)
+        .environment(\.isPostContent, true)
         .contentShape(.rect)
         .if(isClickable) { view in
             view.onTapGesture {
@@ -521,17 +518,20 @@ public struct StatusView: View {
         HStack(spacing: 4) {
             if let visibility {
                 StatusVisibilityView(data: visibility)
-                    .font(.caption)
+                    .font(.system(size: 20))
+                    .frame(width: 20, height: 20)
+                    .scaleEffect(topEndIconSize / 20)
+                    .frame(width: topEndIconSize, height: topEndIconSize)
                     .flareSecondaryText()
             }
             if translationDisplayState != .hidden {
-                TranslateStatusComponent(data: translationDisplayState)
-                    .font(.caption)
+                TranslateStatusComponent(data: translationDisplayState, iconSize: topEndIconSize)
+                    .font(.system(size: topEndIconSize))
                     .flareSecondaryText()
             }
             if showPlatformLogo {
-                TabIcon(icon: platformIcon, size: 14)
-                    .font(.caption)
+                TabIcon(icon: platformIcon, size: topEndIconSize)
+                    .font(.system(size: topEndIconSize))
                     .flareSecondaryText()
                     .accessibilityLabel(
                         Text(
@@ -547,7 +547,6 @@ public struct StatusView: View {
             }
             if !isDetail {
                 DateTimeText(data: createdAt)
-                    .font(.caption)
                     .flareSecondaryText()
             }
             if agentEnabled, !isQuote {
@@ -561,7 +560,10 @@ public struct StatusView: View {
                     }
                 } label: {
                     Image(fontAwesome: .robot)
-                        .font(.caption)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: topEndIconSize, height: topEndIconSize)
+                        .frame(width: max(24, topEndIconSize + 4), height: max(24, topEndIconSize + 4))
                         .flareSecondaryText()
                 }
                 .buttonStyle(.plain)

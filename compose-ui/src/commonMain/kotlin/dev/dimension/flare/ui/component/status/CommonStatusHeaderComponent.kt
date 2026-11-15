@@ -16,17 +16,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.dimension.flare.compose.ui.Res
 import dev.dimension.flare.compose.ui.profile_open_user
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.component.AvatarComponent
+import dev.dimension.flare.ui.component.AvatarComponentDefaults
 import dev.dimension.flare.ui.component.RichText
 import dev.dimension.flare.ui.component.platform.PlatformText
+import dev.dimension.flare.ui.component.platform.PlatformTextStyle
 import dev.dimension.flare.ui.model.ClickContext
 import dev.dimension.flare.ui.model.ClickEvent
 import dev.dimension.flare.ui.model.UiProfile
+import dev.dimension.flare.ui.theme.PlatformContentColor
 import dev.dimension.flare.ui.theme.PlatformTheme
 import org.jetbrains.compose.resources.stringResource
 
@@ -39,10 +43,12 @@ public fun CommonStatusHeaderComponent(
     nameModifier: Modifier = Modifier,
     handleModifier: Modifier = Modifier,
     subtitle: String = data.handle.display,
+    isPost: Boolean = false,
     leadingContent: @Composable (RowScope.() -> Unit)? = {
         Box(avatarModifier, propagateMinConstraints = true) {
             AvatarComponent(
                 data = data.avatar,
+                size = if (isPost) StatusComponentDefaults.avatarSize else AvatarComponentDefaults.size,
                 contentDescription =
                     if (onUserClick != null) {
                         stringResource(Res.string.profile_open_user, data.handle.display)
@@ -65,6 +71,13 @@ public fun CommonStatusHeaderComponent(
         headlineContent = {
             RichText(
                 text = data.name,
+                color = if (isPost) StatusComponentDefaults.contentColor else PlatformContentColor.current,
+                textStyle =
+                    if (isPost) {
+                        PlatformTheme.typography.postBody.copy(fontWeight = FontWeight.Bold)
+                    } else {
+                        PlatformTextStyle.current
+                    },
                 modifier =
                     nameModifier.profileTextClick(data.key, onUserClick),
                 maxLines = 1,
@@ -74,8 +87,8 @@ public fun CommonStatusHeaderComponent(
         supportingContent = {
             PlatformText(
                 text = subtitle,
-                style = PlatformTheme.typography.caption,
-                color = PlatformTheme.colorScheme.caption,
+                style = if (isPost) PlatformTheme.typography.postBody else PlatformTheme.typography.caption,
+                color = if (isPost) StatusComponentDefaults.secondaryColor else PlatformTheme.colorScheme.caption,
                 modifier =
                     handleModifier.profileTextClick(data.key, onUserClick),
                 maxLines = 1,

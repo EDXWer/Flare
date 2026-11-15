@@ -153,6 +153,8 @@ import dev.dimension.flare.ui.component.placeholder
 import dev.dimension.flare.ui.component.rememberMediaImageRequest
 import dev.dimension.flare.ui.component.status.CommonStatusComponent
 import dev.dimension.flare.ui.component.status.ListEmptyView
+import dev.dimension.flare.ui.component.status.LocalStatusBackgroundColor
+import dev.dimension.flare.ui.component.status.StatusComponentDefaults
 import dev.dimension.flare.ui.humanizer.humanize
 import dev.dimension.flare.ui.model.UiMedia
 import dev.dimension.flare.ui.model.UiState
@@ -803,6 +805,7 @@ internal fun MediaViewerScreen(
                             ) {
                                 CompositionLocalProvider(
                                     LocalUriHandler provides uriHandler,
+                                    LocalStatusBackgroundColor provides MaterialTheme.colorScheme.surface,
                                 ) {
                                     CommonStatusComponent(
                                         item = status,
@@ -811,7 +814,7 @@ internal fun MediaViewerScreen(
                                         modifier =
                                             Modifier
                                                 .padding(
-                                                    horizontal = screenHorizontalPadding,
+                                                    horizontal = StatusComponentDefaults.horizontalPadding,
                                                     vertical = 8.dp,
                                                 ).windowInsetsPadding(
                                                     WindowInsets.systemBars.only(

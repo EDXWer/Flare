@@ -215,3 +215,14 @@ internal interface PostApi {
         @Query("target_user_id") target_user_id: kotlin.String = "1",
     ): Response<kotlin.Any>
 }
+
+internal suspend fun PostApi.publishTweet(request: PostCreateTweetRequest) {
+    val response = postCreateTweet(postCreateTweetRequest = request)
+    check(response.isSuccessful) { "X could not publish the post (HTTP ${response.code})." }
+    val body = response.body()
+    val result = body?.data?.createTweet?.tweetResults?.result
+    // Retrying a response that already contains a created ID could duplicate the post.
+    check(!(result?.restId ?: result?.tweet?.restId).isNullOrBlank()) {
+        body?.errors?.firstOrNull()?.message ?: "X did not confirm that the post was published."
+    }
+}

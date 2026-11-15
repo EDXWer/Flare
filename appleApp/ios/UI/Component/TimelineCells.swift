@@ -77,6 +77,7 @@ final class TimelineUIKitCollectionViewCell: UICollectionViewCell {
     private var hostedBottomConstraint: NSLayoutConstraint?
     private var timelineViewStorage: TimelineUIView?
     private var timelineCardStorage: AdaptiveTimelineCardUIView?
+    private var timelinePaddingStorage: MutablePaddingContainerView?
     private var placeholderCardStorage: AdaptiveTimelineCardUIView?
 
     // Rebuild-skip signature. When the incoming data + appearance + detail-key are
@@ -157,6 +158,8 @@ final class TimelineUIKitCollectionViewCell: UICollectionViewCell {
     ) {
         let timelineView = resolvedTimelineView()
         let timelineCard = resolvedTimelineCard()
+        let horizontalPadding: CGFloat = data.timelineContentPost == nil ? 16 : 10
+        timelinePaddingStorage?.insets = UIEdgeInsets(top: data.timelineContentPost == nil ? 8 : 12, left: horizontalPadding, bottom: data.timelineContentPost == nil ? 8 : 6, right: horizontalPadding)
         timelineView.onLocalHeightInvalidated = { [weak self] in
             self?.handleLocalTimelineHeightInvalidated()
         }
@@ -275,7 +278,8 @@ final class TimelineUIKitCollectionViewCell: UICollectionViewCell {
 
         if hostedView === timelineCardStorage {
             let cardWrapperWidth: CGFloat = timelineCardStorage?.isMultipleColumn == true ? 4 : 0
-            timelineViewStorage?.prepareForFitting(width: max(width - cardWrapperWidth - 32, 1))
+            let insets = timelinePaddingStorage?.insets ?? .zero
+            timelineViewStorage?.prepareForFitting(width: max(width - cardWrapperWidth - insets.left - insets.right, 1))
         }
 
         contentView.bounds = CGRect(x: 0, y: 0, width: width, height: contentView.bounds.height)
@@ -322,7 +326,9 @@ final class TimelineUIKitCollectionViewCell: UICollectionViewCell {
             return timelineCardStorage
         }
         let card = AdaptiveTimelineCardUIView()
-        card.setContent(UIView.padding(resolvedTimelineView(), insets: UIEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)))
+        let padding = MutablePaddingContainerView(content: resolvedTimelineView())
+        timelinePaddingStorage = padding
+        card.setContent(padding)
         timelineCardStorage = card
         return card
     }

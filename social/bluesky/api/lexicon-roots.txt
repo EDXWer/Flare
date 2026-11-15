@@ -22,8 +22,11 @@ app.bsky.feed.getAuthorFeed
 app.bsky.feed.getFeed
 app.bsky.feed.getFeedGenerator
 app.bsky.feed.getFeedGenerators
+app.bsky.feed.getLikes
 app.bsky.feed.getListFeed
 app.bsky.feed.getPosts
+app.bsky.feed.getQuotes
+app.bsky.feed.getRepostedBy
 app.bsky.feed.getTimeline
 app.bsky.feed.like
 app.bsky.feed.post

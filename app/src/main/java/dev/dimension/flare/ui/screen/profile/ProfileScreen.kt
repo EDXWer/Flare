@@ -32,11 +32,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.SecondaryScrollableTabRow
 import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -69,6 +72,7 @@ import compose.icons.fontawesomeicons.solid.Robot
 import dev.dimension.flare.R
 import dev.dimension.flare.common.PagingState
 import dev.dimension.flare.common.refreshSuspend
+import dev.dimension.flare.data.model.TimelineDisplayMode
 import dev.dimension.flare.data.model.VideoAutoplay
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.MicroBlogKey
@@ -89,10 +93,12 @@ import dev.dimension.flare.ui.component.TabRowIndicator
 import dev.dimension.flare.ui.component.placeholder
 import dev.dimension.flare.ui.component.platform.adaptiveSideContentSize
 import dev.dimension.flare.ui.component.platform.isBigScreen
+import dev.dimension.flare.ui.component.platform.isCompatScreen
 import dev.dimension.flare.ui.component.status.AdaptiveCard
 import dev.dimension.flare.ui.component.status.LazyStatusVerticalStaggeredGrid
 import dev.dimension.flare.ui.component.status.ListEmptyView
 import dev.dimension.flare.ui.component.status.MediaItem
+import dev.dimension.flare.ui.component.status.StatusComponentDefaults
 import dev.dimension.flare.ui.component.status.StatusPlaceholder
 import dev.dimension.flare.ui.component.status.status
 import dev.dimension.flare.ui.component.status.statusLoadingPlaceholders
@@ -117,6 +123,7 @@ import dev.dimension.flare.ui.presenter.profile.ProfilePresenter
 import dev.dimension.flare.ui.presenter.profile.ProfileState
 import dev.dimension.flare.ui.presenter.profile.ProfileWithUserNameAndHostPresenter
 import dev.dimension.flare.ui.screen.home.RegisterTabCallback
+import dev.dimension.flare.ui.theme.isLightTheme
 import dev.dimension.flare.ui.theme.screenHorizontalPadding
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.launch
@@ -178,7 +185,9 @@ internal fun ProfileWithUserNameAndHostDeeplinkRoute(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ProfileErrorScreen(onBack: () -> Unit) {
+    val containerColor = profileContainerColor()
     FlareScaffold(
+        containerColor = containerColor,
         topBar = {
             FlareTopAppBar(
                 title = {
@@ -187,6 +196,7 @@ private fun ProfileErrorScreen(onBack: () -> Unit) {
                 navigationIcon = {
                     BackButton(onBack = onBack)
                 },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = containerColor),
             )
         },
     ) {
@@ -204,7 +214,7 @@ private fun ProfileErrorScreen(onBack: () -> Unit) {
 
 @Composable
 private fun ProfileLoadingScreen(onBack: () -> Unit) {
-    FlareScaffold {
+    FlareScaffold(containerColor = profileContainerColor()) {
         LazyColumn(
             contentPadding = it,
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -214,12 +224,24 @@ private fun ProfileLoadingScreen(onBack: () -> Unit) {
             }
             items(5) {
                 StatusPlaceholder(
-                    modifier = Modifier.padding(horizontal = screenHorizontalPadding),
+                    modifier = Modifier.padding(horizontal = StatusComponentDefaults.horizontalPadding),
                 )
             }
         }
     }
 }
+
+@Composable
+private fun usesPlainProfileLayout(): Boolean =
+    isCompatScreen() && LocalTimelineAppearance.current.timelineDisplayMode == TimelineDisplayMode.Plain
+
+@Composable
+private fun profileContainerColor(plainProfile: Boolean = usesPlainProfileLayout()): Color =
+    if (plainProfile && isLightTheme()) {
+        MaterialTheme.colorScheme.surface
+    } else {
+        MaterialTheme.colorScheme.background
+    }
 
 @Composable
 private fun profileWithUserNameAndHostPresenter(
@@ -279,12 +301,17 @@ internal fun ProfileScreen(
                 .toSize()
                 .toDpSize()
         }
+    val bigScreen = isBigScreen()
+    val plainProfile = usesPlainProfileLayout()
+    val containerColor = profileContainerColor(plainProfile)
+    val tabSpacing = if (plainProfile) 0.dp else 8.dp
     val profileTabHeight =
         with(LocalDensity.current) {
-            MaterialTheme.typography.bodyLarge.lineHeight
-                .toDp()
-        } + 16.dp
-    val bigScreen = isBigScreen()
+            val height =
+                MaterialTheme.typography.bodyLarge.lineHeight
+                    .toDp() + 16.dp
+            if (plainProfile) height.coerceAtLeast(48.dp) else height
+        }
     val scrollBehavior =
         if (bigScreen) {
             TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -294,6 +321,7 @@ internal fun ProfileScreen(
     val scope = rememberCoroutineScope()
     FlareScaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = containerColor,
         contentWindowInsets =
             ScaffoldDefaults
                 .contentWindowInsets
@@ -327,14 +355,14 @@ internal fun ProfileScreen(
                                 Modifier
                                     .fillMaxWidth()
                                     .windowInsetsTopHeight(WindowInsets.statusBars)
-                                    .background(MaterialTheme.colorScheme.background),
+                                    .background(containerColor),
                         )
                         Spacer(
                             modifier =
                                 Modifier
                                     .fillMaxWidth()
                                     .height(64.dp)
-                                    .background(MaterialTheme.colorScheme.background),
+                                    .background(containerColor),
                         )
                     }
                 }
@@ -372,7 +400,7 @@ internal fun ProfileScreen(
                             modifier =
                                 Modifier
                                     .background(
-                                        MaterialTheme.colorScheme.background,
+                                        containerColor,
                                         MaterialTheme.shapes.medium,
                                     ),
                             verticalAlignment = Alignment.CenterVertically,
@@ -463,7 +491,7 @@ internal fun ProfileScreen(
                         } else {
                             state.tabs.onLoading {
                                 Column(
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(tabSpacing),
                                 ) {
                                     ProfileTabsLoadingPlaceholder(
                                         tabHeight = profileTabHeight,
@@ -491,31 +519,47 @@ internal fun ProfileScreen(
                             state.pagerState.onSuccess { pagerState ->
                                 state.tabs.onSuccess { tabs ->
                                     Column(
-                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(tabSpacing),
                                     ) {
                                         if (tabs.size > 1) {
+                                            val selectedIndex = minOf(pagerState.currentPage, tabs.lastIndex)
                                             SecondaryScrollableTabRow(
                                                 containerColor = Color.Transparent,
                                                 selectedTabIndex = pagerState.currentPage,
                                                 modifier = Modifier.fillMaxWidth(),
-                                                edgePadding = screenHorizontalPadding,
-                                                divider = {},
+                                                edgePadding = if (plainProfile) 0.dp else screenHorizontalPadding,
+                                                divider = {
+                                                    if (plainProfile) {
+                                                        HorizontalDivider()
+                                                    }
+                                                },
                                                 indicator = {
-                                                    TabRowIndicator(
-                                                        selectedIndex =
-                                                            minOf(
-                                                                pagerState.currentPage,
-                                                                tabs.size - 1,
-                                                            ),
-                                                    )
+                                                    if (plainProfile) {
+                                                        TabRowDefaults.SecondaryIndicator(
+                                                            Modifier.tabIndicatorOffset(selectedIndex, matchContentSize = false),
+                                                        )
+                                                    } else {
+                                                        TabRowIndicator(selectedIndex)
+                                                    }
                                                 },
                                             ) {
+                                                val tabModifier =
+                                                    if (plainProfile) {
+                                                        Modifier.heightIn(min = profileTabHeight)
+                                                    } else {
+                                                        Modifier.clip(CircleShape)
+                                                    }
+                                                val tabColors = MaterialTheme.colorScheme
+                                                val contentColor = LocalContentColor.current
                                                 tabs
                                                     .toImmutableList()
                                                     .forEachIndexed { index, profileTab ->
                                                         Tab(
-                                                            modifier = Modifier.clip(CircleShape),
+                                                            modifier = tabModifier,
                                                             selected = pagerState.currentPage == index,
+                                                            selectedContentColor = if (plainProfile) tabColors.primary else contentColor,
+                                                            unselectedContentColor =
+                                                                if (plainProfile) tabColors.onSurfaceVariant else contentColor,
                                                             onClick = {
                                                                 scope.launch {
                                                                     pagerState.animateScrollToPage(index)
@@ -637,6 +681,7 @@ internal fun ProfileScreen(
                                             }
                                         },
                                         isBigScreen = false,
+                                        useCard = !plainProfile,
                                         onFollowListClick = onFollowListClick,
                                         onFansListClick = onFansListClick,
                                     )

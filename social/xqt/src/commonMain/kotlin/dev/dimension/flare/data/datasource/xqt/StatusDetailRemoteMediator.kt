@@ -4,6 +4,7 @@ import androidx.paging.ExperimentalPagingApi
 import dev.dimension.flare.common.encodeJson
 import dev.dimension.flare.data.database.cache.mapper.cursor
 import dev.dimension.flare.data.database.cache.mapper.isBottomEnd
+import dev.dimension.flare.data.database.cache.mapper.nextPageCursor
 import dev.dimension.flare.data.database.cache.mapper.tweets
 import dev.dimension.flare.data.datasource.microblog.paging.ContextUpdate
 import dev.dimension.flare.data.datasource.microblog.paging.PagingRequest
@@ -11,6 +12,7 @@ import dev.dimension.flare.data.datasource.microblog.paging.PagingResult
 import dev.dimension.flare.data.datasource.microblog.paging.PostContextLoader
 import dev.dimension.flare.data.datasource.microblog.paging.toContextUpdate
 import dev.dimension.flare.data.network.xqt.XQTService
+import dev.dimension.flare.data.network.xqt.api.TweetApi
 import dev.dimension.flare.data.network.xqt.model.PostCreateTweetRequestFeatures
 import dev.dimension.flare.data.network.xqt.model.Tweet
 import dev.dimension.flare.data.network.xqt.model.TweetPreviewDisplay
@@ -18,8 +20,10 @@ import dev.dimension.flare.data.network.xqt.model.TweetTombstone
 import dev.dimension.flare.data.network.xqt.model.TweetUnavailable
 import dev.dimension.flare.data.network.xqt.model.TweetWithVisibilityResults
 import dev.dimension.flare.model.MicroBlogKey
+import dev.dimension.flare.ui.model.UiStrings
 import dev.dimension.flare.ui.model.UiTimelineV2
 import dev.dimension.flare.ui.model.mapper.render
+import dev.dimension.flare.ui.model.mapper.toTweetOrNull
 import kotlinx.serialization.Required
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -33,16 +37,7 @@ internal class StatusDetailRemoteMediator(
 ) : PostContextLoader {
     override val collapseReplyChains: Boolean = false
 
-    override val pagingKey: String =
-        buildString {
-            append("status_detail_")
-            if (statusOnly) {
-                append("status_only_")
-            }
-            append(statusKey.toString())
-            append("_")
-            append(accountKey.toString())
-        }
+    override val pagingKey: String = statusDetailPagingKey(statusKey, accountKey, statusOnly)
 
     private var conversationId: String? = null
 
@@ -182,6 +177,84 @@ internal class StatusDetailRemoteMediator(
         }
 }
 
+internal class RankedStatusDetailLoader(
+    override val statusKey: MicroBlogKey,
+    private val service: TweetApi,
+    override val accountKey: MicroBlogKey,
+    private val rankingMode: ReplyRanking,
+) : PostContextLoader {
+    override val collapseReplyChains: Boolean = false
+
+    override val pagingKey: String =
+        statusDetailPagingKey(statusKey, accountKey) + if (rankingMode == ReplyRanking.Relevance) "" else "_${rankingMode.name}"
+
+    private var conversationId: String? = null
+
+    override suspend fun load(
+        pageSize: Int,
+        request: PagingRequest,
+    ): PagingResult<UiTimelineV2> {
+        val cursor =
+            when (request) {
+                PagingRequest.Refresh -> null
+                is PagingRequest.Append -> request.nextKey
+                is PagingRequest.Prepend -> return PagingResult(endOfPaginationReached = true)
+            }
+        val response =
+            service.getTweetDetail(
+                variables = TweetDetailRequest(focalTweetID = statusKey.id, cursor = cursor, rankingMode = rankingMode).encodeJson(),
+            )
+        check(response.isSuccessful) { "X TweetDetail failed with HTTP ${response.code}" }
+        val body = checkNotNull(response.body()) { "X TweetDetail returned no response" }
+        check(body.errors.isNullOrEmpty()) { "X TweetDetail failed: ${body.errors?.firstOrNull()?.message}" }
+
+        val instructions = body.data.threadedConversationWithInjectionsV2.instructions
+        val tweets = instructions.tweets()
+        val anchorIndex = tweets.indexOfFirst { it.id == statusKey.id }
+        if (request == PagingRequest.Refresh) {
+            check(anchorIndex >= 0) { "X TweetDetail did not contain $statusKey" }
+            conversationId =
+                tweets[anchorIndex]
+                    .tweets.tweetResults.result
+                    ?.toTweetOrNull()
+                    ?.legacy
+                    ?.conversationIdStr ?: statusKey.id
+        }
+        val conversation = checkNotNull(conversationId) { "X TweetDetail requires a first page before loading more replies" }
+        val page = if (request == PagingRequest.Refresh) tweets else tweets.drop(anchorIndex + 1)
+        return PagingResult(
+            data =
+                page
+                    .filter { item ->
+                        item.id == statusKey.id ||
+                            item.tweets.tweetResults.result
+                                ?.toTweetOrNull()
+                                ?.legacy
+                                ?.conversationIdStr == conversation
+                    }.mapNotNull { it.render(accountKey) },
+            nextKey = instructions.nextPageCursor(cursor),
+        )
+    }
+}
+
+private fun statusDetailPagingKey(
+    statusKey: MicroBlogKey,
+    accountKey: MicroBlogKey,
+    statusOnly: Boolean = false,
+): String {
+    val mode = if (statusOnly) "status_only_" else ""
+    return "status_detail_$mode${statusKey}_$accountKey"
+}
+
+@Serializable
+internal enum class ReplyRanking(
+    val title: UiStrings,
+) {
+    Relevance(UiStrings.Relevance),
+    Recency(UiStrings.Recency),
+    Likes(UiStrings.Likes),
+}
+
 @Serializable
 internal data class TweetDetailWithRestIdRequest(
     @SerialName("tweetId")
@@ -201,6 +274,7 @@ internal data class TweetDetailRequest(
     @SerialName("focalTweetId")
     val focalTweetID: String,
     val cursor: String? = null,
+    val rankingMode: ReplyRanking? = null,
     @Required
     val referrer: String = "tweet",
     @SerialName("with_rux_injections")

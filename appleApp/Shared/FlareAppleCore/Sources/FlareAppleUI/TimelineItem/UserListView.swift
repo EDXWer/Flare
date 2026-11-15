@@ -29,7 +29,7 @@ struct UserListView: View {
             if let status = data.post {
                 VStack(spacing: 0) {
                     StatusView(data: status, isQuote: true, forceHideActions: true)
-                        .padding(8)
+                        .padding(12)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipShape(.rect(cornerRadius: 16))

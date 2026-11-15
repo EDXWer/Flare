@@ -2,10 +2,14 @@ package dev.dimension.flare.ui.component.platform
 
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.compositeOver
+import dev.dimension.flare.ui.component.status.LocalStatusBackgroundColor
 
 @Composable
 internal actual fun PlatformCard(
@@ -60,7 +64,14 @@ internal actual fun PlatformCard(
                     CardDefaults
                         .cardElevation()
                 },
-            content = { content() },
+            content = {
+                CompositionLocalProvider(
+                    LocalStatusBackgroundColor provides
+                        colors.containerColor.compositeOver(LocalStatusBackgroundColor.current ?: MaterialTheme.colorScheme.background),
+                ) {
+                    content()
+                }
+            },
         )
     } else {
         Card(

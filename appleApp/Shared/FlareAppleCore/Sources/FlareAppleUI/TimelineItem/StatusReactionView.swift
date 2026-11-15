@@ -25,7 +25,7 @@ struct StatusReactionView: View {
                         Text(item.count.humanized)
                     }
                     .lineLimit(1)
-                    .foregroundStyle(Color.flareLabel)
+                    .foregroundStyle(FlarePrimaryTextStyle())
                     .flareTextBackground(item.me ? nil : .flareTertiarySystemGroupedBackground)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
@@ -49,8 +49,7 @@ struct StatusReactionView: View {
                     expanded = true
                 } label: {
                     Text("mastodon_item_show_more", bundle: FlareAppleUILocalization.bundle)
-                        .font(.caption)
-                        .foregroundStyle(Color.flareSecondaryLabel)
+                        .flareSecondaryText()
                 }
                 .buttonStyle(.plain)
                 .layoutValue(key: ReactionOverflowIndicatorKey.self, value: true)

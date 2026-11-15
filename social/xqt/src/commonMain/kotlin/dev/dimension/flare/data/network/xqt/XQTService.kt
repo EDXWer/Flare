@@ -4,6 +4,7 @@ import dev.dimension.flare.common.Locale
 import dev.dimension.flare.data.model.ProxyRef
 import dev.dimension.flare.data.network.ktorClient
 import dev.dimension.flare.data.network.ktorfit
+import dev.dimension.flare.data.network.xqt.api.CardsApi
 import dev.dimension.flare.data.network.xqt.api.DefaultApi
 import dev.dimension.flare.data.network.xqt.api.DmApi
 import dev.dimension.flare.data.network.xqt.api.GuestApi
@@ -20,6 +21,7 @@ import dev.dimension.flare.data.network.xqt.api.V11GetApi
 import dev.dimension.flare.data.network.xqt.api.V11PostApi
 import dev.dimension.flare.data.network.xqt.api.V20GetApi
 import dev.dimension.flare.data.network.xqt.api.VDmPostJsonPostApi
+import dev.dimension.flare.data.network.xqt.api.createCardsApi
 import dev.dimension.flare.data.network.xqt.api.createDefaultApi
 import dev.dimension.flare.data.network.xqt.api.createDmApi
 import dev.dimension.flare.data.network.xqt.api.createGuestApi
@@ -138,6 +140,11 @@ internal class XQTService(
         chocolateFlow = chocolateFlow,
         validateStatus = true,
     ).createMediaApi(),
+    CardsApi by config(
+        url = "https://caps.$xqtHost/",
+        accountKey = accountKey,
+        chocolateFlow = chocolateFlow,
+    ).createCardsApi(),
     ListsApi by config(
         accountKey = accountKey,
         chocolateFlow = chocolateFlow,

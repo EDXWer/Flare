@@ -58,7 +58,7 @@ final class ProxyPlaybackLifecycleTests: XCTestCase {
             VideoPlaybackSession.releaseIdleBuffer()
         }
         let video = UiMediaVideo(url: server.url, thumbnailUrl: "", description: nil, height: 0, width: 0,
-                                 customHeaders: headers, proxy: ProxyRef.System.shared, downloadUrl: nil, kind: .video)
+                                 customHeaders: headers, proxy: ProxyRef.System.shared, downloadUrl: nil, kind: .video, livePhotoCoverUrl: nil)
         session.play(media: video, playing: false)
         try await eventually { session.player != nil }
         let player = try XCTUnwrap(session.player)
@@ -165,7 +165,7 @@ final class ProxyPlaybackLifecycleTests: XCTestCase {
         }
         let video = UiMediaVideo(url: server.url, thumbnailUrl: "", description: nil, height: 0, width: 0,
                                  customHeaders: ["Authorization": "Bearer video-test"], proxy: ProxyRef.System.shared,
-                                 downloadUrl: nil, kind: .video)
+                                 downloadUrl: nil, kind: .video, livePhotoCoverUrl: nil)
         session.play(media: video)
         try await eventually {
             if case .error = session.state { return true }
@@ -339,7 +339,7 @@ final class ProxyPlaybackLifecycleTests: XCTestCase {
 
     private func media(_ url: String, proxy: ProxyRef = ProxyRef.Global.shared) -> UiMediaVideo {
         UiMediaVideo(url: url, thumbnailUrl: "", description: nil, height: 0, width: 0,
-                     customHeaders: nil, proxy: proxy, downloadUrl: nil, kind: .video)
+                     customHeaders: nil, proxy: proxy, downloadUrl: nil, kind: .video, livePhotoCoverUrl: nil)
     }
 
     private func select(_ mode: ProxyMode, account: MicroBlogKey? = nil,

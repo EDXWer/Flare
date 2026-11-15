@@ -44,13 +44,13 @@ internal fun CommonProfileHeader(
     userKey: MicroBlogKey,
     handle: UiHandle,
     modifier: Modifier = Modifier,
+    useCard: Boolean = !isBigScreen(),
     onAvatarClick: (() -> Unit)? = null,
     onBannerClick: (() -> Unit)? = null,
     headerTrailing: @Composable RowScope.() -> Unit = {},
     handleTrailing: @Composable RowScope.() -> Unit = {},
     content: @Composable ColumnScope.() -> Unit = {},
 ) {
-    val isBigScreen = isBigScreen()
     val profileName = displayName.raw.ifBlank { handle.display }
     val statusBarHeight =
         with(LocalDensity.current) {
@@ -170,15 +170,15 @@ internal fun CommonProfileHeader(
                 modifier =
                     Modifier
                         .let {
-                            if (isBigScreen) {
-                                it
-                            } else {
+                            if (useCard) {
                                 it
                                     .padding(horizontal = screenHorizontalPadding)
                                     .padding(bottom = 8.dp)
                                     .listCard()
                                     .background(PlatformTheme.colorScheme.card)
                                     .fillMaxWidth()
+                            } else {
+                                it
                             }
                         }.padding(horizontal = screenHorizontalPadding, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),

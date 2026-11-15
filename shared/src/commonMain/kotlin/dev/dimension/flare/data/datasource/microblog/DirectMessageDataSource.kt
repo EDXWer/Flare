@@ -2,6 +2,7 @@ package dev.dimension.flare.data.datasource.microblog
 
 import androidx.paging.PagingData
 import dev.dimension.flare.common.CacheData
+import dev.dimension.flare.common.FileItem
 import dev.dimension.flare.data.database.cache.model.DbMessageItem
 import dev.dimension.flare.data.datasource.microblog.handler.DirectMessageHandler
 import dev.dimension.flare.model.MicroBlogKey
@@ -24,6 +25,12 @@ import kotlin.uuid.Uuid
 public interface DirectMessageDataSource : AuthenticatedMicroblogDataSource {
     public val directMessageHandler: DirectMessageHandler
 
+    public val supportsLeavingDirectMessage: Boolean
+        get() = true
+
+    public val supportsSendingDirectMessageImage: Boolean
+        get() = false
+
     public fun directMessageList(scope: CoroutineScope): Flow<PagingData<UiDMRoom>> = directMessageHandler.list(scope)
 
     public fun directMessageConversation(
@@ -40,6 +47,14 @@ public interface DirectMessageDataSource : AuthenticatedMicroblogDataSource {
 
     public fun retrySendDirectMessage(messageKey: MicroBlogKey) {
         directMessageHandler.retry(messageKey)
+    }
+
+    public suspend fun sendDirectMessageImage(
+        roomKey: MicroBlogKey,
+        image: FileItem,
+    ) {
+        check(supportsSendingDirectMessageImage)
+        directMessageHandler.sendImage(roomKey, image)
     }
 
     public fun deleteDirectMessage(

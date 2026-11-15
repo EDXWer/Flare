@@ -16,7 +16,7 @@ final class UserListUIView: UIView, ManualLayoutMeasurable, TimelineHeightProvid
     }
 
     private static let spacing: CGFloat = 8
-    private static let quoteInset: CGFloat = 8
+    private static let quoteInset: CGFloat = 12
 
     private var data: UiTimelineV2.UserList?
 
@@ -46,10 +46,10 @@ final class UserListUIView: UIView, ManualLayoutMeasurable, TimelineHeightProvid
         quoteView.translatesAutoresizingMaskIntoConstraints = false
         quoteContainer.addSubview(quoteView)
         NSLayoutConstraint.activate([
-            quoteView.topAnchor.constraint(equalTo: quoteContainer.topAnchor, constant: 8),
-            quoteView.leadingAnchor.constraint(equalTo: quoteContainer.leadingAnchor, constant: 8),
-            quoteView.trailingAnchor.constraint(equalTo: quoteContainer.trailingAnchor, constant: -8),
-            quoteView.bottomAnchor.constraint(equalTo: quoteContainer.bottomAnchor, constant: -8),
+            quoteView.topAnchor.constraint(equalTo: quoteContainer.topAnchor, constant: Self.quoteInset),
+            quoteView.leadingAnchor.constraint(equalTo: quoteContainer.leadingAnchor, constant: Self.quoteInset),
+            quoteView.trailingAnchor.constraint(equalTo: quoteContainer.trailingAnchor, constant: -Self.quoteInset),
+            quoteView.bottomAnchor.constraint(equalTo: quoteContainer.bottomAnchor, constant: -Self.quoteInset),
         ])
 
         column.axis = .vertical

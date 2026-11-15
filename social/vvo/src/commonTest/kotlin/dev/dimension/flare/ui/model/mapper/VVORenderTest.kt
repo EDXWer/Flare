@@ -28,6 +28,7 @@ import dev.dimension.flare.ui.route.DeeplinkRoute
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import org.koin.core.annotation.Module
 import org.koin.core.annotation.Single
 import org.koin.core.context.startKoin
@@ -200,7 +201,7 @@ class VVORenderTest {
                             "type": "livephoto",
                             "url": "https://media.example.test/live-preview.jpg",
                             "large": {
-                                "url": "https://media.example.test/live-original.jpg",
+                                "url": "https://media.example.test/mw2000/live-original.jpg",
                                 "geo": {"width": 600, "height": 800}
                             },
                             "videoSrc": "$playbackUrl"
@@ -224,9 +225,14 @@ class VVORenderTest {
         assertEquals(UiMedia.Video.Kind.LivePhoto, livePhoto.kind)
         assertEquals(playbackUrl, livePhoto.url)
         assertEquals("https://media.example.test/live-preview.jpg", livePhoto.thumbnailUrl)
+        assertEquals(
+            JsonPrimitive("https://media.example.test/large/live-original.jpg"),
+            JSON.encodeToJsonElement(UiMedia.serializer(), livePhoto).jsonObject["livePhotoCoverUrl"],
+        )
         assertEquals(600f, livePhoto.width)
         assertEquals(800f, livePhoto.height)
         assertEquals(ProxyRef.Account(accountKey), livePhoto.proxy)
+        assertEquals(ProxyRef.Account(accountKey), livePhoto.livePhotoCover?.proxy)
         assertEquals("https://media.example.test/last.jpg", assertIs<UiMedia.Image>(post.images[2]).url)
         assertEquals(signedUrl, assertIs<UiMedia.Video>(post.images[3]).url)
         assertEquals(UiMedia.Video.Kind.LivePhoto, assertIs<UiMedia.Video>(post.images[3]).kind)

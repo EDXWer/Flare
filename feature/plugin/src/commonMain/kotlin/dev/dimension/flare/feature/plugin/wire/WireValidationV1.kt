@@ -31,6 +31,32 @@ public fun TimelinePageLoadRequestV2.requireValid() {
     page.requireValid()
 }
 
+public fun PostContextTabsV2.requireValid() {
+    require(tabs.size <= 16) { "Too many post context tabs" }
+    val tabIds = tabs.mapTo(mutableSetOf(), PostContextTabV2::id)
+    require(tabIds.size == tabs.size && tabIds.all(String::isWireName)) { "Invalid or duplicate post context tab ID" }
+    require(replyTabId == null || replyTabId in tabIds) { "Unknown post context reply tab ID" }
+    tabs.forEach { tab ->
+        tab.title.requireValid()
+        tab.filter?.let { filter ->
+            require(filter.options.size in 1..32) { "Invalid number of post context filter options" }
+            val optionIds = filter.options.mapTo(mutableSetOf(), PostContextFilterOptionV2::id)
+            require(optionIds.size == filter.options.size && optionIds.all(String::isWireName)) {
+                "Invalid or duplicate post context filter option ID"
+            }
+            require(filter.defaultOptionId in optionIds) { "Unknown default post context filter option" }
+            filter.options.forEach { it.title.requireValid() }
+        }
+    }
+}
+
+public fun PostContextPageRequestV2.requireValid() {
+    key.requireValid()
+    require(tabId.isWireName()) { "Invalid post context tab ID" }
+    require(filterId == null || filterId.isWireName()) { "Invalid post context filter option ID" }
+    page.requireValid()
+}
+
 public fun PageRequestV1.requireValid() {
     require(limit in 1..WireLimitsV1.MAX_PAGE_SIZE) { "Invalid page size" }
     require(cursor == null || cursor.length <= WireLimitsV1.MAX_CURSOR_LENGTH) { "Cursor is too large" }

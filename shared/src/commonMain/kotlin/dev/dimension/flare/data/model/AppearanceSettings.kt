@@ -1,5 +1,6 @@
 package dev.dimension.flare.data.model
 
+import dev.dimension.flare.data.model.appearance.AppearanceKeys
 import kotlinx.serialization.Serializable
 
 /**
@@ -33,7 +34,7 @@ internal data class AppearanceSettings(
     val bottomBarBehavior: BottomBarBehavior = BottomBarBehavior.MinimizeOnScroll,
     val inAppBrowser: Boolean = true,
     val fullWidthPost: Boolean = false,
-    val postActionStyle: PostActionStyle = PostActionStyle.LeftAligned,
+    val postActionStyle: PostActionStyle = AppearanceKeys.PostActionStyle.default,
     val absoluteTimestamp: Boolean = false,
     val showPlatformLogo: Boolean = true,
     val timelineDisplayMode: TimelineDisplayMode = TimelineDisplayMode.Plain,

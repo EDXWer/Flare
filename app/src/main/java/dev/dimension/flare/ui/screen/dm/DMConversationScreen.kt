@@ -1,5 +1,8 @@
 package dev.dimension.flare.ui.screen.dm
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -40,7 +43,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import compose.icons.FontAwesomeIcons
 import compose.icons.fontawesomeicons.Solid
@@ -48,8 +56,11 @@ import compose.icons.fontawesomeicons.solid.ArrowRightFromBracket
 import compose.icons.fontawesomeicons.solid.CircleUser
 import compose.icons.fontawesomeicons.solid.Comments
 import compose.icons.fontawesomeicons.solid.EllipsisVertical
+import compose.icons.fontawesomeicons.solid.Image
 import compose.icons.fontawesomeicons.solid.PaperPlane
+import compose.icons.fontawesomeicons.solid.Xmark
 import dev.dimension.flare.R
+import dev.dimension.flare.common.FileItem
 import dev.dimension.flare.common.onSuccess
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.MicroBlogKey
@@ -96,6 +107,11 @@ internal fun DMConversationScreen(
             roomKey = roomKey,
         )
     }
+    val context = LocalContext.current
+    val imagePicker =
+        rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            if (uri != null) state.selectImage(FileItem(context, uri))
+        }
 
     FlareScaffold(
         topBar = {
@@ -159,33 +175,35 @@ internal fun DMConversationScreen(
                             }
                         }
 
-                        HorizontalDivider()
-
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = stringResource(R.string.dm_leave),
-                                    color = MaterialTheme.colorScheme.error,
-                                )
-                            },
-                            leadingIcon = {
-                                FAIcon(
-                                    imageVector = FontAwesomeIcons.Solid.ArrowRightFromBracket,
-                                    contentDescription = stringResource(R.string.dm_leave),
-                                    tint = MaterialTheme.colorScheme.error,
-                                )
-                            },
-                            onClick = {
-                                state.setShowDropdown(false)
-                                state.leave()
-                                onBack()
-                            },
-                        )
+                        if (state.canLeave) {
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = stringResource(R.string.dm_leave),
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                },
+                                leadingIcon = {
+                                    FAIcon(
+                                        imageVector = FontAwesomeIcons.Solid.ArrowRightFromBracket,
+                                        contentDescription = stringResource(R.string.dm_leave),
+                                        tint = MaterialTheme.colorScheme.error,
+                                    )
+                                },
+                                onClick = {
+                                    state.setShowDropdown(false)
+                                    state.leave()
+                                    onBack()
+                                },
+                            )
+                        }
                     }
                 },
             )
         },
         bottomBar = {
+            val image = state.selectedImage
             Surface {
                 Box {
                     HorizontalDivider(
@@ -219,6 +237,52 @@ internal fun DMConversationScreen(
                                 ),
                         state = state.text,
                         lineLimits = TextFieldLineLimits.SingleLine,
+                        leadingIcon =
+                            if (state.canSendImage) {
+                                {
+                                    IconButton(
+                                        onClick = {
+                                            if (image == null) {
+                                                imagePicker.launch(
+                                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                                                )
+                                            } else {
+                                                state.selectImage(null)
+                                            }
+                                        },
+                                        enabled = !state.isSendingImage,
+                                    ) {
+                                        FAIcon(
+                                            imageVector = if (image == null) FontAwesomeIcons.Solid.Image else FontAwesomeIcons.Solid.Xmark,
+                                            contentDescription =
+                                                stringResource(
+                                                    if (image == null) R.string.dm_add_image else R.string.dm_remove_image,
+                                                ),
+                                        )
+                                    }
+                                }
+                            } else {
+                                null
+                            },
+                        supportingText =
+                            if (image != null) {
+                                {
+                                    Text(
+                                        text =
+                                            when {
+                                                state.isSendingImage -> stringResource(R.string.dm_sending)
+                                                state.imageSendFailed -> stringResource(R.string.dm_image_send_failed)
+                                                else -> image.name ?: stringResource(R.string.dm_image_attached)
+                                            },
+                                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            } else {
+                                null
+                            },
+                        isError = state.imageSendFailed,
                         trailingIcon = {
                             IconButton(
                                 onClick = {
@@ -323,7 +387,7 @@ private fun presenter(
 
     object : DMConversationState by state {
         val text = text
-        val canSend = text.text.isNotEmpty()
+        val canSend = !isSendingImage && (selectedImage != null || text.text.isNotEmpty())
         val showDropdown = showDropdown
 
         fun setShowDropdown(show: Boolean) {
@@ -331,8 +395,12 @@ private fun presenter(
         }
 
         fun send() {
-            send(text.text.toString())
-            text.clearText()
+            if (selectedImage != null) {
+                sendImage()
+            } else {
+                send(text.text.toString())
+                text.clearText()
+            }
         }
     }
 }

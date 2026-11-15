@@ -57,6 +57,8 @@ public final class ComposeContentViewModel {
         medias: [ComposeData.Media],
         sensitive: Bool,
         composeStatus: ComposeStatus?,
+        replyRestriction: ComposeReplyRestriction?,
+        pollConfig: ComposeConfig.Poll?,
         localOnly: Bool = false
     ) -> ComposeData {
         ComposeData(
@@ -66,9 +68,10 @@ public final class ComposeContentViewModel {
             medias: medias,
             sensitive: sensitive,
             spoilerText: enableContentWarning ? contentWarning : nil,
-            poll: pollViewModel.makeComposePoll(),
+            poll: pollViewModel.makeComposePoll(allowsMultiple: pollConfig?.allowsMultiple ?? true),
             localOnly: localOnly,
-            referenceStatus: referenceStatus(from: composeStatus)
+            referenceStatus: referenceStatus(from: composeStatus),
+            replyRestriction: replyRestriction
         )
     }
 

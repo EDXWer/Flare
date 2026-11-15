@@ -107,7 +107,6 @@ import dev.dimension.flare.ui.screen.settings.PostActionLayoutScreen
 import dev.dimension.flare.ui.screen.settings.SettingsScreen
 import dev.dimension.flare.ui.screen.status.StatusScreen
 import dev.dimension.flare.ui.screen.status.VVOCommentScreen
-import dev.dimension.flare.ui.screen.status.VVOStatusScreen
 import dev.dimension.flare.ui.screen.status.action.AddReactionSheet
 import dev.dimension.flare.ui.screen.status.action.BlueskyReportStatusDialog
 import dev.dimension.flare.ui.screen.status.action.DeleteStatusConfirmDialog
@@ -858,7 +857,7 @@ internal fun Router(
                 }
 
                 entry<Route.VVO.StatusDetail> { args ->
-                    VVOStatusScreen(
+                    StatusScreen(
                         statusKey = args.statusKey,
                         accountType = args.accountType,
                     )

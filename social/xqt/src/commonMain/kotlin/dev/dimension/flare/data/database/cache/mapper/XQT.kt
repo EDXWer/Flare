@@ -13,6 +13,7 @@ import dev.dimension.flare.data.network.xqt.model.TimelineAddEntry
 import dev.dimension.flare.data.network.xqt.model.TimelineAddToModule
 import dev.dimension.flare.data.network.xqt.model.TimelineFeedbackActionValue
 import dev.dimension.flare.data.network.xqt.model.TimelinePinEntry
+import dev.dimension.flare.data.network.xqt.model.TimelineReplaceEntry
 import dev.dimension.flare.data.network.xqt.model.TimelineTerminateTimeline
 import dev.dimension.flare.data.network.xqt.model.TimelineTimelineCursor
 import dev.dimension.flare.data.network.xqt.model.TimelineTimelineItem
@@ -516,6 +517,26 @@ internal fun List<InstructionUnion>.isBottomEnd() =
         .firstOrNull {
             it.direction == TimelineTerminateTimeline.Direction.bottom || it.direction == TimelineTerminateTimeline.Direction.topAndBottom
         } != null
+
+internal fun List<InstructionUnion>.nextPageCursor(currentCursor: String?): String? {
+    if (isBottomEnd()) return null
+    return flatMap { instruction ->
+        when (instruction) {
+            is TimelineAddEntries -> instruction.propertyEntries
+            is TimelineReplaceEntry -> listOf(instruction.entry)
+            else -> emptyList()
+        }
+    }.asReversed()
+        .firstNotNullOfOrNull { entry ->
+            val cursor =
+                when (val content = entry.content) {
+                    is TimelineTimelineCursor -> content
+                    is TimelineTimelineItem -> content.itemContent as? TimelineTimelineCursor
+                    else -> null
+                }
+            cursor?.takeIf { it.cursorType == CursorType.bottom }?.value
+        }?.takeIf { it.isNotBlank() && it != currentCursor }
+}
 
 internal fun TopLevel.tweets(): List<XQTTimeline> {
     val tweetsById = globalObjects?.tweets.orEmpty()

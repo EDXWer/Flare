@@ -6,6 +6,84 @@ import FlareAppleUI
 
 @MainActor
 final class RichTextUIViewTests: XCTestCase {
+    func testPostTypographyUpdatesRenderedAndMeasuredTextWithoutChangingOtherRichText() throws {
+        let text = richText(["MMMM\nMMMM\nMMMM"], link: false,
+                            block: RenderBlockStyle(headingLevel: nil, textAlignment: .center,
+                                                    isListItem: false, isBlockQuote: false, isFigCaption: false))
+        for selection in [false, true] {
+            let view = RichTextUIView()
+            view.configure(text: text, lineLimit: nil, isTextSelectionEnabled: selection, onOpenURL: nil)
+            view.prepareForFitting(width: 240)
+            let originalHeight = try XCTUnwrap(view.timelineHeight(for: 240))
+            for bold in [false, true] {
+                view.configure(text: text, lineLimit: nil, isTextSelectionEnabled: selection, onOpenURL: nil,
+                               baseTextBold: bold)
+                view.prepareForFitting(width: 240)
+                let unspacedHeight = try XCTUnwrap(view.timelineHeight(for: 240))
+                view.configure(text: text, lineLimit: nil, isTextSelectionEnabled: selection, onOpenURL: nil,
+                               baseTextBold: bold, lineSpacing: 1)
+                view.prepareForFitting(width: 240)
+                let renderer = try XCTUnwrap(textViews(in: view).first)
+                let rendered = try XCTUnwrap((renderer as? UILabel)?.attributedText ?? (renderer as? UITextView)?.attributedText)
+                let font = try XCTUnwrap(rendered.attribute(.font, at: 0, effectiveRange: nil) as? UIFont)
+                let paragraph = try XCTUnwrap(rendered.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
+                XCTAssertEqual(font.fontDescriptor.symbolicTraits.contains(.traitBold), bold)
+                XCTAssertEqual(paragraph.lineSpacing, 1 + (renderer is UILabel ? font.leading : 0), accuracy: 0.001)
+                XCTAssertEqual(paragraph.alignment, .center)
+                XCTAssertEqual(try XCTUnwrap(view.timelineHeight(for: 240)) - unspacedHeight, 2, accuracy: 0.001,
+                               "Three lines need two additional points: renderer=\(type(of: renderer)), bold=\(bold), font=\(font)")
+            }
+
+            view.configure(text: text, lineLimit: nil, isTextSelectionEnabled: selection, onOpenURL: nil)
+            view.prepareForFitting(width: 240)
+            XCTAssertEqual(try XCTUnwrap(view.timelineHeight(for: 240)), originalHeight)
+        }
+
+        let metadata = UILabel()
+        metadata.numberOfLines = 0
+        metadata.setPostText(text.innerText)
+        let baseline = UILabel()
+        baseline.numberOfLines = 0
+        baseline.font = metadata.font
+        baseline.text = text.innerText
+        let fittingSize = CGSize(width: 240, height: CGFloat.greatestFiniteMagnitude)
+        XCTAssertEqual(metadata.sizeThatFits(fittingSize).height - baseline.sizeThatFits(fittingSize).height, 2, accuracy: 0.001)
+    }
+
+    func testPostLineSpacingMatchesCollapsedPreviewAndFullTextMeasurements() throws {
+        let lines = (1...20).map { "日本語の文章 \($0)" }
+        for linked in [false, true] {
+            let text = richText([lines.joined(separator: "\n")], link: linked)
+            let firstFiveLines = richText([lines.prefix(5).joined(separator: "\n")], link: linked)
+            let preview = RichTextUIView()
+            let full = RichTextUIView()
+            var unspacedPreviewHeight: CGFloat?
+            for spacing: CGFloat in [0, 1] {
+                preview.configure(text: text, lineLimit: 5, isTextSelectionEnabled: false, onOpenURL: nil,
+                                  lineSpacing: spacing, collapseAboveLineCount: 15)
+                full.configure(text: firstFiveLines, lineLimit: nil, isTextSelectionEnabled: false, onOpenURL: nil,
+                               lineSpacing: spacing)
+                preview.prepareForFitting(width: 240)
+                full.prepareForFitting(width: 240)
+                XCTAssertTrue(preview.hasCollapsedOverflow(for: 240))
+                let previewHeight = try XCTUnwrap(preview.timelineHeight(for: 240))
+                XCTAssertEqual(previewHeight, try XCTUnwrap(full.timelineHeight(for: 240)), accuracy: 0.001)
+                if let unspacedPreviewHeight {
+                    XCTAssertEqual(previewHeight - unspacedPreviewHeight, 4, accuracy: 0.001,
+                                   "Five visible lines need four extra points, linked=\(linked)")
+                } else {
+                    unspacedPreviewHeight = previewHeight
+                }
+            }
+            preview.configure(text: text, lineLimit: nil, isTextSelectionEnabled: false, onOpenURL: nil, lineSpacing: 1)
+            full.configure(text: text, lineLimit: nil, isTextSelectionEnabled: false, onOpenURL: nil, lineSpacing: 1)
+            preview.prepareForFitting(width: 240)
+            full.prepareForFitting(width: 240)
+            XCTAssertFalse(preview.hasCollapsedOverflow(for: 240))
+            XCTAssertEqual(try XCTUnwrap(preview.timelineHeight(for: 240)), try XCTUnwrap(full.timelineHeight(for: 240)))
+        }
+    }
+
     func testGrowingAndClippingAPreviewChoosesTheRendererForItsVisibleAttributes() throws {
         let plain = RenderTextStyle(link: nil, bold: false, italic: false, strikethrough: false,
                                     monospace: false, code: false, underline: false, small: false, time: false, imageLink: nil)

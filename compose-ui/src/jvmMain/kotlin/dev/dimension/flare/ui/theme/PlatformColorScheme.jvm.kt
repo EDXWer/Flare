@@ -35,6 +35,10 @@ internal actual object PlatformColorScheme {
         @Composable
         @ReadOnlyComposable
         get() = FluentTheme.colors.stroke.divider.default
+    actual val background: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = FluentTheme.colors.background.mica.base
     public actual val card: Color
         @Composable
         @ReadOnlyComposable

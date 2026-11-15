@@ -4,8 +4,10 @@ import dev.dimension.flare.data.datasource.mastodon.MastodonFansPagingSource
 import dev.dimension.flare.data.datasource.mastodon.MastodonFollowingPagingSource
 import dev.dimension.flare.data.datasource.mastodon.SearchUserPagingSource
 import dev.dimension.flare.data.datasource.mastodon.TrendHashtagPagingSource
+import dev.dimension.flare.data.datasource.mastodon.mastodonPostDetailTabs
 import dev.dimension.flare.data.datasource.microblog.DatabaseUpdater
 import dev.dimension.flare.data.datasource.microblog.MicroblogDataSource
+import dev.dimension.flare.data.datasource.microblog.PostDetailTabs
 import dev.dimension.flare.data.datasource.microblog.PostEvent
 import dev.dimension.flare.data.datasource.microblog.ProfileTab
 import dev.dimension.flare.data.datasource.microblog.SearchOperation
@@ -105,6 +107,15 @@ internal class GuestMastodonDataSource(
             host = host,
             statusKey = statusKey,
             statusOnly = false,
+        )
+
+    override suspend fun postDetailTabs(statusKey: MicroBlogKey): PostDetailTabs =
+        mastodonPostDetailTabs(
+            service = service,
+            host = host,
+            statusKey = statusKey,
+            accountKey = null,
+            repliesLoader = { context(statusKey) },
         )
 
     override val searchOperations: Set<SearchOperation> = SearchOperation.entries.toSet() - SearchOperation.DiscoverProfiles

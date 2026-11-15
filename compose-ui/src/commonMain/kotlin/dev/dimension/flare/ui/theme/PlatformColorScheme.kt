@@ -35,6 +35,10 @@ internal expect object PlatformColorScheme {
 
     @get:Composable
     @get:ReadOnlyComposable
+    val background: Color
+
+    @get:Composable
+    @get:ReadOnlyComposable
     val card: Color
 
     @get:Composable

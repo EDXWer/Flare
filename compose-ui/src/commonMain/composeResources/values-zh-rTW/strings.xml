@@ -491,4 +491,23 @@
     <string name="share_replies_more">載入更多回覆</string>
     <string name="share_replies_retry">重試</string>
     <string name="share_replies_children">載入此留言的回覆</string>
+    <string name="status_detail_comments">留言</string>
+    <string name="status_detail_by_popularity">依熱門程度</string>
+    <string name="status_detail_by_time">依時間</string>
+    <string name="status_detail_replies">回覆</string>
+    <string name="status_detail_quotes">引用</string>
+    <string name="status_detail_relevance">最相關</string>
+    <string name="status_detail_recency">最新</string>
+    <string name="status_detail_likes">最多讚好</string>
+    <string name="status_detail_oldest">最早</string>
+    <string name="status_detail_reposted_by">轉發者</string>
+    <string name="status_detail_liked_by">按讚者</string>
+    <string name="status_detail_reactions">表情回應</string>
+    <string name="status_detail_all_reactions">全部表情</string>
+    <string name="status_detail_filter_empty">目前篩選沒有結果</string>
+    <string name="compose_x_reply_restriction">誰能在 X 上回覆</string>
+    <string name="compose_x_reply_everyone">所有人</string>
+    <string name="compose_x_reply_following">你跟隨的帳號</string>
+    <string name="compose_x_reply_mentioned">僅提及的帳號</string>
+    <string name="compose_x_reply_verified">已認證的帳號</string>
 </resources>

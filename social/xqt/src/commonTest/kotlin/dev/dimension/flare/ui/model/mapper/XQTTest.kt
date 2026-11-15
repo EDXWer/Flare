@@ -1,5 +1,6 @@
 package dev.dimension.flare.ui.model.mapper
 
+import dev.dimension.flare.common.isWebPlatform
 import dev.dimension.flare.data.network.xqt.XQT_JSON
 import dev.dimension.flare.data.network.xqt.model.Entities
 import dev.dimension.flare.data.network.xqt.model.Hashtag
@@ -60,6 +61,14 @@ class XQTTest {
     }
 
     private val accountKey = MicroBlogKey("test_id", "example.com")
+
+    @Test
+    fun renderUser_nativeHandleOmitsHostWithoutChangingIdentity() {
+        val user = createUser(screenName = "flare_dev").render(MicroBlogKey("account", "x.com"))
+
+        assertEquals("@flare_dev@x.com", user.handle.canonical)
+        assertEquals(if (isWebPlatform) "@flare_dev@x.com" else "@flare_dev", user.handle.display)
+    }
 
     @Test
     fun parseXQTCustomDateTime_appliesTimezoneOffset() {

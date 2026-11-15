@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridScope
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,7 +42,9 @@ import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.placeholder
 import dev.dimension.flare.ui.component.platform.PlatformLinearProgressIndicator
 import dev.dimension.flare.ui.component.platform.PlatformText
+import dev.dimension.flare.ui.component.platform.PlatformTextStyle
 import dev.dimension.flare.ui.model.UiTimelineV2
+import dev.dimension.flare.ui.theme.PlatformContentColor
 import dev.dimension.flare.ui.theme.PlatformTheme
 import dev.dimension.flare.ui.theme.screenHorizontalPadding
 import org.jetbrains.compose.resources.stringResource
@@ -119,7 +122,10 @@ public fun LazyStaggeredGridScope.status(
                     )
                 }
             }
-            appendStateUI(this@onSuccess)
+            appendStateUI(
+                this@onSuccess,
+                showEndOfList = detailStatusKey == null || itemCount == 0 || peek(0) !is UiTimelineV2.User,
+            )
         }
         pagingError(pagingState)
         onLoading {
@@ -164,7 +170,10 @@ public fun LazyStaggeredGridScope.statusLoadingPlaceholders() {
     }
 }
 
-public fun <T : Any> LazyStaggeredGridScope.appendStateUI(success: PagingState.Success<T>) {
+public fun <T : Any> LazyStaggeredGridScope.appendStateUI(
+    success: PagingState.Success<T>,
+    showEndOfList: Boolean = true,
+) {
     success.appendState
         .onError {
             item(
@@ -188,6 +197,7 @@ public fun <T : Any> LazyStaggeredGridScope.appendStateUI(success: PagingState.S
                 )
             }
         }.onEndOfList {
+            if (!showEndOfList) return@onEndOfList
             item(
                 span = StaggeredGridItemSpan.FullLine,
             ) {
@@ -240,7 +250,7 @@ private fun OnLoading(modifier: Modifier = Modifier) {
             modifier =
                 Modifier
                     .padding(
-                        horizontal = screenHorizontalPadding,
+                        horizontal = StatusComponentDefaults.horizontalPadding,
                         vertical = 8.dp,
                     ),
         )
@@ -270,8 +280,10 @@ public fun StatusItem(
         Column(
             modifier =
                 modifier.padding(
-                    horizontal = screenHorizontalPadding,
-                    vertical = 8.dp,
+                    start = StatusComponentDefaults.horizontalPadding,
+                    top = StatusComponentDefaults.topPadding,
+                    end = StatusComponentDefaults.horizontalPadding,
+                    bottom = 8.dp,
                 ),
         ) {
             StatusPlaceholder()
@@ -286,26 +298,33 @@ public fun StatusItem(
 }
 
 @Composable
-public fun StatusPlaceholder(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier,
+public fun StatusPlaceholder(modifier: Modifier = Modifier): Unit =
+    CompositionLocalProvider(
+        PlatformTextStyle provides PlatformTheme.typography.postBody,
+        PlatformContentColor provides StatusComponentDefaults.contentColor,
     ) {
-        Spacer(modifier = Modifier.height(4.dp))
-        UserPlaceholder()
-        Spacer(modifier = Modifier.height(8.dp))
-        PlatformText(
-            text =
-                "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec euismod, nisl eget ultricies" +
-                        " ultrices, nisl nisl aliquet nisl, nec aliquam nisl nisl nec.",
-            modifier =
-                Modifier
-                    .placeholder(true),
-        )
+        Column(
+            modifier = modifier,
+        ) {
+            Spacer(modifier = Modifier.height(4.dp))
+            UserPlaceholder(isPost = true)
+            Spacer(modifier = Modifier.height(8.dp))
+            PlatformText(
+                text =
+                    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec euismod, nisl eget ultricies" +
+                            " ultrices, nisl nisl aliquet nisl, nec aliquam nisl nisl nec.",
+                modifier =
+                    Modifier
+                        .placeholder(true),
+            )
+        }
     }
-}
 
 @Composable
-public fun UserPlaceholder(modifier: Modifier = Modifier) {
+public fun UserPlaceholder(
+    modifier: Modifier = Modifier,
+    isPost: Boolean = false,
+) {
     Row(
         modifier =
             modifier
@@ -315,7 +334,7 @@ public fun UserPlaceholder(modifier: Modifier = Modifier) {
         Box(
             modifier =
                 Modifier
-                    .size(44.dp)
+                    .size(if (isPost) StatusComponentDefaults.avatarSize else 44.dp)
                     .clip(CircleShape)
                     .placeholder(true),
         )
@@ -330,8 +349,8 @@ public fun UserPlaceholder(modifier: Modifier = Modifier) {
             Spacer(modifier = Modifier.height(4.dp))
             PlatformText(
                 text = "username@Placeholder",
-                style = PlatformTheme.typography.caption,
-                color = PlatformTheme.colorScheme.caption,
+                style = if (isPost) PlatformTheme.typography.postBody else PlatformTheme.typography.caption,
+                color = if (isPost) StatusComponentDefaults.secondaryColor else PlatformTheme.colorScheme.caption,
                 modifier =
                     Modifier
                         .placeholder(true),

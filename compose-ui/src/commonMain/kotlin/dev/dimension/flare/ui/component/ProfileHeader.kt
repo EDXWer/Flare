@@ -109,6 +109,7 @@ public fun ProfileHeader(
     onFansListClick: (userKey: MicroBlogKey) -> Unit,
     modifier: Modifier = Modifier,
     isBigScreen: Boolean = false,
+    useCard: Boolean = !isBigScreen(),
 ) {
     when (val userState = state.userState) {
         is UiState.Loading -> {
@@ -131,6 +132,7 @@ public fun ProfileHeader(
                 isMe = state.isMe,
                 menu = menu,
                 expandMatrices = isBigScreen,
+                useCard = useCard,
                 onAvatarClick = onAvatarClick,
                 onBannerClick = onBannerClick,
                 onFollowListClick = onFollowListClick,
@@ -154,6 +156,7 @@ private fun ProfileHeaderSuccess(
     menu: @Composable RowScope.() -> Unit,
     onFollowListClick: (userKey: MicroBlogKey) -> Unit,
     onFansListClick: (userKey: MicroBlogKey) -> Unit,
+    useCard: Boolean,
     modifier: Modifier = Modifier,
     expandMatrices: Boolean = false,
 ) {
@@ -165,6 +168,7 @@ private fun ProfileHeaderSuccess(
         displayName = user.name,
         userKey = user.key,
         handle = user.handle,
+        useCard = useCard,
         headerTrailing = {
             isMe.onSuccess {
                 if (!it) {
@@ -355,6 +359,7 @@ private fun ProfileHeaderSuccess(
                 SelectionContainer {
                     RichText(
                         text = it,
+                        useBodySpacing = true,
                     )
                 }
             }

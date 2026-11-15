@@ -29,11 +29,12 @@ public enum MediaTransfer {
         configuration.urlCredentialStorage = nil
         configuration.httpCookieStorage = nil
         ProxySessionConfigurator().configure(configuration: configuration, connection: snapshot.connection)
-        let headerNames = Array(media.customHeaders?.keys ?? Dictionary<String, String>().keys)
-        let session = URLSession(configuration: configuration, delegate: MediaRedirectDelegate(origin: url, headerNames: headerNames), delegateQueue: nil)
+        let accountHeaders = try await MediaRequestHeaders.shared.accountHeaders(url: url.absoluteString, proxy: media.proxy)
+        let headers = (media.customHeaders ?? [:]).merging(accountHeaders) { _, accountValue in accountValue }
+        let session = URLSession(configuration: configuration, delegate: MediaRedirectDelegate(origin: url, headerNames: Array(headers.keys)), delegateQueue: nil)
         defer { session.invalidateAndCancel() }
         var request = URLRequest(url: url)
-        media.customHeaders?.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
+        headers.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
         return try await withRouteCancellation(register: { cancel in
             let unsubscribe = snapshot.onInvalidated(cancel: cancel)
             return { unsubscribe() }

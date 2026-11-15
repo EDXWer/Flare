@@ -32,7 +32,11 @@ public object PluginMediaPermissions {
 }
 
 internal fun UiMedia.allowedForPlugin(pluginId: String?): Boolean =
-    pluginId == null || (PluginMediaPermissions.isAllowed(pluginId) && url.isSafePluginUrl() && preview?.url.isSafePluginUrl())
+    pluginId == null ||
+        (
+            PluginMediaPermissions.isAllowed(pluginId) && url.isSafePluginUrl() && preview?.url.isSafePluginUrl() &&
+                (this as? UiMedia.Video)?.livePhotoCoverUrl.isSafePluginUrl()
+        )
 
 internal fun String?.isSafePluginUrl(): Boolean =
     this == null ||

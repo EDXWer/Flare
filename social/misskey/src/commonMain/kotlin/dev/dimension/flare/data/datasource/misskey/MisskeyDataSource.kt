@@ -14,6 +14,10 @@ import dev.dimension.flare.data.datasource.microblog.ComposeType
 import dev.dimension.flare.data.datasource.microblog.DatabaseUpdater
 import dev.dimension.flare.data.datasource.microblog.NotificationFilter
 import dev.dimension.flare.data.datasource.microblog.NotificationTimelineDataSource
+import dev.dimension.flare.data.datasource.microblog.PostDetailFilter
+import dev.dimension.flare.data.datasource.microblog.PostDetailFilterOption
+import dev.dimension.flare.data.datasource.microblog.PostDetailTab
+import dev.dimension.flare.data.datasource.microblog.PostDetailTabs
 import dev.dimension.flare.data.datasource.microblog.PostEvent
 import dev.dimension.flare.data.datasource.microblog.ProfileTab
 import dev.dimension.flare.data.datasource.microblog.ReactionDataSource
@@ -43,6 +47,7 @@ import dev.dimension.flare.data.model.IconType
 import dev.dimension.flare.data.model.ProxyRef
 import dev.dimension.flare.data.model.tab.ShortcutSpec
 import dev.dimension.flare.data.model.tab.TimelineSpec
+import dev.dimension.flare.data.network.misskey.MisskeyService
 import dev.dimension.flare.data.network.misskey.api.model.AdminAccountsDeleteRequest
 import dev.dimension.flare.data.network.misskey.api.model.ChannelsFeaturedRequest
 import dev.dimension.flare.data.network.misskey.api.model.ChannelsFollowRequest
@@ -70,6 +75,7 @@ import dev.dimension.flare.ui.model.UiProfile
 import dev.dimension.flare.ui.model.UiStrings
 import dev.dimension.flare.ui.model.UiText
 import dev.dimension.flare.ui.model.UiTimelineV2
+import dev.dimension.flare.ui.model.asText
 import dev.dimension.flare.ui.model.mapper.render
 import dev.dimension.flare.ui.presenter.compose.ComposeStatus
 import dev.dimension.flare.ui.route.DeeplinkRoute
@@ -97,8 +103,7 @@ private val MEDIA_COMPRESSION =
 @OptIn(ExperimentalPagingApi::class)
 internal class MisskeyDataSource(
     override val accountKey: MicroBlogKey,
-    private val host: String,
-    private val credentialFlow: Flow<MisskeyCredential>,
+    serviceProvider: Lazy<MisskeyService>,
 ) : AuthenticatedMicroblogDataSource,
     NotificationTimelineDataSource,
     ComposeDataSource,
@@ -110,14 +115,23 @@ internal class MisskeyDataSource(
     ReactionDataSource,
     RelationDataSource,
     PostEventHandler.Handler {
+    constructor(
+        accountKey: MicroBlogKey,
+        host: String,
+        credentialFlow: Flow<MisskeyCredential>,
+    ) : this(
+        accountKey,
+        lazy {
+            MisskeyService(
+                baseUrl = "https://$host/api/",
+                accountKey = accountKey,
+                accessTokenFlow = credentialFlow.map { it.accessToken },
+            )
+        },
+    )
+
     private val imageCompressor: ImageCompressor by koinInject()
-    private val service by lazy {
-        dev.dimension.flare.data.network.misskey.MisskeyService(
-            baseUrl = "https://$host/api/",
-            accountKey = accountKey,
-            accessTokenFlow = credentialFlow.map { it.accessToken },
-        )
-    }
+    private val service by serviceProvider
 
     private val textLimitMutex = Mutex()
     private var resolvedTextLimit: Int? = null
@@ -465,6 +479,69 @@ internal class MisskeyDataSource(
             service,
             statusOnly = false,
         )
+
+    override suspend fun postDetailTabs(statusKey: MicroBlogKey): PostDetailTabs {
+        val note =
+            try {
+                service.notesShow(IPinRequest(noteId = statusKey.id))
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                null
+            }
+        val replies =
+            StatusDetailRemoteMediator(
+                statusKey = statusKey,
+                accountKey = accountKey,
+                service = service,
+                statusOnly = false,
+                repliesOnly = true,
+                initialNote = note,
+            )
+        val all = "all"
+        val emojiFilters =
+            note
+                ?.reactions
+                .orEmpty()
+                .entries
+                .filter { (type, count) -> type != all && count > 0 }
+                .sortedByDescending { it.value }
+                .map { (type, _) -> PostDetailFilterOption(type, UiText.Raw(type)) }
+        return PostDetailTabs(
+            tabs =
+                listOf(
+                    PostDetailTab(
+                        id = "replies",
+                        title = UiStrings.Replies.asText(),
+                        includesPostContext = true,
+                        loader = { replies },
+                    ),
+                    PostDetailTab(
+                        id = "quotes",
+                        title = UiStrings.Quotes.asText(),
+                        loader = { RenotesLoader(statusKey, accountKey, service, quotes = true) },
+                    ),
+                    PostDetailTab(
+                        id = "reposts",
+                        title = UiStrings.Reposts.asText(),
+                        loader = { RenotesLoader(statusKey, accountKey, service, quotes = false) },
+                    ),
+                    PostDetailTab(
+                        id = "reactions",
+                        title = UiStrings.Reactions.asText(),
+                        filter =
+                            emojiFilters.takeIf { it.isNotEmpty() }?.let {
+                                PostDetailFilter(
+                                    options = listOf(PostDetailFilterOption(all, UiStrings.AllReactions.asText())) + it,
+                                    defaultOptionId = all,
+                                )
+                            },
+                        loader = { type -> ReactionsLoader(statusKey, accountKey, service, type?.takeUnless { it == all }) },
+                    ),
+                ),
+            replyTabId = "replies",
+        )
+    }
 
     override suspend fun publish(
         data: ComposeData,

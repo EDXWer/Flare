@@ -3,7 +3,7 @@ import SwiftUI
 import XCTest
 import KotlinSharedUI
 import FlareAppleCore
-import FlareAppleUI
+@testable import FlareAppleUI
 
 @MainActor
 final class MacStatusActionAnimationTests: XCTestCase {
@@ -11,6 +11,196 @@ final class MacStatusActionAnimationTests: XCTestCase {
         AppleSharedHelper.shared.initialize(inAppNotification: SilentNotification(), swiftFormatter: Formatter.shared,
             swiftPlatformTextRenderer: PlatformTextRenderer.shared, swiftOnDeviceAI: FoundationModelOnDeviceAI.shared)
     }()
+
+    func testTimelineAndDetailActionsShareTheirAppearance() async throws {
+        let fixture = try Fixture(actions: actions())
+        defer { fixture.close() }
+        await fixture.settle(100)
+        let expected = try fixture.pixels()
+        fixture.setDetail(true)
+        await fixture.settle(100)
+        assertPixels(try fixture.pixels(), expected,
+                     "Timeline and detail actions must use the same body size and secondary color")
+    }
+
+    func testPostTextColorsRespectSurfaceAndContrast() throws {
+        _ = NSApplication.shared
+        let postPrimary = Color(white: 217.0 / 255)
+        let postSecondary = Color(red: 113.0 / 255, green: 118.0 / 255, blue: 123.0 / 255)
+        let cases: [(name: String, post: Bool, background: Color?, contrast: ColorSchemeContrast, primary: Color?, secondary: Color?)] = [
+            ("post-black", true, .black, .standard, postPrimary, postSecondary),
+            ("post-dark-gray", true, Color(white: 32.0 / 255), .standard, postPrimary, nil),
+            ("post-semantic-gray", true, .gray, .standard, nil, nil),
+            ("post-white", true, .white, .standard, nil, nil),
+            ("post-emphasis", true, nil, .standard, nil, nil),
+            ("post-high-contrast", true, .black, .increased, nil, nil),
+            ("non-post-black", false, .black, .standard, nil, nil),
+        ]
+        for sample in cases {
+            var environment = EnvironmentValues()
+            environment.colorScheme = .dark
+            environment._colorSchemeContrast = sample.contrast
+            let context = "\(sample.name), background=\(String(describing: sample.background?.resolve(in: environment))), contrast=\(environment.colorSchemeContrast)"
+            func pixels(_ text: AnyView) throws -> Data {
+                let renderer = ImageRenderer(content: text
+                    .font(.system(size: 36, weight: .black))
+                    .frame(width: 220, height: 60)
+                    .background(sample.background ?? .black)
+                    .flareTextBackground(sample.background)
+                    .environment(\.isPostContent, sample.post)
+                    .environment(\.colorScheme, .dark)
+                    // shortcut: SwiftUI's writable contrast override is underscored, use a public setter when available.
+                    .environment(\._colorSchemeContrast, sample.contrast))
+                renderer.scale = 1
+                let image = try XCTUnwrap(renderer.cgImage)
+                var bytes = [UInt8](repeating: 0, count: image.width * image.height * 4)
+                let context = try XCTUnwrap(CGContext(data: &bytes, width: image.width, height: image.height,
+                    bitsPerComponent: 8, bytesPerRow: image.width * 4,
+                    space: try XCTUnwrap(CGColorSpace(name: CGColorSpace.sRGB)),
+                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue))
+                context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+                return Data(bytes)
+            }
+            let expectedPrimary = sample.primary.map { AnyView(Text("MMMM").foregroundStyle($0)) }
+                ?? AnyView(Text("MMMM"))
+            let expectedSecondary = sample.secondary.map { AnyView(Text("MMMM").foregroundStyle($0)) }
+                ?? AnyView(Text("MMMM").foregroundStyle(.secondary))
+            assertPixels(try pixels(AnyView(Text("MMMM").flarePrimaryText())),
+                         try pixels(expectedPrimary), "\(context), primary")
+            assertPixels(try pixels(AnyView(Text("MMMM").flarePrimaryText().flareSecondaryText())),
+                         try pixels(expectedSecondary), "\(context), secondary")
+            var emphasized = AttributedString("MMMM")
+            emphasized.foregroundColor = .red
+            assertPixels(try pixels(AnyView(Text(emphasized).flarePrimaryText())),
+                         try pixels(AnyView(Text(emphasized))), "\(context), explicit attributed color")
+            assertPixels(try pixels(AnyView(Text("MMMM").foregroundStyle(.red))),
+                         try pixels(AnyView(Text("MMMM").foregroundStyle(.red).environment(\.isPostContent, false))),
+                         "\(context), explicit action color")
+        }
+    }
+
+    func testPostLayoutPreview() async throws {
+        guard let output = ProcessInfo.processInfo.environment["FLARE_POST_PREVIEW_DIR"], !output.isEmpty else {
+            throw XCTSkip("Set FLARE_POST_PREVIEW_DIR to export the post preview")
+        }
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["CFFIXED_USER_HOME"]?.hasSuffix("/MacTimelineTestsHome") == true
+                          && NSHomeDirectory().hasSuffix("/MacTimelineTestsHome"),
+                          "Run the MacTimelineTests scheme to isolate application data")
+        _ = Self.servicesReady
+        _ = NSApplication.shared
+        let quote = previewPost("morgan", name: "Morgan Lee",
+                                text: "Clear type and consistent spacing make long conversations easier to follow.")
+        let posts: [UiTimelineV2] = [
+            previewPost("alex", name: "Alex Rivera", text:
+                "Today’s reading list is ready.\nA few useful ideas on design, small improvements, and making space for focused work."),
+            UiTimelineV2.TimelinePostItem(
+                post: previewPost("sam", name: "Sam Chen", text:
+                    "A detail I appreciated today: giving every part of a conversation room to breathe."),
+                presentation: UiTimelineV2.PostPresentation(message: nil, inlineParents: [], quotes: [quote],
+                                                          repost: nil, notificationKey: nil),
+                itemKey: "quoted-preview"
+            ),
+        ]
+        let repostBody = previewPost("retweet-body", name: "Alex Rivera", text: "A quiet moment between sketches.")
+        // The hostless test bundle does not include the app's localized strings.
+        let repostMessage = UiTimelineV2.Message(
+            user: previewPost("retweeter", name: "サムライ忍者GREENTEA / 原田くくま🥷🇯🇵", text: "").user,
+            statusKey: repostBody.statusKey, icon: .retweet, type: UiTimelineV2.MessageTypeRaw(content: "转发了帖子"),
+            createdAt: repostBody.createdAt, clickEvent: ClickEventNoop.shared,
+            accountType: AccountType.Guest.shared, itemKey: nil)
+        let repost = UiTimelineV2.TimelinePostItem(
+            post: repostBody,
+            presentation: UiTimelineV2.PostPresentation(message: repostMessage, inlineParents: [], quotes: [],
+                                                      repost: nil, notificationKey: nil),
+            itemKey: "retweet-preview")
+        let calibrationBody = previewPost("Sawarabi_2000", name: "茶わらび", text:
+            "友達作るための行動したことないから当然の帰結だけど\n漢字漢字漢字漢字漢字\n文字间距与行距保持一致。\n文字间距与行距保持一致。\nEnglish spacing 0123456789\nEnglish spacing 0123456789",
+            isCalibration: true)
+        let calibrationMessage = UiTimelineV2.Message(
+            user: previewPost("retweeter", name: "サムライ忍者GREENTEA / 原田くくま🥷🇯🇵", text: "", isCalibration: true).user,
+            statusKey: calibrationBody.statusKey, icon: .retweet, type: UiTimelineV2.MessageTypeRaw(content: "转发了帖子"),
+            createdAt: calibrationBody.createdAt, clickEvent: ClickEventNoop.shared,
+            accountType: AccountType.Guest.shared, itemKey: nil)
+        let calibration = UiTimelineV2.TimelinePostItem(
+            post: calibrationBody,
+            presentation: UiTimelineV2.PostPresentation(message: calibrationMessage, inlineParents: [], quotes: [],
+                                                      repost: nil, notificationKey: nil),
+            itemKey: "post-calibration")
+        let mediaURL = FileManager.default.temporaryDirectory.appendingPathComponent("post-spacing-media.png")
+        let image = NSImage(size: NSSize(width: 320, height: 180))
+        image.lockFocus()
+        NSColor(red: 42 / 255, green: 91 / 255, blue: 105 / 255, alpha: 1).setFill()
+        NSRect(x: 0, y: 0, width: 320, height: 180).fill()
+        image.unlockFocus()
+        let imageData = try XCTUnwrap(image.tiffRepresentation)
+        let imageRep = try XCTUnwrap(NSBitmapImageRep(data: imageData))
+        try XCTUnwrap(imageRep.representation(using: .png, properties: [:])).write(to: mediaURL)
+        let media = UiMediaImage(url: mediaURL.absoluteString, previewUrl: mediaURL.absoluteString,
+            description: "Spacing reference media", height: 180, width: 320, sensitive: false,
+            customHeaders: nil, proxy: ProxyRef.Unbound.shared)
+        let componentQuote = previewPost("quoted", name: "引用ユーザー",
+            text: "文字と画像の間隔をそろえる。\n引用の内側にも余白を残す。", isCalibration: true)
+        let componentPost = previewPost("Sawarabi_2000", name: "茶わらび",
+            text: "友達作るための行動したことないから当然の帰結だけど", isCalibration: true, images: [media], translationDisplayState: .translated)
+        let components = UiTimelineV2.TimelinePostItem(post: componentPost,
+            presentation: UiTimelineV2.PostPresentation(message: nil, inlineParents: [], quotes: [componentQuote],
+                repost: nil, notificationKey: nil), itemKey: "components")
+        let previews: [(name: String, width: CGFloat, posts: [UiTimelineV2])] = [
+            ("post", 520, posts), ("retweet-header", 402, [repost]),
+            ("post-calibration", 402, [calibration]), ("components", 402, [components]),
+        ]
+        let directory = URL(fileURLWithPath: output, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        for preview in previews {
+            let isCalibration = preview.name == "post-calibration"
+            let background: Color = isCalibration || preview.name == "components" ? .black : .flareSystemGroupedBackground
+            for theme in isCalibration ? [ColorScheme.dark] : [.light, .dark] {
+                let content = VStack(spacing: 0) {
+                    ForEach(Array(preview.posts.enumerated()), id: \.offset) { index, post in
+                        AdaptiveTimelineCard(index: index, totalCount: preview.posts.count) {
+                            TimelineView(data: post)
+                                .padding(.horizontal, 10)
+                                .padding(.top, 12)
+                                .padding(.bottom, 8)
+                        }
+                    }
+                }
+                .frame(width: preview.width)
+                .flareTextBackground(background)
+                .background(background)
+                .environment(\.colorScheme, theme)
+                let host = NSHostingView(rootView: content)
+                host.safeAreaRegions = []
+                let window = NSWindow(contentRect: CGRect(origin: .zero, size: host.fittingSize),
+                                      styleMask: [.borderless], backing: .buffered, defer: false)
+                window.isReleasedWhenClosed = false
+                window.appearance = NSAppearance(named: theme == .dark ? .darkAqua : .aqua)
+                window.contentView = host
+                window.makeKeyAndOrderFront(nil)
+                defer { window.close() }
+                try await Task.sleep(for: .milliseconds(200))
+                window.setContentSize(host.fittingSize)
+                host.layoutSubtreeIfNeeded()
+                host.displayIfNeeded()
+                XCTAssertEqual(host.bounds.width, preview.width, accuracy: 1)
+                XCTAssertGreaterThan(host.bounds.height, preview.posts.count > 1 ? 200 : 80)
+                let bitmap = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil,
+                    pixelsWide: Int(ceil(host.bounds.width * 2)), pixelsHigh: Int(ceil(host.bounds.height * 2)),
+                    bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                    colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+                bitmap.size = host.bounds.size
+                host.cacheDisplay(in: host.bounds, to: bitmap)
+                let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+                let name = isCalibration ? "macos-post-calibration.png"
+                    : "macos-\(preview.name)-\(theme == .dark ? "dark" : "light").png"
+                try png.write(to: directory.appendingPathComponent(name), options: .atomic)
+                let attachment = XCTAttachment(data: png, uniformTypeIdentifier: "public.png")
+                attachment.name = name
+                attachment.lifetime = .keepAlways
+                add(attachment)
+            }
+        }
+    }
 
     func testItemAndGroupChangesAnimateThenSettle() async throws {
         for grouped in [false, true] {
@@ -116,6 +306,43 @@ final class MacStatusActionAnimationTests: XCTestCase {
         return grouped ? [ActionMenu.Group(displayItem: item, actions: [item])] : [item]
     }
 
+    private func previewPost(_ id: String, name: String, text: String, isCalibration: Bool = false, images: [UiMedia] = [],
+                             translationDisplayState: TranslationDisplayState = .hidden) -> UiTimelineV2.Post {
+        func rich(_ value: String) -> UiRichText {
+            let style = RenderTextStyle(link: nil, bold: false, italic: false, strikethrough: false,
+                                        monospace: false, code: false, underline: false, small: false, time: false, imageLink: nil)
+            return UiRichText(renderRuns: [RenderContent.Text(runs: [RenderRun.Text(text: value, style: style)],
+                                                             block: RenderBlockStyle())],
+                              isRtl: false, raw: value, innerText: value, imageUrls: [])
+        }
+        let host = isCalibration ? "x.com" : "example.invalid"
+        let platformId = isCalibration ? "xqt" : "mastodon"
+        let platformIcon = IconType.Material(icon: isCalibration ? .x : .world)
+        let profile = UiProfile(key: MicroBlogKey(id: id, host: host),
+            handle: UiHandle(raw: id, host: host, displayOverride: "@\(id)"),
+            avatar: nil as UiMediaImage?, nameInternal: rich(name), platformId: platformId,
+            platformIcon: platformIcon, clickEvent: ClickEventNoop.shared,
+            banner: nil, description: nil, sourceLanguages: [], translationDisplayState: .hidden,
+            matrices: UiProfile.Matrices(fansCount: 0, followsCount: 0, statusesCount: 0, platformFansCount: nil),
+            mark: [], bottomContent: nil, pluginId: nil, clearedMarks: [])
+        let actionCounts: [(UiIcon, Int64?)] = isCalibration
+            ? [(.reply, nil), (.retweet, nil), (.like, nil), (.more, nil)]
+            : [(.reply, 3), (.retweet, 12), (.like, 128), (.bookmark, 0), (.more, nil)]
+        let actions: [ActionMenu] = actionCounts.map { icon, count in
+            ActionMenu.Item(updateKey: "\(id)-\(icon)", icon: icon, text: nil,
+                count: count.map { UiNumber(value: $0) }, color: .contentColor,
+                clickEvent: ClickEventNoop.shared, actionFamily: nil, enabled: true)
+        }
+        return UiTimelineV2.Post(platformId: platformId, images: images, sensitive: false, contentWarning: nil,
+            user: profile, platformIcon: platformIcon, sourceLanguages: [], translationDisplayState: translationDisplayState,
+            content: UiTranslatableText(original: rich(text), translation: nil), actions: actions, poll: nil,
+            statusKey: MicroBlogKey(id: id, host: host), card: nil,
+            createdAt: KotlinInstant.companion.fromEpochMilliseconds(epochMilliseconds: Int64(Date().timeIntervalSince1970 * 1_000) - (isCalibration ? 39_000 : 600_000)).toUi(),
+            emojiReactions: [], sourceChannel: nil, visibility: isCalibration ? nil : .public, replyToHandle: nil,
+            references: [], clickEvent: ClickEventNoop.shared, mediaClickPolicy: .openStatusMedia,
+            accountType: AccountType.Guest.shared, itemKey: id, pluginId: nil, authorSubtitleInternal: nil)
+    }
+
     private func pixelError(_ actual: Data, _ expected: Data) -> Double {
         guard actual.count == expected.count, !actual.isEmpty else { return .infinity }
         let squaredError = zip(actual, expected).reduce(0.0) { sum, pair in
@@ -135,13 +362,15 @@ final class MacStatusActionAnimationTests: XCTestCase {
         var post = "post"
         var visible = true
         var reduceMotion = false
+        var isDetail = false
 
         var body: some View {
             Group {
                 if visible {
                     StatusActionsView(data: actions, useText: false, allowSpacer: false,
-                                      applyPostActionLayout: false, postKey: post)
+                                      applyPostActionLayout: false, isDetail: isDetail, postKey: post)
                         .foregroundStyle(.secondary)
+                        .environment(\.isPostContent, true)
                 }
             }
             .frame(width: 160, height: 44)
@@ -187,6 +416,12 @@ final class MacStatusActionAnimationTests: XCTestCase {
         func setVisible(_ visible: Bool) {
             var content = host.rootView
             content.visible = visible
+            host.rootView = content
+        }
+
+        func setDetail(_ isDetail: Bool) {
+            var content = host.rootView
+            content.isDetail = isDetail
             host.rootView = content
         }
 

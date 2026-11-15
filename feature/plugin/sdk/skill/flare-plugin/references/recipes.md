@@ -115,6 +115,8 @@ profile, and stable keys between login and lookup.
 | --- | --- | --- |
 | detail | EntityRequestV1 | TimelinePostV1 (`{ post, presentation? }`) |
 | context | EntityPageRequestV1 | PageV1<TimelineItemV1> |
+| contextTabs (API v2) | EntityRequestV1 | PostContextTabsV2 |
+| contextPage (API v2) | PostContextPageRequestV2 | PageV1<TimelineItemV1> |
 | delete | EntityRequestV1 | deleted or noChange |
 | mutate | MutationRequestV1 | updatedPost, deleted, invalidate, or noChange |
 
@@ -154,6 +156,48 @@ Test action/inverse, disabled active state, failure, and views of the same entit
 
 See [timeline interactions](wire-data.md#timeline-items-and-interactions) for Vote,
 React/Unreact and user-card actions, including their result contracts.
+
+### Post detail tabs
+
+In API v2, declare and negotiate `contextTabs` and `contextPage` alongside
+`detail`. Return the requested post from `detail` and put its ancestors in
+`presentation.inlineParents`. `contextTabs({ key }, context)` returns an ordered
+list of tabs for that post. Return `{ tabs: [] }` to show its post and ancestors alone.
+
+```json
+{
+  "tabs": [
+    {
+      "id": "replies",
+      "title": { "key": "post.replies", "fallback": "Replies" },
+      "filter": {
+        "options": [
+          { "id": "top", "title": { "value": "Top" } },
+          { "id": "recent", "title": { "value": "Recent" } }
+        ],
+        "defaultOptionId": "top"
+      }
+    },
+    { "id": "related", "title": { "value": "Related" } }
+  ],
+  "replyTabId": "replies"
+}
+```
+
+Return up to 16 tabs. IDs use `[A-Za-z][A-Za-z0-9_.-]{0,127}` and stay stable
+across requests and locales. Tab IDs must be unique. A tab may include one
+single-select filter with 1–32 uniquely identified options and a matching default.
+Use `WireTextV1` for tab and option titles, with catalog keys and fallbacks
+for translated labels.
+
+`contextPage({ key, tabId, filterId, page }, context)` returns that selection's
+`PageV1<TimelineItemV1>`. The host omits `filterId` for an unfiltered tab. Return
+the tab's rows and keep the current post and its ancestors in `detail`. Scope
+each cursor to the post key, tab ID and filter selection.
+
+When legacy `context` is unavailable, sharing uses the tab named by
+`replyTabId` and that tab's default filter. Omit `replyTabId` if none of the
+tabs supplies replies for sharing.
 
 ## Relation
 

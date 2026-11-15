@@ -2,6 +2,12 @@ import SwiftUI
 import KotlinSharedUI
 import FlareAppleCore
 
+#if os(iOS)
+let timelinePostBottomPadding: CGFloat = 6
+#else
+let timelinePostBottomPadding: CGFloat = 8
+#endif
+
 public struct TimelinePagingContent: View {
     private let data: PagingState<UiTimelineV2>
     private let detailStatusKey: MicroBlogKey?
@@ -87,8 +93,9 @@ public struct TimelinePagingContent: View {
     private func loadingRow(index: Int, totalCount: Int) -> some View {
         AdaptiveTimelineCard(index: index, totalCount: totalCount) {
             TimelinePlaceholderView()
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 10)
+                .padding(.top, 12)
+                .padding(.bottom, timelinePostBottomPadding)
         }
     }
 
@@ -176,14 +183,16 @@ private struct TimelinePagingRowView: View {
             if let item = row.item {
                 AdaptiveTimelineCard(index: row.index, totalCount: totalCount) {
                     TimelineView(data: item, detailStatusKey: detailStatusKey)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, item.timelineContentPost == nil ? 16 : 10)
+                        .padding(.top, item.timelineContentPost == nil ? 8 : 12)
+                        .padding(.bottom, item.timelineContentPost == nil ? 8 : timelinePostBottomPadding)
                 }
             } else {
                 AdaptiveTimelineCard(index: row.index, totalCount: totalCount) {
                     TimelinePlaceholderView()
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 10)
+                        .padding(.top, 12)
+                        .padding(.bottom, timelinePostBottomPadding)
                 }
             }
         }
@@ -292,6 +301,7 @@ public struct TimelineGalleryItemView: View {
                         if !content.isEmpty {
                             RichText(text: content)
                                 .font(.subheadline)
+                                .lineSpacing(1)
                                 .lineLimit(5)
                         }
                     }

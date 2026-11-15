@@ -378,7 +378,7 @@ internal fun StatusMediaComponent(
     }
 }
 
-private fun Modifier.expandHorizontally(
+internal fun Modifier.expandHorizontally(
     leading: Dp,
     trailing: Dp,
 ): Modifier =

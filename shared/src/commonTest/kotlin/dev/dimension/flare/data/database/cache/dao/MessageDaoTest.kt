@@ -33,6 +33,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.time.Instant
 
 class MessageDaoTest : RobolectricTest() {
@@ -123,6 +124,50 @@ class MessageDaoTest : RobolectricTest() {
             val savedText = assertIs<UiDMItem.Message.Text>(savedLastMessage.content)
             assertEquals("hello dm", savedText.text.raw)
             assertEquals("cursor-1", db.messageDao().getLatestMessage(roomKey)?.remoteCursor)
+        }
+
+    @Test
+    fun directMessageCursor_canSkipARecentSendReceipt() =
+        runTest {
+            val host = "example.test"
+            val roomKey = MicroBlogKey("room-1", host)
+            val received =
+                UiDMItem(
+                    key = MicroBlogKey("100", host),
+                    user = user(MicroBlogKey("peer", host)),
+                    content = UiDMItem.Message.Text("received".toUiPlainText()),
+                    timestamp = Instant.fromEpochMilliseconds(100).toUi(),
+                    isFromMe = false,
+                    sendState = null,
+                    showSender = false,
+                    remoteCursor = "100",
+                )
+            val sent =
+                received.copy(
+                    key = MicroBlogKey("102", host),
+                    user = user(MicroBlogKey("me", host)),
+                    timestamp = Instant.fromEpochMilliseconds(102).toUi(),
+                    isFromMe = true,
+                    remoteCursor = null,
+                )
+            val dao = db.messageDao()
+            dao.insertMessages(
+                listOf(received, sent).map { item ->
+                    DbMessageItem(
+                        messageKey = item.key,
+                        roomKey = roomKey,
+                        userKey = item.user.key,
+                        timestamp = item.timestamp.value.toEpochMilliseconds(),
+                        content = item,
+                        showSender = false,
+                        remoteCursor = item.remoteCursor,
+                    )
+                },
+            )
+
+            assertEquals(sent.key, dao.getLatestMessage(roomKey)?.messageKey)
+            assertNull(dao.getLatestRemoteCursor(roomKey, requireNonNull = false))
+            assertEquals("100", dao.getLatestRemoteCursor(roomKey, requireNonNull = true))
         }
 
     @Test

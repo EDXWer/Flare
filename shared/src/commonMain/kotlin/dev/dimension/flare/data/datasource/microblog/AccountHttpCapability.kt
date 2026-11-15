@@ -21,6 +21,8 @@ public interface AccountHttpCapability {
     }
 
     public suspend fun authenticate(request: AccountHttpRequest): Map<String, String>
+
+    public suspend fun authenticateMedia(url: String): Map<String, String> = emptyMap()
 }
 
 /** bodyBase64 contains the exact bytes sent by the Host, including multipart boundaries. */

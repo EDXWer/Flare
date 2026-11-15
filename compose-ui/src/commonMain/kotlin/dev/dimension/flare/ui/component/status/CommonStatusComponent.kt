@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
@@ -129,7 +130,6 @@ import dev.dimension.flare.data.model.PostActionStyle
 import dev.dimension.flare.data.model.TimelineMediaLayout
 import dev.dimension.flare.ui.component.AdaptiveGrid
 import dev.dimension.flare.ui.component.AvatarComponent
-import dev.dimension.flare.ui.component.AvatarComponentDefaults
 import dev.dimension.flare.ui.component.DateTimeText
 import dev.dimension.flare.ui.component.EmojiImage
 import dev.dimension.flare.ui.component.FAIcon
@@ -162,6 +162,7 @@ import dev.dimension.flare.ui.model.UiTranslatableText
 import dev.dimension.flare.ui.model.onError
 import dev.dimension.flare.ui.model.onLoading
 import dev.dimension.flare.ui.model.onSuccess
+import dev.dimension.flare.ui.render.RenderContent
 import dev.dimension.flare.ui.render.UiRichText
 import dev.dimension.flare.ui.route.DeeplinkRoute
 import dev.dimension.flare.ui.route.toUri
@@ -172,6 +173,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import moe.tlaster.precompose.molecule.producePresenter
 import org.jetbrains.compose.resources.stringResource
+import kotlin.math.ceil
 
 @Composable
 public fun CommonStatusComponent(
@@ -191,349 +193,366 @@ public fun CommonStatusComponent(
     avatarModifier: Modifier = Modifier,
     actionsModifier: Modifier = Modifier,
     forceHideActions: Boolean = false,
-) {
-    val uriHandler = LocalUriHandler.current
-    val openPostLabel = stringResource(Res.string.status_open_post)
-    val appearanceSettings = LocalTimelineAppearance.current
-    val showAsFullWidth = !appearanceSettings.fullWidthPost && !isQuote && !isDetail
-    val carouselEdgePadding = if (isQuote) 8.dp else carouselOuterHorizontalPadding
-    val carouselLeadingPadding =
-        carouselEdgePadding +
-            if (showAsFullWidth && item.user != null) {
-                AvatarComponentDefaults.size + 8.dp
-            } else {
-                0.dp
-            }
-    val usesSideAvatarCarousel =
-        showAsFullWidth &&
-            item.user != null &&
-            showMedia &&
-            allowMediaCarousel &&
-            appearanceSettings.mediaLayout == TimelineMediaLayout.Carousel &&
-            item.images.size > 1
-    Row(
-        modifier =
-            Modifier
-                .let {
-                    if (isDetail || !isClickable) {
-                        it
-                    } else {
-                        it.clickable(onClickLabel = openPostLabel) {
-                            item.onClicked.invoke(
-                                ClickContext(
-                                    launcher = { url ->
-                                        uriHandler.openUri(url)
-                                    },
-                                ),
-                            )
-                        }
-                    }
-                }.then(modifier),
+    showReplyTo: Boolean = true,
+): Unit =
+    CompositionLocalProvider(
+        PlatformTextStyle provides PlatformTheme.typography.postBody,
+        PlatformContentColor provides StatusComponentDefaults.contentColor,
     ) {
-        if (showAsFullWidth) {
-            item.user?.let {
-                AvatarComponent(
-                    it.avatar,
-                    contentDescription =
-                        stringResource(
-                            Res.string.profile_open_user,
-                            it.handle.display,
-                        ),
-                    modifier =
-                        Modifier.clickable {
-                            it.onClicked.invoke(
-                                ClickContext(
-                                    launcher = {
-                                        uriHandler.openUri(it)
-                                    },
-                                ),
-                            )
-                        },
-                )
-                Spacer(modifier = Modifier.width(8.dp))
+        val uriHandler = LocalUriHandler.current
+        val openPostLabel = stringResource(Res.string.status_open_post)
+        val appearanceSettings = LocalTimelineAppearance.current
+        val showAsFullWidth = !appearanceSettings.fullWidthPost && !isQuote && !isDetail
+        val carouselEdgePadding = if (isQuote) StatusComponentDefaults.quotePadding else carouselOuterHorizontalPadding
+        val carouselLeadingPadding =
+            carouselEdgePadding +
+                if (showAsFullWidth && item.user != null) {
+                    StatusComponentDefaults.avatarSize + 8.dp
+                } else {
+                    0.dp
+                }
+        val usesSideAvatarCarousel =
+            showAsFullWidth &&
+                item.user != null &&
+                showMedia &&
+                allowMediaCarousel &&
+                appearanceSettings.mediaLayout == TimelineMediaLayout.Carousel &&
+                item.images.size > 1
+        Row(
+            modifier =
+                Modifier
+                    .let {
+                        if (isDetail || !isClickable) {
+                            it
+                        } else {
+                            it.clickable(onClickLabel = openPostLabel) {
+                                item.onClicked.invoke(
+                                    ClickContext(
+                                        launcher = { url ->
+                                            uriHandler.openUri(url)
+                                        },
+                                    ),
+                                )
+                            }
+                        }
+                    }.then(modifier),
+        ) {
+            if (showAsFullWidth) {
+                item.user?.let {
+                    AvatarComponent(
+                        it.avatar,
+                        size = StatusComponentDefaults.avatarSize,
+                        contentDescription =
+                            stringResource(
+                                Res.string.profile_open_user,
+                                it.handle.display,
+                            ),
+                        modifier =
+                            Modifier.clickable {
+                                it.onClicked.invoke(
+                                    ClickContext(
+                                        launcher = {
+                                            uriHandler.openUri(it)
+                                        },
+                                    ),
+                                )
+                            },
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
             }
-        }
-        Column {
-            Column(
-                modifier =
-                    if (usesSideAvatarCarousel) {
-                        Modifier.heightIn(min = AvatarComponentDefaults.size)
-                    } else {
-                        Modifier
-                    },
-            ) {
-                item.user?.let { user ->
-                    val dateContent = @Composable {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            item.visibility?.let {
-                                StatusVisibilityComponent(
-                                    visibility = it,
-                                    modifier =
-                                        Modifier
-                                            .size(PlatformTheme.typography.caption.fontSize.value.dp),
-                                    tint = PlatformTheme.colorScheme.caption,
-                                )
-                            }
-                            AnimatedVisibility(
-                                visible = item.translationDisplayState != TranslationDisplayState.Hidden,
+            Column {
+                Column(
+                    modifier =
+                        if (usesSideAvatarCarousel) {
+                            Modifier.heightIn(min = StatusComponentDefaults.avatarSize - StatusComponentDefaults.attachmentSpacing)
+                        } else {
+                            Modifier
+                        },
+                ) {
+                    item.user?.let { user ->
+                        val dateContent = @Composable {
+                            val iconSize =
+                                with(LocalDensity.current) {
+                                    PlatformTheme.typography.postBody.fontSize
+                                        .toDp()
+                                }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
                             ) {
-                                TranslationDisplayBadge(
-                                    state = item.translationDisplayState,
-                                )
-                            }
-                            if (appearanceSettings.showPlatformLogo) {
-                                TabIcon(
-                                    icon = item.platformIcon,
-                                    contentDescription =
-                                        stringResource(
-                                            Res.string.status_platform,
-                                            item.platformId,
-                                        ),
-                                    size = PlatformTheme.typography.caption.fontSize.value.dp,
-                                    color = PlatformTheme.colorScheme.caption,
-                                )
-                            }
-                            if (!isDetail) {
-                                DateTimeText(
-                                    item.createdAt,
-                                    style = PlatformTheme.typography.caption,
-                                    color = PlatformTheme.colorScheme.caption,
-                                )
-                            }
-                            if (appearanceSettings.aiConfig.agent) {
-                                PlatformIconButton(
-                                    onClick = {
-                                        uriHandler.openUri(
-                                            DeeplinkRoute
-                                                .Status
-                                                .Insight(
-                                                    accountType = item.accountType,
-                                                    statusKey = item.statusKey,
-                                                ).toUri(),
-                                        )
-                                    },
-                                    modifier =
-                                        Modifier
-                                            .size(24.dp),
-                                ) {
-                                    FAIcon(
-                                        imageVector = FontAwesomeIcons.Solid.Robot,
-                                        contentDescription = stringResource(Res.string.status_view_insight),
+                                item.visibility?.let {
+                                    StatusVisibilityComponent(
+                                        visibility = it,
                                         modifier =
                                             Modifier
-                                                .size(PlatformTheme.typography.caption.fontSize.value.dp),
-                                        tint = PlatformTheme.colorScheme.caption,
+                                                .size(iconSize),
+                                        tint = StatusComponentDefaults.secondaryColor,
                                     )
+                                }
+                                AnimatedVisibility(
+                                    visible = item.translationDisplayState != TranslationDisplayState.Hidden,
+                                ) {
+                                    TranslationDisplayBadge(
+                                        state = item.translationDisplayState,
+                                        iconSize = iconSize,
+                                    )
+                                }
+                                if (appearanceSettings.showPlatformLogo) {
+                                    TabIcon(
+                                        icon = item.platformIcon,
+                                        contentDescription =
+                                            stringResource(
+                                                Res.string.status_platform,
+                                                item.platformId,
+                                            ),
+                                        size = iconSize,
+                                        color = StatusComponentDefaults.secondaryColor,
+                                    )
+                                }
+                                if (!isDetail) {
+                                    DateTimeText(
+                                        item.createdAt,
+                                        style = PlatformTheme.typography.postBody,
+                                        color = StatusComponentDefaults.secondaryColor,
+                                    )
+                                }
+                                if (appearanceSettings.aiConfig.agent) {
+                                    PlatformIconButton(
+                                        onClick = {
+                                            uriHandler.openUri(
+                                                DeeplinkRoute
+                                                    .Status
+                                                    .Insight(
+                                                        accountType = item.accountType,
+                                                        statusKey = item.statusKey,
+                                                    ).toUri(),
+                                            )
+                                        },
+                                        modifier =
+                                            Modifier
+                                                .size(maxOf(24.dp, iconSize + 4.dp)),
+                                    ) {
+                                        FAIcon(
+                                            imageVector = FontAwesomeIcons.Solid.Robot,
+                                            contentDescription = stringResource(Res.string.status_view_insight),
+                                            modifier =
+                                                Modifier
+                                                    .size(iconSize),
+                                            tint = StatusComponentDefaults.secondaryColor,
+                                        )
+                                    }
                                 }
                             }
                         }
-                    }
-                    if (showAsFullWidth) {
-                        UserCompat(
-                            user = user,
-                            subtitle = item.authorSubtitle,
-                            onUserClick = {
-                                user.onClicked.invoke(
-                                    ClickContext(
-                                        launcher = {
-                                            uriHandler.openUri(it)
-                                        },
-                                    ),
-                                )
-                            },
-                            leading = null,
-                        ) {
-                            dateContent.invoke()
+                        if (showAsFullWidth) {
+                            UserCompat(
+                                user = user,
+                                isPost = true,
+                                subtitle = item.authorSubtitle,
+                                onUserClick = {
+                                    user.onClicked.invoke(
+                                        ClickContext(
+                                            launcher = {
+                                                uriHandler.openUri(it)
+                                            },
+                                        ),
+                                    )
+                                },
+                                leading = null,
+                            ) {
+                                dateContent.invoke()
+                            }
+                        } else if (isQuote) {
+                            UserCompat(
+                                user,
+                                isPost = true,
+                                subtitle = item.authorSubtitle,
+                                onUserClick = {
+                                    user.onClicked.invoke(
+                                        ClickContext(
+                                            launcher = {
+                                                uriHandler.openUri(it)
+                                            },
+                                        ),
+                                    )
+                                },
+                            ) {
+                                dateContent.invoke()
+                            }
+                        } else {
+                            CommonStatusHeaderComponent(
+                                data = user,
+                                isPost = true,
+                                subtitle = item.authorSubtitle,
+                                nameModifier = nameModifier,
+                                handleModifier = handleModifier,
+                                avatarModifier = avatarModifier,
+                                onUserClick = {
+                                    user.onClicked.invoke(
+                                        ClickContext(
+                                            launcher = {
+                                                uriHandler.openUri(it)
+                                            },
+                                        ),
+                                    )
+                                },
+                            ) {
+                                dateContent.invoke()
+                            }
                         }
-                    } else if (isQuote) {
-                        UserCompat(
-                            user,
-                            subtitle = item.authorSubtitle,
-                            onUserClick = {
-                                user.onClicked.invoke(
-                                    ClickContext(
-                                        launcher = {
-                                            uriHandler.openUri(it)
-                                        },
-                                    ),
-                                )
-                            },
-                        ) {
-                            dateContent.invoke()
+                    }
+                    item.replyToHandle?.takeIf { showReplyTo }?.let { replyHandle ->
+                        Spacer(modifier = Modifier.height(if (item.user != null) 2.dp else 8.dp))
+                        StatusReplyComponent(
+                            replyHandle = replyHandle,
+                        )
+                    }
+                    if (isDetail) {
+                        SelectionContainer {
+                            StatusContentComponent(
+                                content = item.content,
+                                contentWarning = item.contentWarning,
+                                poll = item.poll,
+                                maxLines = Int.MAX_VALUE,
+                                showExpandButton = showExpandButton,
+                                translationDisplayed = item.translationDisplayState == TranslationDisplayState.Translated,
+                                topSpacing =
+                                    when {
+                                        showReplyTo && item.replyToHandle != null -> 8.dp
+                                        item.user != null -> 2.dp
+                                        else -> 0.dp
+                                    },
+                            )
                         }
                     } else {
-                        CommonStatusHeaderComponent(
-                            data = user,
-                            subtitle = item.authorSubtitle,
-                            nameModifier = nameModifier,
-                            handleModifier = handleModifier,
-                            avatarModifier = avatarModifier,
-                            onUserClick = {
-                                user.onClicked.invoke(
-                                    ClickContext(
-                                        launcher = {
-                                            uriHandler.openUri(it)
-                                        },
-                                    ),
-                                )
-                            },
-                        ) {
-                            dateContent.invoke()
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-                }
-                item.replyToHandle?.let { replyHandle ->
-                    Spacer(modifier = Modifier.height(if (showAsFullWidth || isQuote) 2.dp else 4.dp))
-                    StatusReplyComponent(
-                        replyHandle = replyHandle,
-                    )
-                }
-                if (isDetail) {
-                    SelectionContainer {
                         StatusContentComponent(
                             content = item.content,
                             contentWarning = item.contentWarning,
                             poll = item.poll,
-                            maxLines = Int.MAX_VALUE,
+                            maxLines = maxLines,
                             showExpandButton = showExpandButton,
                             translationDisplayed = item.translationDisplayState == TranslationDisplayState.Translated,
+                            topSpacing =
+                                when {
+                                    showReplyTo && item.replyToHandle != null -> 8.dp
+                                    item.user != null -> 2.dp
+                                    else -> 0.dp
+                                },
                         )
                     }
-                } else {
-                    StatusContentComponent(
-                        content = item.content,
-                        contentWarning = item.contentWarning,
-                        poll = item.poll,
-                        maxLines = maxLines,
-                        showExpandButton = showExpandButton,
-                        translationDisplayed = item.translationDisplayState == TranslationDisplayState.Translated,
-                        topSpacing = if ((showAsFullWidth || isQuote) && (item.user != null || item.replyToHandle != null)) 2.dp else 0.dp,
-                    )
-                }
 
-                if (isDetail && !item.content.original.isEmpty && appearanceSettings.showTranslateButton) {
-                    TranslationComponent(
-                        item = item,
-                        statusKey = item.stableItemKey,
-                        contentWarning = item.contentWarning?.original,
-                        rawContent = item.content.original.innerText,
-                        content = item.content.original,
-                    )
-                }
-            }
-
-            if (item.images.isNotEmpty() && showMedia) {
-                Spacer(modifier = Modifier.height(8.dp))
-                StatusMediasComponent(
-                    item,
-                    isQuote = isQuote,
-                    allowMediaCarousel = allowMediaCarousel,
-                    carouselLeadingPadding = carouselLeadingPadding,
-                    carouselTrailingPadding = carouselEdgePadding,
-                    onMediaClick = { index ->
-                        item.openMedia(
-                            index = index,
-                            launcher = uriHandler::openUri,
+                    if (isDetail && !item.content.original.isEmpty && appearanceSettings.showTranslateButton) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TranslationComponent(
+                            item = item,
+                            statusKey = item.stableItemKey,
+                            contentWarning = item.contentWarning?.original,
+                            rawContent = item.content.original.innerText,
+                            content = item.content.original,
                         )
-                    },
-                )
-            }
-            item.card?.let { card ->
-                if (appearanceSettings.showLinkPreview && item.images.isEmpty() && quotes.isEmpty()) {
+                    }
+                }
+
+                if (item.images.isNotEmpty() && showMedia) {
+                    Spacer(modifier = Modifier.height(StatusComponentDefaults.attachmentSpacing))
+                    StatusMediasComponent(
+                        item,
+                        isQuote = isQuote,
+                        allowMediaCarousel = allowMediaCarousel,
+                        carouselLeadingPadding = carouselLeadingPadding,
+                        carouselTrailingPadding = carouselEdgePadding,
+                        onMediaClick = { index ->
+                            item.openMedia(
+                                index = index,
+                                launcher = uriHandler::openUri,
+                            )
+                        },
+                    )
+                }
+                item.card?.let { card ->
+                    if (appearanceSettings.showLinkPreview && item.images.isEmpty() && quotes.isEmpty()) {
+                        Spacer(modifier = Modifier.height(StatusComponentDefaults.attachmentSpacing))
+                        StatusCardComponent(
+                            card = card,
+                            modifier =
+                                Modifier
+                                    .border(
+                                        FlareDividerDefaults.thickness,
+                                        color = FlareDividerDefaults.color,
+                                        shape =
+                                            if (isQuote) {
+                                                PlatformTheme.shapes.small
+                                            } else {
+                                                PlatformTheme.shapes.medium
+                                            },
+                                    ).clip(
+                                        shape =
+                                            if (isQuote) {
+                                                PlatformTheme.shapes.small
+                                            } else {
+                                                PlatformTheme.shapes.medium
+                                            },
+                                    ).pointerHoverIcon(PointerIcon.Hand)
+                                    .clickable {
+                                        uriHandler.openUri(card.url)
+                                    }.fillMaxWidth(),
+                        )
+                    }
+                }
+                if (quotes.isNotEmpty() && !isQuote) {
+                    Spacer(
+                        modifier =
+                            Modifier.height(
+                                if (item.images.isNotEmpty() &&
+                                    showMedia
+                                ) {
+                                    8.dp
+                                } else {
+                                    StatusComponentDefaults.attachmentSpacing
+                                },
+                            ),
+                    )
+                    StatusQuoteComponent(
+                        quotes = quotes,
+                        allowMediaCarousel = allowMediaCarousel,
+                    )
+                }
+
+                val hasVisibleEmojiReactions =
+                    appearanceSettings.showEmojiReactions && item.emojiReactions.isNotEmpty()
+                if (!isQuote && (hasVisibleEmojiReactions || item.sourceChannel != null)) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    StatusCardComponent(
-                        card = card,
+                    StatusReactionComponent(
+                        data = item,
+                        isDetail = isDetail,
+                        showEmojiReactions = hasVisibleEmojiReactions,
+                    )
+                }
+
+                if (isDetail) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    DateTimeText(
+                        item.createdAt,
+                        style = PlatformTheme.typography.postBody,
+                        color = StatusComponentDefaults.secondaryColor,
+                        fullTime = true,
+                    )
+                }
+                if ((appearanceSettings.postActionStyle != PostActionStyle.Hidden || isDetail) && !forceHideActions) {
+                    StatusActions(
+                        item.actions,
                         modifier =
                             Modifier
-                                .border(
-                                    FlareDividerDefaults.thickness,
-                                    color = FlareDividerDefaults.color,
-                                    shape =
-                                        if (isQuote) {
-                                            PlatformTheme.shapes.small
-                                        } else {
-                                            PlatformTheme.shapes.medium
-                                        },
-                                ).clip(
-                                    shape =
-                                        if (isQuote) {
-                                            PlatformTheme.shapes.small
-                                        } else {
-                                            PlatformTheme.shapes.medium
-                                        },
-                                ).pointerHoverIcon(PointerIcon.Hand)
-                                .clickable {
-                                    uriHandler.openUri(card.url)
-                                }.fillMaxWidth(),
+                                .fillMaxWidth()
+                                .padding(top = StatusComponentDefaults.actionsSpacing)
+                                .expandHorizontally(leading = 4.dp, trailing = 4.dp)
+                                .then(actionsModifier),
                     )
-                }
-            }
-            if (quotes.isNotEmpty() && !isQuote) {
-                Spacer(modifier = Modifier.height(4.dp))
-                StatusQuoteComponent(
-                    quotes = quotes,
-                    allowMediaCarousel = allowMediaCarousel,
-                )
-            }
-
-            val hasVisibleEmojiReactions =
-                appearanceSettings.showEmojiReactions && item.emojiReactions.isNotEmpty()
-            if (!isQuote && (hasVisibleEmojiReactions || item.sourceChannel != null)) {
-                Spacer(modifier = Modifier.height(4.dp))
-                StatusReactionComponent(
-                    data = item,
-                    isDetail = isDetail,
-                    showEmojiReactions = hasVisibleEmojiReactions,
-                )
-            }
-
-            if (isDetail) {
-                Spacer(modifier = Modifier.height(8.dp))
-                DateTimeText(
-                    item.createdAt,
-                    style = PlatformTheme.typography.caption,
-                    color = PlatformTheme.colorScheme.caption,
-                    fullTime = true,
-                )
-            }
-            if ((appearanceSettings.postActionStyle != PostActionStyle.Hidden || isDetail) && !forceHideActions) {
-                if (isDetail) {
-                    CompositionLocalProvider(
-                        PlatformContentColor provides PlatformTheme.colorScheme.text,
-                        PlatformTextStyle provides PlatformTheme.typography.body,
-                    ) {
-                        StatusActions(
-                            item.actions,
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 8.dp)
-                                    .then(actionsModifier),
-                        )
-                    }
-                } else {
-                    CompositionLocalProvider(
-                        PlatformContentColor provides PlatformTheme.colorScheme.caption,
-                        PlatformTextStyle provides PlatformTheme.typography.caption,
-                    ) {
-                        StatusActions(
-                            item.actions,
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 8.dp)
-                                    .then(actionsModifier),
-                        )
-                    }
                 }
             }
         }
     }
-}
 
 @Composable
 internal fun StatusMediasComponent(
@@ -563,13 +582,13 @@ internal fun StatusMediasComponent(
                     modifier =
                         Modifier
                             .size(12.dp),
-                    tint = PlatformTheme.colorScheme.caption,
+                    tint = StatusComponentDefaults.secondaryColor,
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 PlatformText(
                     text = stringResource(resource = Res.string.hide_media),
-                    style = PlatformTheme.typography.caption,
-                    color = PlatformTheme.colorScheme.caption,
+                    style = PlatformTheme.typography.postBody,
+                    color = StatusComponentDefaults.secondaryColor,
                 )
             }
         }
@@ -604,13 +623,13 @@ internal fun StatusMediasComponent(
                 modifier =
                     Modifier
                         .size(12.dp),
-                tint = PlatformTheme.colorScheme.caption,
+                tint = StatusComponentDefaults.secondaryColor,
             )
             Spacer(modifier = Modifier.width(4.dp))
             PlatformText(
                 text = stringResource(resource = Res.string.show_media),
-                style = PlatformTheme.typography.caption,
-                color = PlatformTheme.colorScheme.caption,
+                style = PlatformTheme.typography.postBody,
+                color = StatusComponentDefaults.secondaryColor,
             )
         }
     }
@@ -647,7 +666,7 @@ private fun StatusQuoteComponent(
                         allowMediaCarousel = allowMediaCarousel,
                         modifier =
                             Modifier
-                                .padding(8.dp),
+                                .padding(StatusComponentDefaults.quotePadding),
                     )
                     if (index != quotes.lastIndex && quotes.size > 1) {
                         HorizontalDivider()
@@ -668,7 +687,7 @@ private fun StatusReactionComponent(
     val uriHandler = LocalUriHandler.current
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         data.sourceChannel?.let { channel ->
             Row(
@@ -678,15 +697,15 @@ private fun StatusReactionComponent(
                 FAIcon(
                     imageVector = FontAwesomeIcons.Solid.Tv,
                     contentDescription = channel.name,
-                    tint = PlatformTheme.colorScheme.caption,
+                    tint = StatusComponentDefaults.secondaryColor,
                     modifier =
                         Modifier
                             .size(12.dp),
                 )
                 PlatformText(
                     text = channel.name,
-                    style = PlatformTheme.typography.caption,
-                    color = PlatformTheme.colorScheme.caption,
+                    style = PlatformTheme.typography.postBody,
+                    color = StatusComponentDefaults.secondaryColor,
                     maxLines = 1,
                 )
             }
@@ -753,7 +772,9 @@ private fun StatusReactionComponent(
 internal fun TranslationDisplayBadge(
     state: TranslationDisplayState,
     modifier: Modifier = Modifier,
+    iconSize: Dp? = null,
 ) {
+    val color = if (iconSize == null) PlatformTheme.colorScheme.caption else StatusComponentDefaults.secondaryColor
     val description =
         when (state) {
             TranslationDisplayState.Translating -> {
@@ -783,14 +804,15 @@ internal fun TranslationDisplayBadge(
         FAIcon(
             FontAwesomeIcons.Solid.Language,
             contentDescription = null,
-            tint = PlatformTheme.colorScheme.caption,
+            modifier = Modifier.size(iconSize ?: 20.dp),
+            tint = color,
         )
         AnimatedContent(state) { state ->
             when (state) {
                 TranslationDisplayState.Translating -> {
                     PlatformCircularProgressIndicator(
-                        modifier = Modifier.size(12.dp),
-                        color = PlatformTheme.colorScheme.caption,
+                        modifier = Modifier.size(iconSize ?: 12.dp),
+                        color = color,
                     )
                 }
 
@@ -800,8 +822,8 @@ internal fun TranslationDisplayBadge(
                     FAIcon(
                         FontAwesomeIcons.Solid.TriangleExclamation,
                         contentDescription = null,
-                        tint = PlatformTheme.colorScheme.caption,
-                        modifier = Modifier.size(12.dp),
+                        tint = color,
+                        modifier = Modifier.size(iconSize ?: 12.dp),
                     )
                 }
 
@@ -835,6 +857,7 @@ private fun TranslationComponent(
             },
         ) {
             PlatformText(
+                style = PlatformTheme.typography.postBody,
                 text =
                     stringResource(
                         resource = Res.string.status_detail_translate,
@@ -850,6 +873,7 @@ private fun TranslationComponent(
                 },
             ) {
                 PlatformText(
+                    style = PlatformTheme.typography.postBody,
                     text =
                         stringResource(
                             resource = Res.string.status_detail_tldr,
@@ -859,7 +883,7 @@ private fun TranslationComponent(
         }
     }
     if (enabledTldr) {
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         val state by producePresenter(
             "tldr_${contentWarning}_${rawContent}_${Locale.current.language}",
         ) {
@@ -882,7 +906,7 @@ private fun TranslationComponent(
             }
     }
     if (enabledTranslate) {
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         val state by producePresenter(
             "translate_${contentWarning}_${rawContent}_${Locale.current.language}_${timelineAppearance.aiConfig.translation}",
         ) {
@@ -1000,13 +1024,16 @@ public fun StatusVisibilityComponent(
 internal fun StatusActions(
     items: ImmutableList<ActionMenu>,
     modifier: Modifier = Modifier,
+) = CompositionLocalProvider(
+    PlatformTextStyle provides PlatformTheme.typography.postBody,
+    PlatformContentColor provides StatusComponentDefaults.secondaryColor,
 ) {
     val appearanceSettings = LocalTimelineAppearance.current
     val displayItems =
         remember(items, appearanceSettings.postActionLayout) {
             items.applyPostActionLayout(appearanceSettings.postActionLayout).filterNot { it == ActionMenu.Divider }
         }
-    if (displayItems.isEmpty()) return
+    if (displayItems.isEmpty()) return@CompositionLocalProvider
     val haptics = LocalHapticFeedback.current
     val launcher = LocalUriHandler.current
     val isStretched = appearanceSettings.postActionStyle == PostActionStyle.Stretch
@@ -1310,15 +1337,15 @@ private fun StatusReplyComponent(
         FAIcon(
             imageVector = FontAwesomeIcons.Solid.Reply,
             contentDescription = stringResource(resource = Res.string.reply_to),
-            tint = PlatformTheme.colorScheme.caption,
+            tint = StatusComponentDefaults.secondaryColor,
             modifier =
                 Modifier
                     .size(12.dp),
         )
         PlatformText(
             text = stringResource(resource = Res.string.reply_to, replyHandle),
-            style = PlatformTheme.typography.caption,
-            color = PlatformTheme.colorScheme.caption,
+            style = PlatformTheme.typography.postBody,
+            color = StatusComponentDefaults.secondaryColor,
             maxLines = 1,
         )
     }
@@ -1373,7 +1400,7 @@ private fun StatusContentComponent(
     Column(
         modifier = modifier,
     ) {
-        if (topSpacing > 0.dp && visibleContentWarning.all { it.isEmpty } && visibleContent.any { !it.isEmpty }) {
+        if (topSpacing > 0.dp && (visibleContentWarning.any { !it.isEmpty } || visibleContent.any { !it.isEmpty } || poll != null)) {
             Spacer(modifier = Modifier.height(topSpacing))
         }
         val expandContentWarning = appearanceSettings.expandContentWarning
@@ -1381,9 +1408,8 @@ private fun StatusContentComponent(
             Column(
                 modifier =
                     Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                        .fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 visibleContentWarning.forEach { warning ->
                     if (!warning.isEmpty) {
@@ -1400,16 +1426,27 @@ private fun StatusContentComponent(
                         },
                     ) {
                         if (expanded) {
-                            PlatformText(stringResource(Res.string.mastodon_item_show_less))
+                            PlatformText(stringResource(Res.string.mastodon_item_show_less), style = PlatformTheme.typography.postBody)
                         } else {
-                            PlatformText(stringResource(Res.string.mastodon_item_show_more))
+                            PlatformText(stringResource(Res.string.mastodon_item_show_more), style = PlatformTheme.typography.postBody)
                         }
                     }
                 }
             }
         }
         AnimatedVisibility(visible = expanded || expandContentWarning || visibleContentWarning.all { it.isEmpty }) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(
+                modifier =
+                    Modifier.padding(
+                        top =
+                            if (visibleContentWarning.any { !it.isEmpty } && (visibleContent.any { !it.isEmpty } || poll != null)) {
+                                8.dp
+                            } else {
+                                0.dp
+                            },
+                    ),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 key(visibleContent, effectiveMaxLines) {
                     visibleContent.forEachIndexed { index, visibleText ->
                         if (!visibleText.isEmpty) {
@@ -1445,13 +1482,13 @@ private fun StatusContentComponent(
                         ) {
                             PlatformText(
                                 stringResource(Res.string.post_show_full_text),
+                                style = PlatformTheme.typography.postBody,
                                 color = PlatformTheme.colorScheme.primary,
                             )
                         }
                     }
                 }
                 poll?.let {
-                    Spacer(modifier = Modifier.height(8.dp))
                     StatusPollComponent(
                         poll = it,
                     )
@@ -1475,7 +1512,12 @@ private fun CollapsibleRichText(
                 .coerceAtLeast(1)
         }
     var fullHeight by remember(text) { mutableStateOf(0) }
-    val overflows = shouldCollapseRichText(fullHeight, lineHeight, maxOf(lineLimit, collapseThresholdLines))
+    var textLayout by remember(text) { mutableStateOf<TextLayoutResult?>(null) }
+    val singleTextBlock = text.renderRuns.singleOrNull() is RenderContent.Text
+    val threshold = maxOf(lineLimit, collapseThresholdLines)
+    val overflows =
+        textLayout?.let { it.lineCount > threshold }
+            ?: shouldCollapseRichText(fullHeight, lineHeight, threshold)
     LaunchedEffect(overflows) {
         onOverflowChanged(overflows)
     }
@@ -1488,6 +1530,7 @@ private fun CollapsibleRichText(
                     Modifier
                         .fillMaxWidth()
                         .onSizeChanged { fullHeight = it.height },
+                onTextLayout = { if (singleTextBlock) textLayout = it },
             )
         },
     ) { measurables, constraints ->
@@ -1496,7 +1539,14 @@ private fun CollapsibleRichText(
                 constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity),
             )
         val height =
-            collapsedRichTextHeight(
+            textLayout?.let { result ->
+                if (result.lineCount > threshold) {
+                    placeable.height - result.size.height + ceil(result.getLineBottom(lineLimit.coerceAtLeast(1) - 1)).toInt()
+                } else {
+                    placeable.height
+                }
+            } ?: collapsedRichTextHeight(
+                // shortcut: multi-block rich text keeps height-based folding until block layout metrics are available.
                 fullHeight = placeable.height,
                 lineHeight = lineHeight,
                 lineLimit = lineLimit,
@@ -1568,8 +1618,8 @@ private fun StatusPollComponent(
                 modifier =
                     Modifier
                         .align(Alignment.End),
-                style = PlatformTheme.typography.caption,
-                color = PlatformTheme.colorScheme.caption,
+                style = PlatformTheme.typography.postBody,
+                color = StatusComponentDefaults.secondaryColor,
             )
         } else {
             poll.expiredAt?.let { expiredAt ->
@@ -1582,8 +1632,8 @@ private fun StatusPollComponent(
                     modifier =
                         Modifier
                             .align(Alignment.End),
-                    style = PlatformTheme.typography.caption,
-                    color = PlatformTheme.colorScheme.caption,
+                    style = PlatformTheme.typography.postBody,
+                    color = StatusComponentDefaults.secondaryColor,
                 )
             }
         }
@@ -1600,6 +1650,7 @@ private fun StatusPollComponent(
             ) {
                 PlatformText(
                     text = stringResource(resource = Res.string.vote),
+                    style = PlatformTheme.typography.postBody,
                 )
             }
         }
@@ -1657,7 +1708,7 @@ private fun PollOption(
             headlineContent = {
                 PlatformText(
                     text = option.title,
-                    color = PlatformTheme.colorScheme.caption,
+                    color = StatusComponentDefaults.secondaryColor,
                     modifier =
                         Modifier
                             .padding(8.dp),
@@ -1754,8 +1805,8 @@ private fun ExpandedCard(
             card.description?.let {
                 PlatformText(
                     text = it,
-                    style = PlatformTheme.typography.caption,
-                    color = PlatformTheme.colorScheme.caption,
+                    style = PlatformTheme.typography.postBody,
+                    color = StatusComponentDefaults.secondaryColor,
                     maxLines = 2,
                 )
             }
@@ -1793,8 +1844,8 @@ private fun CompatCard(
             card.description?.let {
                 PlatformText(
                     text = it,
-                    style = PlatformTheme.typography.caption,
-                    color = PlatformTheme.colorScheme.caption,
+                    style = PlatformTheme.typography.postBody,
+                    color = StatusComponentDefaults.secondaryColor,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )

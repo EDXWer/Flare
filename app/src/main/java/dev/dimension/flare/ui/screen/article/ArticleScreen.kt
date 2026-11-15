@@ -732,6 +732,7 @@ internal fun ArticleBlock(
             RichText(
                 text = block.richText,
                 overflow = TextOverflow.Clip,
+                useBodySpacing = true,
             )
         }
 

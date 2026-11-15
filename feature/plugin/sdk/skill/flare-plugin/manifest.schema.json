@@ -1186,6 +1186,14 @@
                 "context": {
                   "$ref": "#/definitions/operation"
                 },
+                "contextTabs": {
+                  "$ref": "#/definitions/operation",
+                  "description": "API v2 post detail tab metadata. Declare and register contextPage alongside this operation."
+                },
+                "contextPage": {
+                  "$ref": "#/definitions/operation",
+                  "description": "API v2 paging for post detail tabs. Declare and register contextTabs alongside this operation."
+                },
                 "delete": {
                   "$ref": "#/definitions/operation"
                 },
@@ -1195,7 +1203,11 @@
               },
               "required": [
                 "detail"
-              ]
+              ],
+              "dependencies": {
+                "contextTabs": ["contextPage"],
+                "contextPage": ["contextTabs"]
+              }
             },
             "notificationFilters": {
               "type": "array",
@@ -2664,7 +2676,19 @@
               "capabilities": {
                 "properties": {
                   "flare.datasource.timeline-page/v1": false,
-                  "flare.datasource.account-http/v1": false
+                  "flare.datasource.account-http/v1": false,
+                  "flare.datasource.post/v1": {
+                    "type": "object",
+                    "properties": {
+                      "operations": {
+                        "type": "object",
+                        "properties": {
+                          "contextTabs": false,
+                          "contextPage": false
+                        }
+                      }
+                    }
+                  }
                 },
                 "type": "object"
               }
