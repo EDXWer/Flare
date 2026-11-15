@@ -31,6 +31,7 @@ final class StatusTopMessageUIView: UIView, ManualLayoutMeasurable, TimelineHeig
 
     private var topMessage: UiTimelineV2.Message?
     private var topMessageOnly = false
+    private var postTextContentSizeCategory: UIContentSizeCategory?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -48,18 +49,25 @@ final class StatusTopMessageUIView: UIView, ManualLayoutMeasurable, TimelineHeig
     }
     required init(coder: NSCoder) { fatalError("init(coder:) not supported") }
 
-    /// `topMessageOnly == false` applies `font(.caption)`, `lineLimit(1)`, and
-    /// the secondary color — the SwiftUI modifiers applied for inline headers.
-    func configure(message: UiTimelineV2.Message, topMessageOnly: Bool) {
+    func configure(message: UiTimelineV2.Message, topMessageOnly: Bool,
+                   postTextContentSizeCategory: UIContentSizeCategory? = nil) {
         self.topMessage = message
         self.topMessageOnly = topMessageOnly
+        self.postTextContentSizeCategory = postTextContentSizeCategory
+        if postTextContentSizeCategory == nil {
+            textLabel.traitOverrides.remove(UITraitPreferredContentSizeCategory.self)
+        }
 
         iconView.image = UIImage(fontAwesome: message.icon.fontAwesomeIcon)
 
         if let user = message.user {
             nameView.isHidden = false
-            nameView.baseTextStyle = topMessageOnly ? .body : .caption1
-            nameView.baseTextColor = topMessageOnly ? .flareLabel : .secondaryLabel
+            nameView.baseTextStyle = preferredTextStyle
+            nameView.baseTextBold = postTextContentSizeCategory != nil
+            nameView.lineSpacing = postTextContentSizeCategory == nil ? 0 : 1
+            nameView.preferredContentSizeCategory = postTextContentSizeCategory ?? .medium
+            nameView.baseTextColor = postTextContentSizeCategory != nil
+                ? .flarePostSecondaryLabel : (topMessageOnly ? .flareLabel : .secondaryLabel)
             nameView.text = user.name
             nameView.onOpenURL = onOpenURL
             nameView.lineLimit = topMessageOnly ? nil : 1
@@ -70,6 +78,8 @@ final class StatusTopMessageUIView: UIView, ManualLayoutMeasurable, TimelineHeig
 
         if let text = message.type.localizedText {
             textLabel.isHidden = false
+            textLabel.attributedText = nil
+            textLabel.adjustsFontForContentSizeCategory = postTextContentSizeCategory == nil
             textLabel.text = text
             if topMessageOnly {
                 textLabel.font = .preferredFont(forTextStyle: .body)
@@ -80,11 +90,16 @@ final class StatusTopMessageUIView: UIView, ManualLayoutMeasurable, TimelineHeig
                 textLabel.textColor = .secondaryLabel
                 textLabel.numberOfLines = 1
             }
+            if let postTextContentSizeCategory {
+                textLabel.textColor = .flarePostSecondaryLabel
+                textLabel.setPostText(text, preferredContentSizeCategory: postTextContentSizeCategory)
+            }
         } else {
             textLabel.isHidden = true
         }
 
-        iconView.tintColor = topMessageOnly ? .label : .secondaryLabel
+        iconView.tintColor = postTextContentSizeCategory != nil
+            ? .flarePostSecondaryLabel : (topMessageOnly ? .label : .secondaryLabel)
         accessibilityLabel = [message.user?.name.innerText, textLabel.text]
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
@@ -132,7 +147,12 @@ final class StatusTopMessageUIView: UIView, ManualLayoutMeasurable, TimelineHeig
         let visibleName = !nameView.isHidden
         let visibleText = !textLabel.isHidden
         let contentWidth = max(width, 1)
-        let nameWidth = visibleName ? preferredNameWidth(maxWidth: max(contentWidth - iconSize - spacing, 1)) : 0
+        let reservedTextWidth = visibleText && !topMessageOnly
+            ? min(ceil(textLabel.sizeThatFits(CGSize(width: CGFloat.greatestFiniteMagnitude,
+                                                   height: CGFloat.greatestFiniteMagnitude)).width),
+                  max(contentWidth - iconSize - spacing * 2 - 1, 0)) : 0
+        let nameWidth = visibleName ? preferredNameWidth(maxWidth: max(contentWidth - iconSize - spacing
+            - (visibleText && !topMessageOnly ? reservedTextWidth + spacing : 0), 1)) : 0
         let nameHeight = visibleName ? childHeight(of: nameView, for: max(nameWidth, 1)) : 0
         let nameBaselineOffset = visibleName ? preferredTextFont().ascender : 0
 
@@ -213,18 +233,26 @@ final class StatusTopMessageUIView: UIView, ManualLayoutMeasurable, TimelineHeig
 
     private func preferredNameWidth(maxWidth: CGFloat) -> CGFloat {
         guard !nameView.isHidden else { return 0 }
-        let height = UIFont.preferredFont(forTextStyle: topMessageOnly ? .body : .caption1).lineHeight
+        let height = preferredTextFont().lineHeight
         let width = childWidth(of: nameView, for: height)
         guard width > 0 else { return min(maxWidth, 1) }
         return min(width, max(maxWidth, 1))
     }
 
     private func preferredIconSize() -> CGFloat {
-        UIFontMetrics(forTextStyle: topMessageOnly ? .body : .caption1).scaledValue(for: 15)
+        UIFontMetrics(forTextStyle: preferredTextStyle).scaledValue(for: 15, compatibleWith: fontTraits)
     }
 
     private func preferredTextFont() -> UIFont {
-        .preferredFont(forTextStyle: topMessageOnly ? .body : .caption1)
+        .preferredFont(forTextStyle: preferredTextStyle, compatibleWith: fontTraits)
+    }
+
+    private var preferredTextStyle: UIFont.TextStyle {
+        topMessageOnly || postTextContentSizeCategory != nil ? .body : .caption1
+    }
+
+    private var fontTraits: UITraitCollection {
+        postTextContentSizeCategory.map { UITraitCollection(preferredContentSizeCategory: $0) } ?? traitCollection
     }
 
     @objc private func onTapped() {

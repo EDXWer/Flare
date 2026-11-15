@@ -1,5 +1,6 @@
 package dev.dimension.flare.data.model.appearance
 
+import dev.dimension.flare.common.isWebPlatform
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlin.native.HiddenFromObjC
@@ -93,7 +94,7 @@ public object AppearanceKeys {
 
     public object PostActionStyle : PerTimeline<AppearancePostActionStyle>(
         "timeline.post_action_style",
-        AppearancePostActionStyle.LeftAligned,
+        if (isWebPlatform) AppearancePostActionStyle.LeftAligned else AppearancePostActionStyle.Stretch,
         AppearancePostActionStyle.serializer(),
     )
 

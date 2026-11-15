@@ -116,6 +116,8 @@ import dev.dimension.flare.ui.component.LocalTimelineAppearance
 import dev.dimension.flare.ui.component.NetworkImage
 import dev.dimension.flare.ui.component.TabIcon
 import dev.dimension.flare.ui.component.status.CommonStatusComponent
+import dev.dimension.flare.ui.component.status.LocalStatusBackgroundColor
+import dev.dimension.flare.ui.component.status.StatusComponentDefaults
 import dev.dimension.flare.ui.component.status.StatusVisibilityComponent
 import dev.dimension.flare.ui.component.toImageVector
 import dev.dimension.flare.ui.model.UiEmoji
@@ -769,6 +771,7 @@ internal fun ComposeScreen(
                             modifier = Modifier.padding(horizontal = screenHorizontalPadding),
                         ) {
                             CompositionLocalProvider(
+                                LocalStatusBackgroundColor provides CardDefaults.cardColors().containerColor,
                                 LocalTimelineAppearance provides
                                     LocalTimelineAppearance.current.copy(
                                         showMedia = false,
@@ -781,10 +784,8 @@ internal fun ComposeScreen(
                                     item = content,
                                     modifier =
                                         Modifier
-                                            .padding(
-                                                horizontal = screenHorizontalPadding,
-                                                vertical = 8.dp,
-                                            ).fillMaxWidth(),
+                                            .padding(StatusComponentDefaults.quotePadding)
+                                            .fillMaxWidth(),
                                     isQuote = true,
                                     isClickable = false,
                                 )

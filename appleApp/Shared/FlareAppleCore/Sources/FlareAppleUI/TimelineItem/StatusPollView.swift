@@ -34,11 +34,9 @@ public struct StatusPollView: View {
                         HStack {
                             Text(option.title)
                                 .flarePrimaryText()
-                                .font(.caption)
                             Spacer()
                             if selectedOption.contains(index) {
                                 Image(systemName: "checkmark.circle")
-                                    .font(.caption)
                                     .flareSecondaryText()
                             } else {
                                 EmptyView()
@@ -65,16 +63,13 @@ public struct StatusPollView: View {
                         HStack {
                             Text(option.title)
                                 .flarePrimaryText()
-                                .font(.caption)
                             Spacer()
                             if data.ownVotes.contains(KotlinInt(value: Int32(index))) {
                                 Image(systemName: "checkmark.circle")
-                                    .font(.caption)
                             } else {
                                 EmptyView()
                             }
                             Text(option.humanizedPercentage)
-                                .font(.caption)
                                 .flareSecondaryText()
                         }
                         ProgressView(value: option.percentage)
@@ -95,14 +90,11 @@ public struct StatusPollView: View {
             
             if data.expired {
                 Text("poll_expired", bundle: FlareAppleUILocalization.bundle)
-                    .font(.caption)
                     .flareSecondaryText()
             } else if let expiredAt = data.expiredAt {
                 Text("poll_expires_at", bundle: FlareAppleUILocalization.bundle)
-                    .font(.caption)
                     .flareSecondaryText()
                 DateTimeText(data: expiredAt, fullTime: true)
-                    .font(.caption)
                     .flareSecondaryText()
             }
             

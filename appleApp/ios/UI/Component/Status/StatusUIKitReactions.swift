@@ -54,7 +54,7 @@ final class StatusReactionUIView: UIView, ManualLayoutMeasurable, TimelineHeight
         super.init(frame: frame)
 
         overflowButton.setTitle(String(localized: "mastodon_item_show_more"), for: .normal)
-        overflowButton.setTitleColor(.secondaryLabel, for: .normal)
+        overflowButton.setTitleColor(.flarePostSecondaryLabel, for: .normal)
         overflowButton.titleLabel?.font = .preferredFont(forTextStyle: .caption1)
         overflowButton.titleLabel?.adjustsFontForContentSizeCategory = true
         overflowButton.contentHorizontalAlignment = .leading
@@ -65,7 +65,11 @@ final class StatusReactionUIView: UIView, ManualLayoutMeasurable, TimelineHeight
 
     required init?(coder: NSCoder) { fatalError("init(coder:) not supported") }
 
-    func configure(data: [UiTimelineV2.PostEmojiReaction], isDetail: Bool) {
+    func configure(data: [UiTimelineV2.PostEmojiReaction], isDetail: Bool,
+                   preferredContentSizeCategory: UIContentSizeCategory = .medium) {
+        overflowButton.titleLabel?.font = .preferredFont(forTextStyle: .body, compatibleWith: UITraitCollection(
+            preferredContentSizeCategory: preferredContentSizeCategory
+        ))
         if self.isDetail != isDetail {
             expanded = false
         }
@@ -80,7 +84,7 @@ final class StatusReactionUIView: UIView, ManualLayoutMeasurable, TimelineHeight
                 self?.setNeedsHeightUpdate()
                 self?.onLocalHeightInvalidated?()
             }
-            chip.configure(item: item)
+            chip.configure(item: item, preferredContentSizeCategory: preferredContentSizeCategory)
             chip.onTap = { [weak self] in self?.onReactionTapped?(item) }
             return chip
         }
@@ -273,7 +277,7 @@ private final class ReactionChipView: UIControl, ManualLayoutMeasurable, Timelin
         }
     }
 
-    func configure(item: UiTimelineV2.PostEmojiReaction) {
+    func configure(item: UiTimelineV2.PostEmojiReaction, preferredContentSizeCategory: UIContentSizeCategory) {
         imageMedia = item.isUnicode ? nil : item.media
         isMyReaction = item.me
         showsImage = !item.isUnicode
@@ -282,7 +286,7 @@ private final class ReactionChipView: UIControl, ManualLayoutMeasurable, Timelin
             imageURL = nil
             imageProxy = nil
             imageWidth = 0
-            nameLabel.text = item.name
+            nameLabel.setPostText(item.name, preferredContentSizeCategory: preferredContentSizeCategory)
             nameLabel.isHidden = false
             imageView.cancelMediaLoad()
             imageView.image = nil
@@ -304,7 +308,7 @@ private final class ReactionChipView: UIControl, ManualLayoutMeasurable, Timelin
             }
         }
 
-        countLabel.text = item.count.humanized
+        countLabel.setPostText(item.count.humanized, preferredContentSizeCategory: preferredContentSizeCategory)
         accessibilityLabel = item.name
         accessibilityValue = item.count.humanized
         accessibilityTraits = item.me ? [.button, .selected] : .button
@@ -426,8 +430,8 @@ private final class ReactionChipView: UIControl, ManualLayoutMeasurable, Timelin
     }
 
     private func updateColors() {
-        nameLabel.textColor = .flareLabel
-        countLabel.textColor = .flareLabel
+        nameLabel.textColor = .flarePostLabel
+        countLabel.textColor = .flarePostLabel
         backgroundColor = isMyReaction
             ? tintColor.withAlphaComponent(0.18)
             : .tertiarySystemGroupedBackground

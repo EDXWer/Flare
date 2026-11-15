@@ -35,8 +35,8 @@ internal fun StatusReactionRow(
             ContextualFlowRowOverflow.expandIndicator {
                 PlatformText(
                     text = stringResource(Res.string.mastodon_item_show_more),
-                    style = PlatformTheme.typography.caption,
-                    color = PlatformTheme.colorScheme.caption,
+                    style = PlatformTheme.typography.postBody,
+                    color = StatusComponentDefaults.secondaryColor,
                 )
             },
     ) { index ->

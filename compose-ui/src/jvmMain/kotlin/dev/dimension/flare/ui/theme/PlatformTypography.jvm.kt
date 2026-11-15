@@ -60,4 +60,8 @@ internal actual object PlatformTypography {
     actual val body: TextStyle
         @Composable
         get() = FluentTheme.typography.body
+
+    actual val postBody: TextStyle
+        @Composable
+        get() = FluentTheme.typography.body.let { it.copy(lineHeight = (it.lineHeight.value - 2).sp, letterSpacing = 0.sp) }
 }

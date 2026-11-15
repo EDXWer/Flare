@@ -1,7 +1,7 @@
 import XCTest
 import SwiftUI
 import KotlinSharedUI
-import FlareAppleUI
+@testable import FlareAppleUI
 @testable import Flare
 
 @MainActor
@@ -22,6 +22,7 @@ final class StatusActionColorTests: XCTestCase {
 
         for theme in [UIUserInterfaceStyle.light, .dark] {
             window.overrideUserInterfaceStyle = theme
+            root.view.traitOverrides[FlareTextBackgroundTrait.self] = theme == .dark ? .black : .white
             for isDetail in [false, true] {
                 for isGroup in [false, true] {
                     for enabled in [true, false] {
@@ -33,8 +34,10 @@ final class StatusActionColorTests: XCTestCase {
                             let action: ActionMenu = isGroup ? ActionMenu.Group(displayItem: item, actions: [item]) : item
                             let host = UIHostingController(rootView:
                                 StatusActionsView(data: [action], useText: false, applyPostActionLayout: false, isDetail: isDetail)
-                                    .font(isDetail ? .body : .footnote)
-                                    .foregroundStyle(isDetail ? .primary : .secondary)
+                                    .font(.body)
+                                    .foregroundStyle(.secondary)
+                                    .environment(\.isPostContent, true)
+                                    .flareTextBackground(theme == .dark ? .black : .white)
                                     .environment(\.colorScheme, theme == .dark ? .dark : .light)
                             )
                             host.safeAreaRegions = []
@@ -42,7 +45,8 @@ final class StatusActionColorTests: XCTestCase {
                             let swiftImage = await snapshot(host.view, in: root, theme: theme)
                             host.removeFromParent()
                             uiView.configure(data: [action], useText: false, postActionStyle: .leftAligned,
-                                             applyPostActionLayout: false, showNumbers: true, isDetail: isDetail)
+                                             applyPostActionLayout: false, showNumbers: true, isDetail: isDetail,
+                                             isPostContent: true)
                             let uiImage = await snapshot(uiView, in: root, theme: theme)
                             let expected = expectedRGB(color: color, isDetail: isDetail, enabled: enabled, theme: theme)
                             let context = "theme=\(theme.rawValue), detail=\(isDetail), group=\(isGroup), enabled=\(enabled), color=\(String(describing: color))"
@@ -94,6 +98,7 @@ final class StatusActionColorTests: XCTestCase {
                         for numbers in [false, true] {
                             let host = UIHostingController(rootView:
                                 StatusActionsView(data: data, useText: false, applyPostActionLayout: false, isDetail: detail)
+                                    .environment(\.isPostContent, true)
                                     .environment(\.timelineAppearance, appearance(style: style, fixed: fixed, numbers: numbers))
                                     .environment(\.colorScheme, .light)
                                     .environment(\.layoutDirection, rightToLeft ? .rightToLeft : .leftToRight)
@@ -104,7 +109,7 @@ final class StatusActionColorTests: XCTestCase {
                             host.removeFromParent()
                             native.configure(data: data, useText: false, postActionStyle: style,
                                              postActionFixedWidth: fixed, applyPostActionLayout: false,
-                                             showNumbers: numbers, isDetail: detail)
+                                             showNumbers: numbers, isDetail: detail, isPostContent: true)
                             let ui = await snapshot(native, in: root, theme: .light, width: width)
                             for green in [false, true] {
                                 let a = try coloredBounds(swift, green: green)
@@ -192,7 +197,9 @@ final class StatusActionColorTests: XCTestCase {
         switch color {
         case .red: base = .systemRed
         case .primaryColor: base = UIColor(red: 0, green: 186.0 / 255, blue: 124.0 / 255, alpha: 1)
-        default: base = isDetail ? .label : .secondaryLabel
+        default: base = theme == .dark
+            ? UIColor(red: 113.0 / 255, green: 118.0 / 255, blue: 123.0 / 255, alpha: 1)
+            : .secondaryLabel
         }
         var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
         base.resolvedColor(with: UITraitCollection(userInterfaceStyle: theme))

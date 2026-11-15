@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -33,6 +35,7 @@ import dev.dimension.flare.ui.component.placeholder
 import dev.dimension.flare.ui.component.platform.PlatformIconButton
 import dev.dimension.flare.ui.component.platform.PlatformText
 import dev.dimension.flare.ui.component.status.CommonStatusComponent
+import dev.dimension.flare.ui.component.status.LocalStatusBackgroundColor
 import dev.dimension.flare.ui.component.status.MediaItem
 import dev.dimension.flare.ui.model.UiDMItem
 import dev.dimension.flare.ui.model.UiMedia
@@ -148,21 +151,29 @@ public fun DMItem(
                     }
 
                     is UiDMItem.Message.Status -> {
-                        CommonStatusComponent(
-                            message.status,
-                            modifier =
-                                Modifier
-                                    .clip(PlatformTheme.shapes.large)
-                                    .background(
-                                        color =
-                                            if (item.isFromMe) {
-                                                PlatformTheme.colorScheme.primaryContainer
-                                            } else {
-                                                PlatformTheme.colorScheme.card
-                                            },
-                                        shape = PlatformTheme.shapes.large,
-                                    ).padding(8.dp),
-                        )
+                        val backgroundColor =
+                            if (item.isFromMe) PlatformTheme.colorScheme.primaryContainer else PlatformTheme.colorScheme.card
+                        CompositionLocalProvider(
+                            LocalStatusBackgroundColor provides
+                                if (item.isFromMe) {
+                                    backgroundColor
+                                } else {
+                                    backgroundColor.compositeOver(
+                                        LocalStatusBackgroundColor.current ?: PlatformTheme.colorScheme.background,
+                                    )
+                                },
+                        ) {
+                            CommonStatusComponent(
+                                message.status,
+                                modifier =
+                                    Modifier
+                                        .clip(PlatformTheme.shapes.large)
+                                        .background(
+                                            color = backgroundColor,
+                                            shape = PlatformTheme.shapes.large,
+                                        ).padding(horizontal = 10.dp, vertical = 8.dp),
+                            )
+                        }
                     }
                 }
             }

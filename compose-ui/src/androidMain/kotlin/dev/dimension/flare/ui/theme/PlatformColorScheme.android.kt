@@ -34,6 +34,10 @@ internal actual object PlatformColorScheme {
         @Composable
         @ReadOnlyComposable
         get() = MaterialTheme.colorScheme.outlineVariant
+    actual val background: Color
+        @Composable
+        @ReadOnlyComposable
+        get() = MaterialTheme.colorScheme.background
     actual val card: Color
         @Composable
         @ReadOnlyComposable

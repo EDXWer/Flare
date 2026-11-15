@@ -1,9 +1,12 @@
 package dev.dimension.flare.ui.component.platform
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.compositeOver
+import dev.dimension.flare.ui.component.status.LocalStatusBackgroundColor
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.surface.Card
 import io.github.composefluent.surface.CardDefaults
@@ -35,7 +38,16 @@ internal actual fun PlatformCard(
     if (onClick == null) {
         Card(
             modifier = modifier,
-            content = content,
+            content = {
+                CompositionLocalProvider(
+                    LocalStatusBackgroundColor provides
+                        FluentTheme.colors.background.layer.default.compositeOver(
+                            LocalStatusBackgroundColor.current ?: FluentTheme.colors.background.mica.base,
+                        ),
+                ) {
+                    content()
+                }
+            },
             shape = shape ?: FluentTheme.shapes.overlay,
         )
     } else {

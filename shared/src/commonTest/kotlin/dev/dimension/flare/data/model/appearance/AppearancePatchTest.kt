@@ -1,5 +1,6 @@
 package dev.dimension.flare.data.model.appearance
 
+import dev.dimension.flare.common.isWebPlatform
 import dev.dimension.flare.data.datasource.microblog.PostActionFamily
 import dev.dimension.flare.data.datasource.microblog.PostActionLayoutConfig
 import dev.dimension.flare.data.model.AppearanceSettings
@@ -26,6 +27,24 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class AppearancePatchTest {
+    @Test
+    fun postActionsStretchByDefaultOnNativeAndPreserveSavedStyle() {
+        val expected = if (isWebPlatform) PostActionStyle.LeftAligned else PostActionStyle.Stretch
+        assertEquals(expected, TimelineAppearance.Default.postActionStyle)
+        assertEquals(expected, AppearanceBag().toPatch().toTimelineAppearance().postActionStyle)
+
+        val stored = AppearancePatch.EMPTY.set(AppearanceKeys.PostActionStyle, PostActionStyle.LeftAligned).toBag()
+        assertEquals(PostActionStyle.LeftAligned, stored.toPatch().toTimelineAppearance().postActionStyle)
+        assertEquals(
+            expected,
+            stored
+                .toPatch()
+                .clear(AppearanceKeys.PostActionStyle)
+                .toTimelineAppearance()
+                .postActionStyle,
+        )
+    }
+
     @Test
     fun singleMediaHeightLimitDefaultsOnAndPreservesExplicitOverrides() {
         assertTrue(TimelineAppearance.Default.limitSingleMediaHeight)

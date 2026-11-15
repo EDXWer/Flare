@@ -33,4 +33,7 @@ internal expect object PlatformTypography {
 
     @get:Composable
     val body: TextStyle
+
+    @get:Composable
+    val postBody: TextStyle
 }

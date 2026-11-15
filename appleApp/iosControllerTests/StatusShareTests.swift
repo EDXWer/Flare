@@ -127,7 +127,7 @@ final class StatusShareTests: XCTestCase {
         let logo = try XCTUnwrap(view.subviews.compactMap { $0 as? UIImageView }.first { !$0.isHidden && $0.isAccessibilityElement })
         try await Task.sleep(for: .milliseconds(100))
         XCTAssertNil(logo.image, "A failed plugin image must not become a World icon")
-        XCTAssertEqual(view.intrinsicContentSize, CGSize(width: 14, height: 14))
+        XCTAssertEqual(view.intrinsicContentSize, CGSize(width: 20, height: 20))
     }
 
     func testPlatformLogoLoadsLocalImageOnceAndKeepsLayoutStable() async throws {
@@ -149,8 +149,8 @@ final class StatusShareTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(20))
         }
         let image = try XCTUnwrap(logo.image)
-        XCTAssertEqual(image.size.width, 14, accuracy: 1)
-        XCTAssertLessThanOrEqual(try XCTUnwrap(image.cgImage).width, Int(14 * view.traitCollection.displayScale) + 1)
+        XCTAssertEqual(image.size.width, 20, accuracy: 1)
+        XCTAssertLessThanOrEqual(try XCTUnwrap(image.cgImage).width, Int(20 * view.traitCollection.displayScale) + 1)
         XCTAssertEqual(view.sizeThatFits(CGSize(width: 100, height: 20)), size)
         view.configure(post: data, showPlatformLogo: true, absoluteTimestamp: false, isDetail: true, showAgentInsight: false, onInsightTapped: nil)
         XCTAssertTrue(image === logo.image, "Rebinding an unchanged icon must not restart image loading")

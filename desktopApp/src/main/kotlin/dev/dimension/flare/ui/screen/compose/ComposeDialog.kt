@@ -43,6 +43,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isAltPressed
@@ -132,6 +133,8 @@ import dev.dimension.flare.ui.component.LocalTimelineAppearance
 import dev.dimension.flare.ui.component.NetworkImage
 import dev.dimension.flare.ui.component.TabIcon
 import dev.dimension.flare.ui.component.status.CommonStatusComponent
+import dev.dimension.flare.ui.component.status.LocalStatusBackgroundColor
+import dev.dimension.flare.ui.component.status.StatusComponentDefaults
 import dev.dimension.flare.ui.component.status.StatusVisibilityComponent
 import dev.dimension.flare.ui.component.toImageVector
 import dev.dimension.flare.ui.model.UiDraftMedia
@@ -788,6 +791,9 @@ fun ComposeDialog(
                                     .sizeIn(maxWidth = 300.dp),
                         ) {
                             CompositionLocalProvider(
+                                LocalStatusBackgroundColor provides
+                                    FluentTheme.colors.background.layer.default
+                                        .compositeOver(FluentTheme.colors.background.mica.base),
                                 LocalTimelineAppearance provides
                                     LocalTimelineAppearance.current.copy(
                                         showMedia = false,
@@ -800,8 +806,7 @@ fun ComposeDialog(
                                     item = content,
                                     modifier =
                                         Modifier
-                                            .padding(horizontal = screenHorizontalPadding)
-                                            .padding(vertical = 8.dp)
+                                            .padding(StatusComponentDefaults.quotePadding)
                                             .fillMaxWidth(),
                                     isQuote = true,
                                     isClickable = false,

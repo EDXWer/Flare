@@ -60,7 +60,7 @@ final class FlareTextColorIntegrationTests: XCTestCase {
         return counts
     }
 
-    func testDetailActionSoftensItsCountWithoutChangingItsIconTint() async throws {
+    func testPostActionColorsRestoreNonPostAppearanceOnReuse() async throws {
         let (_, root, restoreWindow) = try makeRoot()
         defer { restoreWindow() }
         root.traitOverrides[FlareTextBackgroundTrait.self] = .black
@@ -68,13 +68,43 @@ final class FlareTextColorIntegrationTests: XCTestCase {
         root.addSubview(actions)
         let action = ActionMenu.Item(updateKey: "reply", icon: .reply, text: nil, count: UiNumber(value: 888),
             color: .contentColor, clickEvent: ClickEventNoop.shared, actionFamily: .reply, enabled: true)
-        actions.configure(data: [action], useText: false, postActionStyle: .leftAligned,
-            applyPostActionLayout: false, showNumbers: true, isDetail: true)
-        try await Task.sleep(for: .milliseconds(30))
-        let label = try XCTUnwrap(textRenderers(in: actions).compactMap { $0 as? UILabel }.first { $0.text == "888" })
-        assertPrimary(label.textColor, in: label, equals: 224.0 / 255)
-        let image = try XCTUnwrap(descendants(actions).compactMap { $0 as? UIImageView }.first { $0.image != nil })
-        assertPrimary(image.tintColor, in: image, equals: 1)
+        for isPost in [true, false, true] {
+            actions.configure(data: [action], useText: false, postActionStyle: .leftAligned,
+                applyPostActionLayout: false, showNumbers: true, isDetail: true, isPostContent: isPost)
+            try await Task.sleep(for: .milliseconds(30))
+            let label = try XCTUnwrap(textRenderers(in: actions).compactMap { $0 as? UILabel }.first { $0.text == "888" })
+            let image = try XCTUnwrap(descendants(actions).compactMap { $0 as? UIImageView }.first { $0.image != nil })
+            let expected: UIColor = isPost ? .flarePostSecondaryLabel : .secondaryLabel
+            XCTAssertEqual(label.textColor, expected)
+            XCTAssertEqual(image.tintColor, expected)
+        }
+    }
+
+    func testSharedMetadataRestoresNonPostAppearanceOnReuse() throws {
+        let row = try XCTUnwrap(makeTimelineTestRow(1, mediaCount: 0, textRepeatCount: 0) as? UiTimelineV2.TimelinePostItem)
+        let profile = try XCTUnwrap(row.post.user)
+        let user = UserCompatUIView()
+        let date = DateTimeUILabel()
+        let feedFont = UIFont.preferredFont(forTextStyle: .footnote)
+        date.font = feedFont
+        let translation = TranslateStatusStateView()
+
+        for isPost in [false, true, false, true] {
+            let category: UIContentSizeCategory? = isPost ? .medium : nil
+            user.configure(data: profile, trailing: nil, onClicked: nil, postTextContentSizeCategory: category)
+            date.postTextContentSizeCategory = category
+            date.set(data: row.post.createdAt)
+            translation.isPostContent = isPost
+            XCTAssertEqual(user.name.baseTextColor, isPost ? .flarePostLabel : .flareLabel)
+            XCTAssertEqual(user.handleLabel.textColor, isPost ? .flarePostSecondaryLabel : .secondaryLabel)
+            XCTAssertEqual(date.textColor, isPost ? .flarePostSecondaryLabel : .secondaryLabel)
+            XCTAssertEqual(translation.tintColor, isPost ? .flarePostSecondaryLabel : .secondaryLabel)
+            if !isPost {
+                XCTAssertEqual(date.font, feedFont, "Non-post timestamps retain the font selected by their caller")
+                let paragraph = date.attributedText?.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
+                XCTAssertEqual(paragraph?.lineSpacing ?? 0, 0)
+            }
+        }
     }
 
     func testTimelineCardRestoresPrimaryWhenSwitchingToCardsOrMultipleColumns() async throws {
@@ -109,16 +139,20 @@ final class FlareTextColorIntegrationTests: XCTestCase {
         for selectable in [false, true] {
             let richText = RichTextUIView()
             root.addSubview(richText)
-            for background: UIColor in [.black, .darkGray, .black] {
-                root.traitOverrides[FlareTextBackgroundTrait.self] = background
-                richText.configure(text: text, lineLimit: nil, isTextSelectionEnabled: selectable, onOpenURL: nil)
-                richText.prepareForFitting(width: 220)
-                root.layoutIfNeeded()
-                try await Task.sleep(for: .milliseconds(30))
-                let renderer = try XCTUnwrap(textRenderers(in: richText).first)
-                let attributedText = (renderer as? UILabel)?.attributedText ?? (renderer as? UITextView)?.attributedText
-                let color = try XCTUnwrap(attributedText?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor)
-                assertPrimary(color, in: renderer, equals: background == .black ? 224.0 / 255 : 1)
+            for isPost in [false, true, false] {
+                for background: UIColor in [.black, .darkGray, .black] {
+                    root.traitOverrides[FlareTextBackgroundTrait.self] = background
+                    richText.configure(text: text, lineLimit: nil, isTextSelectionEnabled: selectable, onOpenURL: nil,
+                                       baseTextColor: isPost ? .flarePostLabel : .flareLabel)
+                    richText.prepareForFitting(width: 220)
+                    root.layoutIfNeeded()
+                    try await Task.sleep(for: .milliseconds(30))
+                    let renderer = try XCTUnwrap(textRenderers(in: richText).first)
+                    let attributedText = (renderer as? UILabel)?.attributedText ?? (renderer as? UITextView)?.attributedText
+                    let color = try XCTUnwrap(attributedText?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor)
+                    let expected: CGFloat = isPost ? 217.0 / 255 : (background == .black ? 224.0 / 255 : 1)
+                    assertPrimary(color, in: renderer, equals: expected)
+                }
             }
             richText.removeFromSuperview()
         }

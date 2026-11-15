@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.unit.dp
 import dev.dimension.flare.data.model.TimelineDisplayMode
 import dev.dimension.flare.ui.component.HorizontalDivider
@@ -16,6 +18,7 @@ import dev.dimension.flare.ui.component.listCard
 import dev.dimension.flare.ui.component.listCardShape
 import dev.dimension.flare.ui.component.platform.PlatformCard
 import dev.dimension.flare.ui.theme.PlatformTheme
+import dev.dimension.flare.ui.theme.isLightTheme
 
 @Composable
 public fun AdaptiveCard(
@@ -27,6 +30,8 @@ public fun AdaptiveCard(
 ) {
     val bigScreen = LocalMultipleColumns.current
     val displayMode = LocalTimelineAppearance.current.timelineDisplayMode
+    val cardBackground =
+        PlatformTheme.colorScheme.card.compositeOver(LocalStatusBackgroundColor.current ?: PlatformTheme.colorScheme.background)
     if (bigScreen) {
         PlatformCard(
             modifier =
@@ -41,10 +46,15 @@ public fun AdaptiveCard(
             content.invoke()
         }
     } else if (respectTimelineMode && displayMode == TimelineDisplayMode.Plain) {
-        Column(modifier = modifier.fillMaxWidth()) {
-            content.invoke()
-            if (totalCount <= 0 || index < totalCount - 1) {
-                HorizontalDivider()
+        CompositionLocalProvider(
+            LocalStatusBackgroundColor provides
+                if (isLightTheme()) PlatformTheme.colorScheme.card else PlatformTheme.colorScheme.background,
+        ) {
+            Column(modifier = modifier.fillMaxWidth()) {
+                content.invoke()
+                if (totalCount <= 0 || index < totalCount - 1) {
+                    HorizontalDivider()
+                }
             }
         }
     } else {
@@ -56,7 +66,9 @@ public fun AdaptiveCard(
                         totalCount = totalCount,
                     ).background(PlatformTheme.colorScheme.card),
         ) {
-            content.invoke()
+            CompositionLocalProvider(LocalStatusBackgroundColor provides cardBackground) {
+                content.invoke()
+            }
         }
     }
 }
@@ -96,7 +108,14 @@ public fun AdaptiveOutlinedCard(
                         ),
                     ),
         ) {
-            content.invoke()
+            CompositionLocalProvider(
+                LocalStatusBackgroundColor provides
+                    PlatformTheme.colorScheme.card.compositeOver(
+                        LocalStatusBackgroundColor.current ?: PlatformTheme.colorScheme.background,
+                    ),
+            ) {
+                content.invoke()
+            }
         }
     }
 }

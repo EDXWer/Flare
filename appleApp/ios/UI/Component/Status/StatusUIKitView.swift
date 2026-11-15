@@ -2,6 +2,7 @@ import UIKit
 import SwiftUI
 import KotlinSharedUI
 import FlareAppleCore
+import FlareAppleUI
 
 /// UIKit port of the SwiftUI `StatusView`.
 ///
@@ -112,22 +113,15 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
     private var activeParents: [UIView] = []
     /// The current header view (one of userHeaderFull/userHeaderQuote/userHeaderCompat), or nil
     private var currentHeaderView: UIView?
-    private struct ContentColumnLayoutItem {
-        let view: UIView
-        var spacingBefore: CGFloat
-        var spacingAfter: CGFloat = 0
-    }
-
-    /// Content column children and their Compose-equivalent semantic spacing.
+    /// Content column children; layout applies text, attachment, and action gaps.
     private var contentColumnChildren: [UIView] = []
-    private var contentColumnLayoutItems: [ContentColumnLayoutItem] = []
     /// Whether avatar is currently displayed
     private var wantsAvatar: Bool = false
 
     // MARK: - Layout constants
 
     private static let mainRowSpacing: CGFloat = 8
-    private static let avatarSize: CGFloat = 44
+    private static let avatarSize: CGFloat = 48
     private static let replyIconSize: CGFloat = 12
     private static let sourceIconSize: CGFloat = 12
 
@@ -473,7 +467,6 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         // Remove all managed children
         for view in contentColumnChildren { view.removeFromSuperview() }
         contentColumnChildren = []
-        contentColumnLayoutItems = []
         currentHeaderView?.removeFromSuperview()
         currentHeaderView = nil
         avatarViewStorage?.removeFromSuperview()
@@ -534,7 +527,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             container.prepareForFitting(width: width)
         }
 
-        let quoteWidth = max(contentWidth - 16, 1)
+        let quoteWidth = max(contentWidth - 24, 1)
         if let quotesContainerStorage {
             quotesContainerStorage.bounds = CGRect(x: 0, y: 0, width: contentWidth, height: quotesContainerStorage.bounds.height)
         }
@@ -555,6 +548,28 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
     override func layoutSubviews() {
         super.layoutSubviews()
         performLayout(width: bounds.width, assignFrames: true)
+    }
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        hitTestActions(at: point, with: event) ?? super.hitTest(point, with: event)
+    }
+
+    func hitTestActions(at point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard isUserInteractionEnabled, !isHidden, alpha > 0.01 else { return nil }
+        // Action slots extend 4pt into the post padding and must remain tappable there.
+        if let container = actionsContainerStorage, container.superview === self,
+           !container.isHidden, container.alpha > 0.01, container.isUserInteractionEnabled,
+           let actions = actionsViewStorage,
+           let control = actions.hitTest(convert(point, to: actions), with: event) as? UIControl {
+            return control
+        }
+        for case let parent as ParentContainerView in activeParents.reversed()
+            where !parent.isHidden && parent.alpha > 0.01 && parent.isUserInteractionEnabled {
+            if let control = parent.child.hitTestActions(at: convert(point, to: parent.child), with: event) {
+                return control
+            }
+        }
+        return nil
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {
@@ -623,35 +638,41 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             let h = childHeight(of: header, for: contentWidth)
             if assignFrames { header.frame = CGRect(x: contentX, y: innerY, width: contentWidth, height: h) }
             innerY += h
-            // Compose inserts this spacer only after CommonStatusHeaderComponent;
-            // compact side-avatar and quote headers do not get it.
-            // The reply row supplies its own spacing below the header.
-            if !showAsFullWidth && !isQuote && data?.replyToHandle == nil {
-                innerY += 4
-            }
         }
 
-        // Compose uses semantic 4/8pt spacers instead of a uniform stack gap.
         updateExpandMoreButtonVisibility(contentWidth: contentWidth)
-        var followsReply = false
-        for item in contentColumnLayoutItems where !item.view.isHidden {
-            let child = item.view
-            // Keep the reply row's bottom spacing from stacking with the next block's.
-            innerY += followsReply ? 0 : item.spacingBefore
+        var followsContent = currentHeaderView != nil
+        var followsHeader = followsContent
+        var previousChild = currentHeaderView
+        for child in contentColumnChildren where !child.isHidden {
+            if followsContent {
+                let isText = child is RichTextUIView || child === replyToContainerStorage || child === translateViewStorage
+                let isAttachment = child === mediaViewStorage || child === normalCardViewStorage ||
+                    child === compatCardViewStorage || child === quotesContainerStorage
+                if child === actionsContainerStorage || (followsHeader && isText) {
+                    innerY += 2
+                } else if isAttachment && !(child === quotesContainerStorage && previousChild === mediaViewStorage) {
+                    innerY += 10
+                } else {
+                    innerY += 8
+                }
+            }
             let isCarousel = child === mediaViewStorage && mediaViewStorage?.isShowingCarousel == true
             if isCarousel, wantsAvatar {
-                innerY = max(innerY, y + Self.avatarSize + 8)
+                innerY = max(innerY, y + Self.avatarSize)
             }
             let childWidth = isCarousel ? width + carouselEdgePadding * 2
                 : child === mediaViewStorage ? mediaViewStorage!.fittingWidth(for: contentWidth) : contentWidth
             let childX = isCarousel ? -carouselEdgePadding : contentX
             let h = childHeight(of: child, for: childWidth)
             if assignFrames { child.frame = CGRect(x: childX, y: innerY, width: childWidth, height: h) }
-            innerY += h + item.spacingAfter
-            followsReply = child === replyToContainerStorage
+            innerY += h
+            followsContent = true
+            followsHeader = false
+            previousChild = child
         }
 
-        return max(innerY, y)
+        return max(innerY, y + (wantsAvatar ? Self.avatarSize : 0))
     }
 
     private func updateExpandMoreButtonVisibility(contentWidth: CGFloat) {
@@ -668,12 +689,22 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
 
     // MARK: - SwiftUI-equivalent computed
 
+    private var postBodyFont: UIFont {
+        .preferredFont(forTextStyle: .body, compatibleWith: UITraitCollection(
+            preferredContentSizeCategory: appearance.preferredContentSizeCategory
+        ))
+    }
+
     private var showAsFullWidth: Bool {
         (!appearance.fullWidthPost || withLeadingPadding) && !isQuote && !isDetail
     }
 
     private var carouselEdgePadding: CGFloat {
-        isQuote ? 8 : carouselOuterHorizontalPadding
+        isQuote ? 12 : carouselOuterHorizontalPadding
+    }
+
+    private var showsReplyContext: Bool {
+        data?.replyToHandle != nil && !withLeadingPadding && (!showParents || inlineParents.isEmpty)
     }
 
     private func updateSingleMediaHeightLimit() {
@@ -725,8 +756,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
 
         // Content column children
         let contentItems = buildContentColumnList(data: data)
-        contentColumnLayoutItems = contentItems
-        syncManagedSubviews(parent: self, current: &contentColumnChildren, desired: contentItems.map(\.view))
+        syncManagedSubviews(parent: self, current: &contentColumnChildren, desired: contentItems)
 
         // Parents
         let parents = resolveActiveParentContainers(data: data)
@@ -740,7 +770,6 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
     private func removeAllManaged() {
         for view in contentColumnChildren { view.removeFromSuperview() }
         contentColumnChildren = []
-        contentColumnLayoutItems = []
         currentHeaderView?.removeFromSuperview()
         currentHeaderView = nil
         avatarViewStorage?.removeFromSuperview()
@@ -770,33 +799,34 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
                 if let url = URL(string: route.toUri()) {
                     self.openURL?(url)
                 }
-            }
+            },
+            preferredContentSizeCategory: appearance.preferredContentSizeCategory
         )
         let onClicked: () -> Void = { [weak self] in self?.onUserTapped() }
 
         if showAsFullWidth {
             let userHeaderFull = resolvedUserHeaderFull()
             userHeaderFull.avatar.avatarShape = appearance.avatarShape
-            userHeaderFull.configure(data: user, subtitle: data.authorSubtitle, trailing: topEndView, onClicked: onClicked)
+            userHeaderFull.configure(data: user, subtitle: data.authorSubtitle, trailing: topEndView, onClicked: onClicked,
+                                     preferredContentSizeCategory: appearance.preferredContentSizeCategory)
             return userHeaderFull
         } else if isQuote {
             let userHeaderQuote = resolvedUserHeaderQuote()
             userHeaderQuote.avatar.avatarShape = appearance.avatarShape
-            userHeaderQuote.configure(data: user, subtitle: data.authorSubtitle, trailing: topEndView, onClicked: onClicked)
+            userHeaderQuote.configure(data: user, subtitle: data.authorSubtitle, trailing: topEndView, onClicked: onClicked,
+                                      preferredContentSizeCategory: appearance.preferredContentSizeCategory)
             return userHeaderQuote
         } else {
             let userHeaderCompat = resolvedUserHeaderCompat()
             userHeaderCompat.avatar.avatarShape = appearance.avatarShape
-            userHeaderCompat.configure(data: user, subtitle: data.authorSubtitle, trailing: topEndView, onClicked: onClicked)
+            userHeaderCompat.configure(data: user, subtitle: data.authorSubtitle, trailing: topEndView, onClicked: onClicked,
+                                       postTextContentSizeCategory: appearance.preferredContentSizeCategory)
             return userHeaderCompat
         }
     }
 
-    private func buildContentColumnList(data: UiTimelineV2.Post) -> [ContentColumnLayoutItem] {
-        var items: [ContentColumnLayoutItem] = []
-        func append(_ view: UIView, before: CGFloat = 0, after: CGFloat = 0) {
-            items.append(ContentColumnLayoutItem(view: view, spacingBefore: before, spacingAfter: after))
-        }
+    private func buildContentColumnList(data: UiTimelineV2.Post) -> [UIView] {
+        var items: [UIView] = []
         let translationDisplayed = data.translationDisplayState == .translated
         let contentWarnings: [StatusTextContent<UiRichText>] = if let warning = data.contentWarning {
             StatusTextContent.visible(
@@ -815,13 +845,13 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             showOriginalWithTranslation: appearance.showOriginalWithTranslation
         )
         let hasCW = contentWarnings.contains { !$0.text.isEmpty }
-        let bodyTopSpacing: CGFloat = (showAsFullWidth || isQuote) && !hasCW && data.user != nil ? 2 : 0
 
         // reply-to
-        if let replyToHandle = data.replyToHandle {
+        if showsReplyContext, let replyToHandle = data.replyToHandle {
             let replyToContainer = resolvedReplyToContainer()
-            replyToContainer.configure(text: String(localized: "Reply to \(replyToHandle)"))
-            append(replyToContainer, before: 2, after: 2)
+            replyToContainer.configure(text: String(localized: "Reply to \(replyToHandle)"),
+                                       preferredContentSizeCategory: appearance.preferredContentSizeCategory)
+            items.append(replyToContainer)
         }
 
         // content warning
@@ -835,28 +865,26 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
                     lineLimit: nil,
                     isTextSelectionEnabled: isDetail,
                     onOpenURL: openURL,
+                    lineSpacing: 1,
+                    baseTextColor: .flarePostLabel,
                     preferredContentSizeCategory: appearance.preferredContentSizeCategory
                 )
-                append(contentWarningText, before: 4)
+                items.append(contentWarningText)
             }
             if !appearance.expandContentWarning {
                 let contentWarningToggle = resolvedContentWarningToggle()
+                contentWarningToggle.titleLabel?.font = postBodyFont
                 contentWarningToggle.setTitle(
                     expand
                         ? String(localized: "mastodon_item_show_less")
                         : String(localized: "mastodon_item_show_more"),
                     for: .normal
                 )
-                append(contentWarningToggle, before: 4)
-            }
-            // StatusContentComponent gives its warning column 4pt bottom padding.
-            if !items.isEmpty {
-                items[items.count - 1].spacingAfter += 4
+                items.append(contentWarningToggle)
             }
         }
 
         // main body
-        var visibleBodyCount = 0
         if expand || appearance.expandContentWarning || !hasCW {
             let bodyLineLimit: Int?
             let collapseAboveLineCount: Int?
@@ -882,25 +910,28 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
                     lineLimit: bodyLineLimit,
                     isTextSelectionEnabled: bodySelectionEnabled,
                     onOpenURL: openURL,
+                    lineSpacing: 1,
+                    baseTextColor: .flarePostLabel,
                     preferredContentSizeCategory: appearance.preferredContentSizeCategory,
                     collapseAboveLineCount: collapseAboveLineCount
                 )
-                append(bodyText, before: visibleBodyCount == 0 ? bodyTopSpacing : 4)
-                visibleBodyCount += 1
+                items.append(bodyText)
             }
             if contents.contains(where: { !$0.text.isEmpty }),
                !isDetail,
                !expand,
                 showExpandTextButton {
-                append(resolvedExpandMoreButton(), before: visibleBodyCount == 0 ? 0 : 4)
-                visibleBodyCount += 1
+                let expandMoreButton = resolvedExpandMoreButton()
+                expandMoreButton.titleLabel?.font = postBodyFont
+                items.append(expandMoreButton)
             }
         }
 
         // poll
         if let poll = data.poll, showMediaInput {
             let pollView = resolvedPollView()
-            pollView.configure(data: poll, absoluteTimestamp: appearance.absoluteTimestamp)
+            pollView.configure(data: poll, absoluteTimestamp: appearance.absoluteTimestamp,
+                               preferredContentSizeCategory: appearance.preferredContentSizeCategory)
             pollView.onVote = { [weak self] indices in
                 guard let self = self else { return }
                 poll.onVote(
@@ -908,21 +939,20 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
                     indices.map { KotlinInt(value: Int32($0)) }
                 )
             }
-            // Compose places an 8pt Spacer inside a Column(spacedBy: 4),
-            // yielding 16pt after body content and 12pt when the poll is first.
-            append(pollView, before: visibleBodyCount > 0 ? 16 : 12)
+            items.append(pollView)
         }
 
         // translate (detail-only), after StatusContent (including its poll)
         if isDetail, showTranslate {
             let translateView = resolvedTranslateView()
+            translateView.preferredContentSizeCategory = appearance.preferredContentSizeCategory
             translateView.content = data.content.original
             translateView.contentWarning = data.contentWarning?.original
             translateView.isSummaryAvailable = aiTldrEnabled
             translateView.onLocalHeightInvalidated = { [weak self] in
                 self?.notifyLocalHeightInvalidated()
             }
-            append(translateView)
+            items.append(translateView)
         }
 
         // media grid
@@ -965,7 +995,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             mediaView.onLocalHeightInvalidated = { [weak self] in
                 self?.notifyLocalHeightInvalidated()
             }
-            append(mediaView, before: 8)
+            items.append(mediaView)
         }
 
         // card (only when no images & no quote & enabled)
@@ -978,22 +1008,22 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             if appearance.compatLinkPreview {
                 let compatCardView = resolvedCompatCardView(cornerRadius: corner)
                 compatCardView.layer.cornerRadius = corner
-                compatCardView.configure(data: card)
+                compatCardView.configure(data: card, preferredContentSizeCategory: appearance.preferredContentSizeCategory)
                 compatCardView.onOpenURL = { [weak self] in self?.openURL?($0) }
-                append(compatCardView, before: 8)
+                items.append(compatCardView)
             } else {
                 let normalCardView = resolvedNormalCardView(cornerRadius: corner)
                 normalCardView.layer.cornerRadius = corner
-                normalCardView.configure(data: card)
+                normalCardView.configure(data: card, preferredContentSizeCategory: appearance.preferredContentSizeCategory)
                 normalCardView.onOpenURL = { [weak self] in self?.openURL?($0) }
-                append(normalCardView, before: 8)
+                items.append(normalCardView)
             }
         }
 
         // quotes (not when self is quote)
         if !quotes.isEmpty, !isQuote {
             updateQuotes(quotes: quotes)
-            append(resolvedQuotesContainer(), before: 4)
+            items.append(resolvedQuotesContainer())
         } else {
             updateQuotes(quotes: [])
         }
@@ -1002,26 +1032,28 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         if showMediaInput, !isQuote {
             if let channel = data.sourceChannel {
                 let sourceChannelContainer = resolvedSourceChannelContainer()
-                sourceChannelContainer.configure(text: channel.name)
-                append(sourceChannelContainer, before: 4)
+                sourceChannelContainer.configure(text: channel.name, preferredContentSizeCategory: appearance.preferredContentSizeCategory)
+                items.append(sourceChannelContainer)
             }
             if appearance.showEmojiReactions, !data.emojiReactions.isEmpty {
                 let reactionView = resolvedReactionView()
-                reactionView.configure(data: Array(data.emojiReactions), isDetail: isDetail)
+                reactionView.configure(data: Array(data.emojiReactions), isDetail: isDetail,
+                                       preferredContentSizeCategory: appearance.preferredContentSizeCategory)
                 reactionView.onReactionTapped = { [weak self] reaction in
                     guard let self = self else { return }
                     reaction.onClicked(ClickContext(launcher: self.makeLauncher()))
                 }
-                append(reactionView, before: 4)
+                items.append(reactionView)
             }
         }
 
         // detail-only full timestamp
         if isDetail {
             let detailTimestampView = resolvedDetailTimestampView()
+            detailTimestampView.postTextContentSizeCategory = appearance.preferredContentSizeCategory
             detailTimestampView.absoluteTimestamp = appearance.absoluteTimestamp
             detailTimestampView.set(data: data.createdAt)
-            append(detailTimestampView, before: 8)
+            items.append(detailTimestampView)
         }
 
         // actions
@@ -1038,12 +1070,14 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
                 postActionFixedWidth: appearance.postActionFixedWidth,
                 showNumbers: appearance.showNumbers,
                 isDetail: isDetail,
-                postKey: String(describing: data.statusKey)
+                postKey: String(describing: data.statusKey),
+                isPostContent: true,
+                preferredContentSizeCategory: appearance.preferredContentSizeCategory
             )
             if actionsView.hasVisibleActions {
                 let actionsContainer = resolvedActionsContainer()
                 actionsContainer.content = actionsView
-                append(actionsContainer, before: 8)
+                items.append(actionsContainer)
             }
         }
 
@@ -1283,8 +1317,8 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
     private func setExpanded(_ expanded: Bool) {
         guard expand != expanded else { return }
         layoutIfNeeded()
-        let hiddenBodyTop = contentColumnLayoutItems.first { $0.view === contentWarningToggleStorage }
-            .map { $0.view.frame.maxY + $0.spacingAfter }
+        let hiddenBodyTop = contentColumnChildren.first { $0 === contentWarningToggleStorage }
+            .map { $0.frame.maxY + 8 }
         expand = expanded
         UIView.performWithoutAnimation {
             rebuild()
@@ -1361,20 +1395,20 @@ private final class ReplyToRowView: UIView, ManualLayoutMeasurable, TimelineHeig
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        icon.tintColor = .secondaryLabel
+        icon.tintColor = .flarePostSecondaryLabel
         icon.contentMode = .scaleAspectFit
         addSubview(icon)
 
         label.font = .preferredFont(forTextStyle: .caption1)
-        label.textColor = .secondaryLabel
+        label.textColor = .flarePostSecondaryLabel
         label.adjustsFontForContentSizeCategory = true
         label.numberOfLines = 0
         addSubview(label)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) not supported") }
 
-    func configure(text: String) {
-        label.text = text
+    func configure(text: String, preferredContentSizeCategory: UIContentSizeCategory) {
+        label.setPostText(text, preferredContentSizeCategory: preferredContentSizeCategory)
         invalidateIntrinsicContentSize()
         setNeedsLayout()
     }
@@ -1425,20 +1459,20 @@ private final class SourceChannelRowView: UIView, ManualLayoutMeasurable, Timeli
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        icon.tintColor = .secondaryLabel
+        icon.tintColor = .flarePostSecondaryLabel
         icon.contentMode = .scaleAspectFit
         addSubview(icon)
 
         label.font = .preferredFont(forTextStyle: .footnote)
-        label.textColor = .secondaryLabel
+        label.textColor = .flarePostSecondaryLabel
         label.adjustsFontForContentSizeCategory = true
         label.numberOfLines = 0
         addSubview(label)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) not supported") }
 
-    func configure(text: String) {
-        label.text = text
+    func configure(text: String, preferredContentSizeCategory: UIContentSizeCategory) {
+        label.setPostText(text, preferredContentSizeCategory: preferredContentSizeCategory)
         invalidateIntrinsicContentSize()
         setNeedsLayout()
     }
@@ -1496,9 +1530,9 @@ private final class ActionsContainerView: UIView, ManualLayoutMeasurable, Timeli
         super.layoutSubviews()
         guard let content else { return }
         content.frame = CGRect(
-            x: 0,
+            x: -4,
             y: Self.topPadding,
-            width: bounds.width,
+            width: bounds.width + 8,
             height: max(bounds.height - Self.topPadding, 0)
         )
     }
@@ -1527,7 +1561,7 @@ private final class ActionsContainerView: UIView, ManualLayoutMeasurable, Timeli
 
 private final class QuotesContainerView: UIView, ManualLayoutMeasurable, TimelineHeightProviding {
     private var managedChildren: [UIView] = []
-    private static let padding: CGFloat = 8
+    private static let padding: CGFloat = 12
     private static let spacing: CGFloat = 8
     private static let dividerHeight: CGFloat = 1.0 / UIScreen.main.scale
 
@@ -1607,12 +1641,11 @@ private final class QuotesContainerView: UIView, ManualLayoutMeasurable, Timelin
 // MARK: - Parent container
 
 /// Wraps a `StatusUIKitView` with SwiftUI-equivalent leading line overlay and
-/// the rendered 18pt parent-to-parent/main gap from Compose
-/// (8pt item bottom + 2pt list gap + 8pt next item top).
+/// the rendered parent-to-parent/main gap (6pt bottom + 2pt connector + 12pt top).
 private final class ParentContainerView: UIView, ManualLayoutMeasurable, TimelineHeightProviding {
     let child = StatusUIKitView()
     private let line = UIView()
-    private static let bottomSpacing: CGFloat = 18
+    private static let bottomSpacing: CGFloat = 20
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -1627,7 +1660,7 @@ private final class ParentContainerView: UIView, ManualLayoutMeasurable, Timelin
         let w = bounds.width
         let childH = max(bounds.height - Self.bottomSpacing, 0)
         child.frame = CGRect(x: 0, y: 0, width: w, height: childH)
-        line.frame = CGRect(x: 22, y: 44, width: 1, height: max(bounds.height - 44, 0))
+        line.frame = CGRect(x: 24, y: 48, width: 1, height: max(bounds.height - 48, 0))
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {

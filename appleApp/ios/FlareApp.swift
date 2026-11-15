@@ -56,6 +56,8 @@ struct FlareApp: App {
             MediaViewerTestFixture()
         } else if ProcessInfo.processInfo.arguments.contains("--timeline-media-scroll-test") {
             TimelineMediaScrollTestFixture()
+        } else if ProcessInfo.processInfo.arguments.contains("--post-appearance-preview") {
+            PostAppearancePreview()
         } else {
             appRoot
         }

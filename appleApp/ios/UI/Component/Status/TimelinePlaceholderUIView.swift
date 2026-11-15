@@ -4,12 +4,12 @@ import UIKit
 /// it. SwiftUI uses `.redacted(reason: .placeholder)`; we approximate the
 /// effect with flat grey bars so the cell size matches a real row.
 final class TimelinePlaceholderUIView: UIView, TimelineHeightProviding {
-    private static let measuredHeight: CGFloat = 44 + 12 + 96
+    private static let measuredHeight: CGFloat = 48 + 12 + 96
 
     private let avatar: UIView = {
         let v = UIView()
         v.backgroundColor = .tertiarySystemFill
-        v.layer.cornerRadius = 22
+        v.layer.cornerRadius = 24
         v.translatesAutoresizingMaskIntoConstraints = false
         return v
     }()
@@ -41,8 +41,8 @@ final class TimelinePlaceholderUIView: UIView, TimelineHeightProviding {
         NSLayoutConstraint.activate([
             avatar.topAnchor.constraint(equalTo: topAnchor),
             avatar.leadingAnchor.constraint(equalTo: leadingAnchor),
-            avatar.widthAnchor.constraint(equalToConstant: 44),
-            avatar.heightAnchor.constraint(equalToConstant: 44),
+            avatar.widthAnchor.constraint(equalToConstant: 48),
+            avatar.heightAnchor.constraint(equalToConstant: 48),
 
             nameBar.topAnchor.constraint(equalTo: avatar.topAnchor, constant: 4),
             nameBar.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 8),
@@ -73,7 +73,7 @@ func makeTimelinePlaceholderCardUIView() -> AdaptiveTimelineCardUIView {
     card.setContent(
         UIView.padding(
             TimelinePlaceholderUIView(),
-            insets: UIEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)
+            insets: UIEdgeInsets(top: 12, left: 10, bottom: 6, right: 10)
         )
     )
     return card
