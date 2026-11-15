@@ -358,20 +358,24 @@ public data class ComposeConfig public constructor(
         val maxOptions: Int,
         val allowsMultiple: Boolean = true,
         val maxOptionLength: Int? = null,
+        val allowsMedia: Boolean = true,
     ) {
-        public fun areOptionsValid(options: List<String>): Boolean {
+        public fun validOptions(options: List<String>): List<String>? {
             val choices = options.map(String::trim).filter(String::isNotEmpty)
-            return choices.size in 2..maxOptions &&
-                (maxOptionLength == null || choices.all { it.codePointSequence().count() <= maxOptionLength })
+            return choices.takeIf {
+                it.size in 2..maxOptions &&
+                    (maxOptionLength == null || it.all { choice -> choice.codePointSequence().count() <= maxOptionLength })
+            }
         }
 
-        public fun canPublishOptions(options: List<String>): Boolean = maxOptionLength == null || areOptionsValid(options)
+        public fun canPublishOptions(options: List<String>): Boolean = validOptions(options) != null
 
         internal fun merge(other: Poll): Poll =
             Poll(
                 maxOptions = minOf(maxOptions, other.maxOptions),
                 allowsMultiple = allowsMultiple && other.allowsMultiple,
                 maxOptionLength = listOfNotNull(maxOptionLength, other.maxOptionLength).minOrNull(),
+                allowsMedia = allowsMedia && other.allowsMedia,
             )
     }
 

@@ -12,7 +12,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlin.time.Duration.Companion.milliseconds
 
-internal val XQT_POLL_CONFIG = ComposeConfig.Poll(maxOptions = 4, allowsMultiple = false, maxOptionLength = 25)
+internal val XQT_POLL_CONFIG = ComposeConfig.Poll(maxOptions = 4, allowsMultiple = false, maxOptionLength = 25, allowsMedia = false)
 
 internal interface CardsApi {
     @FormUrlEncoded
@@ -28,12 +28,12 @@ internal data class CreatedCard(
 
 internal suspend fun CardsApi.createPoll(poll: ComposeData.Poll): String {
     require(!poll.multiple) { "X polls only allow one choice per vote." }
-    require(XQT_POLL_CONFIG.areOptionsValid(poll.options)) { "X polls need 2 to 4 choices of up to 25 characters each." }
+    val choices =
+        requireNotNull(XQT_POLL_CONFIG.validOptions(poll.options)) { "X polls need 2 to 4 choices of up to 25 characters each." }
     val durationMinutes = poll.expiredAfter.milliseconds.inWholeMinutes
     require(durationMinutes in 5..10_080 && poll.expiredAfter % 60_000L == 0L) {
         "X polls must last between 5 minutes and 7 days, in whole minutes."
     }
-    val choices = poll.options.map(String::trim).filter(String::isNotEmpty)
     val cardData =
         buildJsonObject {
             put("twitter:card", "poll${choices.size}choice_text_only")

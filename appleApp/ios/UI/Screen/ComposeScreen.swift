@@ -272,7 +272,7 @@ struct ComposeScreen: View {
                 }
                 .disabled(
                     !presenter.state.canSend ||
-                    !viewModel.pollViewModel.canSend(config: presenter.state.pollConfig) ||
+                    !viewModel.pollViewModel.canSend(config: presenter.state.pollConfig, hasMedia: !mediaViewModel.items.isEmpty) ||
                     mediaViewModel.items.contains { !$0.isReady }
                 )
             }

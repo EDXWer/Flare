@@ -141,7 +141,10 @@ struct MacComposeScreen: View {
                         Image(systemName: "paperplane.fill")
                     }
                 }
-                .disabled(!presenter.state.canSend || !viewModel.pollViewModel.canSend(config: presenter.state.pollConfig))
+                .disabled(
+                    !presenter.state.canSend ||
+                    !viewModel.pollViewModel.canSend(config: presenter.state.pollConfig, hasMedia: !mediaItems.isEmpty)
+                )
                 .keyboardShortcut(.return, modifiers: .command)
             }
         }
@@ -415,6 +418,7 @@ struct MacComposeScreen: View {
     }
 
     private var canAcceptMediaInput: Bool {
+        !viewModel.pollViewModel.enabled &&
         presenter.state.mediaEnabled &&
         remainingMediaSlots > 0
     }
@@ -535,7 +539,7 @@ struct MacComposeScreen: View {
     }
 
     private func appendMediaItems(_ items: [MacComposeMediaItem]) {
-        guard presenter.state.mediaEnabled, remainingMediaSlots > 0 else {
+        guard canAcceptMediaInput else {
             return
         }
 
@@ -544,7 +548,6 @@ struct MacComposeScreen: View {
             return
         }
 
-        viewModel.pollViewModel.reset()
         mediaItems.append(contentsOf: accepted)
         syncMediaMimeTypes()
     }

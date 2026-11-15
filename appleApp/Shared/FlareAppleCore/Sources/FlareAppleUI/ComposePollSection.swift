@@ -63,9 +63,10 @@ public final class ComposePollViewModel {
         }
     }
 
-    public func canSend(config: ComposeConfig.Poll?) -> Bool {
+    public func canSend(config: ComposeConfig.Poll?, hasMedia: Bool) -> Bool {
         guard enabled else { return true }
-        return config?.canPublishOptions(options: choices.map(\.text)) == true
+        guard let config, !hasMedia || config.allowsMedia else { return false }
+        return config.canPublishOptions(options: choices.map(\.text))
     }
 
     public func makeComposePoll(allowsMultiple: Bool) -> ComposeData.Poll? {

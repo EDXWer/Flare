@@ -28,6 +28,7 @@ public data class ComposeData(
 
     public data class Poll(
         val options: List<String>,
+        // Poll duration in milliseconds.
         val expiredAfter: Long,
         val multiple: Boolean,
     )

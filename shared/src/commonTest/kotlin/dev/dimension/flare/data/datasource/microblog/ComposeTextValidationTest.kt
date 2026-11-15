@@ -1,5 +1,9 @@
 package dev.dimension.flare.data.datasource.microblog
 
+import dev.dimension.flare.common.FileType
+import dev.dimension.flare.createTestFileItem
+import dev.dimension.flare.createTestRootPath
+import dev.dimension.flare.deleteTestRootPath
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.model.UiTimelineV2
 import dev.dimension.flare.ui.presenter.compose.ComposeStatus
@@ -11,6 +15,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class ComposeTextValidationTest {
     @Test
@@ -21,6 +26,60 @@ class ComposeTextValidationTest {
 
             assertFailsWith<IllegalArgumentException> { source.compose(post) {} }
             assertEquals(0, source.published)
+        }
+
+    @Test
+    fun pollLimitsApplyWithoutAnOptionLengthLimit() =
+        runTest {
+            val config = ComposeConfig.Poll(maxOptions = 4)
+            val source = TestComposeSource(ComposeConfig.Text(100), poll = config)
+            val options = listOf("A", "B", "C", "D", "E")
+
+            assertFalse(config.canPublishOptions(options))
+            assertFalse(config.canPublishOptions(listOf("A", " ")))
+            assertTrue(config.canPublishOptions(options.take(4)))
+            val post = ComposeData("Which option?", poll = ComposeData.Poll(options, 300_000L, multiple = false))
+            assertFailsWith<IllegalArgumentException> { source.compose(post) {} }
+            assertEquals(0, source.published)
+        }
+
+    @Test
+    fun publishingPollSkipsEmptySlotsAndPreservesOriginalInput() =
+        runTest {
+            val config = ComposeConfig.Poll(maxOptions = 4)
+            val source = TestComposeSource(ComposeConfig.Text(100), poll = config)
+            val poll = ComposeData.Poll(listOf(" Yes ", " ", "No"), 300_000L, multiple = true)
+
+            source.compose(ComposeData("Which option?", poll = poll)) {}
+
+            assertEquals(poll.copy(options = listOf("Yes", "No")), source.lastPublished?.poll)
+            assertEquals(listOf(" Yes ", " ", "No"), poll.options)
+        }
+
+    @Test
+    fun publishingPollWithMediaRespectsThePlatformCapability() =
+        runTest {
+            val root = createTestRootPath()
+            try {
+                val config = ComposeConfig.Poll(maxOptions = 4)
+                val restricted = config.copy(allowsMedia = false)
+                val post =
+                    ComposeData(
+                        "Which option?",
+                        poll = ComposeData.Poll(listOf("A", "B"), 300_000L, multiple = false),
+                        medias = listOf(ComposeData.Media(createTestFileItem(root, "image.png", byteArrayOf(1), FileType.Image), null)),
+                    )
+                val allowed = TestComposeSource(ComposeConfig.Text(100), poll = config)
+                val blocked = TestComposeSource(ComposeConfig.Text(100), poll = restricted)
+
+                allowed.compose(post) {}
+                assertEquals(post.medias, allowed.lastPublished?.medias)
+                assertFailsWith<IllegalArgumentException> { blocked.compose(post) {} }
+                assertEquals(0, blocked.published)
+                assertFalse(config.merge(restricted).allowsMedia)
+            } finally {
+                deleteTestRootPath(root)
+            }
         }
 
     @Test
@@ -123,6 +182,7 @@ private class TestComposeSource(
     private val rule: ComposeConfig.Text,
     private val visibility: ComposeConfig.Visibility? = null,
     private val supportedTypes: Set<ComposeType> = ComposeType.entries.toSet(),
+    private val poll: ComposeConfig.Poll? = null,
 ) : ComposeDataSource {
     override val accountKey = MicroBlogKey("test", "example.com")
     var published = 0
@@ -137,7 +197,12 @@ private class TestComposeSource(
     }
 
     override fun composeConfig(type: ComposeType) =
-        ComposeConfig(text = rule, visibility = visibility.takeUnless { type == ComposeType.Reply }, supportedTypes = supportedTypes)
+        ComposeConfig(
+            text = rule,
+            visibility = visibility.takeUnless { type == ComposeType.Reply },
+            supportedTypes = supportedTypes,
+            poll = poll,
+        )
 
     override fun homeTimeline(): Nothing = error("unused")
 

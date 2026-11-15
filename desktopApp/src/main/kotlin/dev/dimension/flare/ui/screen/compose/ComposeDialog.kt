@@ -176,6 +176,8 @@ import io.github.composefluent.component.TextFieldDefaults
 import io.github.composefluent.surface.Card
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import moe.tlaster.precompose.molecule.producePresenter
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
@@ -220,6 +222,27 @@ fun ComposeDialog(
     val composeWindow = LocalComposeWindow.current
     val focusRequester = remember { FocusRequester() }
     val contentWarningFocusRequester = remember { FocusRequester() }
+
+    fun attachMedia(files: List<File>): Boolean {
+        if (!state.canMedia) return false
+        val media = state.mediaState.takeSuccess() ?: return false
+        media.addMedia(files)
+        return true
+    }
+
+    val imageClipboard =
+        remember {
+            ImageClipboardManager { file ->
+                var attached = false
+                try {
+                    withContext(Dispatchers.Main.immediate) {
+                        attached = attachMedia(listOf(file))
+                    }
+                } finally {
+                    if (!attached) file.delete()
+                }
+            }
+        }
 
     DisposableEffect(initialMedia, cleanupInitialMediaOnDispose) {
         onDispose {
@@ -289,16 +312,11 @@ fun ComposeDialog(
         modifier =
             modifier
                 .dragAndDropTarget(
-                    shouldStartDragAndDrop = {
-                        true
-                    },
+                    shouldStartDragAndDrop = { state.canMedia },
                     remember {
                         ImageDragAndDropTarget(
-                            onImageDropped = { images ->
-                                state.mediaState.onSuccess {
-                                    it.addMedia(images)
-                                }
-                            },
+                            canAcceptImages = { state.canMedia },
+                            onImageDropped = { attachMedia(it) },
                         )
                     },
                 ),
@@ -483,20 +501,7 @@ fun ComposeDialog(
                     )
                 }
                 CompositionLocalProvider(
-                    LocalClipboard provides
-                        remember {
-                            ImageClipboardManager(
-                                onImagePasted = { file ->
-                                    state.mediaState.onSuccess {
-                                        it.addMedia(
-                                            listOf(
-                                                file,
-                                            ),
-                                        )
-                                    }
-                                },
-                            )
-                        },
+                    LocalClipboard provides if (state.canMedia) imageClipboard else LocalClipboard.current,
                 ) {
                     BasicTextField(
                         state = state.textFieldState,
@@ -716,7 +721,10 @@ fun ComposeDialog(
                             }
                         }
                         if (!pollState.isSupported) {
-                            Text(text = stringResource(Res.string.compose_poll_unsupported_accounts), style = FluentTheme.typography.caption)
+                            Text(
+                                text = stringResource(Res.string.compose_poll_unsupported_accounts),
+                                style = FluentTheme.typography.caption,
+                            )
                         }
                         pollState.maxOptionLength?.let { limit ->
                             Text(
@@ -836,7 +844,7 @@ fun ComposeDialog(
                                     .takeIf { files -> files.isNotEmpty() }
                                     .orEmpty()
                                     .toList()
-                                    .let { uris -> mediaState.addMedia(uris) }
+                                    .let { uris -> attachMedia(uris) }
                             },
                             disabled = !state.canMedia,
                             iconOnly = true,
@@ -1265,13 +1273,15 @@ private fun composePresenter(
 
     val canPoll = pollState.enabled || mediaState.takeSuccess()?.medias.isNullOrEmpty()
     val canMedia = mediaState.takeSuccess()?.canAddMedia == true && !pollState.enabled
+    val hasPollMediaConflict =
+        pollState.enabled && state.pollConfig?.allowsMedia == false && !mediaState.takeSuccess()?.medias.isNullOrEmpty()
     object {
         val remainingLength =
             remainingLength.map {
                 it.toString()
             }
         val textFieldState = textFieldState
-        val canSend = state.canSend && pollState.canSend
+        val canSend = state.canSend && pollState.canSend && !hasPollMediaConflict
         val canPoll = canPoll
         val canMedia = canMedia
         val pollState = pollState

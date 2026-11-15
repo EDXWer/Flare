@@ -702,7 +702,10 @@ internal fun ComposeScreen(
                             }
                         }
                         if (!pollState.isSupported) {
-                            Text(text = stringResource(R.string.compose_poll_unsupported_accounts), style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                text = stringResource(R.string.compose_poll_unsupported_accounts),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
                         pollState.maxOptionLength?.let { limit ->
                             Text(
@@ -1313,6 +1316,7 @@ private fun composePresenter(
 
     val canPoll = pollState.enabled || media.medias.isEmpty()
     val canMedia = media.canAddMedia && !pollEnabled
+    val hasPollMediaConflict = pollState.enabled && state.pollConfig?.allowsMedia == false && media.medias.isNotEmpty()
     var showEmojiMenu by remember { mutableStateOf(false) }
     var showAccountSelectMenu by remember { mutableStateOf(false) }
     val buildComposeData by rememberUpdatedState {
@@ -1359,7 +1363,7 @@ private fun composePresenter(
                 it.toString()
             }
         val textFieldState = textFieldState
-        val canSend = state.canSend && pollState.canSend
+        val canSend = state.canSend && pollState.canSend && !hasPollMediaConflict
         val canPoll = canPoll
         val canMedia = canMedia
         val pollState = pollState
