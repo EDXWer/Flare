@@ -486,6 +486,10 @@
     <string name="dm_deleted">已删除</string>
     <string name="dm_conversation">私信对话</string>
     <string name="dm_sending">正在发送</string>
+    <string name="dm_add_image">添加图片</string>
+    <string name="dm_remove_image">移除图片</string>
+    <string name="dm_image_attached">已添加图片</string>
+    <string name="dm_image_send_failed">图片发送失败，请重试。</string>
     <string name="dm_leave">退出对话</string>
     <string name="dm_to_profile">显示个人资料</string>
     <string name="notification_login_expired">%1$s 的登录已过期</string>

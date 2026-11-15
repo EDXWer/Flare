@@ -14,6 +14,7 @@ import dev.dimension.flare.data.datasource.microblog.ComposeData
 import dev.dimension.flare.data.datasource.microblog.ComposeDataSource
 import dev.dimension.flare.data.datasource.microblog.ComposeType
 import dev.dimension.flare.data.datasource.microblog.DatabaseUpdater
+import dev.dimension.flare.data.datasource.microblog.DirectMessageDataSource
 import dev.dimension.flare.data.datasource.microblog.NotificationFilter
 import dev.dimension.flare.data.datasource.microblog.NotificationTimelineDataSource
 import dev.dimension.flare.data.datasource.microblog.PostEvent
@@ -26,6 +27,7 @@ import dev.dimension.flare.data.datasource.microblog.datasource.PostDataSource
 import dev.dimension.flare.data.datasource.microblog.datasource.RelationDataSource
 import dev.dimension.flare.data.datasource.microblog.datasource.TimelineTabConfigurationDataSource
 import dev.dimension.flare.data.datasource.microblog.datasource.UserDataSource
+import dev.dimension.flare.data.datasource.microblog.handler.DirectMessageHandler
 import dev.dimension.flare.data.datasource.microblog.handler.EmojiHandler
 import dev.dimension.flare.data.datasource.microblog.handler.NotificationHandler
 import dev.dimension.flare.data.datasource.microblog.handler.PostEventHandler
@@ -66,6 +68,10 @@ import dev.dimension.flare.ui.model.toUi
 import dev.dimension.flare.ui.presenter.compose.ComposeStatus
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -112,12 +118,16 @@ internal class VVODataSource(
     TimelineTabConfigurationDataSource,
     PinnableTimelineTabDataSource,
     PostDataSource,
+    DirectMessageDataSource,
     AccountHttpCapability,
-    PostEventHandler.Handler {
+    PostEventHandler.Handler,
+    AutoCloseable {
     override val accountOrigin = "https://m.weibo.cn"
     override val origins: Set<String> = setOf("https://m.weibo.cn", "https://weibo.com")
 
     override suspend fun authenticate(request: AccountHttpRequest): Map<String, String> = service.extensionAuthHeaders(request.url)
+
+    override suspend fun authenticateMedia(url: String): Map<String, String> = service.directMessageImageHeaders(url)
 
     private val imageCompressor: ImageCompressor by koinInject()
     private val service by lazy {
@@ -136,6 +146,23 @@ internal class VVODataSource(
             accountKey = accountKey,
             service = service,
         )
+    }
+
+    private val appScope: CoroutineScope by koinInject()
+    private val messageScope =
+        lazy {
+            CoroutineScope(appScope.coroutineContext + SupervisorJob(appScope.coroutineContext[Job]))
+        }
+
+    override val directMessageHandler by lazy {
+        DirectMessageHandler(accountKey, VVODirectMessageLoader(service, accountKey), messageScope.value)
+    }
+
+    override val supportsLeavingDirectMessage: Boolean = false
+    override val supportsSendingDirectMessageImage: Boolean = true
+
+    override fun close() {
+        if (messageScope.isInitialized()) messageScope.value.cancel()
     }
 
     private val notificationBadgeStore: VVONotificationBadgeStore by lazy {

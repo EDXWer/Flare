@@ -1,5 +1,6 @@
 package dev.dimension.flare.data.datasource.microblog.loader
 
+import dev.dimension.flare.common.UploadMedia
 import dev.dimension.flare.data.datasource.microblog.paging.PagingRequest
 import dev.dimension.flare.data.datasource.microblog.paging.PagingResult
 import dev.dimension.flare.model.MicroBlogKey
@@ -13,6 +14,12 @@ import kotlin.native.HiddenFromObjC
 @HiddenFromObjC
 public interface DirectMessageLoader {
     public val platformId: String
+
+    public val persistRoomLastMessage: Boolean
+        get() = true
+
+    public val useLatestNonNullRemoteCursor: Boolean
+        get() = false
 
     public val runtimeTransformer: Flow<DirectMessageRuntimeTransformer>
         get() = flowOf(DirectMessageRuntimeTransformer())
@@ -28,12 +35,17 @@ public interface DirectMessageLoader {
         request: PagingRequest,
     ): PagingResult<UiDMItem>
 
-    public suspend fun fetchRoomInfo(roomKey: MicroBlogKey): UiDMRoom
+    public suspend fun fetchRoomInfo(roomKey: MicroBlogKey): UiDMRoom?
 
     public suspend fun sendMessage(
         roomKey: MicroBlogKey,
         message: String,
     ): UiDMItem
+
+    public suspend fun sendImage(
+        roomKey: MicroBlogKey,
+        image: UploadMedia,
+    ): UiDMItem = throw UnsupportedOperationException()
 
     public suspend fun deleteMessage(
         roomKey: MicroBlogKey,
