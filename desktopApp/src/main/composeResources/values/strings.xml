@@ -476,11 +476,6 @@
     <string name="compose_poll_option_hint">Option %1$s</string>
     <string name="compose_poll_unsupported_accounts">One or more selected accounts cannot publish polls.</string>
     <string name="compose_poll_option_limits">Enter 2 to %1$d choices, up to %2$d characters each.</string>
-    <string name="compose_x_reply_restriction">Who can reply on X · %1$s</string>
-    <string name="compose_x_reply_everyone">Everyone</string>
-    <string name="compose_x_reply_following">Accounts you follow</string>
-    <string name="compose_x_reply_mentioned">Only mentioned accounts</string>
-    <string name="compose_x_reply_verified">Verified accounts</string>
     <string name="compose_poll_single_choice">Single choice</string>
     <string name="compose_poll_multiple_choice">Multiple choice</string>
     <string name="compose_poll_expiration_at">Expiration at: %1$s</string>

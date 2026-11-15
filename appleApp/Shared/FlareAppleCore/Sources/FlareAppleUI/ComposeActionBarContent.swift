@@ -66,35 +66,6 @@ public struct ComposeActionBarContent<MediaControl: View>: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if let replyRestriction {
-                Menu {
-                    ForEach([ComposeReplyRestriction.everyone, .following, .mentioned, .verified], id: \.self) { option in
-                        Button {
-                            onSelectReplyRestriction(option)
-                        } label: {
-                            if option == replyRestriction {
-                                Label(option.localizedLabel, systemImage: "checkmark")
-                            } else {
-                                Text(option.localizedLabel)
-                            }
-                        }
-                        .accessibilityAddTraits(option == replyRestriction ? .isSelected : [])
-                    }
-                } label: {
-                    Text(String(
-                        localized: "compose_x_reply_restriction",
-                        defaultValue: "Who can reply on X · \(replyRestriction.localizedLabel)",
-                        bundle: FlareAppleUILocalization.bundle
-                    ))
-                }
-                .font(.subheadline)
-            }
-            actionBar
-        }
-    }
-
-    private var actionBar: some View {
         HStack {
             ScrollView(.horizontal) {
                 HStack(spacing: 16) {
@@ -124,6 +95,10 @@ public struct ComposeActionBarContent<MediaControl: View>: View {
                             allVisibilities: allVisibilities,
                             onSelect: onSelectVisibility
                         )
+                    }
+
+                    if let replyRestriction {
+                        replyRestrictionMenu(replyRestriction)
                     }
 
                     if canUseContentWarning {
@@ -162,6 +137,40 @@ public struct ComposeActionBarContent<MediaControl: View>: View {
                     .monospacedDigit()
             }
         }
+    }
+
+    private func replyRestrictionMenu(_ restriction: ComposeReplyRestriction) -> some View {
+        let title = Text("compose_x_reply_restriction", bundle: FlareAppleUILocalization.bundle)
+        let selection = Binding(get: { restriction }, set: { onSelectReplyRestriction($0) })
+
+        return Menu {
+            Button {} label: {
+                title
+            }
+            .disabled(true)
+
+            Divider()
+
+            Picker(selection: selection) {
+                ForEach([ComposeReplyRestriction.everyone, .following, .mentioned, .verified], id: \.self) { option in
+                    Label {
+                        Text(verbatim: option.localizedLabel)
+                    } icon: {
+                        Image(fontAwesome: option.icon)
+                    }
+                    .tag(option)
+                }
+            } label: {
+                title
+            }
+            .labelsHidden()
+            .pickerStyle(.inline)
+        } label: {
+            Image(fontAwesome: restriction.icon)
+        }
+        .menuOrder(.fixed)
+        .accessibilityLabel(title)
+        .accessibilityValue(Text(verbatim: restriction.localizedLabel))
     }
 }
 
@@ -325,6 +334,15 @@ private struct ComposeLanguageMenu: View {
 }
 
 private extension ComposeReplyRestriction {
+    var icon: FontAwesomeIcon {
+        switch self {
+        case .everyone: .globe
+        case .following: .users
+        case .mentioned: .at
+        case .verified: .circleCheck
+        }
+    }
+
     var localizedLabel: String {
         switch self {
         case .everyone:

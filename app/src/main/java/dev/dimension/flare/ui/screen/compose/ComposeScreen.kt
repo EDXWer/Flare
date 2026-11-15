@@ -104,10 +104,10 @@ import dev.dimension.flare.common.InAppNotification
 import dev.dimension.flare.common.Message
 import dev.dimension.flare.data.datasource.microblog.ComposeConfig
 import dev.dimension.flare.data.datasource.microblog.ComposeData
-import dev.dimension.flare.data.datasource.microblog.ComposeReplyRestriction
 import dev.dimension.flare.data.model.PostActionStyle
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.ui.component.AvatarComponent
+import dev.dimension.flare.ui.component.ComposeReplyRestrictionMenu
 import dev.dimension.flare.ui.component.EmojiPicker
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.FlareDropdownMenu
@@ -758,26 +758,6 @@ internal fun ComposeScreen(
                 }
             }
 
-            state.state.replyRestriction?.let { restriction ->
-                var expanded by remember { mutableStateOf(false) }
-                Box(Modifier.padding(horizontal = screenHorizontalPadding)) {
-                    TextButton(onClick = { expanded = true }) {
-                        Text(stringResource(R.string.compose_x_reply_restriction, stringResource(restriction.labelRes)))
-                    }
-                    FlareDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                        ComposeReplyRestriction.entries.forEach { option ->
-                            DropdownMenuItem(
-                                text = { Text(stringResource(option.labelRes)) },
-                                onClick = {
-                                    state.state.setReplyRestriction(option)
-                                    expanded = false
-                                },
-                            )
-                        }
-                    }
-                }
-            }
-
             state.state.replyState?.let { replyState ->
                 replyState.onSuccess { state ->
                     val content = state.contentPostOrNull()
@@ -919,6 +899,12 @@ internal fun ComposeScreen(
                             }
                         }
                     }
+                }
+                state.state.replyRestriction?.let { restriction ->
+                    ComposeReplyRestrictionMenu(
+                        restriction = restriction,
+                        onSelect = state.state::setReplyRestriction,
+                    )
                 }
                 state.contentWarningState.onSuccess {
                     IconButton(
@@ -1471,10 +1457,10 @@ private fun pollPresenter(config: ComposeConfig.Poll?) =
             val enabled = enabled
             val options = options.toImmutableList()
             val isSupported = config != null
-            val allowsMultiple = config?.allowsMultiple != false
+            val allowsMultiple = config?.allowsMultiple == true
             val maxOptions = config?.maxOptions ?: 0
             val maxOptionLength = config?.maxOptionLength
-            val pollSingleChoice = !allowsMultiple || pollSingleChoice
+            val pollSingleChoice = config?.allowsMultiple == false || pollSingleChoice
             val canAddPollOption = options.size < maxOptions
             val canSend = !enabled || config?.canPublishOptions(options.map { it.text.toString() }) == true
             val expiredAt = expiredAt
@@ -1625,15 +1611,6 @@ internal enum class PollExpiration(
             } ?: Minutes5
     }
 }
-
-private val ComposeReplyRestriction.labelRes: Int
-    get() =
-        when (this) {
-            ComposeReplyRestriction.Everyone -> R.string.compose_x_reply_everyone
-            ComposeReplyRestriction.Following -> R.string.compose_x_reply_following
-            ComposeReplyRestriction.Mentioned -> R.string.compose_x_reply_mentioned
-            ComposeReplyRestriction.Verified -> R.string.compose_x_reply_verified
-        }
 
 internal val UiTimelineV2.Post.Visibility.localName: Int
     get() =

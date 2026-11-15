@@ -78914,19 +78914,19 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Who can reply on X · %@"
+            "value" : "Who can reply on X"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "谁能在 X 上回复 · %@"
+            "value" : "谁能在 X 上回复"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "誰能在 X 上回覆 · %@"
+            "value" : "誰能在 X 上回覆"
           }
         }
       }

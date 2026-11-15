@@ -491,4 +491,9 @@
     <string name="share_replies_more">載入更多回覆</string>
     <string name="share_replies_retry">重試</string>
     <string name="share_replies_children">載入此留言的回覆</string>
+    <string name="compose_x_reply_restriction">誰能在 X 上回覆</string>
+    <string name="compose_x_reply_everyone">所有人</string>
+    <string name="compose_x_reply_following">你跟隨的帳號</string>
+    <string name="compose_x_reply_mentioned">僅提及的帳號</string>
+    <string name="compose_x_reply_verified">已認證的帳號</string>
 </resources>

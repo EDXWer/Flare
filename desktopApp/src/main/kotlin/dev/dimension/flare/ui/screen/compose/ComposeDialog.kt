@@ -108,14 +108,8 @@ import dev.dimension.flare.compose_select_accounts_current
 import dev.dimension.flare.compose_send
 import dev.dimension.flare.compose_show_emoji_picker
 import dev.dimension.flare.compose_video_no_alt
-import dev.dimension.flare.compose_x_reply_everyone
-import dev.dimension.flare.compose_x_reply_following
-import dev.dimension.flare.compose_x_reply_mentioned
-import dev.dimension.flare.compose_x_reply_restriction
-import dev.dimension.flare.compose_x_reply_verified
 import dev.dimension.flare.data.datasource.microblog.ComposeConfig
 import dev.dimension.flare.data.datasource.microblog.ComposeData
-import dev.dimension.flare.data.datasource.microblog.ComposeReplyRestriction
 import dev.dimension.flare.data.model.PostActionStyle
 import dev.dimension.flare.draft_box_title
 import dev.dimension.flare.media_save
@@ -131,6 +125,7 @@ import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.navigate_back
 import dev.dimension.flare.ok
 import dev.dimension.flare.ui.component.AvatarComponent
+import dev.dimension.flare.ui.component.ComposeReplyRestrictionMenu
 import dev.dimension.flare.ui.component.EmojiPicker
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
@@ -774,27 +769,6 @@ fun ComposeDialog(
                 }
             }
 
-            state.state.replyRestriction?.let { restriction ->
-                MenuFlyoutContainer(
-                    modifier = Modifier.padding(horizontal = screenHorizontalPadding),
-                    flyout = {
-                        ComposeReplyRestriction.entries.forEach { option ->
-                            MenuFlyoutItem(
-                                text = { Text(stringResource(option.labelRes)) },
-                                onClick = {
-                                    state.state.setReplyRestriction(option)
-                                    isFlyoutVisible = false
-                                },
-                            )
-                        }
-                    },
-                ) {
-                    SubtleButton(onClick = { isFlyoutVisible = true }) {
-                        Text(stringResource(Res.string.compose_x_reply_restriction, stringResource(restriction.labelRes)))
-                    }
-                }
-            }
-
             state.state.replyState?.let { replyState ->
                 replyState.onSuccess { state ->
                     val content = state.contentPostOrNull()
@@ -950,6 +924,13 @@ fun ComposeDialog(
                             )
                         }
                     }
+                }
+                state.state.replyRestriction?.let { restriction ->
+                    ComposeReplyRestrictionMenu(
+                        restriction = restriction,
+                        onSelect = state.state::setReplyRestriction,
+                        modifier = Modifier.padding(4.dp),
+                    )
                 }
                 state.contentWarningState.onSuccess {
                     SubtleButton(
@@ -1504,10 +1485,10 @@ private fun pollPresenter(config: ComposeConfig.Poll?) =
             val enabled = enabled
             val options = options.toImmutableList()
             val isSupported = config != null
-            val allowsMultiple = config?.allowsMultiple != false
+            val allowsMultiple = config?.allowsMultiple == true
             val maxOptions = config?.maxOptions ?: 0
             val maxOptionLength = config?.maxOptionLength
-            val pollSingleChoice = !allowsMultiple || pollSingleChoice
+            val pollSingleChoice = config?.allowsMultiple == false || pollSingleChoice
             val canAddPollOption = options.size < maxOptions
             val canSend = !enabled || config?.canPublishOptions(options.map { it.text.toString() }) == true
             val expiredAt = expiredAt
@@ -1646,15 +1627,6 @@ internal enum class PollExpiration(
             } ?: Minutes5
     }
 }
-
-private val ComposeReplyRestriction.labelRes: StringResource
-    get() =
-        when (this) {
-            ComposeReplyRestriction.Everyone -> Res.string.compose_x_reply_everyone
-            ComposeReplyRestriction.Following -> Res.string.compose_x_reply_following
-            ComposeReplyRestriction.Mentioned -> Res.string.compose_x_reply_mentioned
-            ComposeReplyRestriction.Verified -> Res.string.compose_x_reply_verified
-        }
 
 internal val UiTimelineV2.Post.Visibility.localName: StringResource
     get() =
