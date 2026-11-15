@@ -178,6 +178,7 @@ expected_selectors = %w[
   TimelineControllerTests/TimelineMediaPreviewTests/testSwiftUIMediaKeepsItsInitialHeightWhenLazyRowsAppearAndReturn
   TimelineControllerTests/TimelineMediaPreviewTests/testSwiftUIMediaIgnoresPlaybackViewportAndChromeInsetsButRespondsToResize
   iOSTests/VideoPlaybackSessionTests
+  iOSTests/LivePhotoExportTests
   iOSTests/MediaPlaybackMemoryTests
   iOSTests/TimelinePlaybackCoordinatorTests
   iOSTests/MediaTransferCancellationTests

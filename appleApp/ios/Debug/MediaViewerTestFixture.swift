@@ -177,7 +177,7 @@ struct MediaViewerTestFixture: View {
             assertionFailure("Could not create video fixture: \(error)")
         }
         return UiMediaVideo(url: videoURL.absoluteString, thumbnailUrl: imageURL.absoluteString, description: "Fixture video", height: 240, width: 320, customHeaders: nil, proxy: ProxyRef.Unbound.shared, downloadUrl: nil,
-                            kind: ProcessInfo.processInfo.arguments.contains("--live-photo") ? .livePhoto : ProcessInfo.processInfo.arguments.contains("--gif-video") ? .gif : .video)
+                            kind: ProcessInfo.processInfo.arguments.contains("--live-photo") ? .livePhoto : ProcessInfo.processInfo.arguments.contains("--gif-video") ? .gif : .video, livePhotoCoverUrl: nil)
     }
 
     /// A long screenshot-style image that the viewer shows at full width inside a vertical scroll view.

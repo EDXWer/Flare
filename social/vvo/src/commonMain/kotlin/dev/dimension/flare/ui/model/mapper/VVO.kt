@@ -86,16 +86,18 @@ private fun Status.renderStatusV2(accountKey: MicroBlogKey): UiTimelineV2 {
     val media =
         picsList.orEmpty().mapNotNull {
             val url = it.large?.url ?: it.url
+            val isLivePhoto = it.type == "livephoto"
             if (url.isNullOrEmpty()) {
                 null
-            } else if ((it.type == "video" || it.type == "livephoto") && !it.videoSrc.isNullOrBlank()) {
+            } else if ((it.type == "video" || isLivePhoto) && !it.videoSrc.isNullOrBlank()) {
                 UiMedia.Video(
                     url = it.videoSrc,
                     thumbnailUrl = it.url ?: url,
                     width = it.large?.geoValue?.widthValue ?: it.geoValue?.widthValue ?: 0f,
                     height = it.large?.geoValue?.heightValue ?: it.geoValue?.heightValue ?: 0f,
                     description = null,
-                    kind = if (it.type == "livephoto") UiMedia.Video.Kind.LivePhoto else UiMedia.Video.Kind.Video,
+                    kind = if (isLivePhoto) UiMedia.Video.Kind.LivePhoto else UiMedia.Video.Kind.Video,
+                    livePhotoCoverUrl = if (isLivePhoto) it.large?.url?.replace("/mw2000/", "/large/") else null,
                 )
             } else {
                 UiMedia.Image(
