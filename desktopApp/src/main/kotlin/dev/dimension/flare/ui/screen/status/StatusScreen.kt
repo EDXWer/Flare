@@ -21,7 +21,7 @@ import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.component.FlareScrollBar
 import dev.dimension.flare.ui.component.status.LazyStatusVerticalStaggeredGrid
-import dev.dimension.flare.ui.component.status.status
+import dev.dimension.flare.ui.component.status.statusDetail
 import dev.dimension.flare.ui.presenter.invoke
 import dev.dimension.flare.ui.presenter.status.StatusContextPresenter
 import io.github.composefluent.component.ProgressBar
@@ -33,7 +33,7 @@ internal fun StatusScreen(
     statusKey: MicroBlogKey,
     accountType: AccountType,
 ) {
-    val state by producePresenter(statusKey.toString()) {
+    val state by producePresenter("$accountType:$statusKey") {
         statusPresenter(accountType = accountType, statusKey = statusKey)
     }
 
@@ -52,10 +52,7 @@ internal fun StatusScreen(
                 contentPadding = LocalWindowPadding.current,
                 state = listState,
             ) {
-                status(
-                    state.state.listState,
-                    detailStatusKey = statusKey,
-                )
+                statusDetail(state.state, statusKey)
             }
         }
         if (state.isRefreshing) {
@@ -77,7 +74,7 @@ private fun statusPresenter(
     val scope = rememberCoroutineScope()
     var isRefreshing by remember { mutableStateOf(false) }
     val state =
-        remember(statusKey) {
+        remember(accountType, statusKey) {
             StatusContextPresenter(accountType = accountType, statusKey = statusKey)
         }.invoke()
 

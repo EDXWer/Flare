@@ -47,6 +47,7 @@ public sealed class PagingState<T> {
         public abstract val itemCount: Int
         public abstract val isRefreshing: Boolean
         public abstract val appendState: LoadState
+        internal open val sourceAppendState: LoadState get() = appendState
 
         public abstract operator fun get(index: Int): T?
 
@@ -60,6 +61,29 @@ public sealed class PagingState<T> {
 
         public abstract fun itemContentType(contentType: ((item: T) -> Any?)? = null): (index: Int) -> Any?
 
+        internal data class After<T : Any>(
+            private val source: Success<T>,
+            private val start: Int,
+        ) : Success<T>() {
+            override val itemCount: Int get() = source.itemCount - start
+            override val isRefreshing: Boolean get() = source.isRefreshing
+            override val appendState: LoadState get() = source.appendState
+            override val sourceAppendState: LoadState get() = source.sourceAppendState
+
+            override fun get(index: Int): T? = if (index in 0 until itemCount) source[index + start] else null
+
+            override fun peek(index: Int): T? = if (index in 0 until itemCount) source.peek(index + start) else null
+
+            override suspend fun refreshSuspend() = source.refreshSuspend()
+
+            override fun retry() = source.retry()
+
+            override fun itemKey(key: ((item: T) -> Any)?): (Int) -> Any = source.itemKey(key).let { { index -> it(index + start) } }
+
+            override fun itemContentType(contentType: ((item: T) -> Any?)?): (Int) -> Any? =
+                source.itemContentType(contentType).let { { index -> it(index + start) } }
+        }
+
         @Immutable
         internal data class ImmutableSuccess<T : Any>(
             private val data: ImmutableList<T>,
@@ -68,6 +92,7 @@ public sealed class PagingState<T> {
             override val appendState: LoadState = LoadState.NotLoading(endOfPaginationReached = true),
             private val onRefresh: suspend () -> Unit = {},
             private val onRetry: () -> Unit = {},
+            override val sourceAppendState: LoadState = appendState,
         ) : Success<T>() {
             override fun get(index: Int): T? = data.getOrNull(index)
 
@@ -94,6 +119,7 @@ public sealed class PagingState<T> {
             private val items: ItemSnapshotList<T>,
             override val isRefreshing: Boolean,
             override val appendState: LoadState,
+            override val sourceAppendState: LoadState,
             private val onRetry: () -> Unit = data::retry,
         ) : Success<T>() {
             override val itemCount: Int
@@ -254,6 +280,7 @@ public fun <T : Any> LazyPagingItems<T>.toPagingState(
             items = itemSnapshotList,
             isRefreshing = isRefreshing,
             appendState = contextLoadStates?.contextFooterState() ?: loadState.append,
+            sourceAppendState = snapshot.source.append,
             onRetry = onRetry,
         )
     } else if (snapshot.initialErrorOrNull() != null) {

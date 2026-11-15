@@ -60,6 +60,32 @@ export function localizedUiString(value: UiStrings): string {
 			return m.profileTabTimelineWithReply();
 		case 'Highlights':
 			return m.profileTabHighlights();
+		case 'Comments':
+			return m.statusDetailComments();
+		case 'ByPopularity':
+			return m.statusDetailByPopularity();
+		case 'ByTime':
+			return m.statusDetailByTime();
+		case 'Replies':
+			return m.statusDetailReplies();
+		case 'Quotes':
+			return m.statusDetailQuotes();
+		case 'Relevance':
+			return m.statusDetailRelevance();
+		case 'Recency':
+			return m.statusDetailRecency();
+		case 'Likes':
+			return m.statusDetailLikes();
+		case 'Oldest':
+			return m.statusDetailOldest();
+		case 'RepostedBy':
+			return m.statusDetailRepostedBy();
+		case 'LikedBy':
+			return m.statusDetailLikedBy();
+		case 'Reactions':
+			return m.statusDetailReactions();
+		case 'AllReactions':
+			return m.statusDetailAllReactions();
 		case 'Reposts':
 			return m.tabSettingsFilterRepost();
 		case 'Articles':

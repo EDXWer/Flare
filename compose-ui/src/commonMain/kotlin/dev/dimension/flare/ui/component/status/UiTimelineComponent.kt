@@ -215,6 +215,7 @@ import dev.dimension.flare.compose.ui.vvo_notification_like
 import dev.dimension.flare.data.datasource.microblog.ActionMenu
 import dev.dimension.flare.data.model.PostActionStyle
 import dev.dimension.flare.model.MicroBlogKey
+import dev.dimension.flare.model.vvoHost
 import dev.dimension.flare.ui.component.AvatarComponentDefaults
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.FlareDividerDefaults
@@ -600,6 +601,7 @@ private fun StatusContent(
             CommonStatusComponent(
                 item = post,
                 isDetail = post.statusKey == detailStatusKey,
+                maxLines = Int.MAX_VALUE.takeIf { detailStatusKey?.host == vvoHost },
                 showReplyTo = presentation.inlineParents.isEmpty(),
                 allowMediaCarousel = true,
                 carouselOuterHorizontalPadding = StatusComponentDefaults.horizontalPadding,

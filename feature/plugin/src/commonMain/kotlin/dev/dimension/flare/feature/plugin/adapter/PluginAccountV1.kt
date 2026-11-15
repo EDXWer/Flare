@@ -215,6 +215,7 @@ private fun PluginAccountCredentialV1.effectiveOperations(plugin: RunningPluginV
                     (
                         capability != PluginAbiV1.Capabilities.ACCOUNT_HTTP &&
                             capability != PluginAbiV1.Capabilities.COMPOSE_V3 &&
+                            (capability != PluginAbiV1.Capabilities.POST || operation !in PluginAbiV1.postContextTabOperations) &&
                             operation !in previousManifest
                     )
             }

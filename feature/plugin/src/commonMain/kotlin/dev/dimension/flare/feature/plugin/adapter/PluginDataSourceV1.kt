@@ -12,6 +12,10 @@ import dev.dimension.flare.data.datasource.microblog.DataSourceCapabilityProvide
 import dev.dimension.flare.data.datasource.microblog.DataSourceCapabilitySet
 import dev.dimension.flare.data.datasource.microblog.MicroblogDataSource
 import dev.dimension.flare.data.datasource.microblog.PostCapability
+import dev.dimension.flare.data.datasource.microblog.PostDetailFilter
+import dev.dimension.flare.data.datasource.microblog.PostDetailFilterOption
+import dev.dimension.flare.data.datasource.microblog.PostDetailTab
+import dev.dimension.flare.data.datasource.microblog.PostDetailTabs
 import dev.dimension.flare.data.datasource.microblog.PostEvent
 import dev.dimension.flare.data.datasource.microblog.ProfileCapability
 import dev.dimension.flare.data.datasource.microblog.ProfileTab
@@ -31,7 +35,9 @@ import dev.dimension.flare.data.datasource.microblog.intersectMimeTypeConstraint
 import dev.dimension.flare.data.datasource.microblog.loader.PostLoader
 import dev.dimension.flare.data.datasource.microblog.loader.UserLoader
 import dev.dimension.flare.data.datasource.microblog.paging.PagingRequest
+import dev.dimension.flare.data.datasource.microblog.paging.PagingResult
 import dev.dimension.flare.data.datasource.microblog.paging.RemoteLoader
+import dev.dimension.flare.data.datasource.microblog.paging.ShareRepliesLoader
 import dev.dimension.flare.data.datasource.microblog.paging.notSupported
 import dev.dimension.flare.data.model.ProxyRef
 import dev.dimension.flare.data.model.tab.TimelineCandidate
@@ -67,6 +73,8 @@ import dev.dimension.flare.feature.plugin.wire.MutationRequestV1
 import dev.dimension.flare.feature.plugin.wire.MutationResultV1
 import dev.dimension.flare.feature.plugin.wire.PageDirectionV1
 import dev.dimension.flare.feature.plugin.wire.PageV1
+import dev.dimension.flare.feature.plugin.wire.PostContextPageRequestV2
+import dev.dimension.flare.feature.plugin.wire.PostContextTabsV2
 import dev.dimension.flare.feature.plugin.wire.PostV1
 import dev.dimension.flare.feature.plugin.wire.ProfileTimelineRequestV1
 import dev.dimension.flare.feature.plugin.wire.ProfileV1
@@ -149,6 +157,10 @@ internal class PluginDataSourceV1 private constructor(
         }
 
     private val pageRevision = MutableStateFlow(0L)
+    private val supportsPostContextTabs =
+        plugin.installed.manifest.apiVersion >= 2 &&
+            capabilities.canExpose(PluginAbiV1.Capabilities.POST) &&
+            PluginAbiV1.postContextTabOperations.all { capabilities.hasOperation(PluginAbiV1.Capabilities.POST, it) }
 
     override val capabilitySet: DataSourceCapabilitySet by lazy {
         DataSourceCapabilitySet(
@@ -518,6 +530,94 @@ internal class PluginDataSourceV1 private constructor(
                 responseSerializer = PageV1.serializer(TimelineItemV1.serializer()),
                 validate = { page -> page.requireValid { it.requireValid() } },
             )
+        }
+    }
+
+    override suspend fun postDetailTabs(statusKey: MicroBlogKey): PostDetailTabs? {
+        if (!supportsPostContextTabs) return null
+        val key = statusKey.toWire().also(EntityKeyV1::requireValid)
+        val pluginId = plugin.installed.pluginId
+        val result =
+            invoker.invoke(
+                capabilityId = PluginAbiV1.Capabilities.POST,
+                operation = "contextTabs",
+                request = EntityRequestV1(key),
+                requestSerializer = EntityRequestV1.serializer(),
+                responseSerializer = PostContextTabsV2.serializer(),
+                validate = PostContextTabsV2::requireValid,
+            )
+        return PostDetailTabs(
+            tabs =
+                result.tabs.map { tab ->
+                    val filter =
+                        tab.filter?.let { group ->
+                            PostDetailFilter(
+                                options = group.options.map { PostDetailFilterOption(it.id, it.title.toUiText(pluginId)) },
+                                defaultOptionId = group.defaultOptionId,
+                            )
+                        }
+                    PostDetailTab(
+                        id = tab.id,
+                        title = tab.title.toUiText(pluginId),
+                        filter = filter,
+                        loader = { optionId ->
+                            val filterId = optionId ?: filter?.defaultOptionId
+                            require(filterId == null || filter?.options?.any { it.id == filterId } == true) {
+                                "Unknown post context filter option"
+                            }
+                            postContextPageLoader(key, tab.id, filterId)
+                        },
+                    )
+                },
+            replyTabId = result.replyTabId,
+        )
+    }
+
+    private fun postContextPageLoader(
+        key: EntityKeyV1,
+        tabId: String,
+        filterId: String?,
+    ): RemoteLoader<UiTimelineV2> =
+        invoker.timelineLoader(
+            capability = PluginAbiV1.Capabilities.POST,
+            operation = "contextPage",
+            identity = listOf(key.id, key.host, tabId) + listOfNotNull(filterId),
+            directions = capabilities.directions(PluginAbiV1.Capabilities.POST, "contextPage"),
+            load = { pageSize, request ->
+                invoker.invoke(
+                    capabilityId = PluginAbiV1.Capabilities.POST,
+                    operation = "contextPage",
+                    request =
+                        PostContextPageRequestV2(key, tabId, request.toWire(pageSize), filterId)
+                            .also(PostContextPageRequestV2::requireValid),
+                    requestSerializer = PostContextPageRequestV2.serializer(),
+                    responseSerializer = PageV1.serializer(TimelineItemV1.serializer()),
+                    validate = { page -> page.requireValid { it.requireValid() } },
+                )
+            },
+            map = mapper::timelineItem,
+            collapseReplies = false,
+        )
+
+    override fun shareReplies(statusKey: MicroBlogKey): RemoteLoader<UiTimelineV2> {
+        if (!supportsPostContextTabs || capabilities.hasOperation(PluginAbiV1.Capabilities.POST, "context")) {
+            return super.shareReplies(statusKey)
+        }
+        return object : RemoteLoader<UiTimelineV2> {
+            private var source: RemoteLoader<UiTimelineV2>? = null
+
+            override suspend fun load(
+                pageSize: Int,
+                request: PagingRequest,
+            ): PagingResult<UiTimelineV2> {
+                val loader =
+                    source ?: run {
+                        val details = postDetailTabs(statusKey)
+                        val replies = details?.tabs?.firstOrNull { it.id == details.replyTabId }
+                        replies?.let { ShareRepliesLoader(it.loader(it.filter?.defaultOptionId), statusKey) } ?: notSupported()
+                    }.also { source = it }
+                return loader.load(pageSize, request)
+            }
         }
     }
 

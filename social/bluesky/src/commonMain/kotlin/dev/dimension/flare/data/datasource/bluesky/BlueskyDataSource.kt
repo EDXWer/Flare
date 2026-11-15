@@ -12,11 +12,13 @@ import app.bsky.bookmark.DeleteBookmarkRequest
 import app.bsky.embed.ImagesImage
 import app.bsky.embed.Record
 import app.bsky.feed.GetPostsQueryParams
+import app.bsky.feed.GetQuotesSort
 import app.bsky.feed.Post
 import app.bsky.feed.PostEmbedUnion
 import app.bsky.feed.PostReplyRef
 import app.bsky.richtext.FacetFeatureUnion
 import app.bsky.unspecced.GetPopularFeedGeneratorsQueryParams
+import app.bsky.unspecced.GetPostThreadV2Sort
 import com.atproto.moderation.CreateReportRequest
 import com.atproto.moderation.CreateReportRequestSubjectUnion
 import com.atproto.moderation.Token
@@ -36,6 +38,10 @@ import dev.dimension.flare.data.datasource.microblog.DatabaseUpdater
 import dev.dimension.flare.data.datasource.microblog.DirectMessageDataSource
 import dev.dimension.flare.data.datasource.microblog.NotificationFilter
 import dev.dimension.flare.data.datasource.microblog.NotificationTimelineDataSource
+import dev.dimension.flare.data.datasource.microblog.PostDetailFilter
+import dev.dimension.flare.data.datasource.microblog.PostDetailFilterOption
+import dev.dimension.flare.data.datasource.microblog.PostDetailTab
+import dev.dimension.flare.data.datasource.microblog.PostDetailTabs
 import dev.dimension.flare.data.datasource.microblog.PostEvent
 import dev.dimension.flare.data.datasource.microblog.ProfileTab
 import dev.dimension.flare.data.datasource.microblog.SearchOperation
@@ -86,6 +92,7 @@ import dev.dimension.flare.ui.model.UiProfile
 import dev.dimension.flare.ui.model.UiStrings
 import dev.dimension.flare.ui.model.UiText
 import dev.dimension.flare.ui.model.UiTimelineV2
+import dev.dimension.flare.ui.model.asText
 import dev.dimension.flare.ui.model.mapper.blueskyLike
 import dev.dimension.flare.ui.model.mapper.blueskyReblog
 import dev.dimension.flare.ui.model.mapper.bskyJson
@@ -281,13 +288,77 @@ internal class BlueskyDataSource(
         onlyMedia = mediaOnly,
     )
 
-    override fun context(statusKey: MicroBlogKey) =
-        StatusDetailRemoteMediator(
-            statusKey,
-            getService = this::pdsService,
-            accountKey,
-            statusOnly = false,
+    override fun context(statusKey: MicroBlogKey) = thread(statusKey, GetPostThreadV2Sort.Top)
+
+    private fun thread(
+        statusKey: MicroBlogKey,
+        sort: GetPostThreadV2Sort,
+    ) = StatusDetailRemoteMediator(
+        statusKey,
+        getService = this::pdsService,
+        accountKey,
+        statusOnly = false,
+        sort = sort,
+    )
+
+    override suspend fun postDetailTabs(statusKey: MicroBlogKey): PostDetailTabs {
+        val detail = BlueskyPostDetailLoader(statusKey, accountKey, this::pdsService)
+        val replySorts =
+            listOf(
+                GetPostThreadV2Sort.Top to UiStrings.ByPopularity,
+                GetPostThreadV2Sort.Newest to UiStrings.Recency,
+                GetPostThreadV2Sort.Oldest to UiStrings.Oldest,
+            )
+        val quoteSorts =
+            listOf(
+                GetQuotesSort.Latest to UiStrings.Recency,
+                GetQuotesSort.Top to UiStrings.Likes,
+            )
+        return PostDetailTabs(
+            tabs =
+                listOf(
+                    PostDetailTab(
+                        id = "replies",
+                        title = UiStrings.Replies.asText(),
+                        filter =
+                            PostDetailFilter(
+                                options = replySorts.map { (sort, title) -> PostDetailFilterOption(sort.value, title.asText()) },
+                                defaultOptionId = GetPostThreadV2Sort.Top.value,
+                            ),
+                        includesPostContext = true,
+                        loader = { filterId ->
+                            thread(
+                                statusKey,
+                                replySorts.firstOrNull { (sort, _) -> sort.value == filterId }?.first ?: GetPostThreadV2Sort.Top,
+                            )
+                        },
+                    ),
+                    PostDetailTab(
+                        id = "quotes",
+                        title = UiStrings.Quotes.asText(),
+                        filter =
+                            PostDetailFilter(
+                                options = quoteSorts.map { (sort, title) -> PostDetailFilterOption(sort.value, title.asText()) },
+                                defaultOptionId = GetQuotesSort.Latest.value,
+                            ),
+                        loader = { filterId ->
+                            detail.quotes(quoteSorts.firstOrNull { (sort, _) -> sort.value == filterId }?.first ?: GetQuotesSort.Latest)
+                        },
+                    ),
+                    PostDetailTab(
+                        id = "reposted-by",
+                        title = UiStrings.RepostedBy.asText(),
+                        loader = { detail.repostedBy() },
+                    ),
+                    PostDetailTab(
+                        id = "liked-by",
+                        title = UiStrings.LikedBy.asText(),
+                        loader = { detail.likedBy() },
+                    ),
+                ),
+            replyTabId = "replies",
         )
+    }
 
     override suspend fun publish(
         data: ComposeData,

@@ -17,6 +17,10 @@ import dev.dimension.flare.data.datasource.microblog.DatabaseUpdater
 import dev.dimension.flare.data.datasource.microblog.DirectMessageDataSource
 import dev.dimension.flare.data.datasource.microblog.NotificationFilter
 import dev.dimension.flare.data.datasource.microblog.NotificationTimelineDataSource
+import dev.dimension.flare.data.datasource.microblog.PostDetailFilter
+import dev.dimension.flare.data.datasource.microblog.PostDetailFilterOption
+import dev.dimension.flare.data.datasource.microblog.PostDetailTab
+import dev.dimension.flare.data.datasource.microblog.PostDetailTabs
 import dev.dimension.flare.data.datasource.microblog.PostEvent
 import dev.dimension.flare.data.datasource.microblog.ProfileTab
 import dev.dimension.flare.data.datasource.microblog.SearchOperation
@@ -62,8 +66,12 @@ import dev.dimension.flare.ui.model.UiState
 import dev.dimension.flare.ui.model.UiStrings
 import dev.dimension.flare.ui.model.UiText
 import dev.dimension.flare.ui.model.UiTimelineV2
+import dev.dimension.flare.ui.model.asText
 import dev.dimension.flare.ui.model.contentPostOrNull
+import dev.dimension.flare.ui.model.map
 import dev.dimension.flare.ui.model.mapper.render
+import dev.dimension.flare.ui.model.mapper.renderVVOText
+import dev.dimension.flare.ui.model.mapper.withVvoExtendedText
 import dev.dimension.flare.ui.model.toUi
 import dev.dimension.flare.ui.presenter.compose.ComposeStatus
 import kotlinx.collections.immutable.ImmutableList
@@ -73,6 +81,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 
 private val MEDIA_COMPRESSION =
@@ -388,6 +397,55 @@ internal class VVODataSource(
         mediaOnly = mediaOnly,
     )
 
+    override suspend fun postDetailTabs(statusKey: MicroBlogKey): PostDetailTabs {
+        val comments =
+            PostDetailTab(
+                id = "comments",
+                title = UiStrings.Comments.asText(),
+                filter =
+                    PostDetailFilter(
+                        options =
+                            listOf(
+                                PostDetailFilterOption(StatusCommentSort.Hot.id, UiStrings.ByPopularity.asText()),
+                                PostDetailFilterOption(StatusCommentSort.Time.id, UiStrings.ByTime.asText()),
+                            ),
+                        defaultOptionId = StatusCommentSort.Hot.id,
+                    ),
+                loader = { filterId ->
+                    StatusCommentRemoteMediator(
+                        service = service,
+                        accountKey = accountKey,
+                        statusKey = statusKey,
+                        sort = if (filterId == StatusCommentSort.Time.id) StatusCommentSort.Time else StatusCommentSort.Hot,
+                    )
+                },
+            )
+        return PostDetailTabs(
+            tabs =
+                listOf(
+                    comments,
+                    PostDetailTab(id = "reposts", title = UiStrings.Reposts.asText(), loader = { statusRepost(statusKey) }),
+                    PostDetailTab(
+                        id = "liked-by",
+                        title = UiStrings.LikedBy.asText(),
+                        loader = { StatusLikedByLoader(service, accountKey, statusKey) },
+                    ),
+                ),
+            replyTabId = comments.id,
+        )
+    }
+
+    override fun postDetailPost(statusKey: MicroBlogKey): Flow<UiState<UiTimelineV2>> =
+        postHandler.post(statusKey).toUi().combine(statusExtendedText(statusKey)) { status, extendedText ->
+            status.map { item ->
+                if (extendedText is UiState.Success && extendedText.data.isNotBlank()) {
+                    item.withVvoExtendedText(renderVVOText(extendedText.data, accountKey))
+                } else {
+                    item
+                }
+            }
+        }
+
     override fun shareReplies(statusKey: MicroBlogKey): RemoteLoader<UiTimelineV2> =
         ShareRepliesLoader(statusComment(statusKey), statusKey, comments = true)
 
@@ -604,6 +662,7 @@ internal class VVODataSource(
             service = service,
             accountKey = accountKey,
             statusKey = statusKey,
+            sort = null,
         )
 
     fun statusRepost(statusKey: MicroBlogKey): RemoteLoader<UiTimelineV2> =
@@ -630,9 +689,9 @@ internal class VVODataSource(
                 ?: throw Exception("status not found")
         }
 
-    fun statusExtendedText(statusKey: MicroBlogKey): Flow<UiState<String>> =
+    private fun statusExtendedText(statusKey: MicroBlogKey): Flow<UiState<String>> =
         MemCacheable(
-            "status_extended_text_$statusKey",
+            "status_extended_text_${accountKey}_$statusKey",
         ) {
             val st = ensureLogin()
             val response = service.getStatusExtend(statusKey.id, st)

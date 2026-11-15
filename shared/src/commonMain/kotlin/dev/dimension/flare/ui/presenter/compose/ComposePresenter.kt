@@ -721,13 +721,7 @@ public class ComposePresenter(
                             )
                         }
                         selectedAccounts.forEach { account ->
-                            val dataSource =
-                                accountRepository
-                                    .getOrCreateDataSource(account)
-                                    .capabilities
-                                    .compose
-                                    ?: error("Account does not support compose: ${account.accountKey}")
-                            dataSource.compose(data = data) {
+                            accountRepository.publish(account, data) {
                                 // Media upload progress is not surfaced by this web-only entry yet.
                             }
                             current += 1

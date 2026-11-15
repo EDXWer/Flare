@@ -13,7 +13,7 @@ JavaScript methods live under
 | `timeline` | `timeline` | `page` | None | Static timelines, including at least one default |
 | `search` | `search` | At least one search operation | `posts`, `profiles`, `discoverPosts`, `discoverProfiles`, `discoverHashtags` | Each supported operation enables its own section |
 | `profile` | `profile` | `byId`, `byHandle` | `timeline`, `following`, `followers` | Profile lookup; tabs additionally require `timeline` and profileTabs |
-| `post` | `post` | `detail` | `context`, `delete`, `mutate` | Internal post detail, thread context, and supported actions |
+| `post` | `post` | `detail` | `context`, `delete`, `mutate`, `contextTabs` and `contextPage` (API v2 pair) | Internal post detail, thread context, tabbed detail, and supported actions |
 | `relation` | `relation` | `state`, `mutate` | None | Follow/block/mute controls; nonempty static relationActions |
 | `compose/v1` | `compose` | `publish` | None | Legacy new posts and replies via `replyTo`. Requires `composeDefaults` and an account. |
 | `compose/v2` | `compose` | `publish` | None | Typed reply and quote references. Requires `composeDefaults.supportedTypes` and an account. |
@@ -96,6 +96,18 @@ lookup methods. Use this for a minimal read-only feed such as the template.
 
 See [recipes](recipes.md) for every service's inputs, result shape, and adaptation
 points, and [the type declarations](../flare-plugin.d.ts) for full signatures.
+
+## API v2 post detail tabs
+
+Declare `contextTabs` and `contextPage` together under `flare.datasource.post/v1`.
+Implement both methods in `capabilities.post` and include both in account login
+or upgrade negotiation for supported instances. Guests use the manifest
+declaration. `detail` remains required.
+
+`contextTabs` supplies the tabs and optional filters for a particular post.
+`contextPage` loads rows for the selected tab and filter. The host uses the
+legacy `context` operation for detail when the pair is unavailable, and prefers
+it for sharing replies when both are available. [Post detail tab recipe](recipes.md#post-detail-tabs)
 
 ## API v2 account HTTP providers
 
