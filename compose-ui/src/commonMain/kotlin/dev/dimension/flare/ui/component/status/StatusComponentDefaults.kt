@@ -14,6 +14,8 @@ public val LocalStatusBackgroundColor: ProvidableCompositionLocal<Color?> = stat
 
 public object StatusComponentDefaults {
     public val horizontalPadding: Dp = 10.dp
+    internal val cardHorizontalPadding: Dp = 8.dp
+    internal val multiColumnCardHorizontalPadding: Dp = 2.dp
     public val avatarSize: Dp = 48.dp
     public val quotePadding: Dp = 12.dp
     public val topPadding: Dp = 12.dp

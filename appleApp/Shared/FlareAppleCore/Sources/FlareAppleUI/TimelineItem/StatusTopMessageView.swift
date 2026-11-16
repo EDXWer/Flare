@@ -20,10 +20,15 @@ public struct StatusTopMessageView: View {
     #endif
     private let topMessage: UiTimelineV2.Message
     private let alignWithAvatar: Bool
+    private let avatarWidth: CGFloat?
+    private let topMessageOnly: Bool
 
-    public init(topMessage: UiTimelineV2.Message, alignWithAvatar: Bool = false) {
+    public init(topMessage: UiTimelineV2.Message, alignWithAvatar: Bool = false, avatarWidth: CGFloat? = nil,
+                topMessageOnly: Bool = false) {
         self.topMessage = topMessage
         self.alignWithAvatar = alignWithAvatar
+        self.avatarWidth = avatarWidth
+        self.topMessageOnly = topMessageOnly
     }
 
     public var body: some View {
@@ -40,22 +45,23 @@ public struct StatusTopMessageView: View {
             if let user = topMessage.user {
                 RichText(text: user.name)
                     .fontWeight(isPostContent ? .heavy : nil)
+                    .if(isPostContent) { $0.lineLimit(1) }
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let text = topMessage.type.localizedText {
                 Text(text)
                     .flarePrimaryText()
                     .fixedSize(horizontal: false, vertical: true)
-                    .layoutPriority(isPostContent ? 1 : 0)
+                    .layoutPriority(isPostContent && !topMessageOnly ? 1 : 0)
             }
         }
         .if(isPostContent) { view in
-            view.font(.body).lineSpacing(1)
+            view.font(.body).lineSpacing(1).flareSecondaryText()
         }
         .onTapGesture {
             topMessage.onClicked(ClickContext(launcher: AppleUriLauncher(openUrl: openURL)))
         }
-        .padding(.leading, alignWithAvatar ? max(0, isPostContent ? 48 - postIconWidth : 44 - iconSize) : 0)
+        .padding(.leading, alignWithAvatar ? max(0, (avatarWidth ?? (isPostContent ? 48 : 44)) - (isPostContent ? postIconWidth : iconSize)) : 0)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

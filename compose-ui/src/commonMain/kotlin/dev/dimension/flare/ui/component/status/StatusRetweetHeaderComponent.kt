@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.TextStyle
@@ -30,10 +31,12 @@ internal fun StatusRetweetHeaderComponent(
     textStyle: TextStyle = PlatformTheme.typography.caption,
     isPost: Boolean = false,
     color: androidx.compose.ui.graphics.Color = PlatformContentColor.current,
+    standalone: Boolean = false,
 ) {
     val density = LocalDensity.current
     val iconSize = if (isPost) with(density) { textStyle.fontSize.toDp() } else textStyle.fontSize.value.dp
     val halfCapHeight = with(density) { (textStyle.fontSize.toPx() * 0.35f).roundToInt() }
+    val spacing = 8.dp
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
@@ -48,7 +51,22 @@ internal fun StatusRetweetHeaderComponent(
             tint = color,
         )
         if (user != null) {
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(spacing))
+            val nameWidthModifier =
+                if (standalone) {
+                    Modifier.layout { measurable, constraints ->
+                        val maxWidth =
+                            if (constraints.hasBoundedWidth) {
+                                ((constraints.maxWidth - spacing.roundToPx()) / 2).coerceAtLeast(constraints.minWidth)
+                            } else {
+                                constraints.maxWidth
+                            }
+                        val name = measurable.measure(constraints.copy(maxWidth = maxWidth))
+                        layout(name.width, name.height) { name.placeRelative(0, 0) }
+                    }
+                } else {
+                    Modifier.weight(1f, fill = false)
+                }
             RichText(
                 text = user.name,
                 layoutDirection = LocalLayoutDirection.current,
@@ -56,12 +74,12 @@ internal fun StatusRetweetHeaderComponent(
                 modifier =
                     Modifier
                         .alignByBaseline()
-                        .weight(1f, fill = false),
+                        .then(nameWidthModifier),
                 maxLines = 1,
                 color = color,
             )
         }
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(spacing))
         PlatformText(
             text = text,
             style = textStyle,

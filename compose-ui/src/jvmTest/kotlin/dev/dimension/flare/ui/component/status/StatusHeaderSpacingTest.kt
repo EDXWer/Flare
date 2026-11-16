@@ -3,8 +3,11 @@ package dev.dimension.flare.ui.component.status
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,12 +40,15 @@ import compose.icons.FontAwesomeIcons
 import compose.icons.fontawesomeicons.Solid
 import compose.icons.fontawesomeicons.solid.Retweet
 import dev.dimension.flare.data.model.IconType
+import dev.dimension.flare.data.model.TimelineDisplayMode
 import dev.dimension.flare.data.model.VideoAutoplay
 import dev.dimension.flare.data.model.appearance.TimelineAppearance
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.component.LocalNetworkImageAllowHardware
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
+import dev.dimension.flare.ui.component.platform.LocalWindowSizeClass
 import dev.dimension.flare.ui.component.platform.PlatformTextStyle
+import dev.dimension.flare.ui.component.platform.WindowSizeClass
 import dev.dimension.flare.ui.humanizer.PlatformFormatter
 import dev.dimension.flare.ui.model.ClickEvent
 import dev.dimension.flare.ui.model.TranslationDisplayState
@@ -75,6 +81,7 @@ import java.nio.file.Files
 import javax.imageio.ImageIO
 import kotlin.math.ceil
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
@@ -326,7 +333,7 @@ class StatusHeaderSpacingTest {
                 "full-width-handle" to FontWeight.Normal,
                 "compact-handle" to FontWeight.Normal,
                 "reposted" to FontWeight.Normal,
-                "Profile name" to FontWeight.Normal,
+                "Profile name" to FontWeight.ExtraBold,
             )
         for ((text, expectedWeight) in expectedWeights) {
             val layouts = mutableListOf<TextLayoutResult>()
@@ -346,6 +353,208 @@ class StatusHeaderSpacingTest {
                     }.toSet()
             assertEquals(setOf(expectedWeight), weights, text)
         }
+    }
+
+    @Test
+    fun timelineRowsShareThePostInsetsAndMessageStyle() {
+        val avatar =
+            previewAvatar
+                .toPath()
+                .toUri()
+                .toString()
+                .toUiImage()
+        val author =
+            createSampleUser().copy(
+                nameInternal = "Alex Rivera".toUiPlainText(),
+                handle = UiHandle("alex", "x.com", displayOverride = "@alex"),
+                avatar = avatar,
+            )
+        val post =
+            createSampleStatus(author).copy(
+                content = UiTranslatableText("A quiet afternoon at the coast.".toUiPlainText()),
+                images = persistentListOf(),
+            )
+        val mei = author.copy(nameInternal = "Mei Chen".toUiPlainText(), handle = UiHandle("mei", "x.com", displayOverride = "@mei"))
+        val repost =
+            UiTimelineV2.Message(
+                user = author.copy(nameInternal = "Sam Lee".toUiPlainText()),
+                statusKey = post.statusKey,
+                icon = UiIcon.Retweet,
+                type = UiTimelineV2.Message.Type.Raw("reposted"),
+                createdAt = post.createdAt,
+                clickEvent = ClickEvent.Noop,
+                accountType = post.accountType,
+            )
+        val rows =
+            listOf(
+                UiTimelineV2.TimelinePostItem(post, UiTimelineV2.PostPresentation(message = repost)),
+                UiTimelineV2.User(
+                    repost.copy(
+                        user = author.copy(nameInternal = "Jordan Kim".toUiPlainText()),
+                        icon = UiIcon.Follow,
+                        type = UiTimelineV2.Message.Type.Raw("followed you"),
+                    ),
+                    mei,
+                    post.createdAt,
+                    post.statusKey,
+                    accountType = post.accountType,
+                ),
+                repost.copy(
+                    user = author.copy(nameInternal = "Flare Team".toUiPlainText()),
+                    icon = UiIcon.Pin,
+                    type = UiTimelineV2.Message.Type.Raw("pinned a post"),
+                ),
+            )
+        var mode by mutableStateOf(TimelineDisplayMode.Plain)
+        compose.setContent {
+            FluentTheme(colors = darkColors()) {
+                CompositionLocalProvider(
+                    LocalTimelineAppearance provides TimelineAppearance(timelineDisplayMode = mode, showPlatformLogo = false),
+                    LocalNetworkImageAllowHardware provides false,
+                    LocalDensity provides Density(1f),
+                    PlatformTextStyle provides PlatformTheme.typography.body,
+                ) {
+                    LazyStatusVerticalStaggeredGrid(
+                        modifier =
+                            Modifier
+                                .width(402.dp)
+                                .height(310.dp)
+                                .background(Color(0xFF101010))
+                                .testTag("timeline"),
+                        columns = StaggeredGridCells.Fixed(1),
+                        allowGalleryMode = true,
+                    ) {
+                        items(rows.size) { index ->
+                            val modifier = Modifier.testTag("row-$index")
+                            if (mode == TimelineDisplayMode.Gallery) {
+                                GalleryTimelineItem(rows[index], modifier)
+                            } else {
+                                AdaptiveCard(modifier, index, rows.size, respectTimelineMode = true) {
+                                    StatusItem(rows[index])
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        val timeline = compose.onNodeWithTag("timeline")
+        val bounds = timeline.fetchSemanticsNode().boundsInRoot
+
+        fun userAvatar(handle: String) =
+            compose.onNodeWithContentDescription("Open profile for $handle", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+
+        fun textBounds(text: String) = compose.onNodeWithText(text, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+
+        fun textStyle(text: String): TextStyle {
+            val layouts = mutableListOf<TextLayoutResult>()
+            compose
+                .onNodeWithText(
+                    text,
+                    useUnmergedTree = true,
+                ).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            return layouts.single().layoutInput.style
+        }
+        for ((displayMode, inset) in listOf(TimelineDisplayMode.Plain to 0f, TimelineDisplayMode.Card to 8f)) {
+            compose.runOnIdle { mode = displayMode }
+            for (index in rows.indices) {
+                val row = compose.onNodeWithTag("row-$index", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+                assertEquals(bounds.left + inset, row.left, 0.1f)
+                assertEquals(bounds.right - inset, row.right, 0.1f)
+            }
+            val avatarBounds = userAvatar("@mei")
+            assertEquals(bounds.left + inset + 10, avatarBounds.left, 0.1f)
+            assertEquals(bounds.left + inset + 10, userAvatar("@alex").left, 0.1f)
+            assertEquals(avatarBounds.center.y, (textBounds("Mei Chen").top + textBounds("@mei").bottom) / 2, 1f)
+            assertEquals(FontWeight.ExtraBold, textStyle("Mei Chen").fontWeight)
+            for (name in listOf("Jordan Kim", "Flare Team")) {
+                assertEquals(textStyle("Sam Lee").fontSize, textStyle(name).fontSize)
+                assertEquals(textStyle("Sam Lee").color, textStyle(name).color)
+                assertEquals(FontWeight.ExtraBold, textStyle(name).fontWeight)
+            }
+            System.getenv("FLARE_TIMELINE_PREVIEW_DIR")?.let { path ->
+                val pixels = timeline.captureToImage().toPixelMap()
+                val image = BufferedImage(pixels.width, pixels.height, BufferedImage.TYPE_INT_ARGB)
+                for (y in 0 until pixels.height) for (x in 0 until pixels.width) image.setRGB(x, y, pixels[x, y].toArgb())
+                ImageIO.write(image, "png", File(path, "desktop-${displayMode.name.lowercase()}.png"))
+            }
+        }
+        compose.runOnIdle { mode = TimelineDisplayMode.Gallery }
+        val galleryTile = compose.onNodeWithTag("row-0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        assertEquals(bounds.left + 16, galleryTile.left, 0.1f)
+    }
+
+    @Test
+    fun adaptivePlainTimelineUsesCardsOnlyWhenTwoLanesFit() {
+        var width by mutableStateOf(650.dp)
+        var windowSize by mutableStateOf(WindowSizeClass.Medium)
+        compose.setContent {
+            FluentTheme {
+                CompositionLocalProvider(
+                    LocalTimelineAppearance provides TimelineAppearance(timelineDisplayMode = TimelineDisplayMode.Plain),
+                    LocalWindowSizeClass provides windowSize,
+                    LocalDensity provides Density(1f),
+                ) {
+                    LazyStatusVerticalStaggeredGrid(modifier = Modifier.width(width).height(100.dp)) {
+                        items(2) { index ->
+                            AdaptiveCard(index = index, totalCount = 2, respectTimelineMode = true) {
+                                Box(Modifier.fillMaxWidth().height(24.dp).testTag("lane-$index"))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        fun bounds(index: Int) = compose.onNodeWithTag("lane-$index").fetchSemanticsNode().boundsInRoot
+        assertEquals(0f, bounds(0).left, 0.1f)
+        assertTrue(bounds(1).top >= bounds(0).bottom)
+
+        compose.runOnIdle { width = 660.dp }
+        assertEquals(8f, bounds(0).left, 0.1f)
+        assertEquals(652f, bounds(1).right, 0.1f)
+        assertEquals(bounds(0).top, bounds(1).top, 0.1f)
+
+        compose.runOnIdle {
+            width = 402.dp
+            windowSize = WindowSizeClass.Expanded
+        }
+        assertEquals(0f, bounds(0).left, 0.1f)
+        assertTrue(bounds(1).top >= bounds(0).bottom)
+    }
+
+    @Test
+    fun standaloneTimelineMessageKeepsItsActorWhenTheBodyWraps() {
+        val name = "Flare Team"
+        val body = "Pinned a post about the next community meetup, with registration details and directions to the venue."
+        val post = samplePost()
+        val message =
+            UiTimelineV2.Message(
+                user = checkNotNull(post.user).copy(nameInternal = name.toUiPlainText()),
+                statusKey = post.statusKey,
+                icon = UiIcon.Pin,
+                type = UiTimelineV2.Message.Type.Raw(body),
+                createdAt = post.createdAt,
+                clickEvent = ClickEvent.Noop,
+                accountType = post.accountType,
+            )
+        compose.setContent {
+            FluentTheme {
+                CompositionLocalProvider(
+                    LocalTimelineAppearance provides TimelineAppearance(),
+                    LocalDensity provides Density(1f),
+                    PlatformTextStyle provides PlatformTheme.typography.body,
+                ) {
+                    StatusItem(message, modifier = Modifier.width(240.dp))
+                }
+            }
+        }
+
+        val actor = compose.onNodeWithText(name, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        assertTrue(actor.width > 40f, "The actor should keep room for a readable name, width was ${actor.width}")
+        val layouts = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText(body, useUnmergedTree = true).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        assertTrue(layouts.single().lineCount > 1, "The body should wrap inside the 240dp row")
     }
 
     @Test

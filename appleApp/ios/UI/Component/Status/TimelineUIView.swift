@@ -1,5 +1,6 @@
 import UIKit
 import KotlinSharedUI
+import FlareAppleUI
 
 /// UIKit port of `TimelineView`. Manual frame-based layout.
 final class TimelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightProviding {
@@ -225,7 +226,7 @@ final class TimelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightProvid
                 showTranslate: showTranslate,
                 aiTldrEnabled: aiTldrEnabled,
                 allowsMediaCarousel: true,
-                carouselOuterHorizontalPadding: 10
+                carouselOuterHorizontalPadding: TimelineHorizontalInsets.content
             )
             desired.append(statusView)
 
@@ -249,7 +250,7 @@ final class TimelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightProvid
                 inlineParents: Array(item.presentation.inlineParents),
                 quotes: Array(item.presentation.quotes),
                 allowsMediaCarousel: true,
-                carouselOuterHorizontalPadding: 10
+                carouselOuterHorizontalPadding: TimelineHorizontalInsets.content
             )
             desired.append(statusView)
 
@@ -417,13 +418,13 @@ final class TimelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightProvid
     private func configureMessage(_ message: UiTimelineV2.Message, topMessageOnly: Bool, isPost: Bool = false) {
         messageView.onOpenURL = onOpenURL
         messageView.configure(message: message, topMessageOnly: topMessageOnly,
-                              postTextContentSizeCategory: isPost ? appearance.preferredContentSizeCategory : nil)
+                              postTextContentSizeCategory: appearance.preferredContentSizeCategory)
 
         let leading: CGFloat
         if !appearance.fullWidthPost && !topMessageOnly {
-            let traits = isPost ? UITraitCollection(preferredContentSizeCategory: appearance.preferredContentSizeCategory) : traitCollection
-            let iconSize = UIFontMetrics(forTextStyle: isPost ? .body : .caption1).scaledValue(for: 15, compatibleWith: traits)
-            leading = (isPost ? 48 : 44) - iconSize
+            let traits = UITraitCollection(preferredContentSizeCategory: appearance.preferredContentSizeCategory)
+            let iconSize = UIFontMetrics(forTextStyle: .body).scaledValue(for: 15, compatibleWith: traits)
+            leading = max(0, (isPost ? 48 : 44) - iconSize)
         } else {
             leading = 0
         }

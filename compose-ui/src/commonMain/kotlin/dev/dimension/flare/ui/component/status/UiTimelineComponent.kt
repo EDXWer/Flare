@@ -215,6 +215,7 @@ import dev.dimension.flare.compose.ui.timeline_retry_missing_posts
 import dev.dimension.flare.compose.ui.vvo_notification_like
 import dev.dimension.flare.data.datasource.microblog.ActionMenu
 import dev.dimension.flare.data.model.PostActionStyle
+import dev.dimension.flare.data.model.TimelineDisplayMode
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.model.vvoHost
 import dev.dimension.flare.ui.component.AvatarComponentDefaults
@@ -244,12 +245,14 @@ internal fun UiTimelineComponent(
     modifier: Modifier = Modifier,
     detailStatusKey: MicroBlogKey? = null,
 ) {
+    val isGallery = LocalEffectiveTimelineDisplayMode.current == TimelineDisplayMode.Gallery
+    val horizontalPadding = if (isGallery) screenHorizontalPadding else StatusComponentDefaults.horizontalPadding
     when (item) {
         is UiTimelineV2.Gap -> {
             PlatformButton(
                 onClick = { item.onActivate?.invoke {} },
                 enabled = !item.loading,
-                modifier = modifier.fillMaxWidth().padding(8.dp),
+                modifier = modifier.fillMaxWidth().padding(horizontal = if (isGallery) 8.dp else horizontalPadding, vertical = 8.dp),
             ) {
                 dev.dimension.flare.ui.component.platform.PlatformText(
                     stringResource(
@@ -283,9 +286,7 @@ internal fun UiTimelineComponent(
             UserContent(
                 item,
                 modifier =
-                    Modifier
-                        .padding(horizontal = screenHorizontalPadding)
-                        .padding(vertical = 8.dp),
+                    modifier.padding(horizontal = horizontalPadding, vertical = 8.dp),
             )
         }
 
@@ -293,9 +294,7 @@ internal fun UiTimelineComponent(
             UserListContent(
                 data = item,
                 modifier =
-                    Modifier
-                        .padding(horizontal = screenHorizontalPadding)
-                        .padding(vertical = 8.dp),
+                    modifier.padding(horizontal = horizontalPadding, vertical = 8.dp),
             )
         }
 
@@ -311,9 +310,8 @@ internal fun UiTimelineComponent(
                 data = item,
                 topMessageOnly = true,
                 modifier =
-                    Modifier
-                        .padding(horizontal = screenHorizontalPadding)
-                        .padding(vertical = 8.dp)
+                    modifier
+                        .padding(horizontal = horizontalPadding, vertical = 8.dp)
                         .fillMaxWidth(),
             )
         }
@@ -628,6 +626,7 @@ private fun TopMessageComponent(
     isPost: Boolean = false,
 ) {
     val appearance = LocalTimelineAppearance.current
+    val usePostStyle = isPost || LocalEffectiveTimelineDisplayMode.current != TimelineDisplayMode.Gallery
     val uriHandler = LocalUriHandler.current
     val icon = data.icon.toImageVector()
     val text: String? =
@@ -763,9 +762,10 @@ private fun TopMessageComponent(
             icon = icon,
             user = data.user,
             text = text,
-            isPost = isPost,
+            isPost = usePostStyle,
+            standalone = topMessageOnly && usePostStyle,
             color =
-                if (isPost) {
+                if (usePostStyle) {
                     StatusComponentDefaults.secondaryColor
                 } else if (topMessageOnly) {
                     PlatformContentColor.current
@@ -773,7 +773,7 @@ private fun TopMessageComponent(
                     PlatformTheme.colorScheme.caption
                 },
             textStyle =
-                if (isPost) {
+                if (usePostStyle) {
                     PlatformTheme.typography.postBody
                 } else if (topMessageOnly) {
                     PlatformTextStyle.current
@@ -794,13 +794,14 @@ private fun TopMessageComponent(
                         if (!appearance.fullWidthPost && !topMessageOnly) {
                             it.padding(
                                 start =
-                                    if (isPost) {
+                                    if (usePostStyle) {
                                         val iconSize =
                                             with(LocalDensity.current) {
                                                 PlatformTheme.typography.postBody.fontSize
                                                     .toDp()
                                             }
-                                        (StatusComponentDefaults.avatarSize - iconSize).coerceAtLeast(0.dp)
+                                        val avatarSize = if (isPost) StatusComponentDefaults.avatarSize else AvatarComponentDefaults.size
+                                        (avatarSize - iconSize).coerceAtLeast(0.dp)
                                     } else {
                                         AvatarComponentDefaults.size - PlatformTheme.typography.caption.fontSize.value.dp
                                     },
@@ -808,8 +809,8 @@ private fun TopMessageComponent(
                         } else {
                             it
                         }
-                    }.fillMaxWidth()
-                    .then(modifier),
+                    }.then(modifier)
+                    .fillMaxWidth(),
         )
     }
 }

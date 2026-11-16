@@ -237,6 +237,7 @@ internal fun GalleryCommentsScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = contentPadding,
                 forceCardMode = true,
+                cardGridPadding = screenHorizontalPadding,
             ) {
                 status(state.comments)
             }
@@ -543,6 +544,7 @@ private fun GallerySideBar(
                             contentPadding = PaddingValues(vertical = 8.dp),
                             modifier = Modifier.fillMaxSize(),
                             forceCardMode = true,
+                            cardGridPadding = screenHorizontalPadding,
                         ) {
                             status(comments)
                         }

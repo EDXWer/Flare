@@ -29,11 +29,11 @@ public struct VVOCommentScreen: View {
             }
             .listRowSeparator(.hidden)
             .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
-            .padding(.horizontal, 16)
+            .padding(.horizontal, TimelineHorizontalInsets.content)
             .padding(.vertical, 8)
             .flareTextBackground(.flareSystemGroupedBackground)
             .listRowBackground(Color.clear)
-            TimelinePagingListContent(data: presenter.state.list, usesDefaultHorizontalPadding: true)
+            TimelinePagingListContent(data: presenter.state.list)
         }
         .detectScrolling()
         .scrollContentBackground(.hidden)

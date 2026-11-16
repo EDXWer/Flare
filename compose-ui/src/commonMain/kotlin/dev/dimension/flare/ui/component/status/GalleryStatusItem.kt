@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.dimension.flare.compose.ui.Res
 import dev.dimension.flare.compose.ui.feed_open_article
+import dev.dimension.flare.data.model.TimelineDisplayMode
 import dev.dimension.flare.data.model.VideoAutoplay
 import dev.dimension.flare.ui.component.AvatarComponent
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
@@ -81,7 +82,9 @@ public fun GalleryTimelineItem(
                         .clip(GalleryTileShape)
                         .background(PlatformTheme.colorScheme.card),
             ) {
-                StatusItem(item = item)
+                CompositionLocalProvider(LocalEffectiveTimelineDisplayMode provides TimelineDisplayMode.Gallery) {
+                    StatusItem(item = item)
+                }
             }
         }
     }

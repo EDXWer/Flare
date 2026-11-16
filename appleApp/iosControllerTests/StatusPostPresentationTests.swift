@@ -82,7 +82,7 @@ final class StatusPostPresentationTests: XCTestCase {
         XCTAssertEqual(icon.frame.midY, view.bounds.midY, accuracy: 0.5)
     }
 
-    func testRepostSpacingAndColorsAreScopedToPostsAndRestoreOnReuse() throws {
+    func testTimelineHeadersSharePostColorsAndKeepTheirRowSpacingOnReuse() throws {
         let row = try XCTUnwrap(makeTimelineTestRow(1, mediaCount: 0, textRepeatCount: 0) as? UiTimelineV2.TimelinePostItem)
         let profile = try XCTUnwrap(row.post.user)
         let message = UiTimelineV2.Message(user: profile, statusKey: row.post.statusKey, icon: .retweet,
@@ -95,10 +95,8 @@ final class StatusPostPresentationTests: XCTestCase {
         let user = UiTimelineV2.User(message: message, value: profile, createdAt: row.post.createdAt,
                                      statusKey: row.post.statusKey, button: [], accountType: row.post.accountType, itemKey: "user")
         let view = TimelineUIView()
-        let cases: [(UiTimelineV2, CGFloat, UIColor)] = [
-            (post, 2, .flarePostSecondaryLabel), (user, 8, .secondaryLabel), (post, 2, .flarePostSecondaryLabel)
-        ]
-        for (data, spacing, color) in cases {
+        let cases: [(UiTimelineV2, CGFloat)] = [(post, 2), (user, 8), (post, 2)]
+        for (data, spacing) in cases {
             view.configure(data: data)
             view.prepareForFitting(width: 370)
             view.frame = CGRect(x: 0, y: 0, width: 370, height: try XCTUnwrap(view.timelineHeight(for: 370)))
@@ -110,9 +108,9 @@ final class StatusPostPresentationTests: XCTestCase {
             let suffix = try XCTUnwrap(messageView.subviews.compactMap { $0 as? UILabel }.first)
             let name = try XCTUnwrap(messageView.subviews.compactMap { $0 as? RichTextUIView }.first)
             let icon = try XCTUnwrap(messageView.subviews.compactMap { $0 as? UIImageView }.first)
-            XCTAssertEqual(suffix.textColor, color)
-            XCTAssertEqual(name.baseTextColor, color)
-            XCTAssertEqual(icon.tintColor, color)
+            XCTAssertEqual(suffix.textColor, .flarePostSecondaryLabel)
+            XCTAssertEqual(name.baseTextColor, .flarePostSecondaryLabel)
+            XCTAssertEqual(icon.tintColor, .flarePostSecondaryLabel)
         }
     }
 
@@ -213,6 +211,103 @@ final class StatusPostPresentationTests: XCTestCase {
                 if let listHeight { XCTAssertEqual(height, listHeight) } else { listHeight = height }
             }
         }
+    }
+
+    func testTimelineRowsSharePostInsetsAndMessageStyle() async throws {
+        let fixture = try XCTUnwrap(makeTimelineTestRow(1, mediaCount: 0) as? UiTimelineV2.TimelinePostItem)
+        let fixtureUser = try XCTUnwrap(fixture.post.user)
+        let avatarURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).png")
+        defer { try? FileManager.default.removeItem(at: avatarURL) }
+        let avatarImage = UIGraphicsImageRenderer(size: CGSize(width: 48, height: 48)).image { context in
+            UIColor(red: 91 / 255, green: 128 / 255, blue: 165 / 255, alpha: 1).setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 48, height: 48))
+        }
+        try XCTUnwrap(avatarImage.pngData()).write(to: avatarURL)
+        let avatar = UiMediaImage(url: avatarURL.absoluteString, previewUrl: avatarURL.absoluteString, description: nil,
+                                  height: 48, width: 48, sensitive: false, customHeaders: nil, proxy: ProxyRef.Unbound.shared)
+        func profile(_ handle: String, _ name: String) -> UiProfile {
+            UiProfile(key: MicroBlogKey(id: handle, host: "example.org"),
+                handle: UiHandle(raw: handle, host: "example.org", displayOverride: "@\(handle)"),
+                avatar: avatar, nameInternal: replyPost(handle, text: name).content.original,
+                platformId: fixtureUser.platformId, platformIcon: fixtureUser.platformIcon, clickEvent: ClickEventNoop.shared,
+                banner: nil, description: nil, sourceLanguages: [], translationDisplayState: .hidden,
+                matrices: fixtureUser.matrices, mark: [], bottomContent: nil, pluginId: nil, clearedMarks: [])
+        }
+        let createdAt = KotlinInstant.companion.fromEpochMilliseconds(
+            epochMilliseconds: Int64((Date().timeIntervalSince1970 - 300) * 1_000)).toUi()
+        let post = replyPost("alex", text: "A quiet afternoon at the coast.", user: profile("alex", "Alex Rivera"),
+                            replyToHandle: nil, actions: Array(fixture.post.actions), createdAt: createdAt)
+        func message(_ id: String, _ name: String, _ icon: UiIcon, _ text: String) -> UiTimelineV2.Message {
+            UiTimelineV2.Message(user: profile(id, name), statusKey: post.statusKey, icon: icon,
+                type: UiTimelineV2.MessageTypeRaw(content: text), createdAt: fixture.post.createdAt,
+                clickEvent: ClickEventNoop.shared, accountType: post.accountType, itemKey: id)
+        }
+        let repost = UiTimelineV2.TimelinePostItem(post: post, presentation: UiTimelineV2.PostPresentation(
+            message: message("sam", "Sam Lee", .retweet, "reposted"), inlineParents: [], quotes: [], repost: nil, notificationKey: nil),
+            itemKey: "repost")
+        let user = UiTimelineV2.User(message: message("jordan", "Jordan Kim", .follow, "followed you"), value: profile("mei", "Mei Chen"),
+            createdAt: post.createdAt, statusKey: post.statusKey, button: [], accountType: post.accountType, itemKey: "user")
+        var input = TimelineContent()
+        input.state = .loaded
+        input.items = [.post(repost), .post(user), .post(message("flare", "Flare Team", .pin, "pinned a post"))]
+
+        let helper = TimelinePresentationAppearancePatchHelper.shared
+        let layouts: [(TimelineDisplayMode, CGFloat, String)] = [(.plain, 0, "plain"), (.card, 8, "card")]
+        for (mode, outerInset, name) in layouts {
+            let controller = UITimelineCollectionViewController(detailStatusKey: nil)
+            let appearance = helper.resolve(base: TimelineAppearance.companion.Default,
+                patch: helper.setTimelineDisplayMode(patch: helper.empty, value: mode))
+            controller.appearance = TimelineUIKitAppearance(timeline: appearance)
+            controller.loadViewIfNeeded()
+            controller.view.frame = CGRect(x: 0, y: 0, width: 402, height: 310)
+            controller.view.overrideUserInterfaceStyle = .dark
+            let collection = try XCTUnwrap(descendants(controller.view).compactMap { $0 as? TimelineCollectionView }.first)
+            collection.contentInsetAdjustmentBehavior = .never
+            controller.submit(input, columns: 1)
+            for _ in 0..<50 {
+                controller.view.layoutIfNeeded()
+                collection.layoutIfNeeded()
+                if collection.visibleCells.count == 3 { break }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            let cells = collection.visibleCells
+            XCTAssertEqual(cells.count, 3)
+            for cell in cells {
+                XCTAssertEqual(cell.frame.minX, outerInset, accuracy: 0.5)
+                XCTAssertEqual(cell.frame.maxX, 402 - outerInset, accuracy: 0.5)
+                let item = try XCTUnwrap(descendants(cell).compactMap { $0 as? TimelineUIView }.first)
+                XCTAssertEqual(item.convert(item.bounds, to: cell).minX, 10, accuracy: 0.5)
+            }
+            let people = try XCTUnwrap(descendants(collection).compactMap { $0 as? UserCompatUIView }.first)
+            XCTAssertEqual(people.name.superview?.center.y ?? 0, people.avatar.center.y, accuracy: 0.5)
+            XCTAssertEqual(people.name.baseTextWeight, .heavy)
+            let headers = descendants(collection).compactMap { $0 as? StatusTopMessageUIView }
+            XCTAssertEqual(headers.count, 3)
+            for header in headers {
+                let name = try XCTUnwrap(header.subviews.compactMap { $0 as? RichTextUIView }.first)
+                XCTAssertEqual(name.baseTextWeight, .heavy)
+                XCTAssertEqual(name.baseTextColor, .flarePostSecondaryLabel)
+                XCTAssertGreaterThan(name.bounds.width, 40)
+            }
+
+            try await Task.sleep(for: .milliseconds(150))
+            let image = UIGraphicsImageRenderer(size: controller.view.bounds.size).image { context in
+                controller.view.layer.render(in: context.cgContext)
+            }
+            let attachment = XCTAttachment(image: image)
+            attachment.name = "ios-\(name)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+
+        let longMessage = StatusTopMessageUIView()
+        longMessage.configure(message: message("long", "Flare Team", .pin, "pinned a post about the next community meetup"),
+                              topMessageOnly: true, postTextContentSizeCategory: .medium)
+        longMessage.frame = CGRect(x: 0, y: 0, width: 240, height: try XCTUnwrap(longMessage.timelineHeight(for: 240)))
+        longMessage.layoutIfNeeded()
+        let label = try XCTUnwrap(longMessage.subviews.compactMap { $0 as? UILabel }.first)
+        XCTAssertGreaterThan(label.bounds.height, label.font.lineHeight)
+        XCTAssertLessThanOrEqual(label.frame.maxX, longMessage.bounds.maxX + 1)
     }
 
     func testActionOutsetsRemainTappableThroughTheEntireTimelineCell() throws {
@@ -337,7 +432,7 @@ final class StatusPostPresentationTests: XCTestCase {
     private func replyPost(_ id: String, text: String = "Reply body", user: UiProfile? = nil,
                            replyToHandle: String? = "@context", images: [UiMedia] = [], actions: [ActionMenu] = [],
                            translationDisplayState: TranslationDisplayState = .hidden,
-                           visibility: UiTimelineV2.PostVisibility? = nil) -> UiTimelineV2.Post {
+                           visibility: UiTimelineV2.PostVisibility? = nil, createdAt: UiDateTime? = nil) -> UiTimelineV2.Post {
         let style = RenderTextStyle(link: nil, bold: false, italic: false, strikethrough: false,
                                     monospace: false, code: false, underline: false, small: false, time: false, imageLink: nil)
         let rich = UiRichText(renderRuns: text.isEmpty ? [] : [RenderContent.Text(runs: [RenderRun.Text(text: text, style: style)], block: RenderBlockStyle())],
@@ -346,7 +441,7 @@ final class StatusPostPresentationTests: XCTestCase {
                                 user: user, platformIcon: IconType.Material(icon: .world), sourceLanguages: [], translationDisplayState: translationDisplayState,
                                 content: UiTranslatableText(original: rich, translation: nil), actions: actions, poll: nil,
                                 statusKey: MicroBlogKey(id: id, host: "example.invalid"), card: nil,
-                                createdAt: KotlinInstant.companion.fromEpochMilliseconds(epochMilliseconds: 0).toUi(),
+                                createdAt: createdAt ?? KotlinInstant.companion.fromEpochMilliseconds(epochMilliseconds: 0).toUi(),
                                 emojiReactions: [], sourceChannel: nil, visibility: visibility, replyToHandle: replyToHandle,
                                 references: [], clickEvent: ClickEventNoop.shared, mediaClickPolicy: .openStatusMedia,
                                 accountType: AccountType.Guest.shared, itemKey: id, pluginId: nil, authorSubtitleInternal: nil)

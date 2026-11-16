@@ -158,7 +158,7 @@ final class TimelineUIKitCollectionViewCell: UICollectionViewCell {
     ) {
         let timelineView = resolvedTimelineView()
         let timelineCard = resolvedTimelineCard()
-        let horizontalPadding: CGFloat = data.timelineContentPost == nil ? 16 : 10
+        let horizontalPadding = TimelineHorizontalInsets.content
         timelinePaddingStorage?.insets = UIEdgeInsets(top: data.timelineContentPost == nil ? 8 : 12, left: horizontalPadding, bottom: data.timelineContentPost == nil ? 8 : 6, right: horizontalPadding)
         timelineView.onLocalHeightInvalidated = { [weak self] in
             self?.handleLocalTimelineHeightInvalidated()
@@ -277,7 +277,7 @@ final class TimelineUIKitCollectionViewCell: UICollectionViewCell {
         }
 
         if hostedView === timelineCardStorage {
-            let cardWrapperWidth: CGFloat = timelineCardStorage?.isMultipleColumn == true ? 4 : 0
+            let cardWrapperWidth = timelineCardStorage?.isMultipleColumn == true ? 2 * TimelineHorizontalInsets.multiColumnCard : 0
             let insets = timelinePaddingStorage?.insets ?? .zero
             timelineViewStorage?.prepareForFitting(width: max(width - cardWrapperWidth - insets.left - insets.right, 1))
         }

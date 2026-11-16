@@ -5,6 +5,13 @@ import KotlinSharedUI
 import AppKit
 #endif
 
+public enum TimelineHorizontalInsets {
+    public static let content: CGFloat = 10
+    public static let card: CGFloat = 8
+    public static let multiColumnCard: CGFloat = 2
+    public static let multiColumnGrid = card - multiColumnCard
+}
+
 public struct AdaptiveTimelineCard<Content: View>: View {
     @Environment(\.timelineAppearance.timelineDisplayMode) private var timelineDisplayMode
     @Environment(\.isMultipleColumn) private var isMultipleColumn
@@ -27,13 +34,13 @@ public struct AdaptiveTimelineCard<Content: View>: View {
             ListCardView(index: index, totalCount: totalCount) {
                 content()
             }
-            .padding(.horizontal, 2)
+            .padding(.horizontal, TimelineHorizontalInsets.multiColumnCard)
             .padding(.vertical, 6)
         } else if !(timelineDisplayMode == .plain) {
             ListCardView(index: index, totalCount: totalCount) {
                 content()
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, TimelineHorizontalInsets.card)
         } else {
             VStack(spacing: 0) {
                 content()

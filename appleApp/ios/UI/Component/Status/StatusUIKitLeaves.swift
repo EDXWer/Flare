@@ -482,7 +482,7 @@ final class UserCompatUIView: UIStackView {
         super.init(frame: frame)
         axis = .horizontal
         spacing = 8
-        alignment = .top
+        alignment = .center
 
         name.lineLimit = 1
         name.setContentHuggingPriority(.required, for: .horizontal)
@@ -530,7 +530,6 @@ final class UserCompatUIView: UIStackView {
     func configure(data: UiProfile, subtitle: String? = nil, trailing: UIView?, onClicked: (() -> Void)?,
                    postTextContentSizeCategory: UIContentSizeCategory? = nil) {
         avatar.set(media: data.avatar)
-        alignment = postTextContentSizeCategory == nil ? .top : .center
         if let category = postTextContentSizeCategory {
             avatarSizeConstraints.forEach { $0.constant = 48 }
             name.configure(text: data.name, lineLimit: 1, isTextSelectionEnabled: false, onOpenURL: nil,
@@ -540,7 +539,7 @@ final class UserCompatUIView: UIStackView {
             handleLabel.setPostText(subtitle ?? data.handle.display, preferredContentSizeCategory: category)
         } else {
             avatarSizeConstraints.forEach { $0.constant = 44 }
-            name.configure(text: data.name, lineLimit: 1, isTextSelectionEnabled: false, onOpenURL: nil)
+            name.configure(text: data.name, lineLimit: 1, isTextSelectionEnabled: false, onOpenURL: nil, baseTextWeight: .heavy)
             handleLabel.attributedText = nil
             handleLabel.adjustsFontForContentSizeCategory = true
             handleLabel.traitOverrides.remove(UITraitPreferredContentSizeCategory.self)

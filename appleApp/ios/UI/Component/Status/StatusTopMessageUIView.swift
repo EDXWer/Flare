@@ -70,7 +70,7 @@ final class StatusTopMessageUIView: UIView, ManualLayoutMeasurable, TimelineHeig
                 ? .flarePostSecondaryLabel : (topMessageOnly ? .flareLabel : .secondaryLabel)
             nameView.text = user.name
             nameView.onOpenURL = onOpenURL
-            nameView.lineLimit = topMessageOnly ? nil : 1
+            nameView.lineLimit = topMessageOnly && postTextContentSizeCategory == nil ? nil : 1
             nameView.fixedVertical = true
         } else {
             nameView.isHidden = true
@@ -147,12 +147,14 @@ final class StatusTopMessageUIView: UIView, ManualLayoutMeasurable, TimelineHeig
         let visibleName = !nameView.isHidden
         let visibleText = !textLabel.isHidden
         let contentWidth = max(width, 1)
-        let reservedTextWidth = visibleText && !topMessageOnly
+        let remainingWidth = max(contentWidth - iconSize - spacing * 2, 0)
+        let keepsRoomForText = visibleText && (!topMessageOnly || postTextContentSizeCategory != nil)
+        let reservedTextWidth = keepsRoomForText
             ? min(ceil(textLabel.sizeThatFits(CGSize(width: CGFloat.greatestFiniteMagnitude,
                                                    height: CGFloat.greatestFiniteMagnitude)).width),
-                  max(contentWidth - iconSize - spacing * 2 - 1, 0)) : 0
+                  topMessageOnly ? remainingWidth / 2 : max(remainingWidth - 1, 0)) : 0
         let nameWidth = visibleName ? preferredNameWidth(maxWidth: max(contentWidth - iconSize - spacing
-            - (visibleText && !topMessageOnly ? reservedTextWidth + spacing : 0), 1)) : 0
+            - (keepsRoomForText ? reservedTextWidth + spacing : 0), 1)) : 0
         let nameHeight = visibleName ? childHeight(of: nameView, for: max(nameWidth, 1)) : 0
         let nameBaselineOffset = visibleName ? preferredTextFont().ascender : 0
 

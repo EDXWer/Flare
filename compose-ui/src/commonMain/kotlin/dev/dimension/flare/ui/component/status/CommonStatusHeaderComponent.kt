@@ -16,7 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.dimension.flare.compose.ui.Res
@@ -26,11 +25,9 @@ import dev.dimension.flare.ui.component.AvatarComponent
 import dev.dimension.flare.ui.component.AvatarComponentDefaults
 import dev.dimension.flare.ui.component.RichText
 import dev.dimension.flare.ui.component.platform.PlatformText
-import dev.dimension.flare.ui.component.platform.PlatformTextStyle
 import dev.dimension.flare.ui.model.ClickContext
 import dev.dimension.flare.ui.model.ClickEvent
 import dev.dimension.flare.ui.model.UiProfile
-import dev.dimension.flare.ui.theme.PlatformContentColor
 import dev.dimension.flare.ui.theme.PlatformTheme
 import org.jetbrains.compose.resources.stringResource
 
@@ -71,13 +68,8 @@ public fun CommonStatusHeaderComponent(
         headlineContent = {
             RichText(
                 text = data.name,
-                color = if (isPost) StatusComponentDefaults.contentColor else PlatformContentColor.current,
-                textStyle =
-                    if (isPost) {
-                        PlatformTheme.typography.postBody.copy(fontWeight = FontWeight.ExtraBold)
-                    } else {
-                        PlatformTextStyle.current
-                    },
+                color = profileNameColor(isPost),
+                textStyle = profileNameTextStyle(isPost),
                 modifier =
                     nameModifier.profileTextClick(data.key, onUserClick),
                 maxLines = 1,

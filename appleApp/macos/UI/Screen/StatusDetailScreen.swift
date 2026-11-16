@@ -27,7 +27,7 @@ struct StatusDetailScreen: View {
                 ForEach(Array(header.enumerated()), id: \.element.stableItemKey) { index, item in
                     AdaptiveTimelineCard(index: index, totalCount: header.count) {
                         TimelineView(data: item, detailStatusKey: statusKey)
-                            .padding(.horizontal, 16)
+                            .padding(.horizontal, TimelineHorizontalInsets.content)
                             .padding(.vertical, 8)
                     }
                     .timelineReadingItem(item)

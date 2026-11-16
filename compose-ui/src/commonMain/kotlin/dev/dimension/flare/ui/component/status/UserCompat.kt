@@ -8,11 +8,14 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.dimension.flare.compose.ui.Res
 import dev.dimension.flare.compose.ui.profile_open_user
+import dev.dimension.flare.data.model.TimelineDisplayMode
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.component.AvatarComponent
 import dev.dimension.flare.ui.component.AvatarComponentDefaults
@@ -71,13 +74,8 @@ public fun UserCompat(
             ) {
                 RichText(
                     text = name,
-                    color = if (isPost) StatusComponentDefaults.contentColor else PlatformContentColor.current,
-                    textStyle =
-                        if (isPost) {
-                            PlatformTheme.typography.postBody.copy(fontWeight = FontWeight.ExtraBold)
-                        } else {
-                            PlatformTextStyle.current
-                        },
+                    color = profileNameColor(isPost),
+                    textStyle = profileNameTextStyle(isPost),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.alignByBaseline().then(nameModifier),
@@ -93,5 +91,24 @@ public fun UserCompat(
             }
             trailing.invoke(this)
         }
+    }
+}
+
+@Composable
+internal fun profileNameTextStyle(isPost: Boolean): TextStyle {
+    val style = if (isPost) PlatformTheme.typography.postBody else PlatformTextStyle.current
+    return if (!isPost && LocalEffectiveTimelineDisplayMode.current == TimelineDisplayMode.Gallery) {
+        style
+    } else {
+        style.copy(fontWeight = FontWeight.ExtraBold)
+    }
+}
+
+@Composable
+internal fun profileNameColor(isPost: Boolean): Color {
+    if (isPost) return StatusComponentDefaults.contentColor
+    return when (LocalEffectiveTimelineDisplayMode.current) {
+        TimelineDisplayMode.Plain, TimelineDisplayMode.Card -> PlatformTheme.colorScheme.text
+        else -> PlatformContentColor.current
     }
 }
