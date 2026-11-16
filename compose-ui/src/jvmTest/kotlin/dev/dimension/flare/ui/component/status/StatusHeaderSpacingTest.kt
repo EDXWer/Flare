@@ -23,6 +23,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -39,6 +40,7 @@ import dev.dimension.flare.data.model.IconType
 import dev.dimension.flare.data.model.VideoAutoplay
 import dev.dimension.flare.data.model.appearance.TimelineAppearance
 import dev.dimension.flare.model.MicroBlogKey
+import dev.dimension.flare.ui.component.LocalNetworkImageAllowHardware
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
 import dev.dimension.flare.ui.component.platform.PlatformTextStyle
 import dev.dimension.flare.ui.humanizer.PlatformFormatter
@@ -160,7 +162,7 @@ class StatusHeaderSpacingTest {
             dispose()
         }
         ImageIO.write(asset, "png", file)
-        val url = file.toURI().toString()
+        val url = file.toPath().toUri().toString()
         val body = "友達作るための行動したことないから当然の帰結だけど"
         val quoteBody = "文字と画像の間隔をそろえる。\n引用の内側にも余白を残す。"
         val sample =
@@ -195,6 +197,7 @@ class StatusHeaderSpacingTest {
                 bodyStyle = PlatformTheme.typography.postBody
                 CompositionLocalProvider(
                     LocalTimelineAppearance provides TimelineAppearance(fullWidthPost = false, showPlatformLogo = true),
+                    LocalNetworkImageAllowHardware provides false,
                     LocalStatusBackgroundColor provides Color.Black,
                     LocalDensity provides Density(1f),
                 ) {
@@ -210,19 +213,14 @@ class StatusHeaderSpacingTest {
                 }
             }
         }
-        compose.waitUntil(5_000) {
-            compose
-                .onAllNodesWithContentDescription("Spacing reference media", substring = true, useUnmergedTree = true)
-                .fetchSemanticsNodes()
-                .any { it.boundsInRoot.height > 100 }
+        val mediaNode = compose.onNodeWithContentDescription("Spacing reference media", useUnmergedTree = true)
+        val fill = Color(0xFF2A5B69).toArgb()
+        compose.waitUntil(timeoutMillis = 5_000) {
+            val pixels = mediaNode.captureToImage().toPixelMap()
+            pixels[pixels.width / 2, pixels.height / 2].toArgb() == fill
         }
         val bodyBounds = compose.onNodeWithText(body, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-        val media =
-            compose
-                .onAllNodesWithContentDescription("Spacing reference media", substring = true, useUnmergedTree = true)
-                .fetchSemanticsNodes()
-                .maxBy { it.boundsInRoot.height }
-                .boundsInRoot
+        val media = mediaNode.fetchSemanticsNode().boundsInRoot
         val quoteText = compose.onNodeWithText(quoteBody, useUnmergedTree = true).fetchSemanticsNode()
         val quoteFrame =
             generateSequence(quoteText.layoutInfo.coordinates.parentLayoutCoordinates) { it.parentLayoutCoordinates }
@@ -255,16 +253,11 @@ class StatusHeaderSpacingTest {
                 icons.forEach { assertEquals(bodyStyle.fontSize.value, it.boundsInRoot.height, 0.1f) }
             }
         }
-        val mediaX = media.center.x.toInt()
-        val mediaTop = media.top.toInt()
-        val fill = Color(0xFF2A5B69)
-        compose.waitUntil(5_000) {
-            val pixels = compose.onNodeWithTag("component-spacing").captureToImage().toPixelMap()
-            pixels[mediaX, mediaTop + 1] == fill
-        }
-        val pixels = compose.onNodeWithTag("component-spacing").captureToImage().toPixelMap()
-        assertEquals(Color(0xFFB3B3B3), pixels[mediaX, mediaTop])
+        val mediaPixels = mediaNode.captureToImage().toPixelMap()
+        assertEquals(Color(0xFFB3B3B3).toArgb(), mediaPixels[mediaPixels.width / 2, 0].toArgb(), "Media border")
+        assertEquals(fill, mediaPixels[mediaPixels.width / 2, 1].toArgb(), "First pixel inside the media border")
         System.getenv("FLARE_POST_SCREENSHOT")?.let { path ->
+            val pixels = compose.onNodeWithTag("component-spacing").captureToImage().toPixelMap()
             val directory = File(path).parentFile.apply { mkdirs() }
             val screenshot = BufferedImage(pixels.width, pixels.height, BufferedImage.TYPE_INT_ARGB)
             for (y in 0 until pixels.height) for (x in 0 until pixels.width) screenshot.setRGB(x, y, pixels[x, y].toArgb())

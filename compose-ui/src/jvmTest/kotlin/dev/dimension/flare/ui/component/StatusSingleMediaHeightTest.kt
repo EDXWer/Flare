@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -66,13 +67,14 @@ class StatusSingleMediaHeightTest {
     fun mediaOverflowKeepsTheOpaqueBorderOnTheLastTile() {
         val file = Files.createTempFile("grid-media", ".png").toFile().apply { deleteOnExit() }
         ImageIO.write(BufferedImage(20, 20, BufferedImage.TYPE_INT_RGB), "png", file)
-        val uri = file.toURI().toString()
+        val uri = file.toPath().toUri().toString()
         val images = List(10) { UiMedia.Image(uri, uri, "Grid item $it", 20f, 20f, false) }.toImmutableList()
         val post = createSampleStatus(createSampleUser()).copy(images = images)
         compose.setContent {
             FluentTheme {
                 CompositionLocalProvider(
                     LocalTimelineAppearance provides TimelineAppearance(limitMediaGridToNine = true),
+                    LocalNetworkImageAllowHardware provides false,
                     LocalDensity provides Density(1f),
                 ) {
                     Box(Modifier.width(248.dp)) {
@@ -82,18 +84,20 @@ class StatusSingleMediaHeightTest {
                             onMediaClick = {},
                             sensitive = false,
                             shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.testTag("media"),
                         )
                     }
                 }
             }
         }
         compose.onNodeWithText("+1", useUnmergedTree = true).assertIsDisplayed()
-        val grid = compose.onNodeWithTag("media")
-        val origin = grid.fetchSemanticsNode().boundsInRoot.topLeft
-        val tile = compose.onNodeWithContentDescription("Grid item 8", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-        val pixels = grid.captureToImage().toPixelMap()
-        assertEquals(Color(0xFFB3B3B3), pixels[(tile.left - origin.x).toInt(), (tile.center.y - origin.y).toInt()])
+        val tile = compose.onNodeWithContentDescription("Grid item 8", useUnmergedTree = true)
+        compose.waitUntil(timeoutMillis = 5_000) {
+            val pixels = tile.captureToImage().toPixelMap()
+            pixels[pixels.width / 2, pixels.height / 4].toArgb() == Color.Black.toArgb()
+        }
+        val pixels = tile.captureToImage().toPixelMap()
+        assertEquals(Color(0xFFB3B3B3).toArgb(), pixels[pixels.width / 2, 0].toArgb(), "Overflow tile border")
+        assertEquals(Color.Black.toArgb(), pixels[pixels.width / 2, 1].toArgb(), "First pixel inside the overflow tile border")
     }
 
     @Test
