@@ -85,7 +85,7 @@ final class StatusPostPresentationTests: XCTestCase {
         XCTAssertEqual(icon.frame.midY, view.bounds.midY, accuracy: 0.5)
     }
 
-    func testTimelineHeadersSharePostColorsAndKeepTheirRowSpacingOnReuse() throws {
+    func testOnlyStandaloneMessagesUseBodyColorAndKeepTheirSpacingOnReuse() throws {
         let row = try XCTUnwrap(makeTimelineTestRow(1, mediaCount: 0, textRepeatCount: 0) as? UiTimelineV2.TimelinePostItem)
         let profile = try XCTUnwrap(row.post.user)
         let message = UiTimelineV2.Message(user: profile, statusKey: row.post.statusKey, icon: .retweet,
@@ -98,23 +98,26 @@ final class StatusPostPresentationTests: XCTestCase {
         let user = UiTimelineV2.User(message: message, value: profile, createdAt: row.post.createdAt,
                                      statusKey: row.post.statusKey, button: [], accountType: row.post.accountType, itemKey: "user")
         let view = TimelineUIView()
-        let cases: [(UiTimelineV2, CGFloat)] = [(post, 2), (user, 8), (post, 2)]
+        let cases: [(UiTimelineV2, CGFloat?)] = [(post, 2), (message, nil), (user, 8), (post, 2)]
         for (data, spacing) in cases {
             view.configure(data: data)
             view.prepareForFitting(width: 370)
             view.frame = CGRect(x: 0, y: 0, width: 370, height: try XCTUnwrap(view.timelineHeight(for: 370)))
             view.layoutIfNeeded()
             let messageView = try XCTUnwrap(descendants(view).compactMap { $0 as? StatusTopMessageUIView }.first)
-            let container = try XCTUnwrap(messageView.superview)
-            let content = try XCTUnwrap(view.subviews.first { $0 is StatusUIKitView || $0 is TimelineUserUIView })
-            XCTAssertEqual(content.frame.minY - container.frame.maxY, spacing)
+            if let spacing {
+                let container = try XCTUnwrap(messageView.superview)
+                let content = try XCTUnwrap(view.subviews.first { $0 is StatusUIKitView || $0 is TimelineUserUIView })
+                XCTAssertEqual(content.frame.minY - container.frame.maxY, spacing)
+            }
             let suffix = try XCTUnwrap(messageView.subviews.compactMap { $0 as? UILabel }.first)
             let name = try XCTUnwrap(messageView.subviews.compactMap { $0 as? RichTextUIView }.first)
             let icon = try XCTUnwrap(messageView.subviews.compactMap { $0 as? UIImageView }.first)
             let bodyFont = UIFont.preferredFont(forTextStyle: .body, compatibleWith: UITraitCollection(preferredContentSizeCategory: .medium))
             XCTAssertEqual(suffix.font.pointSize, bodyFont.pointSize - (data is UiTimelineV2.TimelinePostItem ? 2 : 0))
-            XCTAssertEqual(suffix.textColor, .flarePostLabel)
-            XCTAssertEqual(name.baseTextColor, .flarePostLabel)
+            let expectedColor: UIColor = data is UiTimelineV2.Message ? .flarePostLabel : .flarePostSecondaryLabel
+            XCTAssertEqual(suffix.textColor, expectedColor)
+            XCTAssertEqual(name.baseTextColor, expectedColor)
             XCTAssertEqual(icon.tintColor, .flarePostSecondaryLabel)
         }
     }
@@ -123,9 +126,9 @@ final class StatusPostPresentationTests: XCTestCase {
         let row = try XCTUnwrap(makeTimelineTestRow(1, mediaCount: 0, textRepeatCount: 0) as? UiTimelineV2.TimelinePostItem)
         let appearance = StatusUIKitAppearance(timeline: TimelineAppearance.companion.Default)
         let cases: [(String, Bool, Bool, CGFloat)] = [
-            ("Reply body", true, false, 8),
-            ("", true, true, 10),
-            ("", true, false, 2),
+            ("Reply body", true, false, 4),
+            ("", true, true, 4),
+            ("", true, false, 4),
             ("", false, true, 10),
         ]
         for (text, includeReply, includeQuote, spacing) in cases {
@@ -148,16 +151,17 @@ final class StatusPostPresentationTests: XCTestCase {
             }
             if includeReply {
                 let reply = try XCTUnwrap(descendants(view).compactMap { $0 as? UILabel }
-                    .first { $0.text == String(localized: "Reply to \("@context")") }?.superview)
-                XCTAssertEqual(reply.frame.minY - header.frame.maxY, spacing)
-                XCTAssertEqual(next.convert(next.bounds, to: view).minY - reply.frame.maxY, spacing)
+                    .first { $0.text == String(localized: "Reply to \("@context")") })
+                let replyFrame = reply.convert(reply.bounds, to: view)
+                XCTAssertEqual(replyFrame.minY - header.frame.maxY, spacing)
+                XCTAssertEqual(next.convert(next.bounds, to: view).minY - replyFrame.maxY, spacing)
             } else {
                 XCTAssertEqual(next.convert(next.bounds, to: view).minY - header.frame.maxY, spacing)
             }
         }
     }
 
-    func testSwiftUIQuoteOnlyReplyUsesItsAttachmentSpacing() throws {
+    func testSwiftUIQuoteOnlyReplyReplacesAttachmentGapWithPaddedReplyRow() throws {
         let row = try XCTUnwrap(makeTimelineTestRow(1, mediaCount: 0, textRepeatCount: 0) as? UiTimelineV2.TimelinePostItem)
         let profile = try XCTUnwrap(row.post.user)
         let quote = replyPost("quote", text: "Quoted text", user: profile, replyToHandle: nil)
@@ -179,7 +183,7 @@ final class StatusPostPresentationTests: XCTestCase {
             Text("Reply to @context")
         }.font(.body))
         let promptHeight = CGFloat(try XCTUnwrap(prompt.cgImage).height)
-        XCTAssertEqual(try height(replyTo: "@context") - height(replyTo: nil), promptHeight + 10, accuracy: 1)
+        XCTAssertEqual(try height(replyTo: "@context") - height(replyTo: nil), promptHeight + 8 - 10, accuracy: 1)
     }
 
     func testPostGeometryUsesTheSameInsetsForLayoutAndMeasurement() throws {
@@ -327,8 +331,11 @@ final class StatusPostPresentationTests: XCTestCase {
             XCTAssertEqual(headers.count, 3)
             for header in headers {
                 let name = try XCTUnwrap(header.subviews.compactMap { $0 as? RichTextUIView }.first)
+                let text = try XCTUnwrap(header.subviews.compactMap { $0 as? UILabel }.first)
+                let expectedColor: UIColor = text.text == "pinned a post" ? .flarePostLabel : .flarePostSecondaryLabel
                 XCTAssertEqual(name.baseTextWeight, .bold)
-                XCTAssertEqual(name.baseTextColor, .flarePostLabel)
+                XCTAssertEqual(name.baseTextColor, expectedColor)
+                XCTAssertEqual(text.textColor, expectedColor)
                 XCTAssertGreaterThan(name.bounds.width, 40)
             }
 

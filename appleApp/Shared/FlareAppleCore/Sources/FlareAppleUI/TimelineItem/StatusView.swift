@@ -27,12 +27,12 @@ public struct StatusView: View {
     @Environment(\.timelineAppearance.compatLinkPreview) private var compatLinkPreview
     @Environment(\.timelineAppearance.showEmojiReactions) private var showEmojiReactions
     @Environment(\.timelineAppearance.postActionStyle) private var postActionStyle
-    @Environment(\.timelineAppearance.postActionLayout) private var postActionLayout
     @Environment(\.timelineAppearance.showPlatformLogo) private var showPlatformLogo
     @Environment(\.timelineAppearance.expandContentWarning) private var expandContentWarning
     @Environment(\.timelineAppearance.lineLimit) private var appearanceLineLimit
     @Environment(\.timelineAppearance.mediaLayout) private var mediaLayout
     @Environment(\.timelineAppearance.aiConfig.agent) private var agentEnabled
+    @Environment(\.timelineGalleryFallback) private var isGalleryFallback
     @Environment(\.translateConfig) private var translateConfig
     @Environment(\.openURL) private var openURL
     @Environment(\.timelineMediaOpenAction) private var timelineMediaOpenAction
@@ -142,6 +142,7 @@ public struct StatusView: View {
         let hasQuotes = !quoteItems.isEmpty
         let showsQuotes = hasQuotes && !isQuote
         let showsCard = card != nil && showMedia && !hasImages && !hasQuotes && showLinkPreview
+        let showsAttachments = showsImages || showsCard || showsQuotes
         let sourceChannelName = data.sourceChannel?.name
         let emojiReactions = Array(data.emojiReactions)
         let hasEmojiReactions = showEmojiReactions && !emojiReactions.isEmpty
@@ -159,27 +160,34 @@ public struct StatusView: View {
         let showsDetailTranslation = isDetail && showTranslate && !data.content.original.isEmpty
         let hasBodyText = contents.contains { !$0.isEmpty }
         let showsPoll = poll != nil && showMedia
-        let hasPreMediaText = replyToHandle != nil || !contentWarningIsEmpty || hasBodyText ||
+        let hasPreMediaText = !contentWarningIsEmpty || hasBodyText ||
             (showsDetailTranslation && !showsPoll)
         let hasBodyAfterReply = !contentWarningIsEmpty || hasBodyText || showsDetailTranslation || showsPoll
         let hasPreMediaBody = replyToHandle != nil || hasBodyAfterReply
-        let firstAttachmentSpacing: CGFloat = hasFullWidthHeader && !hasPreMediaBody ? 8 : 10
-        let showsActions = (postActionStyle != .hidden || isDetail) && !forceHideActions
-        let actionsFollowHeader = hasFullWidthHeader && !isDetail && !hasPreMediaBody &&
-            !showsImages && !showsCard && !showsQuotes && !showsReactions
-        let actionSpacing: CGFloat = actionsFollowHeader ? 8 : 2
-        let bodyTopSpacing: CGFloat = if user == nil {
+        let replyBeforeAttachments = replyToHandle != nil && !isGalleryFallback && !hasBodyAfterReply
+        let replyBeforeFooter = replyBeforeAttachments && !showsAttachments
+        let replyBeforeTimestampOrActions = replyBeforeFooter && !showsReactions
+        let firstAttachmentSpacing: CGFloat = if replyBeforeAttachments {
             0
-        } else if replyToHandle == nil {
-            hasFullWidthHeader || !hasPreMediaText ? 8 : 2
-        } else if !hasBodyAfterReply && (showsImages || showsCard || showsQuotes) {
-            firstAttachmentSpacing
-        } else if !hasBodyAfterReply && !showsReactions && !isDetail && showsActions &&
-            StatusActionsView.applyLayout(postActionLayout, to: actions).contains(where: { $0 is ActionMenu.Item || $0 is ActionMenu.Group }) {
-            actionSpacing
         } else {
-            8
+            hasFullWidthHeader && !hasPreMediaBody ? 8 : 10
         }
+        let replyTopSpacing: CGFloat = if !isGalleryFallback {
+            4
+        } else if user == nil {
+            0
+        } else {
+            !hasBodyAfterReply && showsAttachments ? firstAttachmentSpacing : 8
+        }
+        let replyBottomSpacing: CGFloat = isGalleryFallback ? (hasBodyAfterReply ? 8 : 0) : 4
+        let showsActions = (postActionStyle != .hidden || isDetail) && !forceHideActions
+        let actionsFollowHeader = hasFullWidthHeader && !isDetail && !hasPreMediaBody && !showsAttachments && !showsReactions
+        let actionSpacing: CGFloat = if replyBeforeTimestampOrActions && !isDetail {
+            0
+        } else {
+            actionsFollowHeader ? 8 : 2
+        }
+        let bodyTopSpacing: CGFloat = user == nil || replyToHandle != nil ? 0 : (hasFullWidthHeader || !hasPreMediaText ? 8 : 2)
 
         VStack(
             alignment: .leading,
@@ -280,18 +288,20 @@ public struct StatusView: View {
                                     }
                                 }
                             }
-                            if hasPreMediaBody {
+                            if let replyToHandle {
+                                HStack(spacing: 4) {
+                                    Image(fontAwesome: .reply)
+                                    Text("Reply to \(replyToHandle)", bundle: FlareAppleUILocalization.bundle)
+                                }
+                                .flareSecondaryText()
+                                .padding(.top, replyTopSpacing)
+                                .padding(.bottom, replyBottomSpacing)
+                            }
+                            if hasBodyAfterReply {
                                 VStack(
                                     alignment: .leading,
                                     spacing: 8,
                                 ) {
-                                    if let replyToHandle {
-                                        HStack(spacing: 4) {
-                                            Image(fontAwesome: .reply)
-                                            Text("Reply to \(replyToHandle)", bundle: FlareAppleUILocalization.bundle)
-                                        }
-                                        .flareSecondaryText()
-                                    }
                                     if !contentWarningIsEmpty {
                                         VStack(alignment: .leading, spacing: 8) {
                                             ForEach(Array(contentWarnings.enumerated()), id: \.offset) { _, contentWarning in
@@ -373,7 +383,7 @@ public struct StatusView: View {
                             }
                         }
                         .frame(
-                            minHeight: usesSideAvatarCarousel ? 38 + sideAvatarTopInset : nil,
+                            minHeight: usesSideAvatarCarousel ? 48 + sideAvatarTopInset - firstAttachmentSpacing : nil,
                             alignment: .topLeading
                         )
                     }
@@ -476,14 +486,14 @@ public struct StatusView: View {
                                         StatusReactionView(data: emojiReactions, isDetail: isDetail)
                                     }
                                 }
-                                .padding(.top, 8)
+                                .padding(.top, replyBeforeFooter ? 0 : 8)
                             }
                         }
 
                         if isDetail {
                             DateTimeText(data: createdAt, fullTime: true)
                                 .flareSecondaryText()
-                                .padding(.top, 8)
+                                .padding(.top, replyBeforeTimestampOrActions ? 0 : 8)
                         }
 
                         if showsActions {

@@ -773,7 +773,7 @@ private fun TopMessageComponent(
             standalone = topMessageOnly && usePostStyle,
             isAbovePost = isPost && !isGallery,
             iconColor = iconColor,
-            textColor = if (isGallery) iconColor else StatusComponentDefaults.contentColor,
+            textColor = if (topMessageOnly && !isGallery) StatusComponentDefaults.contentColor else iconColor,
             textStyle =
                 if (usePostStyle) {
                     PlatformTheme.typography.postBody

@@ -7,6 +7,31 @@ import KotlinSharedUI
 
 @MainActor
 final class FlareTextColorIntegrationTests: XCTestCase {
+    func testSwiftUITimelineMessageUsesBodyColorOnlyWhenStandalone() throws {
+        let row = try XCTUnwrap(makeTimelineTestRow(1, mediaCount: 0, textRepeatCount: 0) as? UiTimelineV2.TimelinePostItem)
+        let message = UiTimelineV2.Message(user: nil, statusKey: row.post.statusKey, icon: .retweet,
+            type: UiTimelineV2.MessageTypeRaw(content: "MMMMMMMM"), createdAt: row.post.createdAt,
+            clickEvent: ClickEventNoop.shared, accountType: row.post.accountType, itemKey: nil)
+
+        for standalone in [false, true] {
+            let renderer = ImageRenderer(content:
+                StatusTopMessageView(topMessage: message, topMessageOnly: standalone, isAbovePost: !standalone)
+                    .environment(\.isPostContent, true)
+                    .environment(\.colorScheme, .dark)
+                    .environment(\.layoutDirection, .leftToRight)
+                    .flareTextBackground(.black)
+                    .frame(width: 240)
+                    .background(.black)
+            )
+            renderer.scale = 2
+            let image = try XCTUnwrap(renderer.cgImage)
+            let caption = try XCTUnwrap(image.cropping(to: CGRect(x: 64, y: 0, width: image.width - 64, height: image.height)))
+            let counts = try colorCounts(UIImage(cgImage: caption))
+            let expected = standalone ? 0xD9D9D9 : 0x71767B
+            XCTAssertGreaterThan(counts[expected, default: 0], 20)
+        }
+    }
+
     func testProductionRichTextAndMarkdownUseTheirActualSurface() async throws {
         let (window, root, restoreWindow) = try makeRoot()
         defer { restoreWindow() }
