@@ -112,12 +112,19 @@ struct UITimelineCollectionViewAccessoryItem {
     let view: UIView
     let onVisibilityChanged: ((Bool) -> Void)?
     let pinnedView: UIView?
+    private let hostedRevision: Int?
 
     init(id: String, view: UIView, onVisibilityChanged: ((Bool) -> Void)? = nil, pinnedView: UIView? = nil) {
         self.id = id
         self.view = view
         self.onVisibilityChanged = onVisibilityChanged
         self.pinnedView = pinnedView
+        self.hostedRevision = (view as? TimelineHostedAccessoryView)?.revision
+    }
+
+    func matchesHostedContent(of previous: Self) -> Bool {
+        id == previous.id && view === previous.view && hostedRevision != nil && hostedRevision == previous.hostedRevision &&
+            pinnedView == nil && previous.pinnedView == nil && onVisibilityChanged == nil && previous.onVisibilityChanged == nil
     }
 }
 
@@ -301,9 +308,9 @@ final class UITimelineCollectionViewController: UIViewController, UICollectionVi
     private(set) var columnCount = 1
     var accessoryItems: [UITimelineCollectionViewAccessoryItem] = [] {
         didSet {
-            let oldIDs = oldValue.map { "\(Self.accessoryPrefix)\($0.id)" }
+            if accessoryItems.count == oldValue.count,
+               zip(accessoryItems, oldValue).allSatisfy({ $0.0.matchesHostedContent(of: $0.1) }) { return }
             let newIDs = accessoryItems.map { "\(Self.accessoryPrefix)\($0.id)" }
-            guard !oldIDs.isEmpty || !newIDs.isEmpty else { return }
             for accessory in accessoryItems {
                 (accessory.view as? TimelineHostedAccessoryView)?.onHeightChanged = { [weak self] in
                     guard let self, self.isViewLoaded else { return }
@@ -860,15 +867,12 @@ final class UITimelineCollectionViewController: UIViewController, UICollectionVi
         }
     }
 
-    private func pruneHeightCache(keepingItemIDs: Set<String>) {
-        itemHeightCache.keep(keepingItemIDs)
-    }
-
     private func applyMeasuredHeightCorrection(
         itemID: String,
         renderHash: Int32,
         width: CGFloat,
-        height: CGFloat
+        height: CGFloat,
+        isReusable: Bool = true
     ) {
         guard width > 1, height.isFinite, lastRenderHashMap[itemID] == renderHash else { return }
         let correctedHeight = max(ceil(height), 1)
@@ -877,7 +881,7 @@ final class UITimelineCollectionViewController: UIViewController, UICollectionVi
         if collectionView.hasReadingPosition { collectionView.setNeedsLayout() }
         itemHeightCache.stage(correctedHeight, for: itemID,
                               geometry: heightGeometry(itemID: itemID, width: width),
-                              renderHash: renderHash)
+                              renderHash: renderHash, isReusable: isReusable)
         scheduleHeightCorrectionFlush()
     }
 
@@ -1104,17 +1108,19 @@ final class UITimelineCollectionViewController: UIViewController, UICollectionVi
         if let row = timelineItem(for: itemID) {
             let item = row.data
             cell.accessibilityIdentifier = "timeline-item:\(item.stableItemKey)"
-            cell.cachedPreferredHeight = { [weak self] width in
+            cell.cachedPreferredHeight = { [weak self, weak cell] width in
                 guard let self else { return nil }
                 return self.itemHeightCache.measuredHeight(for: itemID,
-                    geometry: self.heightGeometry(itemID: itemID, width: width), renderHash: item.renderHash)
+                    geometry: self.heightGeometry(itemID: itemID, width: width), renderHash: item.renderHash,
+                    reusableOnly: cell?.hasMeasuredHeight(for: width) != true)
             }
-            cell.onPreferredHeightChanged = { [weak self] width, height in
+            cell.onPreferredHeightChanged = { [weak self, weak cell] width, height in
                 self?.applyMeasuredHeightCorrection(
                     itemID: itemID,
                     renderHash: item.renderHash,
                     width: width,
-                    height: height
+                    height: height,
+                    isReusable: cell?.hasLocalHeightChanges == false && Self.canReuseMeasuredHeight(for: item)
                 )
             }
             cell.configureTimeline(
@@ -1138,6 +1144,18 @@ final class UITimelineCollectionViewController: UIViewController, UICollectionVi
                 isMultipleColumn: columnCount > 1
             )
         }
+    }
+
+    private static func canReuseMeasuredHeight(for item: UiTimelineV2) -> Bool {
+        func isTextOnly(_ post: UiTimelineV2.Post) -> Bool {
+            post.images.isEmpty && post.card == nil && post.poll == nil &&
+                post.content.original.imageUrls.isEmpty && post.content.translation?.imageUrls.isEmpty != false &&
+                post.contentWarning?.original.imageUrls.isEmpty != false && post.contentWarning?.translation?.imageUrls.isEmpty != false
+        }
+
+        guard let post = item.timelineContentPost, isTextOnly(post) else { return false }
+        guard let presented = item as? UiTimelineV2.TimelinePostItem else { return true }
+        return presented.presentation.inlineParents.isEmpty && presented.presentation.quotes.allSatisfy(isTextOnly)
     }
 
     private func configurePlaceholderCell(_ cell: TimelinePlaceholderCollectionViewCell, index: Int, isHeader: Bool) {
@@ -1436,7 +1454,9 @@ final class UITimelineCollectionViewController: UIViewController, UICollectionVi
                 clearHeightCache(keepingItemMeasurements: !kindChanged && contentKind != .profileMedia)
             }
             if previousPlan?.signature.itemIDs != plan.itemIDs || previousPlan?.signature.headerIDs != plan.headerIDs {
-                pruneHeightCache(keepingItemIDs: Set(plan.indexMap.keys).union(plan.headerIDs))
+                // A tab's placeholder snapshot can temporarily omit rows with reusable heights.
+                itemHeightCache.keep(Set(plan.indexMap.keys).union(plan.headerIDs),
+                                     retainingReusableHeights: plan.isInitialLoading && contentKey != nil)
             }
             if previousPlan?.headerIDs != plan.headerIDs {
                 pendingReconfigureIDs.formUnion(plan.headerIndexMap.keys)
@@ -2132,10 +2152,10 @@ final class UITimelineCollectionViewController: UIViewController, UICollectionVi
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        if collectionView.isScrollInteractionActive,
+        if let reading, collectionView.isScrollInteractionActive,
            let (id, offset) = collectionView.captureViewportPosition(),
            let item = timelineItem(for: id)?.data, !item.isPaginationGap, let index = itemIndexMap[id] {
-            reading?.viewportChanged(index: Int32(index), offset: offset)
+            reading.viewportChanged(index: Int32(index), offset: offset)
         }
         updatePinnedHeader()
         if contentKey != nil, collectionView.isScrollInteractionActive {

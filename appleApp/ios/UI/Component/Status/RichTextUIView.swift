@@ -73,6 +73,7 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
     private var naturalStackSizeCache: [Int: CGSize] = [:]
     private var isBatchUpdating = false
     private var lastStructuralSignature: StructuralSignature?
+    private var reusableLabel: RichTextLabel?
     private var traitRegistration: UITraitChangeRegistration?
     private var stackBottomConstraint: NSLayoutConstraint?
     private var collapseAboveLineCount: Int?
@@ -219,10 +220,11 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
         renderGeneration += 1
         loadingInlineImageURLs.removeAll()
         blockImageAspectRatios.removeAll()
-        clearStack()
         needsContentRebuild = true
         renderedWidthKey = nil
-        if !usesCollapsedLayout {
+        if usesCollapsedLayout {
+            clearStack()
+        } else {
             rebuildContent(for: bounds.width)
         }
         invalidateIntrinsicContentSize()
@@ -241,6 +243,7 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
 
     private func rebuildContent(for width: CGFloat) {
         clearStack()
+        defer { reusableLabel = nil }
         needsContentRebuild = false
         renderedWidthKey = Self.measurementWidthKey(width)
 
@@ -272,6 +275,11 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
     }
 
     private func clearStack() {
+        if text == nil {
+            reusableLabel = nil
+        } else if reusableLabel == nil {
+            reusableLabel = textBlocks.lazy.compactMap { $0.renderer as? RichTextLabel }.first
+        }
         textBlocks = []
         measurementBlocks = []
         collapsedPreviewHeight = nil
@@ -1106,7 +1114,8 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
     }
 
     private func makeLabel(attributedText: NSAttributedString, alignment: NSTextAlignment) -> RichTextLabel {
-        let label = RichTextLabel()
+        let label = reusableLabel ?? RichTextLabel()
+        reusableLabel = nil
         label.configure(
             attributedText: attributedText,
             alignment: alignment,
