@@ -12,6 +12,28 @@ final class MacStatusActionAnimationTests: XCTestCase {
             swiftPlatformTextRenderer: PlatformTextRenderer.shared, swiftOnDeviceAI: FoundationModelOnDeviceAI.shared)
     }()
 
+    func testRichDisplayNameFontsPreserveInlineStyles() throws {
+        func style(italic: Bool = false, monospace: Bool = false, link: String? = nil) -> RenderTextStyle {
+            RenderTextStyle(link: link, bold: false, italic: italic, strikethrough: false, monospace: monospace,
+                            code: false, underline: false, small: false, time: false, imageLink: nil)
+        }
+
+        let link = "https://example.org/alex"
+        let content = RenderContent.Text(runs: [
+            RenderRun.Text(text: "👩🏽‍💻 ", style: style()),
+            RenderRun.Text(text: "Alex", style: style(italic: true, link: link)),
+            RenderRun.Text(text: " Rivera", style: style(monospace: true)),
+        ], block: RenderBlockStyle())
+        let block = try XCTUnwrap(PlatformTextRenderer.shared.render(renderRuns: [content]).first as? PlatformTextTextContent)
+        let run = try XCTUnwrap(block.runs.first as? PlatformTextAttributedRun)
+        let name = run.text(usingDisplayNameFont: .title3)
+        let runs = Array(name.runs)
+
+        XCTAssertEqual(String(name.characters), "👩🏽‍💻 Alex Rivera")
+        XCTAssertEqual(runs.map(\.font), [nil, Font.title3.weight(.bold).italic(), Font.title3.weight(.bold).monospaced()])
+        XCTAssertEqual(runs[1].link, URL(string: link))
+    }
+
     func testTimelineAndDetailActionsShareTheirAppearance() async throws {
         let fixture = try Fixture(actions: actions())
         defer { fixture.close() }

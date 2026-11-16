@@ -38,8 +38,8 @@ public struct UserOnelineView<TrailingContent: View>: View {
                     }
             }
             HStack(spacing: 4) {
-                RichText(text: data.name)
-                    .fontWeight(isPostContent || !isGalleryFallback ? .heavy : nil)
+                RichText(text: data.name, usesDisplayNameFont: !isGalleryFallback)
+                    .fontWeight(isGalleryFallback ? (isPostContent ? .heavy : nil) : .bold)
                 Text(subtitle)
                     .font(isPostContent ? .body : .caption)
                     .flareSecondaryText()

@@ -224,8 +224,8 @@ public struct CommonProfileHeader: View {
             alignment: .leading,
             spacing: 8
         ) {
-            RichText(text: user.name)
-                .font(.headline)
+            RichText(text: user.name, usesDisplayNameFont: true)
+                .font(.title3.weight(.bold))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
             HStack {

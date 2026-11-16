@@ -280,12 +280,12 @@ final class StatusPostPresentationTests: XCTestCase {
             }
             let people = try XCTUnwrap(descendants(collection).compactMap { $0 as? UserCompatUIView }.first)
             XCTAssertEqual(people.name.superview?.center.y ?? 0, people.avatar.center.y, accuracy: 0.5)
-            XCTAssertEqual(people.name.baseTextWeight, .heavy)
+            XCTAssertEqual(people.name.baseTextWeight, .bold)
             let headers = descendants(collection).compactMap { $0 as? StatusTopMessageUIView }
             XCTAssertEqual(headers.count, 3)
             for header in headers {
                 let name = try XCTUnwrap(header.subviews.compactMap { $0 as? RichTextUIView }.first)
-                XCTAssertEqual(name.baseTextWeight, .heavy)
+                XCTAssertEqual(name.baseTextWeight, .bold)
                 XCTAssertEqual(name.baseTextColor, .flarePostSecondaryLabel)
                 XCTAssertGreaterThan(name.bounds.width, 40)
             }

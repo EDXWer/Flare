@@ -4,34 +4,44 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertLeftPositionInRootIsEqualTo
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.dimension.flare.data.model.appearance.TimelineAppearance
 import dev.dimension.flare.ui.model.UiHandle
 import dev.dimension.flare.ui.model.createSampleUser
+import dev.dimension.flare.ui.render.toUiPlainText
+import dev.dimension.flare.ui.theme.PlatformTheme
 import io.github.composefluent.FluentTheme
 import org.junit.Rule
 import org.junit.Test
+import kotlin.test.assertEquals
 
 class CommonProfileHeaderTest {
     @get:Rule
     val compose = createComposeRule()
 
     @Test
-    fun profileHeaderUsesAndUpdatesTheDisplayHandle() {
+    fun profileHeaderShowsALargerBoldNameAndUpdatesTheDisplayHandle() {
         val user = createSampleUser()
+        val name = "Alex Rivera"
         var handle by mutableStateOf(UiHandle("bsky.app", "bsky.social", displayOverride = "@bsky.app"))
+        var expectedSize = 0f
 
         compose.setContent {
             FluentTheme {
                 CompositionLocalProvider(LocalTimelineAppearance provides TimelineAppearance()) {
+                    expectedSize = PlatformTheme.typography.title.fontSize.value + 2
                     CommonProfileHeader(
                         banner = null,
                         avatar = null,
-                        displayName = user.name,
+                        displayName = name.toUiPlainText(),
                         userKey = user.key,
                         handle = handle,
                     )
@@ -39,6 +49,11 @@ class CommonProfileHeaderTest {
             }
         }
 
+        val layouts = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText(name, useUnmergedTree = true).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        val style = layouts.single().layoutInput.style
+        assertEquals(expectedSize, style.fontSize.value)
+        assertEquals(FontWeight.Bold, style.fontWeight)
         compose.onNodeWithText("@bsky.app").assertIsDisplayed()
         compose.onNodeWithText("@bsky.app@bsky.social").assertDoesNotExist()
         compose.runOnIdle { handle = handle.copy(displayOverride = "@updated.example") }
