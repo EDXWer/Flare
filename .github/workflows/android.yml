@@ -305,9 +305,17 @@ jobs:
             -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testLongPostExpandsDownwardFromItsPreview \
             -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testContentWarningRevealsTextDownward \
             -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testLongPostExpansionKeepsTimelineColumns \
+            -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testReboundTimelineCellUsesTheMatchingCachedHeight \
+            -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testExpandedHeightCanLayOutTheCurrentRowWithoutBeingReusedByAnotherCell \
+            -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testDetailAccessoryReusesItsHostUntilTheSelectedFilterChanges \
+            -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testDetailTabsFollowThePostWhileCommentsAreLoading \
+            -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testSortingCommentsKeepsTheMeasuredHeightOfAStillLoadedComment \
+            -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testSortingCommentsDiscardsTheExpandedHeightOfAnOffscreenComment \
+            -only-testing:TimelineControllerTests/RichTextUIViewTests/testPlainCommentReusesItsLabelWhenTheTextIsReplaced \
             -only-testing:TimelineControllerTests/TimelineRefreshAnimationTests \
             -only-testing:TimelineControllerTests/FlareTextColorTests \
             -only-testing:TimelineControllerTests/FlareTextColorIntegrationTests \
+            -only-testing:TimelineControllerTests/DateTimeTextTests \
             -only-testing:TimelineControllerTests/StatusShareTests \
             -only-testing:TimelineControllerTests/TimelineMediaPreviewTests/testSwiftUIMediaKeepsItsInitialHeightWhenLazyRowsAppearAndReturn \
             -only-testing:TimelineControllerTests/TimelineMediaPreviewTests/testSwiftUIMediaIgnoresPlaybackViewportAndChromeInsetsButRespondsToResize \

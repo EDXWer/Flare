@@ -674,12 +674,12 @@ final class TimelineMediaPreviewTests: XCTestCase {
         }
     }
 
-    private func singleMediaPost(_ media: UiMedia, sensitive: Bool = false) -> UiTimelineV2.Post {
+    private func singleMediaPost(_ media: UiMedia, sensitive: Bool = false, authorName: UiRichText? = nil) -> UiTimelineV2.Post {
         func rich(_ text: String) -> UiRichText {
             let style = RenderTextStyle(link: nil, bold: false, italic: false, strikethrough: false, monospace: false, code: false, underline: false, small: false, time: false, imageLink: nil)
             return UiRichText(renderRuns: [RenderContent.Text(runs: [RenderRun.Text(text: text, style: style)], block: RenderBlockStyle())], isRtl: false, raw: text, innerText: text, imageUrls: [])
         }
-        let profile = UiProfile(key: MicroBlogKey(id: "demo", host: "example.invalid"), handle: UiHandle(raw: "flare", host: "example.invalid", displayOverride: nil), avatar: nil as UiMediaImage?, nameInternal: rich("Flare"), platformId: "mastodon", platformIcon: IconType.Material(icon: .world), clickEvent: ClickEventNoop.shared, banner: nil, description: nil, sourceLanguages: [], translationDisplayState: .hidden, matrices: UiProfile.Matrices(fansCount: 0, followsCount: 0, statusesCount: 0, platformFansCount: nil), mark: [], bottomContent: nil, pluginId: nil, clearedMarks: [])
+        let profile = UiProfile(key: MicroBlogKey(id: "demo", host: "example.invalid"), handle: UiHandle(raw: "flare", host: "example.invalid", displayOverride: nil), avatar: nil as UiMediaImage?, nameInternal: authorName ?? rich("Flare"), platformId: "mastodon", platformIcon: IconType.Material(icon: .world), clickEvent: ClickEventNoop.shared, banner: nil, description: nil, sourceLanguages: [], translationDisplayState: .hidden, matrices: UiProfile.Matrices(fansCount: 0, followsCount: 0, statusesCount: 0, platformFansCount: nil), mark: [], bottomContent: nil, pluginId: nil, clearedMarks: [])
         return UiTimelineV2.Post(platformId: "mastodon", images: [media], sensitive: sensitive, contentWarning: nil, user: profile, platformIcon: IconType.Material(icon: .world), sourceLanguages: [], translationDisplayState: .hidden, content: UiTranslatableText(original: rich("Single attachment · expanded media\nAligned with the post content"), translation: nil), actions: [], poll: nil, statusKey: MicroBlogKey(id: "media-layout", host: "example.invalid"), card: nil, createdAt: KotlinInstant.companion.fromEpochMilliseconds(epochMilliseconds: 0).toUi(), emojiReactions: [], sourceChannel: nil, visibility: nil, replyToHandle: nil, references: [], clickEvent: ClickEventNoop.shared, mediaClickPolicy: .openStatusMedia, accountType: AccountType.Guest.shared, itemKey: "media-layout", pluginId: nil, authorSubtitleInternal: nil)
     }
 
@@ -798,17 +798,24 @@ final class TimelineMediaPreviewTests: XCTestCase {
     }
 
     func testRichTextInlineImagesDecodeAtDisplaySizeOnBothRenderers() async throws {
-        for kind in ["uikit", "swiftui"] {
+        for kind in ["uikit", "swiftui", "repost-header"] {
             let fixture = try await Fixture()
             KingfisherManager.shared.defaultOptions += [.requestModifier(AnyModifier { request in
                 var request = request
                 request.setValue("fixture", forHTTPHeaderField: "X-Preview-Test")
                 return request
             })]
-            let url = fixture.media(path: "inline-\(kind).png").previewUrl
+            let media = fixture.media(path: "inline-\(kind).png")
+            let url = media.previewUrl
+            let isPostHeader = kind == "repost-header"
+            let expectedHeight: CGFloat = isPostHeader ? 45 : 51
             let processor = ImageDownsamplingProcessor(
-                pixelSize: CGSize(width: CGFloat.greatestFiniteMagnitude, height: 51), fillsBounds: false)
-            let largeHeight: CGFloat = kind == "uikit" ? 159 : 144
+                pixelSize: CGSize(width: CGFloat.greatestFiniteMagnitude, height: expectedHeight), fillsBounds: false)
+            let largeHeight: CGFloat = switch kind {
+            case "uikit": 159
+            case "repost-header": 138
+            default: 144
+            }
             let largeProcessor = ImageDownsamplingProcessor(
                 pixelSize: CGSize(width: CGFloat.greatestFiniteMagnitude, height: largeHeight), fillsBounds: false)
             let text = UiRichText(renderRuns: [RenderContent.Text(runs: [RenderRun.Image(url: url, alt: "emoji", proxy: ProxyRef.Global.shared)],
@@ -830,9 +837,24 @@ final class TimelineMediaPreviewTests: XCTestCase {
                     view.prepareForFitting(width: 200)
                 }
             } else {
+                let post = isPostHeader ? singleMediaPost(media, authorName: text) : nil
+                let message = post.map { post in
+                    UiTimelineV2.Message(user: post.user, statusKey: post.statusKey, icon: .retweet,
+                        type: UiTimelineV2.MessageTypeRaw(content: "Reposted"), createdAt: post.createdAt,
+                        clickEvent: ClickEventNoop.shared, accountType: post.accountType, itemKey: nil)
+                }
                 func content(_ size: DynamicTypeSize) -> some View {
-                    RichText(text: text).environment(\.displayScale, 3)
-                        .environment(\.dynamicTypeSize, size).frame(width: 200)
+                    Group {
+                        if let message {
+                            StatusTopMessageView(topMessage: message, isAbovePost: true)
+                                .environment(\.isPostContent, true)
+                        } else {
+                            RichText(text: text)
+                        }
+                    }
+                    .environment(\.displayScale, 3)
+                    .environment(\.dynamicTypeSize, size)
+                    .frame(width: 200)
                 }
                 let controller = UIHostingController(rootView: content(.large))
                 host = controller
@@ -846,7 +868,7 @@ final class TimelineMediaPreviewTests: XCTestCase {
                 try await Task.sleep(for: .milliseconds(10))
             }
             let size = try XCTUnwrap(fixture.cache.imageSize(for: url, processor: processor), kind)
-            XCTAssertEqual(size.height, 51, accuracy: 1, kind)
+            XCTAssertEqual(size.height, expectedHeight, accuracy: 1, kind)
             XCTAssertEqual(size.width / size.height, 4.0 / 3.0, accuracy: 0.03, kind)
             growText?()
             for _ in 0..<300 {

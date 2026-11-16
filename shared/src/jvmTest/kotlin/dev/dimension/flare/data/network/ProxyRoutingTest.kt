@@ -171,6 +171,12 @@ class ProxyRoutingTest {
                 assertEquals("/credential-target" to null, tokens.last())
                 assertEquals("https://example.com/", referers.last())
                 assertEquals("PluginMedia/1.0", userAgents.last())
+                ktorClient(alice, protectRequestHeaders = true).use { client ->
+                    client.get("$base/same-redirect") { headers.append("X-Media-Token", "private-ai-token") }.bodyAsText()
+                    assertEquals("/credential-target" to "private-ai-token", tokens.last())
+                    client.get("$base/redirect-return") { headers.append("X-Media-Token", "private-ai-token") }.bodyAsText()
+                    assertEquals("/credential-target" to null, tokens.last())
+                }
                 mediaHttpClient(alice).use { client ->
                     // Coil supplies headers directly rather than calling applyMedia.
                     client

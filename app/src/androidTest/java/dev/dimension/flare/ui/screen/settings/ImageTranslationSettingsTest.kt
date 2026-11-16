@@ -30,6 +30,7 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.dimension.flare.R
+import dev.dimension.flare.data.datastore.model.AiRequestHeader
 import dev.dimension.flare.data.datastore.model.AppSettings
 import dev.dimension.flare.data.datastore.model.ImageTranslationConfig
 import dev.dimension.flare.data.datastore.model.ImageTranslationProvider
@@ -281,6 +282,10 @@ class ImageTranslationSettingsTest {
 
         override fun selectProvider(provider: ImageTranslationProvider) {
             saved = saved.copy(provider = provider)
+        }
+
+        override fun setIndependentOpenAIHeaders(value: List<AiRequestHeader>) {
+            saved = saved.copy(openAIHeaders = value)
         }
 
         override fun setField(

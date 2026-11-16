@@ -4,6 +4,7 @@ import FlareAppleCore
 
 public struct UserCompatView<TrailingContent: View>: View {
     @Environment(\.isPostContent) private var isPostContent
+    @Environment(\.timelineGalleryFallback) private var isGalleryFallback
     private let data: UiProfile
     private let subtitle: String
     private let trailing: () -> TrailingContent
@@ -38,8 +39,8 @@ public struct UserCompatView<TrailingContent: View>: View {
                 alignment: .leading,
                 spacing: 0
             ) {
-                RichText(text: data.name)
-                    .fontWeight(isPostContent ? .bold : nil)
+                RichText(text: data.name, usesDisplayNameFont: !isGalleryFallback)
+                    .fontWeight(isGalleryFallback ? (isPostContent ? .heavy : nil) : .bold)
                 Text(subtitle)
                     .font(isPostContent ? .body : .caption)
                     .flareSecondaryText()

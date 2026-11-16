@@ -736,7 +736,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">Αυτόματη</string>
     <string name="image_translation_original_file">Αρχείο</string>
-    <string name="image_translation_use_shared_description">Κοινοποίηση της URL της υπηρεσίας, του κλειδιού API και του μοντέλου. Η υπηρεσία και το μοντέλο πρέπει να υποστηρίζουν έξοδο εικόνων. Απενεργοποίηση για ξεχωριστή ρύθμιση μετάφρασης εικόνων.</string>
+    <string name="image_translation_use_shared_description">Κοινοποίηση της URL της υπηρεσίας, του κλειδιού API, του μοντέλου και των προσαρμοσμένων κεφαλίδων. Η υπηρεσία και το μοντέλο πρέπει να υποστηρίζουν έξοδο εικόνων. Απενεργοποίηση για ξεχωριστή ρύθμιση μετάφρασης εικόνων.</string>
     <string name="plugin_permission_cookie">Διαβάστε την cookie %2$s από την %1$s</string>
     <string name="plugin_ai_create">Δημιουργία με AI Flare</string>
     <string name="plugin_ai_untitled">Νέο plugin</string>

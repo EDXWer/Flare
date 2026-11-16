@@ -71,6 +71,8 @@ final class ProfileMediaCollectionViewCell: UICollectionViewCell {
 final class TimelineUIKitCollectionViewCell: UICollectionViewCell {
     var onPreferredHeightChanged: ((CGFloat, CGFloat) -> Void)?
     var cachedPreferredHeight: ((CGFloat) -> CGFloat?)?
+    // Nested post views can keep expansion state until their deferred cleanup.
+    private(set) var hasLocalHeightChanges = false
 
     private var hostedView: UIView?
     private var hostedConstraints: [NSLayoutConstraint] = []
@@ -86,7 +88,7 @@ final class TimelineUIKitCollectionViewCell: UICollectionViewCell {
     private var lastRenderHash: Int32?
     private var lastItemKey: String?
     private var lastAppearance: TimelineUIKitAppearance?
-    private var lastDetailStatusKey: String?
+    private var lastDetailStatusKey: MicroBlogKey?
     private var lastAiTldrEnabled: Bool?
     private var pendingFreshMeasurement = false
     private var lastMeasuredWidth: CGFloat?
@@ -96,6 +98,7 @@ final class TimelineUIKitCollectionViewCell: UICollectionViewCell {
         // Natural card content can exceed the cell's estimated height for one layout pass.
         clipsToBounds = true
         backgroundColor = .clear
+        backgroundConfiguration = .clear()
         contentView.backgroundColor = .clear
     }
 
@@ -126,6 +129,7 @@ final class TimelineUIKitCollectionViewCell: UICollectionViewCell {
         if window == nil || hostedView !== timelineCardStorage {
             resetRenderSignature()
             timelineView.prepareForDeferredReuseCleanup()
+            hasLocalHeightChanges = false
         } else {
             timelineView.performDeferredPoolCleanup()
         }
@@ -158,7 +162,7 @@ final class TimelineUIKitCollectionViewCell: UICollectionViewCell {
     ) {
         let timelineView = resolvedTimelineView()
         let timelineCard = resolvedTimelineCard()
-        let horizontalPadding: CGFloat = data.timelineContentPost == nil ? 16 : 10
+        let horizontalPadding = TimelineHorizontalInsets.content
         timelinePaddingStorage?.insets = UIEdgeInsets(top: data.timelineContentPost == nil ? 8 : 12, left: horizontalPadding, bottom: data.timelineContentPost == nil ? 8 : 6, right: horizontalPadding)
         timelineView.onLocalHeightInvalidated = { [weak self] in
             self?.handleLocalTimelineHeightInvalidated()
@@ -173,12 +177,11 @@ final class TimelineUIKitCollectionViewCell: UICollectionViewCell {
         timelineCard.configure(index: index, totalCount: totalCount)
 
         let itemKey = data.itemKey ?? ""
-        let detailKeyStr = detailStatusKey.map { String(describing: $0) } ?? ""
         let dataUnchanged =
             lastRenderHash == data.renderHash &&
             lastItemKey == itemKey &&
             lastAppearance == appearance &&
-            lastDetailStatusKey == detailKeyStr &&
+            lastDetailStatusKey == detailStatusKey &&
             lastAiTldrEnabled == aiTldrEnabled
 
         if !dataUnchanged {
@@ -186,7 +189,7 @@ final class TimelineUIKitCollectionViewCell: UICollectionViewCell {
             lastRenderHash = data.renderHash
             lastItemKey = itemKey
             lastAppearance = appearance
-            lastDetailStatusKey = detailKeyStr
+            lastDetailStatusKey = detailStatusKey
             lastAiTldrEnabled = aiTldrEnabled
             timelineView.configure(
                 data: data,
@@ -227,8 +230,6 @@ final class TimelineUIKitCollectionViewCell: UICollectionViewCell {
     }
 
     func setHostedView(_ view: UIView?) {
-        contentConfiguration = nil
-        backgroundConfiguration = .clear()
         if hostedView === view {
             view?.invalidateIntrinsicContentSize()
             view?.setNeedsLayout()
@@ -264,20 +265,19 @@ final class TimelineUIKitCollectionViewCell: UICollectionViewCell {
     private func measuredHostedHeight(width: CGFloat) -> CGFloat {
         guard let hostedView else { return 0 }
 
-        if lastMeasuredWidth != width {
-            lastMeasuredWidth = width
-            pendingFreshMeasurement = true
-        }
-        if !pendingFreshMeasurement,
-           hostedView === timelineCardStorage,
+        if hostedView === timelineCardStorage,
+           !hasLocalHeightChanges || hasMeasuredHeight(for: width),
            let cachedHeight = cachedPreferredHeight?(width),
            cachedHeight > 0,
            cachedHeight.isFinite {
+            lastMeasuredWidth = width
+            pendingFreshMeasurement = false
             return cachedHeight
         }
+        lastMeasuredWidth = width
 
         if hostedView === timelineCardStorage {
-            let cardWrapperWidth: CGFloat = timelineCardStorage?.isMultipleColumn == true ? 4 : 0
+            let cardWrapperWidth = timelineCardStorage?.isMultipleColumn == true ? 2 * TimelineHorizontalInsets.multiColumnCard : 0
             let insets = timelinePaddingStorage?.insets ?? .zero
             timelineViewStorage?.prepareForFitting(width: max(width - cardWrapperWidth - insets.left - insets.right, 1))
         }
@@ -303,9 +303,8 @@ final class TimelineUIKitCollectionViewCell: UICollectionViewCell {
     }
 
     private func handleLocalTimelineHeightInvalidated() {
-        // Cache is keyed by item+width only; we must skip the cached lookup once
-        // so the next measurement reflects the new local UI state (expanded
-        // content warning, show-more, summary) before refreshing the cache.
+        // Expanded text and async media geometry can differ between cells for the same row.
+        hasLocalHeightChanges = true
         pendingFreshMeasurement = true
         contentView.invalidateIntrinsicContentSize()
         contentView.setNeedsLayout()

@@ -23,7 +23,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
     // MARK: - SwiftUI `var` parameters
 
     private var data: UiTimelineV2.Post?
-    private var boundStatusKey: String?
+    private var boundStatusKey: MicroBlogKey?
     private var isDetail: Bool = false
     private var isQuote: Bool = false
     private var withLeadingPadding: Bool = false
@@ -43,7 +43,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
     private var lastPreparedFittingWidthKey: Int?
 
     private struct ConfigureSignature: Equatable {
-        let statusKey: String
+        let statusKey: MicroBlogKey
         let renderHash: Int32
         let isDetail: Bool
         let isQuote: Bool
@@ -55,9 +55,9 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         let showTranslate: Bool
         let aiTldrEnabled: Bool
         let showParents: Bool
-        let parentKeys: [String]
+        let parentKeys: [MicroBlogKey]
         let parentRenderHashes: [Int32]
-        let quoteKeys: [String]
+        let quoteKeys: [MicroBlogKey]
         let quoteRenderHashes: [Int32]
         let allowsMediaCarousel: Bool
         let carouselOuterHorizontalPadding: CGFloat
@@ -81,7 +81,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             allowsMediaCarousel: Bool,
             carouselOuterHorizontalPadding: CGFloat
         ) {
-            statusKey = String(describing: data.statusKey)
+            statusKey = data.statusKey
             renderHash = data.renderHash
             self.isDetail = isDetail
             self.isQuote = isQuote
@@ -93,9 +93,9 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             self.showTranslate = showTranslate
             self.aiTldrEnabled = aiTldrEnabled
             self.showParents = showParents
-            self.parentKeys = inlineParents.map { String(describing: $0.statusKey) }
+            self.parentKeys = inlineParents.map(\.statusKey)
             self.parentRenderHashes = inlineParents.map { $0.renderHash }
-            self.quoteKeys = quotes.map { String(describing: $0.statusKey) }
+            self.quoteKeys = quotes.map(\.statusKey)
             self.quoteRenderHashes = quotes.map { $0.renderHash }
             self.allowsMediaCarousel = allowsMediaCarousel
             self.carouselOuterHorizontalPadding = carouselOuterHorizontalPadding
@@ -400,7 +400,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         allowsMediaCarousel: Bool = false,
         carouselOuterHorizontalPadding: CGFloat = 0
     ) {
-        let newStatusKey = String(describing: data.statusKey)
+        let newStatusKey = data.statusKey
         if boundStatusKey != newStatusKey {
             expand = false
             reactionViewStorage?.resetExpansion()
@@ -627,8 +627,9 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         let contentX: CGFloat = wantsAvatar ? Self.avatarSize + Self.mainRowSpacing : 0
         let contentWidth = max(width - contentX, 1)
 
+        let avatarBottom = y + (sideAvatarBottom ?? 0)
         if wantsAvatar, let avatarView = avatarViewStorage, assignFrames {
-            avatarView.frame = CGRect(x: 0, y: y, width: Self.avatarSize, height: Self.avatarSize)
+            avatarView.frame = CGRect(x: 0, y: avatarBottom - Self.avatarSize, width: Self.avatarSize, height: Self.avatarSize)
         }
 
         var innerY = y
@@ -641,25 +642,14 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         }
 
         updateExpandMoreButtonVisibility(contentWidth: contentWidth)
-        var followsContent = currentHeaderView != nil
-        var followsHeader = followsContent
         var previousChild = currentHeaderView
         for child in contentColumnChildren where !child.isHidden {
-            if followsContent {
-                let isText = child is RichTextUIView || child === replyToContainerStorage || child === translateViewStorage
-                let isAttachment = child === mediaViewStorage || child === normalCardViewStorage ||
-                    child === compatCardViewStorage || child === quotesContainerStorage
-                if child === actionsContainerStorage || (followsHeader && isText) {
-                    innerY += 2
-                } else if isAttachment && !(child === quotesContainerStorage && previousChild === mediaViewStorage) {
-                    innerY += 10
-                } else {
-                    innerY += 8
-                }
+            if let previousChild {
+                innerY += contentSpacing(before: child, after: previousChild)
             }
             let isCarousel = child === mediaViewStorage && mediaViewStorage?.isShowingCarousel == true
             if isCarousel, wantsAvatar {
-                innerY = max(innerY, y + Self.avatarSize)
+                innerY = max(innerY, avatarBottom)
             }
             let childWidth = isCarousel ? width + carouselEdgePadding * 2
                 : child === mediaViewStorage ? mediaViewStorage!.fittingWidth(for: contentWidth) : contentWidth
@@ -667,12 +657,23 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             let h = childHeight(of: child, for: childWidth)
             if assignFrames { child.frame = CGRect(x: childX, y: innerY, width: childWidth, height: h) }
             innerY += h
-            followsContent = true
-            followsHeader = false
             previousChild = child
         }
 
-        return max(innerY, y + (wantsAvatar ? Self.avatarSize : 0))
+        return max(innerY, avatarBottom)
+    }
+
+    private func contentSpacing(before child: UIView, after previousChild: UIView) -> CGFloat {
+        if child === replyToContainerStorage || previousChild === replyToContainerStorage { return 0 }
+        let followsHeader = previousChild === currentHeaderView
+        let isText = child is RichTextUIView || child === translateViewStorage
+        let isAttachment = child === mediaViewStorage || child === normalCardViewStorage ||
+            child === compatCardViewStorage || child === quotesContainerStorage
+        if followsHeader && !usesSideAvatar && !isQuote { return 8 }
+        if followsHeader && isText { return isQuote ? 4 : 2 }
+        if child === actionsContainerStorage { return 2 }
+        if isAttachment && !(child === quotesContainerStorage && previousChild === mediaViewStorage) { return 10 }
+        return 8
     }
 
     private func updateExpandMoreButtonVisibility(contentWidth: CGFloat) {
@@ -695,7 +696,13 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         ))
     }
 
-    private var showAsFullWidth: Bool {
+    fileprivate var sideAvatarBottom: CGFloat? {
+        guard wantsAvatar else { return nil }
+        let font = postBodyFont
+        return Self.avatarSize + ceil(font.ascender - font.capHeight)
+    }
+
+    private var usesSideAvatar: Bool {
         (!appearance.fullWidthPost || withLeadingPadding) && !isQuote && !isDetail
     }
 
@@ -720,7 +727,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
     }
 
     private func fittingContentColumnWidth(for width: CGFloat) -> CGFloat {
-        let wantsAvatar = showAsFullWidth && data?.user != nil
+        let wantsAvatar = usesSideAvatar && data?.user != nil
         let avatarWidth = wantsAvatar ? Self.avatarSize + Self.mainRowSpacing : 0
         return max(width - avatarWidth, 1)
     }
@@ -734,7 +741,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         }
 
         // Avatar
-        let newWantsAvatar = showAsFullWidth && data.user != nil
+        let newWantsAvatar = usesSideAvatar && data.user != nil
         if newWantsAvatar, let user = data.user {
             let avatarView = resolvedAvatarView()
             avatarView.avatarShape = appearance.avatarShape
@@ -804,7 +811,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         )
         let onClicked: () -> Void = { [weak self] in self?.onUserTapped() }
 
-        if showAsFullWidth {
+        if usesSideAvatar {
             let userHeaderFull = resolvedUserHeaderFull()
             userHeaderFull.avatar.avatarShape = appearance.avatarShape
             userHeaderFull.configure(data: user, subtitle: data.authorSubtitle, trailing: topEndView, onClicked: onClicked,
@@ -1392,6 +1399,7 @@ private final class ReplyToRowView: UIView, ManualLayoutMeasurable, TimelineHeig
     private let label = UILabel()
     private static let iconSize: CGFloat = 12
     private static let spacing: CGFloat = 4
+    private static let verticalPadding: CGFloat = 4
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -1418,12 +1426,13 @@ private final class ReplyToRowView: UIView, ManualLayoutMeasurable, TimelineHeig
         let s = Self.iconSize
         let labelX = s + Self.spacing
         let labelW = max(bounds.width - labelX, 0)
-        let labelH = label.textRect(
+        let labelHeight = ceil(label.textRect(
             forBounds: CGRect(x: 0, y: 0, width: labelW, height: .greatestFiniteMagnitude),
             limitedToNumberOfLines: 0
-        ).height
-        icon.frame = CGRect(x: 0, y: (ceil(labelH) - s) / 2, width: s, height: s)
-        label.frame = CGRect(x: labelX, y: 0, width: labelW, height: ceil(labelH))
+        ).height)
+        let contentCenterY = Self.verticalPadding + max(labelHeight, s) / 2
+        icon.frame = CGRect(x: 0, y: contentCenterY - s / 2, width: s, height: s)
+        label.frame = CGRect(x: labelX, y: contentCenterY - labelHeight / 2, width: labelW, height: labelHeight)
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {
@@ -1437,7 +1446,7 @@ private final class ReplyToRowView: UIView, ManualLayoutMeasurable, TimelineHeig
             forBounds: CGRect(x: 0, y: 0, width: labelW, height: .greatestFiniteMagnitude),
             limitedToNumberOfLines: 0
         ).height
-        return ceil(max(labelH, Self.iconSize))
+        return ceil(max(labelH, Self.iconSize)) + Self.verticalPadding * 2
     }
 
     override func systemLayoutSizeFitting(
@@ -1569,15 +1578,10 @@ private final class QuotesContainerView: UIView, ManualLayoutMeasurable, Timelin
         super.init(frame: frame)
         layer.cornerRadius = 16
         layer.borderWidth = 1
-        layer.borderColor = UIColor.separator.cgColor
+        useSeparatorBorderColor()
         clipsToBounds = true
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) not supported") }
-
-    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-        super.traitCollectionDidChange(previousTraitCollection)
-        layer.borderColor = UIColor.separator.cgColor
-    }
 
     func setChildren(_ desired: [UIView]) {
         syncManagedSubviews(parent: self, current: &managedChildren, desired: desired)
@@ -1660,7 +1664,8 @@ private final class ParentContainerView: UIView, ManualLayoutMeasurable, Timelin
         let w = bounds.width
         let childH = max(bounds.height - Self.bottomSpacing, 0)
         child.frame = CGRect(x: 0, y: 0, width: w, height: childH)
-        line.frame = CGRect(x: 24, y: 48, width: 1, height: max(bounds.height - 48, 0))
+        let avatarBottom = child.sideAvatarBottom ?? 48
+        line.frame = CGRect(x: 24, y: avatarBottom, width: 1, height: max(bounds.height - avatarBottom, 0))
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {

@@ -4,13 +4,28 @@ import FlareAppleUI
 import KotlinSharedUI
 import FlareAppleCore
 
+extension UIView {
+    func useSeparatorBorderColor() {
+        updateSeparatorBorderColor()
+        registerForTraitChanges(UITraitCollection.systemTraitsAffectingColorAppearance) { (view: UIView, _) in
+            view.updateSeparatorBorderColor()
+        }
+    }
+
+    private func updateSeparatorBorderColor() {
+        layer.borderColor = UIColor.separator.resolvedColor(with: traitCollection).cgColor
+    }
+}
+
 extension UILabel {
-    func setPostText(_ text: String?, preferredContentSizeCategory: UIContentSizeCategory = .medium) {
+    func setPostText(_ text: String?, preferredContentSizeCategory: UIContentSizeCategory = .medium,
+                     fontSizeAdjustment: CGFloat = 0) {
         // Post sizing is driven by appearance; UIKit must not rescale it a second time.
         adjustsFontForContentSizeCategory = false
         traitOverrides.preferredContentSizeCategory = preferredContentSizeCategory
-        let bodyFont = UIFont.preferredFont(forTextStyle: .body,
+        let preferredFont = UIFont.preferredFont(forTextStyle: .body,
             compatibleWith: UITraitCollection(preferredContentSizeCategory: preferredContentSizeCategory))
+        let bodyFont = fontSizeAdjustment == 0 ? preferredFont : preferredFont.withSize(preferredFont.pointSize + fontSizeAdjustment)
         font = bodyFont
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = bodyFont.leading + 1
@@ -105,10 +120,15 @@ final class DateTimeUILabel: UILabel {
             textColor = appearance.color
             nonPostAppearance = nil
         }
+        guard let date = data.displayDate else {
+            attributedText = nil
+            text = nil
+            return
+        }
         if fullTime {
-            text = Self.fullFormatter.string(from: data.platformValue)
+            text = Self.fullFormatter.string(from: date)
         } else if data.shouldShowFull {
-            text = Self.dateOnlyFormatter.string(from: data.platformValue)
+            text = Self.dateOnlyFormatter.string(from: date)
         } else if absoluteTimestamp {
             text = data.absolute
         } else {
@@ -371,7 +391,7 @@ final class UserOnelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightPro
                    preferredContentSizeCategory: UIContentSizeCategory = .medium) {
         avatar.set(media: data.avatar)
         name.configure(text: data.name, lineLimit: 1, isTextSelectionEnabled: false, onOpenURL: nil,
-                       baseTextBold: true, lineSpacing: 1, baseTextColor: .flarePostLabel,
+                       baseTextWeight: .bold, lineSpacing: 1, baseTextColor: .flarePostLabel,
                        preferredContentSizeCategory: preferredContentSizeCategory)
         handleLabel.textColor = .flarePostSecondaryLabel
         handleLabel.setPostText(subtitle ?? data.handle.display, preferredContentSizeCategory: preferredContentSizeCategory)
@@ -482,7 +502,7 @@ final class UserCompatUIView: UIStackView {
         super.init(frame: frame)
         axis = .horizontal
         spacing = 8
-        alignment = .top
+        alignment = .center
 
         name.lineLimit = 1
         name.setContentHuggingPriority(.required, for: .horizontal)
@@ -533,13 +553,13 @@ final class UserCompatUIView: UIStackView {
         if let category = postTextContentSizeCategory {
             avatarSizeConstraints.forEach { $0.constant = 48 }
             name.configure(text: data.name, lineLimit: 1, isTextSelectionEnabled: false, onOpenURL: nil,
-                           baseTextBold: true, lineSpacing: 1, baseTextColor: .flarePostLabel,
+                           baseTextWeight: .bold, lineSpacing: 1, baseTextColor: .flarePostLabel,
                            preferredContentSizeCategory: category)
             handleLabel.textColor = .flarePostSecondaryLabel
             handleLabel.setPostText(subtitle ?? data.handle.display, preferredContentSizeCategory: category)
         } else {
             avatarSizeConstraints.forEach { $0.constant = 44 }
-            name.configure(text: data.name, lineLimit: 1, isTextSelectionEnabled: false, onOpenURL: nil)
+            name.configure(text: data.name, lineLimit: 1, isTextSelectionEnabled: false, onOpenURL: nil, baseTextWeight: .bold)
             handleLabel.attributedText = nil
             handleLabel.adjustsFontForContentSizeCategory = true
             handleLabel.traitOverrides.remove(UITraitPreferredContentSizeCategory.self)

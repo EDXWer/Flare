@@ -204,6 +204,10 @@ internal fun ImageTranslationSettingsContent(state: ImageTranslationSettingsPres
                         )
                     }
                 }
+                if (field.id == "apiKey" && state.config.provider == ImageTranslationProvider.OpenAIImages && !state.useSharedConfig) {
+                    ExpanderItemSeparator()
+                    AiConfigHeadersSetting(state.config.openAIHeaders, state::setIndependentOpenAIHeaders)
+                }
             }
         }
     }

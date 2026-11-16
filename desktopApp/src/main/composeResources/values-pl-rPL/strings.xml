@@ -738,7 +738,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">Klucz API</string>
     <string name="image_translation_original_file">Oryginalny plik</string>
-    <string name="image_translation_use_shared_description">Udostępnij adres URL usługi, klucz API i model. Usługa i model muszą obsługiwać wyjście obrazów. Wyłącz, aby skonfigurować tłumaczenie obrazów osobno.</string>
+    <string name="image_translation_use_shared_description">Udostępnij adres URL usługi, klucz API, model i niestandardowe nagłówki. Usługa i model muszą obsługiwać wyjście obrazów. Wyłącz, aby skonfigurować tłumaczenie obrazów osobno.</string>
     <string name="plugin_permission_cookie">Żądania konta dla %2$s: %1$s</string>
     <string name="plugin_ai_create">Utwórz z Flare AI</string>
     <string name="plugin_ai_untitled">Nowa wtyczka</string>

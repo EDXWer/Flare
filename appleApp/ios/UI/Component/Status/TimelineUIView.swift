@@ -1,5 +1,6 @@
 import UIKit
 import KotlinSharedUI
+import FlareAppleUI
 
 /// UIKit port of `TimelineView`. Manual frame-based layout.
 final class TimelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightProviding {
@@ -11,7 +12,7 @@ final class TimelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightProvid
     }
     var detailStatusKey: MicroBlogKey? {
         didSet {
-            guard String(describing: detailStatusKey) != String(describing: oldValue) else { return }
+            guard detailStatusKey != oldValue else { return }
             rebuildIfNeeded()
         }
     }
@@ -44,7 +45,7 @@ final class TimelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightProvid
         let itemKey: String
         let itemType: String
         let renderHash: Int32
-        let detailStatusKey: String
+        let detailStatusKey: MicroBlogKey?
         let showTranslate: Bool
         let aiTldrEnabled: Bool
         let appearance: StatusUIKitAppearance
@@ -59,7 +60,7 @@ final class TimelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightProvid
             itemKey = data.itemKey ?? ""
             itemType = data.itemType
             renderHash = data.renderHash
-            self.detailStatusKey = detailStatusKey.map { String(describing: $0) } ?? ""
+            self.detailStatusKey = detailStatusKey
             self.showTranslate = showTranslate
             self.aiTldrEnabled = aiTldrEnabled
             self.appearance = appearance
@@ -69,13 +70,13 @@ final class TimelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightProvid
     private var managedChildren: [UIView] = []
     private var spacing: CGFloat { data is UiTimelineV2.TimelinePostItem ? 2 : 8 }
 
-    private let messageView = StatusTopMessageUIView()
+    private lazy var messageView = StatusTopMessageUIView()
     private lazy var messageContainer = MutablePaddingContainerView(content: messageView)
-    private let gapView = TimelineGapUIView()
-    private let feedView = FeedUIView()
-    private let statusView = StatusUIKitView()
-    private let userView = TimelineUserUIView()
-    private let userListView = UserListUIView()
+    private lazy var gapView = TimelineGapUIView()
+    private lazy var feedView = FeedUIView()
+    private lazy var statusView = StatusUIKitView()
+    private lazy var userView = TimelineUserUIView()
+    private lazy var userListView = UserListUIView()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -95,8 +96,8 @@ final class TimelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightProvid
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         guard isUserInteractionEnabled, !isHidden, alpha > 0.01 else { return nil }
-        if statusView.superview === self,
-           let control = statusView.hitTestActions(at: convert(point, to: statusView), with: event) {
+        if let status = managedChildren.last as? StatusUIKitView,
+           let control = status.hitTestActions(at: convert(point, to: status), with: event) {
             return control
         }
         return super.hitTest(point, with: event)
@@ -225,7 +226,7 @@ final class TimelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightProvid
                 showTranslate: showTranslate,
                 aiTldrEnabled: aiTldrEnabled,
                 allowsMediaCarousel: true,
-                carouselOuterHorizontalPadding: 10
+                carouselOuterHorizontalPadding: TimelineHorizontalInsets.content
             )
             desired.append(statusView)
 
@@ -249,7 +250,7 @@ final class TimelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightProvid
                 inlineParents: Array(item.presentation.inlineParents),
                 quotes: Array(item.presentation.quotes),
                 allowsMediaCarousel: true,
-                carouselOuterHorizontalPadding: 10
+                carouselOuterHorizontalPadding: TimelineHorizontalInsets.content
             )
             desired.append(statusView)
 
@@ -417,13 +418,13 @@ final class TimelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightProvid
     private func configureMessage(_ message: UiTimelineV2.Message, topMessageOnly: Bool, isPost: Bool = false) {
         messageView.onOpenURL = onOpenURL
         messageView.configure(message: message, topMessageOnly: topMessageOnly,
-                              postTextContentSizeCategory: isPost ? appearance.preferredContentSizeCategory : nil)
+                              postTextContentSizeCategory: appearance.preferredContentSizeCategory, isAbovePost: isPost)
 
         let leading: CGFloat
         if !appearance.fullWidthPost && !topMessageOnly {
-            let traits = isPost ? UITraitCollection(preferredContentSizeCategory: appearance.preferredContentSizeCategory) : traitCollection
-            let iconSize = UIFontMetrics(forTextStyle: isPost ? .body : .caption1).scaledValue(for: 15, compatibleWith: traits)
-            leading = (isPost ? 48 : 44) - iconSize
+            let traits = UITraitCollection(preferredContentSizeCategory: appearance.preferredContentSizeCategory)
+            let iconSize = UIFontMetrics(forTextStyle: .body).scaledValue(for: 15, compatibleWith: traits)
+            leading = max(0, (isPost ? 48 : 44) - iconSize)
         } else {
             leading = 0
         }
@@ -431,11 +432,16 @@ final class TimelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightProvid
     }
 
     private func forwardOpenURL() {
-        messageView.onOpenURL = onOpenURL
-        feedView.onOpenURL = onOpenURL
-        statusView.openURL = onOpenURL
-        userView.onOpenURL = onOpenURL
-        userListView.onOpenURL = onOpenURL
+        for child in managedChildren {
+            switch child {
+            case is MutablePaddingContainerView: messageView.onOpenURL = onOpenURL
+            case let feed as FeedUIView: feed.onOpenURL = onOpenURL
+            case let status as StatusUIKitView: status.openURL = onOpenURL
+            case let user as TimelineUserUIView: user.onOpenURL = onOpenURL
+            case let list as UserListUIView: list.onOpenURL = onOpenURL
+            default: break
+            }
+        }
     }
 
     func prepareForFitting(width: CGFloat) {

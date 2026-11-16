@@ -62,6 +62,26 @@ public final class PlatformTextAttributedRun: PlatformTextRun {
         self.text = text
         super.init()
     }
+
+    public func text(usingDisplayNameFont baseFont: Font) -> AttributedString {
+        guard text.runs.contains(where: { $0.font != nil }) else { return text }
+
+        var resolved = text
+        attributedText.enumerateAttribute(.platformTextStyleDescriptor, in: NSRange(location: 0, length: attributedText.length)) {
+            value, nsRange, _ in
+            guard let style = value as? PlatformTextStyleDescriptor,
+                  let range = Range(nsRange, in: resolved), let existingFont = resolved[range].font else { return }
+            var font = (style.small ? existingFont : baseFont).weight(.bold)
+            if style.monospace || style.code {
+                font = font.monospaced()
+            }
+            if style.italic || style.isBlockQuote || style.isFigCaption {
+                font = font.italic()
+            }
+            resolved[range].font = font
+        }
+        return resolved
+    }
 }
 
 public final class PlatformTextStyleDescriptor: NSObject {

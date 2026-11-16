@@ -47,24 +47,26 @@ public fun ktorfit(
 @HiddenFromObjC
 public fun ktorClient(
     proxy: ProxyRef = ProxyRef.Global,
+    protectRequestHeaders: Boolean = false,
     config: HttpClientConfig<*>.() -> Unit = {
         install(ContentNegotiation) {
             nullableFallbackJson(JSON)
         }
     },
 ): HttpClient =
-    HttpClient(ProxyRoutingEngine(proxy)) {
+    HttpClient(ProxyRoutingEngine(proxy, protectRequestHeaders = protectRequestHeaders)) {
         config.invoke(this)
         install(Logging) {
             logger = FlareLogger
             filter {
                 (BuildConfig.debug || DebugRepository.isEnabled) && !it.isMediaUpload() && !it.isPrivateWeiboRequest()
             }
+            // Upstream error bodies can echo custom credentials.
             level =
-                if (BuildConfig.debug) {
-                    LogLevel.ALL
-                } else {
-                    LogLevel.BODY
+                when {
+                    protectRequestHeaders -> LogLevel.NONE
+                    BuildConfig.debug -> LogLevel.ALL
+                    else -> LogLevel.BODY
                 }
         }
     }

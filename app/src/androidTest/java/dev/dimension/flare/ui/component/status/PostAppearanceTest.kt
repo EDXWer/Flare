@@ -5,11 +5,15 @@ import android.graphics.Color
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.CompositionLocalProvider
@@ -28,6 +32,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -35,9 +40,11 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
+import dev.dimension.flare.data.datasource.microblog.ActionMenu
 import dev.dimension.flare.data.model.IconType
 import dev.dimension.flare.data.model.TimelineDisplayMode
 import dev.dimension.flare.data.model.appearance.GlobalAppearance
@@ -45,21 +52,28 @@ import dev.dimension.flare.data.model.appearance.TimelineAppearance
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.component.LocalGlobalAppearance
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
+import dev.dimension.flare.ui.component.ProfileHeader
+import dev.dimension.flare.ui.component.toImageVector
 import dev.dimension.flare.ui.humanizer.PlatformFormatter
 import dev.dimension.flare.ui.model.ClickEvent
 import dev.dimension.flare.ui.model.TranslationDisplayState
 import dev.dimension.flare.ui.model.UiHandle
 import dev.dimension.flare.ui.model.UiIcon
 import dev.dimension.flare.ui.model.UiMedia
+import dev.dimension.flare.ui.model.UiNumber
+import dev.dimension.flare.ui.model.UiState
 import dev.dimension.flare.ui.model.UiTimelineV2
 import dev.dimension.flare.ui.model.UiTranslatableText
 import dev.dimension.flare.ui.model.createSampleStatus
 import dev.dimension.flare.ui.model.createSampleUser
 import dev.dimension.flare.ui.model.toUiImage
+import dev.dimension.flare.ui.presenter.profile.FollowButtonState
+import dev.dimension.flare.ui.presenter.profile.ProfileState
 import dev.dimension.flare.ui.render.toUi
 import dev.dimension.flare.ui.render.toUiPlainText
 import dev.dimension.flare.ui.theme.FlareTheme
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
@@ -149,6 +163,15 @@ class PostAppearanceTest {
                 platformIcon = IconType.Material(UiIcon.X),
                 content = UiTranslatableText(body.toUiPlainText()),
                 images = persistentListOf(UiMedia.Image(url, url, "Spacing reference media", 180f, 320f, false)),
+                actions =
+                    sample.actions
+                        .map { action ->
+                            if (action is ActionMenu.Item && action.icon == UiIcon.Retweet) {
+                                ActionMenu.Group(displayItem = action, actions = persistentListOf(action))
+                            } else {
+                                action
+                            }
+                        }.toPersistentList(),
             )
         val quote =
             sample.copy(
@@ -211,6 +234,24 @@ class PostAppearanceTest {
         assertEquals(12f * density.density, quoteFrame.bottom - quoteText.boundsInRoot.bottom, 1.1f)
         assertEquals(2f * density.density, actions.top - quoteFrame.bottom, 1.1f)
         assertEquals(bodyBounds.left - 4f * density.density, actions.left, 1.1f)
+        val count = compose.onNodeWithText("10", useUnmergedTree = true)
+        val countLayouts = mutableListOf<TextLayoutResult>()
+        count.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(countLayouts) }
+        val countStyle = countLayouts.single().layoutInput.style
+        assertEquals(bodyStyle.fontSize.value - 3, countStyle.fontSize.value, 0.01f)
+        assertEquals(bodyStyle.lineHeight, countStyle.lineHeight)
+        assertEquals(bodyStyle.letterSpacing, countStyle.letterSpacing)
+        val countInset = with(density) { (4.dp.roundToPx() + 20.dp.roundToPx() + 2.dp.roundToPx()).toFloat() }
+        assertEquals(countInset, count.fetchSemanticsNode().boundsInRoot.left - actions.left, 1.1f)
+        val reply = compose.onNodeWithContentDescription("Reply, 10").fetchSemanticsNode().boundsInRoot
+        val more = compose.onNodeWithContentDescription("More").fetchSemanticsNode().boundsInRoot
+        assertEquals(reply.center.y, more.center.y, 1.1f)
+        for ((label, aspectRatio) in listOf("Reply" to 1f, "Repost" to 1.125f)) {
+            val icon = compose.onNodeWithContentDescription(label, useUnmergedTree = true).captureToImage().asAndroidBitmap()
+            val glyphColumns = (0 until icon.width).filter { x -> (0 until icon.height).any { y -> icon.getPixel(x, y) != Color.BLACK } }
+            val glyphWidth = glyphColumns.last() - glyphColumns.first() + 1
+            assertEquals(label, with(density) { (15.dp * aspectRatio).toPx() }, glyphWidth.toFloat(), 1.1f)
+        }
         for ((state, label) in listOf(
             TranslationDisplayState.Translating to "Translating…",
             TranslationDisplayState.Failed to "Translation failed",
@@ -232,6 +273,68 @@ class PostAppearanceTest {
                 "android-component-bounds.txt",
             ).writeText("density=${density.density}\nbody=$bodyBounds\nmedia=$media\nquote=$quoteFrame\nactions=$actions")
         }
+    }
+
+    @Test
+    fun trailingPostActionPreservesIconHeightAndOmitsSpaceForHiddenCounts() {
+        val sample = createSampleStatus(createSampleUser())
+        val icon = UiIcon.MoreVerticel
+        val reply = sample.actions.first()
+        var trailingCount by mutableStateOf<UiNumber?>(null)
+        var showNumbers by mutableStateOf(true)
+        compose.setContent {
+            CompositionLocalProvider(
+                LocalDensity provides Density(1.44f),
+                LocalGlobalAppearance provides GlobalAppearance(pureColorMode = true),
+                LocalTimelineAppearance provides TimelineAppearance(showNumbers = showNumbers),
+                LocalStatusBackgroundColor provides ComposeColor.Black,
+            ) {
+                FlareTheme(darkTheme = true, dynamicColor = false) {
+                    Surface(color = ComposeColor.Black) {
+                        Column(Modifier.width(240.dp)) {
+                            val more =
+                                ActionMenu.Group(
+                                    displayItem = ActionMenu.Item(icon = icon, count = trailingCount),
+                                    actions = persistentListOf(reply),
+                                )
+                            CommonStatusComponent(sample.copy(actions = persistentListOf(reply, more)), isClickable = false)
+                            Icon(
+                                imageVector = icon.toImageVector(),
+                                contentDescription = "Reference icon",
+                                modifier = Modifier.size(width = 20.dp, height = 15.dp),
+                                tint = ComposeColor(0xFF71767B),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        fun glyphHeight(label: String): Int {
+            val bitmap = compose.onNodeWithContentDescription(label, useUnmergedTree = true).captureToImage().asAndroidBitmap()
+            val rows = (0 until bitmap.height).filter { y -> (0 until bitmap.width).any { x -> bitmap.getPixel(x, y) != Color.BLACK } }
+            return rows.last() - rows.first() + 1
+        }
+
+        assertEquals(glyphHeight("Reference icon").toFloat(), glyphHeight("More").toFloat(), 1f)
+
+        fun trailingStart(): Float =
+            compose
+                .onNodeWithContentDescription("More")
+                .fetchSemanticsNode()
+                .boundsInRoot.left
+
+        val start = trailingStart()
+        compose.runOnIdle {
+            trailingCount = UiNumber(10)
+            showNumbers = false
+        }
+        assertEquals(start, trailingStart(), 0.1f)
+        compose.runOnIdle {
+            trailingCount = UiNumber(0)
+            showNumbers = true
+        }
+        assertEquals(start, trailingStart(), 0.1f)
     }
 
     @Test
@@ -293,12 +396,18 @@ class PostAppearanceTest {
         compose.onNodeWithText("@hidden-origin", substring = true, useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithText("@hidden-parent", substring = true, useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithText("@visible-quote", substring = true, useUnmergedTree = true).assertIsDisplayed()
-        compose.onNodeWithText(reposterName, useUnmergedTree = true).assertIsDisplayed()
+        val reposter = compose.onNodeWithText(reposterName, useUnmergedTree = true).assertIsDisplayed()
         val repostLabel = compose.onNodeWithText("reposted a post", useUnmergedTree = true).assertIsDisplayed()
+        val nameLayouts = mutableListOf<TextLayoutResult>()
+        reposter.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(nameLayouts) }
         val repostLayouts = mutableListOf<TextLayoutResult>()
         repostLabel.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(repostLayouts) }
-        assertEquals(1, repostLayouts.single().lineCount)
-        assertFalse(repostLayouts.single().hasVisualOverflow)
+        val nameStyle = nameLayouts.single().layoutInput.style
+        val repostLayout = repostLayouts.single()
+        assertEquals(repostLayout.layoutInput.style.fontSize, nameStyle.fontSize)
+        assertEquals(FontWeight.Bold, nameStyle.fontWeight)
+        assertEquals(1, repostLayout.lineCount)
+        assertFalse(repostLayout.hasVisualOverflow)
         screenshot("post-appearance-android.png")
         compose
             .onNodeWithText("@visible-standalone", substring = true, useUnmergedTree = true)
@@ -308,7 +417,7 @@ class PostAppearanceTest {
     }
 
     @Test
-    fun darkPostCalibrationUsesCompactBodySpacing() {
+    fun darkPostCalibrationUsesThemeTextSpacing() {
         val body =
             "《少女前线2》 × SSSS.GRIDMAN 联动\n" +
                 "2027年予定\n" +
@@ -320,16 +429,18 @@ class PostAppearanceTest {
                 "English spacing 0123456789"
         val author = "K12s"
         val reposter = "凪風　27年のお仕事積極募集中"
+        val avatarUrl = avatar.toURI().toString()
         val post =
             createSampleStatus(
                 createSampleUser().copy(
                     nameInternal = author.toUiPlainText(),
                     handle = UiHandle("kzwolf123", "x.com", displayOverride = "@kzwolf123"),
                     platformId = "X",
-                    avatar = null,
+                    avatar = avatarUrl.toUiImage(),
                 ),
             ).copy(
                 content = UiTranslatableText(body.toUiPlainText()),
+                images = persistentListOf(UiMedia.Image(avatarUrl, avatarUrl, "Sample media", 180f, 320f, false)),
                 createdAt = (Clock.System.now() - 5.minutes).toUi(),
             )
         val timestamp = post.createdAt.relative
@@ -352,12 +463,13 @@ class PostAppearanceTest {
             )
         lateinit var density: Density
         lateinit var themeBody: TextStyle
+        var fullWidth by mutableStateOf(false)
         compose.setContent {
             CompositionLocalProvider(
                 LocalGlobalAppearance provides GlobalAppearance(pureColorMode = true),
                 LocalTimelineAppearance provides
                     TimelineAppearance(
-                        fullWidthPost = false,
+                        fullWidthPost = fullWidth,
                         showPlatformLogo = false,
                         showTranslateButton = false,
                         timelineDisplayMode = TimelineDisplayMode.Plain,
@@ -394,12 +506,13 @@ class PostAppearanceTest {
         val container = compose.onNodeWithTag("post-calibration")
         val bounds = container.fetchSemanticsNode().boundsInRoot
         assertEquals(402f * density.density, bounds.width, 1f)
-        assertEquals(
-            ComposeColor(0xFFD9D9D9),
+        val postBodyStyle =
             texts
                 .first { it.role == "body" }
-                .layout.layoutInput.style.color,
-        )
+                .layout.layoutInput.style
+        assertEquals(ComposeColor(0xFFD9D9D9), postBodyStyle.color)
+        assertEquals(themeBody.lineHeight, postBodyStyle.lineHeight)
+        assertEquals(themeBody.letterSpacing, postBodyStyle.letterSpacing)
         assertEquals(
             ComposeColor(0xFF71767B),
             texts
@@ -408,10 +521,144 @@ class PostAppearanceTest {
         )
         if (InstrumentationRegistry.getArguments().getString("capturePostAppearance") == "1") {
             val directory = checkNotNull(InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir("post-appearance"))
-            val bitmap = container.captureToImage().asAndroidBitmap()
-            File(directory, "android-post-calibration.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            for ((wide, name) in listOf(false to "android-post-calibration.png", true to "android-post-full-width.png")) {
+                compose.runOnIdle { fullWidth = wide }
+                val bitmap = container.captureToImage().asAndroidBitmap()
+                File(directory, name).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            }
             File(directory, "android-post-calibration.json").writeText(postCalibrationJson(density, themeBody, bounds, timestamp, texts))
         }
+    }
+
+    @Test
+    fun timelineRowsUseTheSameInsetsInPlainAndCardMode() {
+        val body = post("alex", "Alex Rivera", "A quiet afternoon at the coast.")
+        val mei = checkNotNull(post("mei", "Mei Chen", "").user)
+
+        fun message(
+            id: String,
+            name: String,
+            icon: UiIcon,
+            text: String,
+        ) = UiTimelineV2.Message(
+            user = post(id, name, "").user,
+            statusKey = body.statusKey,
+            icon = icon,
+            type = UiTimelineV2.Message.Type.Raw(text),
+            createdAt = body.createdAt,
+            clickEvent = ClickEvent.Noop,
+            accountType = body.accountType,
+        )
+        val rows =
+            listOf(
+                UiTimelineV2.TimelinePostItem(
+                    body,
+                    UiTimelineV2.PostPresentation(message = message("sam", "Sam Lee", UiIcon.Retweet, "reposted")),
+                ),
+                UiTimelineV2.User(
+                    message("jordan", "Jordan Kim", UiIcon.Follow, "followed you"),
+                    mei,
+                    body.createdAt,
+                    body.statusKey,
+                    accountType = body.accountType,
+                ),
+                message("flare", "Flare Team", UiIcon.Pin, "pinned a post"),
+            )
+        var mode by mutableStateOf(TimelineDisplayMode.Plain)
+        lateinit var density: Density
+        compose.setContent {
+            CompositionLocalProvider(
+                LocalGlobalAppearance provides GlobalAppearance(pureColorMode = true),
+                LocalTimelineAppearance provides TimelineAppearance(timelineDisplayMode = mode, showPlatformLogo = false),
+            ) {
+                FlareTheme(darkTheme = true, dynamicColor = false) {
+                    density = LocalDensity.current
+                    Surface(color = MaterialTheme.colorScheme.background) {
+                        LazyStatusVerticalStaggeredGrid(
+                            modifier = Modifier.height(310.dp).testTag("timeline"),
+                            columns = StaggeredGridCells.Fixed(1),
+                        ) {
+                            items(rows.size) { index ->
+                                AdaptiveCard(Modifier.testTag("row-$index"), index, rows.size, respectTimelineMode = true) {
+                                    StatusItem(rows[index])
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        for ((displayMode, inset) in listOf(TimelineDisplayMode.Plain to 0.dp, TimelineDisplayMode.Card to 8.dp)) {
+            compose.runOnIdle { mode = displayMode }
+            val bounds = compose.onNodeWithTag("timeline").fetchSemanticsNode().boundsInRoot
+            val card = compose.onNodeWithTag("row-1", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+            val avatar =
+                compose
+                    .onNodeWithContentDescription("Open profile for ${mei.handle.display}", useUnmergedTree = true)
+                    .fetchSemanticsNode()
+                    .boundsInRoot
+            assertEquals(bounds.left + with(density) { inset.toPx() }, card.left, 1f)
+            assertEquals(card.left + with(density) { 10.dp.toPx() }, avatar.left, 1f)
+            screenshot("android-${displayMode.name.lowercase()}.png", "timeline")
+        }
+    }
+
+    @Test
+    fun profileHeaderShowsTheLargerBoldDisplayName() {
+        val name = "Alex Rivera"
+        val profile =
+            createSampleUser().copy(
+                nameInternal = name.toUiPlainText(),
+                handle = UiHandle("alex", "example.org", displayOverride = "@alex"),
+                avatar = null,
+                banner = null,
+            )
+        val state =
+            object : ProfileState(
+                userState = UiState.Success(profile),
+                relationState = UiState.Loading(),
+                followButtonState = UiState.Success(FollowButtonState.Follow),
+                isMe = UiState.Success(true),
+                actions = persistentListOf(),
+                myAccountKey = UiState.Loading(),
+                tabs = UiState.Loading(),
+            ) {
+                override fun follow(userKey: MicroBlogKey) = Unit
+
+                override fun unfollow(userKey: MicroBlogKey) = Unit
+
+                override fun unblock(userKey: MicroBlogKey) = Unit
+
+                override fun report(userKey: MicroBlogKey) = Unit
+
+                override fun retryTabs() = Unit
+            }
+        var expectedSize = 0f
+        compose.setContent {
+            CompositionLocalProvider(
+                LocalGlobalAppearance provides GlobalAppearance(pureColorMode = true),
+                LocalTimelineAppearance provides TimelineAppearance(),
+            ) {
+                FlareTheme(darkTheme = false, dynamicColor = false) {
+                    expectedSize = MaterialTheme.typography.titleMedium.fontSize.value + 4
+                    Surface(color = MaterialTheme.colorScheme.background) {
+                        ProfileHeader(
+                            state,
+                            onAvatarClick = {},
+                            onBannerClick = {},
+                            menu = {},
+                            onFollowListClick = {},
+                            onFansListClick = {},
+                        )
+                    }
+                }
+            }
+        }
+        val layouts = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText(name, useUnmergedTree = true).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        val style = layouts.single().layoutInput.style
+        assertEquals(expectedSize, style.fontSize.value, 0.01f)
+        assertEquals(FontWeight.Bold, style.fontWeight)
     }
 
     private val avatar by lazy {
@@ -441,12 +688,16 @@ class PostAppearanceTest {
             visibility = UiTimelineV2.Post.Visibility.Public,
         )
 
-    private fun screenshot(name: String) {
+    private fun screenshot(
+        name: String,
+        tag: String? = null,
+    ) {
         compose.mainClock.advanceTimeBy(500)
         compose.waitForIdle()
         if (InstrumentationRegistry.getArguments().getString("capturePostAppearance") != "1") return
         val directory = checkNotNull(InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir("post-appearance"))
-        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        val node = if (tag == null) compose.onRoot() else compose.onNodeWithTag(tag)
+        val bitmap = node.captureToImage().asAndroidBitmap()
         File(directory, name).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 }

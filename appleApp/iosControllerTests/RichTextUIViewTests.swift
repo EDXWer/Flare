@@ -6,6 +6,25 @@ import FlareAppleUI
 
 @MainActor
 final class RichTextUIViewTests: XCTestCase {
+    func testPlainCommentReusesItsLabelWhenTheTextIsReplaced() throws {
+        let view = RichTextUIView()
+        func bind(_ body: String, link: Bool = false) {
+            view.configure(text: richText([body], link: link), lineLimit: 5,
+                           isTextSelectionEnabled: false, onOpenURL: nil, collapseAboveLineCount: 15)
+            view.prepareForFitting(width: 340)
+        }
+
+        bind("上一条评论。")
+        let first = try XCTUnwrap(textViews(in: view).first as? UILabel)
+        bind("这条是楼中楼里的第二条评论。")
+        let second = try XCTUnwrap(textViews(in: view).first as? UILabel)
+        XCTAssertTrue(first === second)
+        XCTAssertEqual(second.attributedText?.string, "这条是楼中楼里的第二条评论。")
+
+        bind("这条有链接。", link: true)
+        XCTAssertTrue(textViews(in: view).first is UITextView)
+    }
+
     func testPostTypographyUpdatesRenderedAndMeasuredTextWithoutChangingOtherRichText() throws {
         let text = richText(["MMMM\nMMMM\nMMMM"], link: false,
                             block: RenderBlockStyle(headingLevel: nil, textAlignment: .center,
@@ -17,21 +36,21 @@ final class RichTextUIViewTests: XCTestCase {
             let originalHeight = try XCTUnwrap(view.timelineHeight(for: 240))
             for bold in [false, true] {
                 view.configure(text: text, lineLimit: nil, isTextSelectionEnabled: selection, onOpenURL: nil,
-                               baseTextBold: bold)
+                               baseTextWeight: bold ? .bold : nil)
                 view.prepareForFitting(width: 240)
                 let unspacedHeight = try XCTUnwrap(view.timelineHeight(for: 240))
                 view.configure(text: text, lineLimit: nil, isTextSelectionEnabled: selection, onOpenURL: nil,
-                               baseTextBold: bold, lineSpacing: 1)
+                               baseTextWeight: bold ? .bold : nil, lineSpacing: 1)
                 view.prepareForFitting(width: 240)
                 let renderer = try XCTUnwrap(textViews(in: view).first)
                 let rendered = try XCTUnwrap((renderer as? UILabel)?.attributedText ?? (renderer as? UITextView)?.attributedText)
                 let font = try XCTUnwrap(rendered.attribute(.font, at: 0, effectiveRange: nil) as? UIFont)
                 let paragraph = try XCTUnwrap(rendered.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
                 XCTAssertEqual(font.fontDescriptor.symbolicTraits.contains(.traitBold), bold)
-                XCTAssertEqual(paragraph.lineSpacing, 1 + (renderer is UILabel ? font.leading : 0), accuracy: 0.001)
+                XCTAssertEqual(paragraph.lineSpacing, 1.5 + (renderer is UILabel ? font.leading : 0), accuracy: 0.001)
                 XCTAssertEqual(paragraph.alignment, .center)
-                XCTAssertEqual(try XCTUnwrap(view.timelineHeight(for: 240)) - unspacedHeight, 2, accuracy: 0.001,
-                               "Three lines need two additional points: renderer=\(type(of: renderer)), bold=\(bold), font=\(font)")
+                XCTAssertEqual(try XCTUnwrap(view.timelineHeight(for: 240)) - unspacedHeight, 3, accuracy: 0.001,
+                               "Three lines need three additional points: renderer=\(type(of: renderer)), bold=\(bold), font=\(font)")
             }
 
             view.configure(text: text, lineLimit: nil, isTextSelectionEnabled: selection, onOpenURL: nil)
@@ -69,8 +88,8 @@ final class RichTextUIViewTests: XCTestCase {
                 let previewHeight = try XCTUnwrap(preview.timelineHeight(for: 240))
                 XCTAssertEqual(previewHeight, try XCTUnwrap(full.timelineHeight(for: 240)), accuracy: 0.001)
                 if let unspacedPreviewHeight {
-                    XCTAssertEqual(previewHeight - unspacedPreviewHeight, 4, accuracy: 0.001,
-                                   "Five visible lines need four extra points, linked=\(linked)")
+                    XCTAssertEqual(previewHeight - unspacedPreviewHeight, 6, accuracy: 0.001,
+                                   "Five visible lines need six extra points, linked=\(linked)")
                 } else {
                     unspacedPreviewHeight = previewHeight
                 }

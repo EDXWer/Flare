@@ -825,7 +825,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">Automaticky</string>
     <string name="image_translation_original_file">Původní soubor</string>
-    <string name="image_translation_use_shared_description">Sdílejte URL služby, API klíč a model. Služba a model musí podporovat výstup obrázků. Vypněte pro samostatnou konfiguraci překladu obrázků.</string>
+    <string name="image_translation_use_shared_description">Sdílejte URL služby, API klíč, model a vlastní hlavičky. Služba a model musí podporovat výstup obrázků. Vypněte pro samostatnou konfiguraci překladu obrázků.</string>
     <string name="plugin_permission_cookie">Číst cookie %2$s z %1$s</string>
     <string name="plugin_ai_create">Vytvořit s Flare AI</string>
     <string name="plugin_ai_untitled">Nový plugin</string>

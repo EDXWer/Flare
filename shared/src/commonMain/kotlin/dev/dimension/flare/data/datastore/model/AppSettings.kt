@@ -133,6 +133,7 @@ public data class AppSettings(
                 val reasoningEffort: String = "",
                 val extraBody: String = "",
                 val contextWindow: Int? = null,
+                val customHeaders: List<AiRequestHeader> = emptyList(),
             ) : Type
         }
     }

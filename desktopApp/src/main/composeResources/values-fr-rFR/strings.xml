@@ -737,7 +737,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">Automatique</string>
     <string name="image_translation_original_file">Fichier original</string>
-    <string name="image_translation_use_shared_description">Partager l\'URL du service, la clé API et le modèle. Le service et le modèle doivent prendre en charge la sortie d\'images. Désactiver pour configurer la traduction d\'images séparément.</string>
+    <string name="image_translation_use_shared_description">Partager l\'URL du service, la clé API, le modèle et les en-têtes personnalisés. Le service et le modèle doivent prendre en charge la sortie d\'images. Désactiver pour configurer la traduction d\'images séparément.</string>
     <string name="plugin_permission_http_origin">Envoyer des requêtes et des données à %1$s pendant l’utilisation de l’extension</string>
     <string name="plugin_permission_auth_origin">Accéder à %1$s pendant la connexion</string>
     <string name="plugin_permission_cookie">Lire le cookie %2$s sur %1$s</string>

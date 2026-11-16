@@ -29,7 +29,7 @@ public fun AdaptiveCard(
     content: @Composable () -> Unit,
 ) {
     val bigScreen = LocalMultipleColumns.current
-    val displayMode = LocalTimelineAppearance.current.timelineDisplayMode
+    val displayMode = LocalEffectiveTimelineDisplayMode.current ?: LocalTimelineAppearance.current.timelineDisplayMode
     val cardBackground =
         PlatformTheme.colorScheme.card.compositeOver(LocalStatusBackgroundColor.current ?: PlatformTheme.colorScheme.background)
     if (bigScreen) {
@@ -37,7 +37,7 @@ public fun AdaptiveCard(
             modifier =
                 modifier
                     .padding(
-                        horizontal = 2.dp,
+                        horizontal = StatusComponentDefaults.multiColumnCardHorizontalPadding,
                         vertical = 6.dp,
                     ),
             elevated = false,
@@ -82,7 +82,7 @@ public fun AdaptiveOutlinedCard(
     content: @Composable () -> Unit,
 ) {
     val bigScreen = LocalMultipleColumns.current
-    val displayMode = LocalTimelineAppearance.current.timelineDisplayMode
+    val displayMode = LocalEffectiveTimelineDisplayMode.current ?: LocalTimelineAppearance.current.timelineDisplayMode
     if (bigScreen || displayMode != TimelineDisplayMode.Plain) {
         AdaptiveCard(
             modifier = modifier,

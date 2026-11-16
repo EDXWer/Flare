@@ -10,14 +10,20 @@ import AppKit
 
 public nonisolated struct StatusActionLayoutMetrics: Sendable {
     public static let iconWidth: CGFloat = 20
+    public static let postIconSize: CGFloat = 16
     public static let padding: CGFloat = 4
     public static let labelSpacing: CGFloat = 2
     public static let actionSpacing: CGFloat = 4
 
+    public let baseFontSize: CGFloat
+    public let isPostAction: Bool
     public let fontSize: CGFloat
+    public let iconSize: CGFloat
+    public let iconHeight: CGFloat
     public let scale: CGFloat
     public let lineHeight: CGFloat
     public let numberWidth: CGFloat
+    private let titleSlotHeight: CGFloat
 
     #if canImport(UIKit)
     public var nativeFont: UIFont { .systemFont(ofSize: fontSize) }
@@ -25,29 +31,36 @@ public nonisolated struct StatusActionLayoutMetrics: Sendable {
     public var nativeFont: NSFont { .systemFont(ofSize: fontSize) }
     #endif
 
-    public init(fontSize: CGFloat, scale: CGFloat) {
-        self.fontSize = fontSize
+    public init(fontSize: CGFloat, scale: CGFloat, isPostAction: Bool = false) {
+        self.baseFontSize = fontSize
+        self.isPostAction = isPostAction
+        self.fontSize = isPostAction ? fontSize - 2 : fontSize
+        self.iconSize = isPostAction ? Self.postIconSize : fontSize
+        self.iconHeight = isPostAction ? Self.postIconSize : fontSize + 2
         self.scale = max(scale, 1)
         #if canImport(UIKit)
-        let font = UIFont.systemFont(ofSize: fontSize)
+        let baseFont = UIFont.systemFont(ofSize: fontSize)
+        let font = isPostAction ? UIFont.systemFont(ofSize: self.fontSize) : baseFont
         let height = font.lineHeight
+        let baseHeight = baseFont.lineHeight
         #else
-        let font = NSFont.systemFont(ofSize: fontSize)
+        let baseFont = NSFont.systemFont(ofSize: fontSize)
+        let font = isPostAction ? NSFont.systemFont(ofSize: self.fontSize) : baseFont
         let height = font.ascender - font.descender + font.leading
+        let baseHeight = baseFont.ascender - baseFont.descender + baseFont.leading
         #endif
         lineHeight = ceil(height * self.scale) / self.scale
+        titleSlotHeight = ceil(baseHeight * self.scale) / self.scale
         numberWidth = ceil(("0000" as NSString).size(withAttributes: [.font: font]).width * self.scale) / self.scale
     }
-
-    public var iconHeight: CGFloat { fontSize + 2 }
 
     #if canImport(UIKit)
     @MainActor
     public func iconImage(_ icon: UiIcon) -> UIImage? {
-        let key = "\(icon.fontAwesomeIcon.rawValue):\(fontSize):\(scale)" as NSString
+        let key = "\(icon.fontAwesomeIcon.rawValue):\(iconSize):\(scale)" as NSString
         if let image = StatusActionIconCache.images.object(forKey: key) { return image }
         let image = UIImage(fontAwesome: icon.fontAwesomeIcon)?
-            .applyingSymbolConfiguration(.init(pointSize: fontSize))?
+            .applyingSymbolConfiguration(.init(pointSize: iconSize))?
             .withRenderingMode(.alwaysTemplate)
         if let image { StatusActionIconCache.images.setObject(image, forKey: key) }
         return image
@@ -66,9 +79,10 @@ public nonisolated struct StatusActionLayoutMetrics: Sendable {
         let inset = expanded ? Self.padding : 0
         let hasTitle = titleWidth != nil || reservesNumberWidth
         let width = max(titleWidth ?? 0, reservesNumberWidth ? numberWidth : 0)
+        let iconSlotHeight = max(iconHeight, baseFontSize + 2)
         return CGSize(
             width: (hasIcon ? Self.iconWidth : 0) + (hasIcon && hasTitle ? Self.labelSpacing : 0) + width + inset * 2,
-            height: ceil(max(hasIcon ? iconHeight : 0, hasTitle ? lineHeight : 0) + inset * 2)
+            height: ceil(max(hasIcon ? iconSlotHeight : 0, hasTitle ? titleSlotHeight : 0) + inset * 2)
         )
     }
 

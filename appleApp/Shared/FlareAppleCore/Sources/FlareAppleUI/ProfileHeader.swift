@@ -27,6 +27,7 @@ private extension FollowButtonState {
 
 public struct CommonProfileHeader: View {
     @Environment(\.timelineAppearance.timelineDisplayMode) private var timelineDisplayMode
+    @Environment(\.profileUsesPlainStyle) private var profileUsesPlainStyle
     @Environment(\.openURL) private var openURL
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -188,10 +189,11 @@ public struct CommonProfileHeader: View {
     }
 
     private var shouldWrapContentInCard: Bool {
+        guard !profileUsesPlainStyle else { return false }
         #if os(iOS)
-        horizontalSizeClass == .compact && timelineDisplayMode != .plain
+        return horizontalSizeClass == .compact && timelineDisplayMode != .plain
         #else
-        timelineDisplayMode != .plain
+        return timelineDisplayMode != .plain
         #endif
     }
 
@@ -224,8 +226,8 @@ public struct CommonProfileHeader: View {
             alignment: .leading,
             spacing: 8
         ) {
-            RichText(text: user.name)
-                .font(.headline)
+            RichText(text: user.name, usesDisplayNameFont: true)
+                .font(.title2.weight(.bold))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
             HStack {

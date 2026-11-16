@@ -2,6 +2,7 @@ package dev.dimension.flare.ui.component.status
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +19,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CornerBasedShape
+import androidx.compose.foundation.shape.ZeroCornerSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -34,6 +37,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
@@ -64,11 +68,14 @@ import dev.dimension.flare.compose.ui.media_play_video
 import dev.dimension.flare.compose.ui.media_view_alt_text
 import dev.dimension.flare.compose.ui.show_sensitive_media
 import dev.dimension.flare.compose.ui.status_sensitive_media
+import dev.dimension.flare.data.model.TimelineDisplayMode
 import dev.dimension.flare.data.model.TimelineMediaLayout
 import dev.dimension.flare.data.model.VideoAutoplay
 import dev.dimension.flare.ui.component.AdaptiveGrid
+import dev.dimension.flare.ui.component.AdaptiveGridOverflow
 import dev.dimension.flare.ui.component.AudioPlayer
 import dev.dimension.flare.ui.component.FAIcon
+import dev.dimension.flare.ui.component.FlareDividerDefaults
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
 import dev.dimension.flare.ui.component.LocalTimelineCarouselItem
 import dev.dimension.flare.ui.component.LocalTimelinePlayback
@@ -143,6 +150,7 @@ internal fun StatusMediaComponent(
         allowCarousel &&
             appearanceSettings.mediaLayout == TimelineMediaLayout.Carousel &&
             data.size > 1
+    val visibleGridCount = if (appearanceSettings.limitMediaGridToNine) minOf(data.size, 9) else data.size
     val carouselState = if (usesCarousel) rememberLazyListState() else null
     val carouselId = remember(post.statusKey) { Any() }
     val playback = LocalTimelinePlayback.current
@@ -265,6 +273,7 @@ internal fun StatusMediaComponent(
                                 onMediaClick = { openMedia(index) },
                                 hideSensitive = hideSensitive,
                                 keepAspectRatio = false,
+                                shape = shape,
                                 fillContainer = true,
                                 modifier =
                                     Modifier
@@ -278,7 +287,7 @@ internal fun StatusMediaComponent(
             }
         } else {
             AdaptiveGrid(
-                itemCount = data.size,
+                itemCount = visibleGridCount,
                 itemContent = { index ->
                     CompositionLocalProvider(
                         LocalTimelineCarouselItem provides TimelineCarouselItem(carouselId, index, selected = true, isCarousel = false),
@@ -289,13 +298,15 @@ internal fun StatusMediaComponent(
                             mediaCount = data.size,
                             onMediaClick = { openMedia(index) },
                             hideSensitive = hideSensitive,
+                            shape = shape.forGridMedia(index, visibleGridCount),
+                            overflowCount = if (index == visibleGridCount - 1) data.size - visibleGridCount else 0,
                             keepAspectRatio = data.size == 1 && appearanceSettings.expandMediaSize && singleExpandedMedia == null,
                             fillContainer = singleExpandedMedia != null,
                             contentScale = if (singleExpandedMedia is UiMedia.Video) ContentScale.Fit else ContentScale.Crop,
                         )
                     }
                 },
-                maxItems = if (appearanceSettings.limitMediaGridToNine) 9 else data.size,
+                maxItems = visibleGridCount,
                 modifier = mediaContentModifier,
                 expandedSize = appearanceSettings.expandMediaSize,
                 singleMediaAspectRatio = singleMediaRatio,
@@ -423,6 +434,27 @@ private val UiMedia.carouselAspectRatio: Float
 private val UiMedia.timelineAspectRatio: Float
     get() = carouselAspectRatio.takeIf { it > 0f } ?: 1f
 
+private fun Shape.forGridMedia(
+    index: Int,
+    count: Int,
+): Shape {
+    if (count == 1) return this
+    val corners = this as? CornerBasedShape ?: return RectangleShape
+    val topEndIndex = if (count <= 4) 1 else 2
+    val bottomStartIndex =
+        when (count) {
+            2, 3 -> 0
+            4 -> 2
+            else -> (count - 1) / 3 * 3
+        }
+    return corners.copy(
+        topStart = if (index == 0) corners.topStart else ZeroCornerSize,
+        topEnd = if (index == topEndIndex) corners.topEnd else ZeroCornerSize,
+        bottomStart = if (index == bottomStartIndex) corners.bottomStart else ZeroCornerSize,
+        bottomEnd = if (index == count - 1) corners.bottomEnd else ZeroCornerSize,
+    )
+}
+
 @Composable
 private fun StatusMediaItem(
     post: UiTimelineV2.Post,
@@ -431,7 +463,9 @@ private fun StatusMediaItem(
     onMediaClick: () -> Unit,
     hideSensitive: Boolean,
     keepAspectRatio: Boolean,
+    shape: Shape,
     modifier: Modifier = Modifier,
+    overflowCount: Int = 0,
     fillContainer: Boolean = false,
     contentScale: ContentScale = ContentScale.Crop,
 ) {
@@ -439,10 +473,16 @@ private fun StatusMediaItem(
     val viewAltTextLabel = stringResource(Res.string.media_view_alt_text)
     val appearanceSettings = LocalTimelineAppearance.current
     val mediaActionConfig = LocalTimelineMediaActionConfig.current
+    val borderColor =
+        if (LocalEffectiveTimelineDisplayMode.current == TimelineDisplayMode.Gallery) {
+            Color(0xFFB3B3B3)
+        } else {
+            FlareDividerDefaults.color
+        }
     var isMenuExpanded by remember(media.url) {
         mutableStateOf(false)
     }
-    Box(modifier = modifier) {
+    Box(modifier = modifier.border(Dp.Hairline, borderColor, shape)) {
         CompositionLocalProvider(
             LocalTimelineAppearance provides
                 appearanceSettings.copy(
@@ -546,6 +586,9 @@ private fun StatusMediaItem(
                     )
                 },
             )
+        }
+        if (overflowCount > 0) {
+            AdaptiveGridOverflow(overflowCount, Modifier.matchParentSize())
         }
     }
 }

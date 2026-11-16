@@ -543,11 +543,7 @@ private struct DiscoverTimelineSection: View {
 
     var body: some View {
         Section {
-            #if os(iOS)
             TimelinePagingListContent(data: data)
-            #else
-            TimelinePagingListContent(data: data, usesDefaultHorizontalPadding: true)
-            #endif
         } header: {
             Text(FlareAppleUILocalization.string(titleKey))
         }

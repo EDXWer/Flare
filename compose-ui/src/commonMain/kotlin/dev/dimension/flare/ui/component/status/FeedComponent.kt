@@ -23,7 +23,6 @@ import dev.dimension.flare.ui.model.ClickContext
 import dev.dimension.flare.ui.model.TranslationDisplayState
 import dev.dimension.flare.ui.model.UiTimelineV2
 import dev.dimension.flare.ui.theme.PlatformTheme
-import dev.dimension.flare.ui.theme.screenHorizontalPadding
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -41,7 +40,7 @@ internal fun FeedComponent(
                         ClickContext(uriHandler::openUri),
                     )
                 }.padding(
-                    horizontal = screenHorizontalPadding,
+                    horizontal = StatusComponentDefaults.horizontalPadding,
                     vertical = 8.dp,
                 ).then(modifier),
         verticalArrangement = Arrangement.spacedBy(4.dp),

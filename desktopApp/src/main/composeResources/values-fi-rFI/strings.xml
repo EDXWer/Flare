@@ -736,7 +736,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">Automaattinen</string>
     <string name="image_translation_original_file">Alkuperäinen tiedosto</string>
-    <string name="image_translation_use_shared_description">Jaa palvelun URL-osoite, API-avain ja malli. Palvelun ja mallin on tuettava kuvatulostusta. Sammuta konfiguroidaksesi kuvakäännöksen erikseen.</string>
+    <string name="image_translation_use_shared_description">Jaa palvelun URL-osoite, API-avain, malli ja mukautetut otsakkeet. Palvelun ja mallin on tuettava kuvatulostusta. Sammuta konfiguroidaksesi kuvakäännöksen erikseen.</string>
     <string name="plugin_permission_cookie">Lue eväste %2$s sivustolta %1$s</string>
     <string name="plugin_ai_create">Luo Flare AI:lla</string>
     <string name="plugin_ai_untitled">Uusi lisäosa</string>

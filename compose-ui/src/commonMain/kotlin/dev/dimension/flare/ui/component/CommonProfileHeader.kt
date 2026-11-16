@@ -33,6 +33,7 @@ import dev.dimension.flare.ui.model.UiHandle
 import dev.dimension.flare.ui.model.UiMedia
 import dev.dimension.flare.ui.render.UiRichText
 import dev.dimension.flare.ui.theme.PlatformTheme
+import dev.dimension.flare.ui.theme.profileName
 import dev.dimension.flare.ui.theme.screenHorizontalPadding
 import org.jetbrains.compose.resources.stringResource
 
@@ -187,7 +188,7 @@ internal fun CommonProfileHeader(
                     Column {
                         RichText(
                             text = displayName,
-                            textStyle = PlatformTheme.typography.title,
+                            textStyle = PlatformTheme.typography.profileName,
 //                        modifier =
 //                            Modifier
 //                                .sharedElement(

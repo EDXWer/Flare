@@ -136,6 +136,9 @@ private struct AiConfigSettingsSectionsContent: View {
                     if state.presenter.state.aiType == .openAi {
                         editButton(field: .serverUrl, value: state.presenter.state.openAIServerUrl)
                         editButton(field: .apiKey, value: state.presenter.state.openAIApiKey)
+                        AiConfigHeadersSetting(headers: state.presenter.state.openAIHeaders) {
+                            _ = state.presenter.state.setOpenAIHeaders(value: $0)
+                        }
 
                         Picker(
                             selection: Binding(

@@ -13,7 +13,11 @@ import ai.koog.prompt.llm.LLModel
 import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.MessagePart
 import ai.koog.prompt.params.LLMParams
+import dev.dimension.flare.data.datastore.model.AiRequestHeader
+import dev.dimension.flare.data.network.ai.openAIRequestHeaders
+import dev.dimension.flare.data.network.ai.redactAiHeaderValues
 import dev.dimension.flare.feature.agent.common.upstreamErrorMessage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.serialization.json.Json
@@ -33,13 +37,43 @@ internal val OpenAIEndpoint.scopeKey: String
 
 internal class AgentOpenAIClient(
     apiKey: String,
+    private val customHeaders: List<AiRequestHeader>,
     settings: OpenAIClientSettings,
     httpClientFactory: KoogHttpClient.Factory,
     private val scope: JsonPrimitive,
     private val preferredEndpoint: OpenAIEndpoint,
     private val pinnedEndpoint: OpenAIEndpoint?,
     private val confirmEndpoint: (OpenAIEndpoint) -> Unit,
-) : OpenAILLMClient(apiKey = apiKey, settings = settings, httpClientFactory = httpClientFactory) {
+) : OpenAILLMClient(
+        // The connection supplies the complete auth headers, including connections without a bearer token.
+        apiKey = "",
+        settings = settings,
+        httpClientFactory =
+            object : KoogHttpClient.Factory {
+                private val requestHeaders = openAIRequestHeaders(apiKey, customHeaders)
+
+                override fun create(
+                    clientName: String,
+                    baseUrl: String,
+                    headers: Map<String, String>,
+                    queryParameters: Map<String, String>,
+                    requestTimeoutMillis: Long,
+                    connectTimeoutMillis: Long,
+                    socketTimeoutMillis: Long,
+                    json: Json,
+                ): KoogHttpClient =
+                    httpClientFactory.create(
+                        clientName,
+                        baseUrl,
+                        requestHeaders,
+                        queryParameters,
+                        requestTimeoutMillis,
+                        connectTimeoutMillis,
+                        socketTimeoutMillis,
+                        json,
+                    )
+            },
+    ) {
     private var confirmedEndpoint: OpenAIEndpoint? = null
 
     override suspend fun execute(
@@ -51,16 +85,21 @@ internal class AgentOpenAIClient(
         var endpoint = pinned ?: preferredEndpoint
         val response =
             try {
-                executeOn(endpoint, prompt, model, tools)
+                try {
+                    executeOn(endpoint, prompt, model, tools)
+                } catch (error: Exception) {
+                    currentCoroutineContext().ensureActive()
+                    if (error is CancellationException || pinned != null || !error.rejectsEndpoint(endpoint)) throw error
+                    endpoint =
+                        when (endpoint) {
+                            OpenAIEndpoint.Completions -> OpenAIEndpoint.Responses
+                            OpenAIEndpoint.Responses -> OpenAIEndpoint.Completions
+                        }
+                    executeOn(endpoint, prompt, model, tools)
+                }
             } catch (error: Exception) {
-                currentCoroutineContext().ensureActive()
-                if (pinned != null || !error.rejectsEndpoint(endpoint)) throw error
-                endpoint =
-                    when (endpoint) {
-                        OpenAIEndpoint.Completions -> OpenAIEndpoint.Responses
-                        OpenAIEndpoint.Responses -> OpenAIEndpoint.Completions
-                    }
-                executeOn(endpoint, prompt, model, tools)
+                if (error is CancellationException || customHeaders.isEmpty()) throw error
+                throw error.withoutEchoedHeaders(customHeaders)
             }
         if (tools.isNotEmpty() && confirmedEndpoint == null) {
             confirmedEndpoint = endpoint
@@ -105,6 +144,22 @@ internal class AgentOpenAIClient(
                     metadata = JsonObject(response.metaInfo.metadata.orEmpty() + (endpoint.scopeKey to scope)),
                 ),
         )
+    }
+}
+
+private fun Exception.withoutEchoedHeaders(headers: List<AiRequestHeader>): Exception {
+    val causes = generateSequence<Throwable>(this) { it.cause }.take(16).toList()
+    val http = causes.filterIsInstance<KoogHttpClientException>().firstOrNull()
+    val body = http?.errorBody?.redactAiHeaderValues(headers)
+    val messages = causes.mapNotNull(Throwable::message)
+    val redacted = messages.map { it.redactAiHeaderValues(headers) }
+    if (body == http?.errorBody && messages == redacted) return this
+    val message = redacted.lastOrNull()
+    // Koog logs exceptions and their causes, so propagate only the redacted response.
+    return if (http != null) {
+        KoogHttpClientException(http.clientName, http.statusCode, body, message.takeIf { body.isNullOrBlank() })
+    } else {
+        IllegalStateException(message)
     }
 }
 

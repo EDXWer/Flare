@@ -53,7 +53,6 @@ import dev.dimension.flare.ui.render.UiRichText
 import dev.dimension.flare.ui.theme.PlatformContentColor
 import dev.dimension.flare.ui.theme.PlatformTheme
 import dev.dimension.flare.ui.theme.isLightTheme
-import dev.dimension.flare.ui.theme.withRichTextSpacing
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.toImmutableMap
 
@@ -88,12 +87,8 @@ public fun RichText(
             textDecoration = TextDecoration.None,
         ),
     imageHeaders: ImmutableMap<String, String>? = null,
-    useBodySpacing: Boolean = false,
 ) {
     val inheritedStyle = PlatformTextStyle.current.merge(textStyle)
-    val bodyStyle = if (useBodySpacing) inheritedStyle.withRichTextSpacing() else null
-    val contentStyle = bodyStyle?.let { textStyle.copy(lineHeight = it.lineHeight, letterSpacing = it.letterSpacing) } ?: textStyle
-    val contentLinkStyle = bodyStyle?.let { linkStyle.copy(letterSpacing = it.letterSpacing) } ?: linkStyle
     val h1 = PlatformTheme.typography.h1
     val h2 = PlatformTheme.typography.h2
     val h3 = PlatformTheme.typography.h3
@@ -105,16 +100,16 @@ public fun RichText(
         LocalLayoutDirection provides layoutDirection,
     ) {
         CompositionLocalProvider(
-            PlatformTextStyle provides (bodyStyle ?: inheritedStyle),
+            PlatformTextStyle provides inheritedStyle,
         ) {
             val state =
-                remember(text, contentStyle, contentLinkStyle, color) {
+                remember(text, textStyle, linkStyle, color) {
                     RichTextState(
                         richText = text,
                         styleData =
                             StyleData(
-                                style = contentStyle,
-                                linkStyle = contentLinkStyle,
+                                style = textStyle,
+                                linkStyle = linkStyle,
                                 h1 = h1,
                                 h2 = h2,
                                 h3 = h3,

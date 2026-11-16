@@ -4,6 +4,7 @@ import FlareAppleCore
 
 public struct UserOnelineView<TrailingContent: View>: View {
     @Environment(\.isPostContent) private var isPostContent
+    @Environment(\.timelineGalleryFallback) private var isGalleryFallback
     private let data: UiProfile
     private let showAvatar: Bool
     private let subtitle: String
@@ -37,8 +38,8 @@ public struct UserOnelineView<TrailingContent: View>: View {
                     }
             }
             HStack(spacing: 4) {
-                RichText(text: data.name)
-                    .fontWeight(isPostContent ? .bold : nil)
+                RichText(text: data.name, usesDisplayNameFont: !isGalleryFallback)
+                    .fontWeight(isGalleryFallback ? (isPostContent ? .heavy : nil) : .bold)
                 Text(subtitle)
                     .font(isPostContent ? .body : .caption)
                     .flareSecondaryText()

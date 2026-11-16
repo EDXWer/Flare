@@ -3,13 +3,17 @@ package dev.dimension.flare.data.datasource.vvo
 import dev.dimension.flare.common.UploadMedia
 import dev.dimension.flare.data.datasource.microblog.capabilities
 import dev.dimension.flare.data.datasource.microblog.paging.PagingRequest
+import dev.dimension.flare.data.model.tab.ShortcutSpec
 import dev.dimension.flare.data.network.vvo.VVOService
 import dev.dimension.flare.data.platform.VVoCredential
 import dev.dimension.flare.data.repository.LoginExpiredException
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.model.UiDMItem
+import dev.dimension.flare.ui.model.UiIcon
 import dev.dimension.flare.ui.model.UiMedia
+import dev.dimension.flare.ui.model.UiStrings
 import dev.dimension.flare.ui.model.mapper.VvoRenderTestModule
+import dev.dimension.flare.ui.route.DeeplinkRoute
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -26,6 +30,8 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.io.readByteArray
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
@@ -41,6 +47,8 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 class VVODirectMessageTest {
     private val account = MicroBlogKey("42", "m.weibo.cn")
@@ -57,12 +65,22 @@ class VVODirectMessageTest {
     }
 
     @Test
-    fun weiboAccountAppearsInTheSharedInbox() {
+    fun weiboAccountExposesAnInboxShortcut() {
         val source = VVODataSource(account, flowOf(VVoCredential("MLOGIN=1; SUB=test")))
 
         val directMessage = assertNotNull(source.capabilities.directMessage)
         assertFalse(directMessage.supportsLeavingDirectMessage)
         assertTrue(directMessage.supportsSendingDirectMessageImage)
+
+        val shortcuts = assertNotNull(source.capabilities.tabCatalog?.configuration).shortcuts
+        assertEquals(
+            ShortcutSpec(
+                title = UiStrings.DirectMessage,
+                icon = UiIcon.Messages,
+                target = ShortcutSpec.Target.Route(DeeplinkRoute.AllDirectMessages(account)),
+            ),
+            shortcuts.singleOrNull { it.title == UiStrings.DirectMessage },
+        )
     }
 
     @Test
@@ -86,6 +104,64 @@ class VVODirectMessageTest {
             assertFailsWith<IllegalStateException> {
                 VVODirectMessageLoader(service, account.copy(id = "43")).loadMessages(room, 20, PagingRequest.Refresh)
             }
+        }
+
+    @Test
+    fun roomsKeepEachPeersAvatar() =
+        runTest {
+            val service =
+                service {
+                    """
+                    {"ok":1,"data":[
+                      {"user":{"id":77,"screen_name":"First","avatar_large":"https://example.com/avatars/77.jpg"}},
+                      {"user":{
+                        "id":78,"screen_name":"Second","avatar_hd":"",
+                        "profile_image_url":"https://example.com/avatars/78.jpg",
+                        "avatar_large":"https://example.com/avatars/78-large.jpg"
+                      }}
+                    ]}
+                    """.trimIndent()
+                }
+            val rooms = VVODirectMessageLoader(service, account).loadRooms(20, PagingRequest.Refresh).data
+            assertEquals(
+                listOf(
+                    MicroBlogKey("77", account.host) to "https://example.com/avatars/77.jpg",
+                    MicroBlogKey("78", account.host) to "https://example.com/avatars/78.jpg",
+                ),
+                rooms.map { room ->
+                    val peer = room.users.single()
+                    peer.key to peer.avatar?.url
+                },
+            )
+        }
+
+    @Test
+    fun roomsParseDateOnlyPreviewsAndKeepUnknownTimes() =
+        runTest {
+            val service =
+                service {
+                    """
+                    {"ok":1,"data":[
+                      {"user":{"id":77,"screen_name":"First"},"created_at":"2023-12-25","text":"Hi"},
+                      {"user":{"id":78,"screen_name":"Second"},"created_at":"01-01","text":"Hi"},
+                      {"user":{"id":79,"screen_name":"Third"},"text":"Hi"}
+                    ]}
+                    """.trimIndent()
+                }
+            val rooms = VVODirectMessageLoader(service, account).loadRooms(20, PagingRequest.Refresh).data
+            val currentYear =
+                Clock.System
+                    .now()
+                    .toLocalDateTime(TimeZone.of("Asia/Shanghai"))
+                    .year
+            assertEquals(
+                listOf(
+                    Instant.parse("2023-12-24T16:00:00Z"),
+                    Instant.parse("${currentYear - 1}-12-31T16:00:00Z"),
+                    Instant.DISTANT_PAST,
+                ),
+                rooms.map { assertNotNull(it.lastMessage).timestamp.value },
+            )
         }
 
     @Test

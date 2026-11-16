@@ -3,6 +3,8 @@ import UIKit
 
 final class TimelineHostedAccessoryView: UIView {
     var onHeightChanged: (() -> Void)?
+    private(set) var revision = 0
+    private var contentKey: AnyHashable?
     private var measuredHeight: CGFloat?
     private let host = UIHostingController(rootView: AnyView(EmptyView()))
 
@@ -23,16 +25,23 @@ final class TimelineHostedAccessoryView: UIView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func update(_ content: AnyView) {
-        host.rootView = content
+    func update(_ content: @autoclosure () -> AnyView, key: AnyHashable? = nil) {
+        if let key, key == contentKey { return }
+        contentKey = key
+        revision &+= 1
+        host.rootView = content()
         host.view.invalidateIntrinsicContentSize()
         invalidateIntrinsicContentSize()
+    }
+
+    func fittingHeight(for width: CGFloat) -> CGFloat {
+        host.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude)).height
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
         guard bounds.width > 1 else { return }
-        let height = host.sizeThatFits(in: CGSize(width: bounds.width, height: .greatestFiniteMagnitude)).height
+        let height = fittingHeight(for: bounds.width)
         guard height.isFinite, height > 0, measuredHeight.map({ abs($0 - height) > 0.5 }) ?? true else { return }
         measuredHeight = height
         onHeightChanged?()

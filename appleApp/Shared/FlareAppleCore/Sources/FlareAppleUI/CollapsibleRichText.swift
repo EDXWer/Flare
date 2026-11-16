@@ -10,9 +10,11 @@ struct CollapsibleRichText: View {
     let onOverflowChanged: (Bool) -> Void
 
     @ScaledMetric(relativeTo: .body) private var fallbackLineHeight: CGFloat = 20
-    @Environment(\.lineSpacing) private var lineSpacing
+    @Environment(\.lineSpacing) private var baseLineSpacing
     @State private var fullHeight: CGFloat = 0
     @State private var lineHeight: CGFloat = 0
+
+    private var lineSpacing: CGFloat { baseLineSpacing * RichText.lineSpacingMultiplier }
 
     private var effectiveLineHeight: CGFloat {
         max(lineHeight, fallbackLineHeight) + lineSpacing

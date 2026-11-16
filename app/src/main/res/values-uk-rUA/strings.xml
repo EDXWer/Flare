@@ -815,7 +815,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">Автоматично</string>
     <string name="image_translation_original_file">Оригінальний файл</string>
-    <string name="image_translation_use_shared_description">Поділіться URL-адресою сервісу, ключем API та моделлю. Сервіс та модель повинні підтримувати виведення зображень. Вимкніть, щоб налаштувати переклад зображень окремо.</string>
+    <string name="image_translation_use_shared_description">Поділіться URL-адресою сервісу, ключем API, моделлю та спеціальними заголовками. Сервіс та модель повинні підтримувати виведення зображень. Вимкніть, щоб налаштувати переклад зображень окремо.</string>
     <string name="plugin_permission_cookie">Читати cookie %2$s з %1$s</string>
     <string name="plugin_ai_create">Створити за допомогою ШІ Flare</string>
     <string name="plugin_ai_untitled">Новий плагін</string>

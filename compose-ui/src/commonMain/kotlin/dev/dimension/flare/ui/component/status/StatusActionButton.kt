@@ -14,8 +14,11 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -38,6 +41,7 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.dimension.flare.ui.component.AnimatedNumber
 import dev.dimension.flare.ui.component.FAIcon
@@ -51,6 +55,8 @@ import dev.dimension.flare.ui.model.UiNumber
 import dev.dimension.flare.ui.theme.PlatformContentColor
 import dev.dimension.flare.ui.theme.PlatformTheme
 
+internal fun UiNumber?.visibleActionNumber(showNumbers: Boolean): UiNumber? = this?.takeIf { showNumbers && it.humanized.isNotEmpty() }
+
 @Composable
 public fun StatusActionButton(
     icon: ImageVector,
@@ -62,13 +68,13 @@ public fun StatusActionButton(
     enabled: Boolean = true,
     withTextMinWidth: Boolean = false,
     isStretched: Boolean = false,
+    iconSize: Dp = StatusComponentDefaults.actionIconSize,
+    iconWidth: Dp = minOf(iconSize, StatusComponentDefaults.actionIconSlotWidth),
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val appearanceSettings = LocalTimelineAppearance.current
-    val displayNumber =
-        number?.takeIf {
-            appearanceSettings.showNumbers && it.humanized.isNotEmpty()
-        }
+    val iconSlotWidth = maxOf(StatusComponentDefaults.actionIconSlotWidth, iconWidth)
+    val displayNumber = number.visibleActionNumber(appearanceSettings.showNumbers)
     val actionDescription = contentDescription?.takeIf { it.isNotBlank() }
     val accessibilityDescription =
         listOfNotNull(
@@ -123,7 +129,6 @@ public fun StatusActionButton(
                 contentDescription = contentDescription,
                 modifier =
                     Modifier
-                        .height(PlatformTextStyle.current.fontSize.value.dp + 2.dp)
                         .pointerHoverIcon(if (enabled) PointerIcon.Hand else PointerIcon.Default)
                         .clickable(
                             onClick = onClicked,
@@ -135,7 +140,11 @@ public fun StatusActionButton(
                                     radius = 20.dp,
                                     color = Color.Unspecified,
                                 ),
-                        ),
+                        ).size(
+                            width = iconSlotWidth,
+                            height = maxOf(iconSize, StatusComponentDefaults.actionIconSize),
+                        ).wrapContentSize()
+                        .size(width = iconWidth, height = iconSize),
                 tint = color,
             )
         }
@@ -145,23 +154,18 @@ public fun StatusActionButton(
             modifier
                 .then(accessibilityModifier)
                 .alpha(if (enabled) 1f else 0.4f)
-                .padding(vertical = 4.dp, horizontal = 4.dp),
+                .padding(StatusComponentDefaults.actionButtonPadding),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(StatusComponentDefaults.actionLabelSpacing),
     ) {
         if (withTextMinWidth && displayNumber == null) {
             Box(
                 contentAlignment = Alignment.CenterStart,
             ) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(StatusComponentDefaults.actionLabelSpacing),
                 ) {
-                    FAIcon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        modifier = Modifier.height(PlatformTextStyle.current.fontSize.value.dp + 2.dp),
-                        tint = Color.Transparent,
-                    )
+                    Spacer(Modifier.width(iconSlotWidth))
                     PlatformText(
                         "0000",
                         color = Color.Transparent,
@@ -207,6 +211,8 @@ public fun StatusActionButton(
 internal fun StatusActionGroup(
     icon: ImageVector,
     number: UiNumber?,
+    iconSize: Dp,
+    iconWidth: Dp,
     modifier: Modifier = Modifier,
     color: Color = PlatformContentColor.current,
     contentDescription: String? = null,
@@ -230,6 +236,8 @@ internal fun StatusActionGroup(
             enabled = enabled,
             withTextMinWidth = withTextMinWidth,
             isStretched = isStretched,
+            iconSize = iconSize,
+            iconWidth = iconWidth,
         )
         PlatformDropdownMenu(
             expanded = showMenu,

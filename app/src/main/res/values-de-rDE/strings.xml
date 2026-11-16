@@ -822,7 +822,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">Automatisch</string>
     <string name="image_translation_original_file">Originaldatei</string>
-    <string name="image_translation_use_shared_description">Teile die Dienst-URL, den API-Schlüssel und das Modell. Der Dienst und das Modell müssen Bildausgabe unterstützen. Deaktivieren, um die Bildübersetzung separat zu konfigurieren.</string>
+    <string name="image_translation_use_shared_description">Teile die Dienst-URL, den API-Schlüssel, das Modell und die benutzerdefinierten Header. Der Dienst und das Modell müssen Bildausgabe unterstützen. Deaktivieren, um die Bildübersetzung separat zu konfigurieren.</string>
     <string name="plugin_permission_http_origin">Bei der Nutzung des Plugins Anfragen und Daten an %1$s senden</string>
     <string name="plugin_permission_auth_origin">Bei der Anmeldung auf %1$s zugreifen</string>
     <string name="plugin_permission_cookie">Cookie %2$s von %1$s lesen</string>

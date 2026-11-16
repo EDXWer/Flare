@@ -6,6 +6,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.dimension.flare.common.SystemUtils
 import dev.dimension.flare.ui.theme.PlatformContentColor
 import dev.dimension.flare.ui.theme.PlatformTheme
 import dev.dimension.flare.ui.theme.isLightTheme
@@ -14,11 +15,19 @@ public val LocalStatusBackgroundColor: ProvidableCompositionLocal<Color?> = stat
 
 public object StatusComponentDefaults {
     public val horizontalPadding: Dp = 10.dp
+    internal val cardHorizontalPadding: Dp = 8.dp
+    internal val multiColumnCardHorizontalPadding: Dp = 2.dp
     public val avatarSize: Dp = 48.dp
     public val quotePadding: Dp = 12.dp
     public val topPadding: Dp = 12.dp
     internal val attachmentSpacing: Dp = 10.dp
     internal val actionsSpacing: Dp = 2.dp
+    internal val actionIconSize: Dp = 16.dp
+    internal val postActionIconSize: Dp = if (SystemUtils.isAndroid) 15.dp else 14.dp
+    internal val postActionTextSizeReduction = if (SystemUtils.isAndroid) 3 else 4
+    internal val actionIconSlotWidth: Dp = 20.dp
+    internal val actionLabelSpacing: Dp = 2.dp
+    internal val actionButtonPadding: Dp = 4.dp
 
     internal val contentColor: Color
         @Composable

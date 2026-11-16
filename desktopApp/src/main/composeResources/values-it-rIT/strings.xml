@@ -736,7 +736,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">Automatico</string>
     <string name="image_translation_original_file">File originale</string>
-    <string name="image_translation_use_shared_description">Condividi l\'URL del servizio, la chiave API e il modello. Il servizio e il modello devono supportare l\'output di immagini. Disattiva per configurare la traduzione delle immagini separatamente.</string>
+    <string name="image_translation_use_shared_description">Condividi l\'URL del servizio, la chiave API, il modello e le intestazioni personalizzate. Il servizio e il modello devono supportare l\'output di immagini. Disattiva per configurare la traduzione delle immagini separatamente.</string>
     <string name="plugin_permission_cookie">Leggi il cookie %2$s da %1$s</string>
     <string name="plugin_ai_create">Crea con AI Flare</string>
     <string name="plugin_ai_untitled">Nuovo plugin</string>

@@ -14,7 +14,10 @@ private typealias PlatformImage = NSImage
 #endif
 
 public struct RichText: View {
+    public nonisolated static let lineSpacingMultiplier: CGFloat = 1.5
     private let text: UiRichText
+    private let usesDisplayNameFont: Bool
+    private let inlineImageHeight: CGFloat?
     private let previewLineLimit: Int?
     private let previewLineHeight: CGFloat
     @State private var images: [String: Image] = [:]
@@ -23,22 +26,33 @@ public struct RichText: View {
     @ScaledMetric(relativeTo: .body) private var quoteBarWidth = 3
     @Environment(\.openURL) private var openURL
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.font) private var font
+    @Environment(\.lineSpacing) private var lineSpacing
     @Environment(\.shareImageLoading) private var shareImageLoading
     @State private var shareImageID = UUID()
 
     public init(text: UiRichText) {
+        self.init(text: text, usesDisplayNameFont: false)
+    }
+
+    init(text: UiRichText, usesDisplayNameFont: Bool, inlineImageHeight: CGFloat? = nil) {
         self.text = text
+        self.usesDisplayNameFont = usesDisplayNameFont
+        self.inlineImageHeight = inlineImageHeight
         previewLineLimit = nil
         previewLineHeight = 0
     }
 
     init(text: UiRichText, previewLineLimit: Int?, previewLineHeight: CGFloat) {
         self.text = text
+        usesDisplayNameFont = false
+        inlineImageHeight = nil
         self.previewLineLimit = previewLineLimit.map { max($0, 1) }
         self.previewLineHeight = previewLineHeight
     }
 
     public var body: some View {
+        let targetHeight = inlineImageHeight ?? imageSize
         VStack(alignment: .leading, spacing: 8) {
             ForEach(Array(previewContents.enumerated()), id: \.offset) { index, content in
                 let remainingLines = remainingLines(before: index)
@@ -112,12 +126,11 @@ public struct RichText: View {
             }
         }
         .onPreferenceChange(RichTextPreviewMeasurements.self) { previewMeasurements = $0 }
-        .task(id: InlineImageRequest(urls: inlineImageURLs, height: imageSize, scale: displayScale,
+        .task(id: InlineImageRequest(urls: inlineImageURLs, height: targetHeight, scale: displayScale,
                                      mediaIdentity: text.imageMedias.map { "\(String(describing: $0.proxy))|\($0.cacheKey)" },
                                      revision: ProxyMediaImages.shared.revision)) {
             let urls = inlineImageURLs
             images = images.filter { urls.contains($0.key) }
-            let targetHeight = imageSize
             if !urls.isEmpty { shareImageLoading?.register(shareImageID) }
             var succeeded = true
             for media in text.imageMedias where urls.contains(media.url) {
@@ -191,6 +204,7 @@ public struct RichText: View {
     @ViewBuilder
     private func renderBlock(textContent: PlatformTextTextContent) -> some View {
         let renderedText = render(textContent: textContent).flarePrimaryText()
+            .lineSpacing(lineSpacing * Self.lineSpacingMultiplier)
         if textContent.isBlockQuote {
             HStack(alignment: .top, spacing: 11) {
                 Rectangle()
@@ -215,7 +229,7 @@ public struct RichText: View {
         textContent.runs.reduce(Text(verbatim: "")) { partial, run in
             switch run {
             case let attributedRun as PlatformTextAttributedRun:
-                partial + Text(attributedRun.text)
+                partial + Text(usesDisplayNameFont ? attributedRun.text(usingDisplayNameFont: font ?? .body) : attributedRun.text)
             case let imageRun as PlatformTextImageRun:
                 if let image = images[imageRun.url] {
                     partial + Text(image).baselineOffset(-3)

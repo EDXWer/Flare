@@ -148,6 +148,7 @@ public fun ServiceSelectionScreenContent(
         columns = StaggeredGridCells.Adaptive(300.dp),
         contentPadding = contentPadding,
         forceCardMode = true,
+        cardGridPadding = screenHorizontalPadding,
     ) {
         item(span = StaggeredGridItemSpan.FullLine) {
             Column(
@@ -381,6 +382,7 @@ public fun ReloginScreenContent(
         columns = StaggeredGridCells.Adaptive(300.dp),
         contentPadding = contentPadding,
         forceCardMode = true,
+        cardGridPadding = screenHorizontalPadding,
     ) {
         item(span = StaggeredGridItemSpan.FullLine) {
             Column(

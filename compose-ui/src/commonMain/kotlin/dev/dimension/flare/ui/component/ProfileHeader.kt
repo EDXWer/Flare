@@ -73,6 +73,7 @@ import dev.dimension.flare.ui.presenter.profile.ProfileState
 import dev.dimension.flare.ui.route.DeeplinkRoute
 import dev.dimension.flare.ui.route.toUri
 import dev.dimension.flare.ui.theme.PlatformTheme
+import dev.dimension.flare.ui.theme.profileName
 import dev.dimension.flare.ui.theme.screenHorizontalPadding
 import org.jetbrains.compose.resources.stringResource
 
@@ -359,7 +360,6 @@ private fun ProfileHeaderSuccess(
                 SelectionContainer {
                     RichText(
                         text = it,
-                        useBodySpacing = true,
                     )
                 }
             }
@@ -488,7 +488,7 @@ public fun ProfileHeaderLoading(
                 ) {
                     PlatformText(
                         text = "Loading user",
-                        style = PlatformTheme.typography.title,
+                        style = PlatformTheme.typography.profileName,
                         modifier = Modifier.placeholder(true),
                     )
                     PlatformText(

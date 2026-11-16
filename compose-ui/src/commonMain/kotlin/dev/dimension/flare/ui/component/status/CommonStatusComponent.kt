@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastForEachIndexed
 import compose.icons.FontAwesomeIcons
@@ -70,6 +71,7 @@ import compose.icons.fontawesomeicons.solid.Reply
 import compose.icons.fontawesomeicons.solid.Robot
 import compose.icons.fontawesomeicons.solid.TriangleExclamation
 import compose.icons.fontawesomeicons.solid.Tv
+import dev.dimension.flare.common.SystemUtils
 import dev.dimension.flare.compose.ui.Res
 import dev.dimension.flare.compose.ui.bookmark_add
 import dev.dimension.flare.compose.ui.bookmark_remove
@@ -127,6 +129,7 @@ import dev.dimension.flare.compose.ui.vote
 import dev.dimension.flare.data.datasource.microblog.ActionMenu
 import dev.dimension.flare.data.datasource.microblog.applyPostActionLayout
 import dev.dimension.flare.data.model.PostActionStyle
+import dev.dimension.flare.data.model.TimelineDisplayMode
 import dev.dimension.flare.data.model.TimelineMediaLayout
 import dev.dimension.flare.ui.component.AdaptiveGrid
 import dev.dimension.flare.ui.component.AvatarComponent
@@ -202,17 +205,58 @@ public fun CommonStatusComponent(
         val uriHandler = LocalUriHandler.current
         val openPostLabel = stringResource(Res.string.status_open_post)
         val appearanceSettings = LocalTimelineAppearance.current
-        val showAsFullWidth = !appearanceSettings.fullWidthPost && !isQuote && !isDetail
+        val isGalleryFallback = LocalEffectiveTimelineDisplayMode.current == TimelineDisplayMode.Gallery
+        val usesSideAvatar = !appearanceSettings.fullWidthPost && !isQuote && !isDetail
+        val hasFullWidthHeader = !usesSideAvatar && !isQuote && item.user != null
+        val sideAvatarTopInset = with(LocalDensity.current) { (PlatformTheme.typography.postBody.fontSize * 0.25f).toDp() }
+        val replyToHandle = item.replyToHandle?.takeIf { showReplyTo }
+        val translationDisplayed = item.translationDisplayState == TranslationDisplayState.Translated
+        val showOriginal = appearanceSettings.aiConfig.showOriginalWithTranslation
+        val visibleContent =
+            remember(item.content, translationDisplayed, showOriginal) {
+                item.content.visiblePostText(translationDisplayed, showOriginal)
+            }
+        val visibleContentWarning =
+            remember(item.contentWarning, translationDisplayed, showOriginal) {
+                item.contentWarning?.visiblePostText(translationDisplayed, showOriginal).orEmpty()
+            }
+        val showsDetailTranslation = isDetail && !item.content.original.isEmpty && appearanceSettings.showTranslateButton
+        val hasTextContent = visibleContent.any { !it.isEmpty } || visibleContentWarning.any { !it.isEmpty }
+        val hasBodyContent = hasTextContent || item.poll != null
+        val headerSpacing =
+            when {
+                hasFullWidthHeader -> 8.dp
+                isQuote && !isGalleryFallback && hasTextContent -> 4.dp
+                else -> 2.dp
+            }
+        val hasBodyAfterReply = hasBodyContent || showsDetailTranslation
+        val hasPreMediaBody = replyToHandle != null || hasBodyAfterReply
+        val showsImages = item.images.isNotEmpty() && showMedia
+        val showsCard = item.card != null && appearanceSettings.showLinkPreview && item.images.isEmpty() && quotes.isEmpty()
+        val showsQuotes = quotes.isNotEmpty() && !isQuote
+        val showsAttachments = showsImages || showsCard || showsQuotes
+        val hasVisibleEmojiReactions = appearanceSettings.showEmojiReactions && item.emojiReactions.isNotEmpty()
+        val showsReactions = !isQuote && (hasVisibleEmojiReactions || item.sourceChannel != null)
+        val showsActions = (appearanceSettings.postActionStyle != PostActionStyle.Hidden || isDetail) && !forceHideActions
+        val replyBeforeAttachments = replyToHandle != null && !isGalleryFallback && !hasBodyAfterReply
+        val replyBeforeFooter = replyBeforeAttachments && !showsAttachments
+        val replyBeforeTimestampOrActions = replyBeforeFooter && !showsReactions
+        val firstAttachmentSpacing =
+            when {
+                replyBeforeAttachments -> 0.dp
+                hasFullWidthHeader && !hasPreMediaBody -> 8.dp
+                else -> StatusComponentDefaults.attachmentSpacing
+            }
         val carouselEdgePadding = if (isQuote) StatusComponentDefaults.quotePadding else carouselOuterHorizontalPadding
         val carouselLeadingPadding =
             carouselEdgePadding +
-                if (showAsFullWidth && item.user != null) {
+                if (usesSideAvatar && item.user != null) {
                     StatusComponentDefaults.avatarSize + 8.dp
                 } else {
                     0.dp
                 }
         val usesSideAvatarCarousel =
-            showAsFullWidth &&
+            usesSideAvatar &&
                 item.user != null &&
                 showMedia &&
                 allowMediaCarousel &&
@@ -237,27 +281,29 @@ public fun CommonStatusComponent(
                         }
                     }.then(modifier),
         ) {
-            if (showAsFullWidth) {
+            if (usesSideAvatar) {
                 item.user?.let {
-                    AvatarComponent(
-                        it.avatar,
-                        size = StatusComponentDefaults.avatarSize,
-                        contentDescription =
-                            stringResource(
-                                Res.string.profile_open_user,
-                                it.handle.display,
-                            ),
-                        modifier =
-                            Modifier.clickable {
-                                it.onClicked.invoke(
-                                    ClickContext(
-                                        launcher = {
-                                            uriHandler.openUri(it)
-                                        },
-                                    ),
-                                )
-                            },
-                    )
+                    Box(Modifier.padding(top = sideAvatarTopInset)) {
+                        AvatarComponent(
+                            it.avatar,
+                            size = StatusComponentDefaults.avatarSize,
+                            contentDescription =
+                                stringResource(
+                                    Res.string.profile_open_user,
+                                    it.handle.display,
+                                ),
+                            modifier =
+                                Modifier.clickable {
+                                    it.onClicked.invoke(
+                                        ClickContext(
+                                            launcher = {
+                                                uriHandler.openUri(it)
+                                            },
+                                        ),
+                                    )
+                                },
+                        )
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
                 }
             }
@@ -265,7 +311,9 @@ public fun CommonStatusComponent(
                 Column(
                     modifier =
                         if (usesSideAvatarCarousel) {
-                            Modifier.heightIn(min = StatusComponentDefaults.avatarSize - StatusComponentDefaults.attachmentSpacing)
+                            Modifier.heightIn(
+                                min = StatusComponentDefaults.avatarSize + sideAvatarTopInset - firstAttachmentSpacing,
+                            )
                         } else {
                             Modifier
                         },
@@ -345,7 +393,7 @@ public fun CommonStatusComponent(
                                 }
                             }
                         }
-                        if (showAsFullWidth) {
+                        if (usesSideAvatar) {
                             UserCompat(
                                 user = user,
                                 isPost = true,
@@ -402,48 +450,53 @@ public fun CommonStatusComponent(
                             }
                         }
                     }
-                    item.replyToHandle?.takeIf { showReplyTo }?.let { replyHandle ->
-                        Spacer(modifier = Modifier.height(if (item.user != null) 2.dp else 8.dp))
+                    replyToHandle?.let { replyHandle ->
+                        val topSpacing =
+                            when {
+                                !isGalleryFallback -> 4.dp
+                                !hasBodyAfterReply && showsAttachments -> firstAttachmentSpacing
+                                else -> 8.dp
+                            }
+                        val bottomSpacing =
+                            when {
+                                !isGalleryFallback -> 4.dp
+                                hasBodyContent -> 8.dp
+                                else -> 0.dp
+                            }
                         StatusReplyComponent(
                             replyHandle = replyHandle,
+                            modifier = Modifier.padding(top = topSpacing, bottom = bottomSpacing),
+                        )
+                    }
+                    val body = @Composable {
+                        StatusContentComponent(
+                            visibleContent = visibleContent,
+                            visibleContentWarning = visibleContentWarning,
+                            poll = item.poll,
+                            maxLines = if (isDetail) Int.MAX_VALUE else maxLines,
+                            showExpandButton = showExpandButton,
+                            topSpacing = if (replyToHandle == null && item.user != null) headerSpacing else 0.dp,
                         )
                     }
                     if (isDetail) {
-                        SelectionContainer {
-                            StatusContentComponent(
-                                content = item.content,
-                                contentWarning = item.contentWarning,
-                                poll = item.poll,
-                                maxLines = Int.MAX_VALUE,
-                                showExpandButton = showExpandButton,
-                                translationDisplayed = item.translationDisplayState == TranslationDisplayState.Translated,
-                                topSpacing =
-                                    when {
-                                        showReplyTo && item.replyToHandle != null -> 8.dp
-                                        item.user != null -> 2.dp
-                                        else -> 0.dp
-                                    },
-                            )
-                        }
+                        SelectionContainer(content = body)
                     } else {
-                        StatusContentComponent(
-                            content = item.content,
-                            contentWarning = item.contentWarning,
-                            poll = item.poll,
-                            maxLines = maxLines,
-                            showExpandButton = showExpandButton,
-                            translationDisplayed = item.translationDisplayState == TranslationDisplayState.Translated,
-                            topSpacing =
-                                when {
-                                    showReplyTo && item.replyToHandle != null -> 8.dp
-                                    item.user != null -> 2.dp
-                                    else -> 0.dp
-                                },
-                        )
+                        body()
                     }
 
-                    if (isDetail && !item.content.original.isEmpty && appearanceSettings.showTranslateButton) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                    if (showsDetailTranslation) {
+                        Spacer(
+                            modifier =
+                                Modifier.height(
+                                    if (replyToHandle != null && !isGalleryFallback &&
+                                        !hasBodyContent
+                                    ) {
+                                        0.dp
+                                    } else {
+                                        8.dp
+                                    },
+                                ),
+                        )
                         TranslationComponent(
                             item = item,
                             statusKey = item.stableItemKey,
@@ -454,8 +507,8 @@ public fun CommonStatusComponent(
                     }
                 }
 
-                if (item.images.isNotEmpty() && showMedia) {
-                    Spacer(modifier = Modifier.height(StatusComponentDefaults.attachmentSpacing))
+                if (showsImages) {
+                    Spacer(modifier = Modifier.height(firstAttachmentSpacing))
                     StatusMediasComponent(
                         item,
                         isQuote = isQuote,
@@ -471,8 +524,8 @@ public fun CommonStatusComponent(
                     )
                 }
                 item.card?.let { card ->
-                    if (appearanceSettings.showLinkPreview && item.images.isEmpty() && quotes.isEmpty()) {
-                        Spacer(modifier = Modifier.height(StatusComponentDefaults.attachmentSpacing))
+                    if (showsCard) {
+                        Spacer(modifier = Modifier.height(firstAttachmentSpacing))
                         StatusCardComponent(
                             card = card,
                             modifier =
@@ -500,18 +553,9 @@ public fun CommonStatusComponent(
                         )
                     }
                 }
-                if (quotes.isNotEmpty() && !isQuote) {
+                if (showsQuotes) {
                     Spacer(
-                        modifier =
-                            Modifier.height(
-                                if (item.images.isNotEmpty() &&
-                                    showMedia
-                                ) {
-                                    8.dp
-                                } else {
-                                    StatusComponentDefaults.attachmentSpacing
-                                },
-                            ),
+                        modifier = Modifier.height(if (showsImages) 8.dp else firstAttachmentSpacing),
                     )
                     StatusQuoteComponent(
                         quotes = quotes,
@@ -519,10 +563,8 @@ public fun CommonStatusComponent(
                     )
                 }
 
-                val hasVisibleEmojiReactions =
-                    appearanceSettings.showEmojiReactions && item.emojiReactions.isNotEmpty()
-                if (!isQuote && (hasVisibleEmojiReactions || item.sourceChannel != null)) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                if (showsReactions) {
+                    Spacer(modifier = Modifier.height(if (replyBeforeFooter) 0.dp else 8.dp))
                     StatusReactionComponent(
                         data = item,
                         isDetail = isDetail,
@@ -531,7 +573,7 @@ public fun CommonStatusComponent(
                 }
 
                 if (isDetail) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(if (replyBeforeTimestampOrActions) 0.dp else 8.dp))
                     DateTimeText(
                         item.createdAt,
                         style = PlatformTheme.typography.postBody,
@@ -539,13 +581,19 @@ public fun CommonStatusComponent(
                         fullTime = true,
                     )
                 }
-                if ((appearanceSettings.postActionStyle != PostActionStyle.Hidden || isDetail) && !forceHideActions) {
+                if (showsActions) {
+                    val actionsTopSpacing =
+                        when {
+                            replyBeforeTimestampOrActions && !isDetail -> 0.dp
+                            hasFullWidthHeader && !isDetail && !hasPreMediaBody && !showsAttachments && !showsReactions -> 8.dp
+                            else -> StatusComponentDefaults.actionsSpacing
+                        }
                     StatusActions(
                         item.actions,
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .padding(top = StatusComponentDefaults.actionsSpacing)
+                                .padding(top = actionsTopSpacing)
                                 .expandHorizontally(leading = 4.dp, trailing = 4.dp)
                                 .then(actionsModifier),
                     )
@@ -1024,8 +1072,13 @@ public fun StatusVisibilityComponent(
 internal fun StatusActions(
     items: ImmutableList<ActionMenu>,
     modifier: Modifier = Modifier,
+    isPost: Boolean = true,
 ) = CompositionLocalProvider(
-    PlatformTextStyle provides PlatformTheme.typography.postBody,
+    PlatformTextStyle provides
+        PlatformTheme.typography.postBody.let {
+            val reduction = if (isPost) StatusComponentDefaults.postActionTextSizeReduction else 2
+            it.copy(fontSize = (it.fontSize.value - reduction).sp)
+        },
     PlatformContentColor provides StatusComponentDefaults.secondaryColor,
 ) {
     val appearanceSettings = LocalTimelineAppearance.current
@@ -1036,11 +1089,15 @@ internal fun StatusActions(
     if (displayItems.isEmpty()) return@CompositionLocalProvider
     val haptics = LocalHapticFeedback.current
     val launcher = LocalUriHandler.current
+    val density = LocalDensity.current
     val isStretched = appearanceSettings.postActionStyle == PostActionStyle.Stretch
-    val trailingNumberWidth = PlatformTextStyle.current.fontSize.value.dp * 2.5f + 2.dp
+    val isAndroidPost = isPost && SystemUtils.isAndroid
+    val iconSize = if (isPost) StatusComponentDefaults.postActionIconSize else StatusComponentDefaults.actionIconSize
+    val trailingNumberWidth =
+        with(density) { PlatformTextStyle.current.fontSize.toDp() } * 2.5f + StatusComponentDefaults.actionLabelSpacing
     Row(
         modifier = modifier,
-        verticalAlignment = Alignment.Bottom,
+        verticalAlignment = if (isPost) Alignment.CenterVertically else Alignment.Bottom,
         horizontalArrangement =
             when (appearanceSettings.postActionStyle) {
                 PostActionStyle.Hidden -> Arrangement.spacedBy(4.dp, Alignment.Start)
@@ -1050,18 +1107,45 @@ internal fun StatusActions(
             },
     ) {
         displayItems.fastForEachIndexed { index, action ->
-            val number =
+            val item =
                 when (action) {
-                    is ActionMenu.Item -> action.count
-                    is ActionMenu.Group -> action.displayItem.count
-                    ActionMenu.Divider -> null
+                    is ActionMenu.Item -> action
+                    is ActionMenu.Group -> action.displayItem
+                    ActionMenu.Divider -> return@fastForEachIndexed
                 }
-            // Equal leading slots keep icon centers independent of the count's width.
+            val number = item.count
+            val icon = item.icon?.toImageVector() ?: FontAwesomeIcons.Solid.Ellipsis
+            val iconWidth =
+                if (isAndroidPost) {
+                    with(density) {
+                        // Reserve enough pixels for aspect-fit to use the full height.
+                        ceil(iconSize.roundToPx() * (icon.defaultWidth / icon.defaultHeight)).toDp()
+                    }
+                } else {
+                    iconSize
+                }
             val actionModifier =
                 when {
-                    !isStretched || displayItems.size == 1 -> Modifier
-                    index != displayItems.lastIndex -> Modifier.weight(1f)
-                    else -> Modifier.width(28.dp + if (number != null) trailingNumberWidth else 0.dp)
+                    !isStretched || displayItems.size == 1 -> {
+                        Modifier
+                    }
+
+                    index != displayItems.lastIndex -> {
+                        Modifier.weight(1f)
+                    }
+
+                    else -> {
+                        val iconSlotWidth = maxOf(StatusComponentDefaults.actionIconSlotWidth, iconWidth)
+                        val padding = StatusComponentDefaults.actionButtonPadding
+                        val actionWidth =
+                            if (isAndroidPost) {
+                                with(density) { (iconSlotWidth.roundToPx() + padding.roundToPx() * 2).toDp() }
+                            } else {
+                                iconSlotWidth + padding * 2
+                            }
+                        val trailingNumber = if (isAndroidPost) number.visibleActionNumber(appearanceSettings.showNumbers) else number
+                        Modifier.width(actionWidth + if (trailingNumber != null) trailingNumberWidth else 0.dp)
+                    }
                 }
             if (index == displayItems.lastIndex && appearanceSettings.postActionStyle == PostActionStyle.LeftAligned) {
                 Spacer(modifier = Modifier.weight(1f))
@@ -1070,10 +1154,10 @@ internal fun StatusActions(
                 is ActionMenu.Group -> {
                     StatusActionGroup(
                         modifier = actionModifier,
-                        icon =
-                            action.displayItem.icon?.toImageVector()
-                                ?: FontAwesomeIcons.Solid.Ellipsis,
-                        number = action.displayItem.count,
+                        icon = icon,
+                        number = number,
+                        iconSize = iconSize,
+                        iconWidth = iconWidth,
                         color =
                             action.displayItem.color?.toComposeColor()
                                 ?: PlatformContentColor.current,
@@ -1106,16 +1190,15 @@ internal fun StatusActions(
                 is ActionMenu.Item -> {
                     StatusActionButton(
                         modifier = actionModifier,
-                        icon =
-                            action.icon?.toImageVector()
-                                ?: FontAwesomeIcons.Solid.Ellipsis,
-                        // Fallback or handle null
-                        number = action.count,
+                        icon = icon,
+                        number = number,
                         color = action.color?.toComposeColor() ?: PlatformContentColor.current,
                         contentDescription =
                             action.text?.asString()
                                 ?: stringResource(Res.string.more),
                         enabled = action.enabled,
+                        iconSize = iconSize,
+                        iconWidth = iconWidth,
                         withTextMinWidth =
                             !isStretched && appearanceSettings.postActionFixedWidth &&
                                 action.count != null &&
@@ -1331,6 +1414,7 @@ private fun StatusReplyComponent(
     modifier: Modifier = Modifier,
 ) {
     Row(
+        modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -1351,44 +1435,29 @@ private fun StatusReplyComponent(
     }
 }
 
+private fun UiTranslatableText.visiblePostText(
+    translated: Boolean,
+    showOriginal: Boolean,
+): List<UiRichText> {
+    val translatedText = translation
+    return when {
+        !translated || translatedText == null -> listOf(original)
+        showOriginal -> listOf(original, translatedText)
+        else -> listOf(translatedText)
+    }
+}
+
 @Composable
 private fun StatusContentComponent(
-    content: UiTranslatableText,
-    contentWarning: UiTranslatableText?,
+    visibleContent: List<UiRichText>,
+    visibleContentWarning: List<UiRichText>,
     poll: UiPoll?,
     maxLines: Int?,
     showExpandButton: Boolean,
-    translationDisplayed: Boolean,
     topSpacing: Dp = 0.dp,
     modifier: Modifier = Modifier,
 ) {
     val appearanceSettings = LocalTimelineAppearance.current
-    val showOriginalWithTranslation = appearanceSettings.aiConfig.showOriginalWithTranslation
-    val translation = content.translation
-    val visibleContent =
-        if (translationDisplayed && translation != null) {
-            if (showOriginalWithTranslation) {
-                listOf(content.original, translation)
-            } else {
-                listOf(translation)
-            }
-        } else {
-            listOf(content.original)
-        }
-    val visibleContentWarning =
-        contentWarning
-            ?.let { warning ->
-                val warningTranslation = warning.translation
-                if (translationDisplayed && warningTranslation != null) {
-                    if (showOriginalWithTranslation) {
-                        listOf(warning.original, warningTranslation)
-                    } else {
-                        listOf(warningTranslation)
-                    }
-                } else {
-                    listOf(warning.original)
-                }
-            }.orEmpty()
     val effectiveMaxLines = (maxLines ?: appearanceSettings.lineLimit).coerceAtLeast(1)
     val collapseThresholdLines = maxLines?.coerceAtLeast(1) ?: 15
     var expanded by rememberSaveable {
@@ -1507,7 +1576,8 @@ private fun CollapsibleRichText(
 ) {
     val lineHeight =
         with(LocalDensity.current) {
-            PlatformTextStyle.current.lineHeight
+            PlatformTextStyle.current
+                .lineHeight
                 .roundToPx()
                 .coerceAtLeast(1)
         }

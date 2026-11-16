@@ -2,6 +2,7 @@
 	import AppBackButton from '$lib/components/AppBackButton.svelte';
 	import AppTopBar from '$lib/components/AppTopBar.svelte';
 	import FaIcon from '$lib/components/FaIcon.svelte';
+	import AiConfigHeadersSetting from '$lib/components/settings/AiConfigHeadersSetting.svelte';
 	import { m } from '$lib/paraglide/messages.js';
 	import {
 		createAiConfigPresenter,
@@ -141,6 +142,8 @@
 										onchange={(event) => ai.setOpenAIApiKey(textValue(event))}
 									/>
 								</label>
+
+								<AiConfigHeadersSetting headers={ai.openAIHeaders} onSave={ai.setOpenAIHeaders} />
 
 								<label class="form-control">
 									<span class="label-text">{m.settingsAiModel()}</span>

@@ -43,7 +43,8 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
     }
     var onOpenURL: ((URL) -> Void)?
     var baseTextStyle: UIFont.TextStyle = .body { didSet { if !isBatchUpdating { update() } } }
-    var baseTextBold: Bool = false { didSet { if !isBatchUpdating { update() } } }
+    var baseTextWeight: UIFont.Weight? { didSet { if !isBatchUpdating { update() } } }
+    var baseFont: UIFont { preferredFont(forTextStyle: baseTextStyle) }
     var lineSpacing: CGFloat = 0 { didSet { if !isBatchUpdating { update() } } }
     var baseTextColor: UIColor = .flareLabel { didSet { if !isBatchUpdating { update() } } }
     var preferredContentSizeCategory: UIContentSizeCategory = .medium {
@@ -54,6 +55,8 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
     }
 
     // MARK: - Private state
+
+    private var fontSizeAdjustment: CGFloat = 0
 
     private let stack: UIStackView = {
         let stack = UIStackView()
@@ -73,6 +76,7 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
     private var naturalStackSizeCache: [Int: CGSize] = [:]
     private var isBatchUpdating = false
     private var lastStructuralSignature: StructuralSignature?
+    private var reusableLabel: RichTextLabel?
     private var traitRegistration: UITraitChangeRegistration?
     private var stackBottomConstraint: NSLayoutConstraint?
     private var collapseAboveLineCount: Int?
@@ -90,7 +94,8 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
         let text: UiRichText?
         let isTextSelectionEnabled: Bool
         let baseTextStyle: UIFont.TextStyle
-        let baseTextBold: Bool
+        let baseTextWeight: UIFont.Weight?
+        let fontSizeAdjustment: CGFloat
         let lineSpacing: CGFloat
         let baseTextColor: UIColor
         let preferredContentSizeCategory: UIContentSizeCategory
@@ -100,7 +105,8 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
         static func == (lhs: StructuralSignature, rhs: StructuralSignature) -> Bool {
             guard lhs.isTextSelectionEnabled == rhs.isTextSelectionEnabled,
                   lhs.baseTextStyle == rhs.baseTextStyle,
-                  lhs.baseTextBold == rhs.baseTextBold,
+                  lhs.baseTextWeight == rhs.baseTextWeight,
+                  lhs.fontSizeAdjustment == rhs.fontSizeAdjustment,
                   lhs.lineSpacing == rhs.lineSpacing,
                   lhs.baseTextColor.isEqual(rhs.baseTextColor),
                   lhs.preferredContentSizeCategory == rhs.preferredContentSizeCategory,
@@ -171,7 +177,8 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
         isTextSelectionEnabled: Bool,
         onOpenURL: ((URL) -> Void)?,
         baseTextStyle: UIFont.TextStyle = .body,
-        baseTextBold: Bool = false,
+        baseTextWeight: UIFont.Weight? = nil,
+        fontSizeAdjustment: CGFloat = 0,
         lineSpacing: CGFloat = 0,
         baseTextColor: UIColor = .flareLabel,
         preferredContentSizeCategory: UIContentSizeCategory = .medium,
@@ -188,7 +195,8 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
         self.isTextSelectionEnabled = isTextSelectionEnabled
         self.onOpenURL = onOpenURL
         self.baseTextStyle = baseTextStyle
-        self.baseTextBold = baseTextBold
+        self.baseTextWeight = baseTextWeight
+        self.fontSizeAdjustment = fontSizeAdjustment
         self.lineSpacing = lineSpacing
         self.baseTextColor = baseTextColor
         self.preferredContentSizeCategory = preferredContentSizeCategory
@@ -207,7 +215,8 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
             text: text,
             isTextSelectionEnabled: isTextSelectionEnabled,
             baseTextStyle: baseTextStyle,
-            baseTextBold: baseTextBold,
+            baseTextWeight: baseTextWeight,
+            fontSizeAdjustment: fontSizeAdjustment,
             lineSpacing: lineSpacing,
             baseTextColor: baseTextColor,
             preferredContentSizeCategory: preferredContentSizeCategory,
@@ -219,10 +228,11 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
         renderGeneration += 1
         loadingInlineImageURLs.removeAll()
         blockImageAspectRatios.removeAll()
-        clearStack()
         needsContentRebuild = true
         renderedWidthKey = nil
-        if !usesCollapsedLayout {
+        if usesCollapsedLayout {
+            clearStack()
+        } else {
             rebuildContent(for: bounds.width)
         }
         invalidateIntrinsicContentSize()
@@ -241,6 +251,7 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
 
     private func rebuildContent(for width: CGFloat) {
         clearStack()
+        defer { reusableLabel = nil }
         needsContentRebuild = false
         renderedWidthKey = Self.measurementWidthKey(width)
 
@@ -272,6 +283,11 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
     }
 
     private func clearStack() {
+        if text == nil {
+            reusableLabel = nil
+        } else if reusableLabel == nil {
+            reusableLabel = textBlocks.lazy.compactMap { $0.renderer as? RichTextLabel }.first
+        }
         textBlocks = []
         measurementBlocks = []
         collapsedPreviewHeight = nil
@@ -478,7 +494,7 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
 
     private func addCollapsedContents(_ contents: [PlatformTextContent], width: CGFloat) {
         let threshold = max(collapseAboveLineCount ?? 1, lineLimit ?? 1, 1)
-        let thresholdHeight = lineHeight * CGFloat(threshold) + lineSpacing * CGFloat(max(threshold - 1, 0))
+        let thresholdHeight = lineHeight * CGFloat(threshold) + effectiveLineSpacing * CGFloat(max(threshold - 1, 0))
         var blocks: [RichTextCollapsedBlock] = []
         var lineCount = 0
         var fullHeight: CGFloat = 0
@@ -859,10 +875,12 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
 
     private func baseAttributes(font: UIFont? = nil, color: UIColor? = nil) -> [NSAttributedString.Key: Any] {
         var resolvedFont = font ?? preferredFont(forTextStyle: baseTextStyle)
-        if baseTextBold, let descriptor = resolvedFont.fontDescriptor.withSymbolicTraits(
-            resolvedFont.fontDescriptor.symbolicTraits.union(.traitBold)
-        ) {
-            resolvedFont = UIFont(descriptor: descriptor, size: resolvedFont.pointSize)
+        if let baseTextWeight {
+            let traits = resolvedFont.fontDescriptor.symbolicTraits
+            let weighted = traits.contains(.traitMonoSpace)
+                ? monospacedFont(size: resolvedFont.pointSize, weight: baseTextWeight)
+                : systemFont(size: resolvedFont.pointSize, weight: baseTextWeight)
+            resolvedFont = addingItalicIfNeeded(weighted, enabled: traits.contains(.traitItalic))
         }
         return [
             .font: resolvedFont,
@@ -870,21 +888,25 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
         ]
     }
 
+    private var effectiveLineSpacing: CGFloat { lineSpacing * RichText.lineSpacingMultiplier }
+
     private func applyLineSpacing(to text: NSMutableAttributedString, alignment: NSTextAlignment) {
-        guard lineSpacing != 0 else { return }
+        let spacing = effectiveLineSpacing
+        guard spacing != 0 else { return }
         text.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: text.length)) { value, range, _ in
             let paragraph = (value as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
-            paragraph.lineSpacing = lineSpacing
+            paragraph.lineSpacing = spacing
             paragraph.alignment = alignment
             text.addAttribute(.paragraphStyle, value: paragraph, range: range)
         }
     }
 
     private func preferredFont(forTextStyle textStyle: UIFont.TextStyle) -> UIFont {
-        UIFont.preferredFont(
+        let font = UIFont.preferredFont(
             forTextStyle: textStyle,
             compatibleWith: effectiveFontTraitCollection()
         )
+        return fontSizeAdjustment == 0 ? font : font.withSize(font.pointSize + fontSizeAdjustment)
     }
 
     private func effectiveFontTraitCollection() -> UITraitCollection {
@@ -1101,7 +1123,8 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
     }
 
     private func makeLabel(attributedText: NSAttributedString, alignment: NSTextAlignment) -> RichTextLabel {
-        let label = RichTextLabel()
+        let label = reusableLabel ?? RichTextLabel()
+        reusableLabel = nil
         label.configure(
             attributedText: attributedText,
             alignment: alignment,

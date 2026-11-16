@@ -173,6 +173,7 @@ private struct MacTimelineMasonryView: View {
     private let loadingCount = 8
     private let columnSpacing: CGFloat = 8
     private let rowSpacing: CGFloat = 0
+    private let horizontalInset = TimelineHorizontalInsets.multiColumnGrid
 
     var body: some View {
         switch onEnum(of: data) {
@@ -220,9 +221,8 @@ private struct MacTimelineMasonryView: View {
     }
 
     private var columnWidth: CGFloat {
-        let horizontalPadding: CGFloat = 32
         let totalSpacing = columnSpacing * CGFloat(max(columnCount - 1, 0))
-        return max((availableWidth - horizontalPadding - totalSpacing) / CGFloat(max(columnCount, 1)), 1)
+        return max((availableWidth - horizontalInset * 2 - totalSpacing) / CGFloat(max(columnCount, 1)), 1)
     }
 
     private func placeholderColumns(count: Int) -> [MacTimelineMasonryColumn] {
@@ -249,7 +249,7 @@ private struct MacTimelineMasonryView: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, horizontalInset)
         .environment(\.isMultipleColumn, true)
     }
 
@@ -288,11 +288,11 @@ private struct MacTimelineMasonryRowView: View {
                     TimelinePlaceholderView()
                 }
             }
-            .padding(.horizontal, row.item == nil || row.item?.timelineContentPost != nil ? 10 : 16)
+            .padding(.horizontal, TimelineHorizontalInsets.content)
             .padding(.top, row.item == nil || row.item?.timelineContentPost != nil ? 12 : 8)
             .padding(.bottom, 8)
         }
-        .padding(.horizontal, 2)
+        .padding(.horizontal, TimelineHorizontalInsets.multiColumnCard)
         .padding(.vertical, 6)
         .timelineReadingItem(row.item)
         .onAppear {
