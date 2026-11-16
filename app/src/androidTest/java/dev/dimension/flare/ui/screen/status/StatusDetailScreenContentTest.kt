@@ -55,6 +55,7 @@ import dev.dimension.flare.ui.render.toUiPlainText
 import dev.dimension.flare.ui.theme.FlareTheme
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -80,6 +81,35 @@ class StatusDetailScreenContentTest {
     @After
     fun restoreMediaQueryIntegration() {
         ComposeUiFlags.isMediaQueryIntegrationEnabled = originalMediaQueryIntegration
+    }
+
+    @Test
+    fun openingDetailsKeepsThePostAtTheTopWhenTabsLoadFirst() {
+        val postLoaded = mutableStateOf(false)
+        val postText = "The canal path is open again this morning."
+        val root = post("xQt", "x.com", "late-post", "Maya Patel", postText)
+        show(
+            root = root,
+            primaryTab = UiStrings.Replies,
+            secondaryTab = UiStrings.Quotes,
+            filterOptions = listOf(UiStrings.Relevance),
+            contents = mapOf(UiStrings.Relevance to page(root, "replies", "Thanks for checking.", "I’ll take that route.")),
+            isPostLoaded = { postLoaded.value },
+        )
+
+        val post = compose.onNodeWithText(postText)
+        post.assertDoesNotExist()
+        compose.runOnIdle { postLoaded.value = true }
+
+        post.assertIsDisplayed()
+        val scrollPosition =
+            compose
+                .onNode(hasScrollAction() and SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange))
+                .fetchSemanticsNode()
+                .config[SemanticsProperties.VerticalScrollAxisRange]
+                .value()
+        assertEquals(0f, scrollPosition, 0.001f)
+        choice(UiStrings.Replies).assertIsSelected()
     }
 
     @Test
@@ -273,8 +303,10 @@ class StatusDetailScreenContentTest {
         contents: Map<UiStrings, List<UiTimelineV2>>,
         additionalTabs: List<UiStrings> = emptyList(),
         parents: List<UiTimelineV2> = emptyList(),
+        isPostLoaded: () -> Boolean = { true },
     ) {
         val flows = contents.mapValues { (_, posts) -> flowOf(posts) }
+        val loading = emptyFlow<List<UiTimelineV2>>()
         val tabOptions = listOfNotNull(primaryTab, secondaryTab) + additionalTabs
         val tabs = tabOptions.map { it.toChoice() }.toImmutableList()
         val sorts = filterOptions.map { it.toChoice() }.toImmutableList()
@@ -286,16 +318,18 @@ class StatusDetailScreenContentTest {
             val labels = (tabOptions + filterOptions).associateWith { it.asText().resolveText() }
             SideEffect { renderedLabels = labels }
             val hasSort = activeTab == primaryTab
+            val postLoaded = isPostLoaded()
+            val activePage = if (postLoaded) pages.getValue(if (hasSort) activeSort else activeTab) else loading.collectPagingState().value
             val state =
                 object : StatusContextPresenter.State {
-                    override val current: UiState<UiTimelineV2> = UiState.Success(root)
-                    override val header = (parents + root).toImmutableList()
+                    override val current: UiState<UiTimelineV2> = if (postLoaded) UiState.Success(root) else UiState.Loading()
+                    override val header = if (postLoaded) (parents + root).toImmutableList() else persistentListOf()
                     override val tabs = tabs
                     override val selectedTabId = activeTab.name
                     override val filters = if (hasSort) sorts else persistentListOf()
                     override val selectedFilterId = activeSort.name.takeIf { hasSort }
                     override val defaultFilterId = defaultSort.name.takeIf { hasSort }
-                    override val listState = pages.getValue(if (hasSort) activeSort else activeTab)
+                    override val listState = activePage
 
                     override fun selectTab(id: String) {
                         activeTab = UiStrings.valueOf(id)
