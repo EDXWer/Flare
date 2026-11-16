@@ -6,6 +6,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.dimension.flare.common.SystemUtils
 import dev.dimension.flare.ui.theme.PlatformContentColor
 import dev.dimension.flare.ui.theme.PlatformTheme
 import dev.dimension.flare.ui.theme.isLightTheme
@@ -22,7 +23,8 @@ public object StatusComponentDefaults {
     internal val attachmentSpacing: Dp = 10.dp
     internal val actionsSpacing: Dp = 2.dp
     internal val actionIconSize: Dp = 16.dp
-    internal val postActionIconSize: Dp = 14.dp
+    internal val postActionIconSize: Dp = if (SystemUtils.isAndroid) 15.dp else 14.dp
+    internal val postActionTextSizeReduction = if (SystemUtils.isAndroid) 3 else 4
     internal val actionIconSlotWidth: Dp = 20.dp
     internal val actionLabelSpacing: Dp = 2.dp
     internal val actionButtonPadding: Dp = 4.dp

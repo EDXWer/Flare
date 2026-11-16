@@ -7,11 +7,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.CompositionLocalProvider
@@ -42,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
+import dev.dimension.flare.data.datasource.microblog.ActionMenu
 import dev.dimension.flare.data.model.IconType
 import dev.dimension.flare.data.model.TimelineDisplayMode
 import dev.dimension.flare.data.model.appearance.GlobalAppearance
@@ -50,12 +53,14 @@ import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.component.LocalGlobalAppearance
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
 import dev.dimension.flare.ui.component.ProfileHeader
+import dev.dimension.flare.ui.component.toImageVector
 import dev.dimension.flare.ui.humanizer.PlatformFormatter
 import dev.dimension.flare.ui.model.ClickEvent
 import dev.dimension.flare.ui.model.TranslationDisplayState
 import dev.dimension.flare.ui.model.UiHandle
 import dev.dimension.flare.ui.model.UiIcon
 import dev.dimension.flare.ui.model.UiMedia
+import dev.dimension.flare.ui.model.UiNumber
 import dev.dimension.flare.ui.model.UiState
 import dev.dimension.flare.ui.model.UiTimelineV2
 import dev.dimension.flare.ui.model.UiTranslatableText
@@ -68,6 +73,7 @@ import dev.dimension.flare.ui.render.toUi
 import dev.dimension.flare.ui.render.toUiPlainText
 import dev.dimension.flare.ui.theme.FlareTheme
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
@@ -157,6 +163,15 @@ class PostAppearanceTest {
                 platformIcon = IconType.Material(UiIcon.X),
                 content = UiTranslatableText(body.toUiPlainText()),
                 images = persistentListOf(UiMedia.Image(url, url, "Spacing reference media", 180f, 320f, false)),
+                actions =
+                    sample.actions
+                        .map { action ->
+                            if (action is ActionMenu.Item && action.icon == UiIcon.Retweet) {
+                                ActionMenu.Group(displayItem = action, actions = persistentListOf(action))
+                            } else {
+                                action
+                            }
+                        }.toPersistentList(),
             )
         val quote =
             sample.copy(
@@ -223,7 +238,7 @@ class PostAppearanceTest {
         val countLayouts = mutableListOf<TextLayoutResult>()
         count.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(countLayouts) }
         val countStyle = countLayouts.single().layoutInput.style
-        assertEquals(bodyStyle.fontSize.value - 4, countStyle.fontSize.value, 0.01f)
+        assertEquals(bodyStyle.fontSize.value - 3, countStyle.fontSize.value, 0.01f)
         assertEquals(bodyStyle.lineHeight, countStyle.lineHeight)
         assertEquals(bodyStyle.letterSpacing, countStyle.letterSpacing)
         val countInset = with(density) { (4.dp.roundToPx() + 20.dp.roundToPx() + 2.dp.roundToPx()).toFloat() }
@@ -231,6 +246,12 @@ class PostAppearanceTest {
         val reply = compose.onNodeWithContentDescription("Reply, 10").fetchSemanticsNode().boundsInRoot
         val more = compose.onNodeWithContentDescription("More").fetchSemanticsNode().boundsInRoot
         assertEquals(reply.center.y, more.center.y, 1.1f)
+        for ((label, aspectRatio) in listOf("Reply" to 1f, "Repost" to 1.125f)) {
+            val icon = compose.onNodeWithContentDescription(label, useUnmergedTree = true).captureToImage().asAndroidBitmap()
+            val glyphColumns = (0 until icon.width).filter { x -> (0 until icon.height).any { y -> icon.getPixel(x, y) != Color.BLACK } }
+            val glyphWidth = glyphColumns.last() - glyphColumns.first() + 1
+            assertEquals(label, with(density) { (15.dp * aspectRatio).toPx() }, glyphWidth.toFloat(), 1.1f)
+        }
         for ((state, label) in listOf(
             TranslationDisplayState.Translating to "Translating…",
             TranslationDisplayState.Failed to "Translation failed",
@@ -252,6 +273,68 @@ class PostAppearanceTest {
                 "android-component-bounds.txt",
             ).writeText("density=${density.density}\nbody=$bodyBounds\nmedia=$media\nquote=$quoteFrame\nactions=$actions")
         }
+    }
+
+    @Test
+    fun trailingPostActionPreservesIconHeightAndOmitsSpaceForHiddenCounts() {
+        val sample = createSampleStatus(createSampleUser())
+        val icon = UiIcon.MoreVerticel
+        val reply = sample.actions.first()
+        var trailingCount by mutableStateOf<UiNumber?>(null)
+        var showNumbers by mutableStateOf(true)
+        compose.setContent {
+            CompositionLocalProvider(
+                LocalDensity provides Density(1.44f),
+                LocalGlobalAppearance provides GlobalAppearance(pureColorMode = true),
+                LocalTimelineAppearance provides TimelineAppearance(showNumbers = showNumbers),
+                LocalStatusBackgroundColor provides ComposeColor.Black,
+            ) {
+                FlareTheme(darkTheme = true, dynamicColor = false) {
+                    Surface(color = ComposeColor.Black) {
+                        Column(Modifier.width(240.dp)) {
+                            val more =
+                                ActionMenu.Group(
+                                    displayItem = ActionMenu.Item(icon = icon, count = trailingCount),
+                                    actions = persistentListOf(reply),
+                                )
+                            CommonStatusComponent(sample.copy(actions = persistentListOf(reply, more)), isClickable = false)
+                            Icon(
+                                imageVector = icon.toImageVector(),
+                                contentDescription = "Reference icon",
+                                modifier = Modifier.size(width = 20.dp, height = 15.dp),
+                                tint = ComposeColor(0xFF71767B),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        fun glyphHeight(label: String): Int {
+            val bitmap = compose.onNodeWithContentDescription(label, useUnmergedTree = true).captureToImage().asAndroidBitmap()
+            val rows = (0 until bitmap.height).filter { y -> (0 until bitmap.width).any { x -> bitmap.getPixel(x, y) != Color.BLACK } }
+            return rows.last() - rows.first() + 1
+        }
+
+        assertEquals(glyphHeight("Reference icon").toFloat(), glyphHeight("More").toFloat(), 1f)
+
+        fun trailingStart(): Float =
+            compose
+                .onNodeWithContentDescription("More")
+                .fetchSemanticsNode()
+                .boundsInRoot.left
+
+        val start = trailingStart()
+        compose.runOnIdle {
+            trailingCount = UiNumber(10)
+            showNumbers = false
+        }
+        assertEquals(start, trailingStart(), 0.1f)
+        compose.runOnIdle {
+            trailingCount = UiNumber(0)
+            showNumbers = true
+        }
+        assertEquals(start, trailingStart(), 0.1f)
     }
 
     @Test
