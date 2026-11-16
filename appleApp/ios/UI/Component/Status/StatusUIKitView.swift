@@ -23,7 +23,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
     // MARK: - SwiftUI `var` parameters
 
     private var data: UiTimelineV2.Post?
-    private var boundStatusKey: String?
+    private var boundStatusKey: MicroBlogKey?
     private var isDetail: Bool = false
     private var isQuote: Bool = false
     private var withLeadingPadding: Bool = false
@@ -43,7 +43,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
     private var lastPreparedFittingWidthKey: Int?
 
     private struct ConfigureSignature: Equatable {
-        let statusKey: String
+        let statusKey: MicroBlogKey
         let renderHash: Int32
         let isDetail: Bool
         let isQuote: Bool
@@ -55,9 +55,9 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         let showTranslate: Bool
         let aiTldrEnabled: Bool
         let showParents: Bool
-        let parentKeys: [String]
+        let parentKeys: [MicroBlogKey]
         let parentRenderHashes: [Int32]
-        let quoteKeys: [String]
+        let quoteKeys: [MicroBlogKey]
         let quoteRenderHashes: [Int32]
         let allowsMediaCarousel: Bool
         let carouselOuterHorizontalPadding: CGFloat
@@ -81,7 +81,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             allowsMediaCarousel: Bool,
             carouselOuterHorizontalPadding: CGFloat
         ) {
-            statusKey = String(describing: data.statusKey)
+            statusKey = data.statusKey
             renderHash = data.renderHash
             self.isDetail = isDetail
             self.isQuote = isQuote
@@ -93,9 +93,9 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             self.showTranslate = showTranslate
             self.aiTldrEnabled = aiTldrEnabled
             self.showParents = showParents
-            self.parentKeys = inlineParents.map { String(describing: $0.statusKey) }
+            self.parentKeys = inlineParents.map(\.statusKey)
             self.parentRenderHashes = inlineParents.map { $0.renderHash }
-            self.quoteKeys = quotes.map { String(describing: $0.statusKey) }
+            self.quoteKeys = quotes.map(\.statusKey)
             self.quoteRenderHashes = quotes.map { $0.renderHash }
             self.allowsMediaCarousel = allowsMediaCarousel
             self.carouselOuterHorizontalPadding = carouselOuterHorizontalPadding
@@ -400,7 +400,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         allowsMediaCarousel: Bool = false,
         carouselOuterHorizontalPadding: CGFloat = 0
     ) {
-        let newStatusKey = String(describing: data.statusKey)
+        let newStatusKey = data.statusKey
         if boundStatusKey != newStatusKey {
             expand = false
             reactionViewStorage?.resetExpansion()

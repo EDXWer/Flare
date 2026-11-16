@@ -49,27 +49,53 @@ struct StatusDetailScreen: View {
 
     private func controls(_ state: StatusContextPresenterState, isFilteredEmpty: Bool) -> [UITimelineCollectionViewAccessoryItem] {
         guard !state.header.isEmpty, state.tabs.count > 1 || !state.filters.isEmpty else { return [] }
-        controlsView.update(AnyView(StatusDetailControls(state: state, isFilteredEmpty: isFilteredEmpty).environment(\.self, environment)))
+        let selection = StatusDetailControls.Selection(
+            tabs: state.tabs.map { .init(id: $0.id, title: $0.title.text) },
+            filters: state.filters.map { .init(id: $0.id, title: $0.title.text) },
+            selectedTab: state.selectedTabId, selectedFilter: state.selectedFilterId, isFilteredEmpty: isFilteredEmpty
+        )
+        let key: [AnyHashable] = [selection, environment.colorScheme, environment.colorSchemeContrast,
+            environment.dynamicTypeSize, environment.locale, environment.layoutDirection, environment.isEnabled,
+            environment.font, environment.legibilityWeight]
+        controlsView.update(AnyView(StatusDetailControls(
+            selection: selection,
+            selectTab: { [presenter] in presenter.state.selectTab(id: $0) },
+            selectFilter: { [presenter] in presenter.state.selectFilter(id: $0) }
+        ).environment(\.self, environment)), key: key)
         return [UITimelineCollectionViewAccessoryItem(id: "status_detail_controls", view: controlsView)]
     }
 }
 
 private struct StatusDetailControls: View {
-    let state: StatusContextPresenterState
-    let isFilteredEmpty: Bool
+    struct Choice: Identifiable, Hashable {
+        let id: String
+        let title: String
+    }
+
+    struct Selection: Hashable {
+        let tabs: [Choice]
+        let filters: [Choice]
+        let selectedTab: String?
+        let selectedFilter: String?
+        let isFilteredEmpty: Bool
+    }
+
+    let selection: Selection
+    let selectTab: (String) -> Void
+    let selectFilter: (String) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                if state.tabs.count > 1 {
+                if selection.tabs.count > 1 {
                     ScrollView(.horizontal) {
                         HStack(spacing: 0) {
-                            ForEach(state.tabs, id: \.id) { tab in
-                                let selected = state.selectedTabId == tab.id
+                            ForEach(selection.tabs) { tab in
+                                let selected = selection.selectedTab == tab.id
                                 Button {
-                                    state.selectTab(id: tab.id)
+                                    selectTab(tab.id)
                                 } label: {
-                                    Text(tab.title.text)
+                                    Text(tab.title)
                                         .foregroundStyle(selected ? Color.primary : Color.secondary)
                                         .fontWeight(selected ? .semibold : .regular)
                                         .padding(.horizontal, 12)
@@ -92,22 +118,22 @@ private struct StatusDetailControls: View {
                     Spacer(minLength: 0)
                 }
 
-                if let selection = state.filters.first(where: { $0.id == state.selectedFilterId }) {
+                if let selectedFilter = selection.filters.first(where: { $0.id == selection.selectedFilter }) {
                     Menu {
-                        ForEach(state.filters, id: \.id) { option in
+                        ForEach(selection.filters) { option in
                             Button {
-                                state.selectFilter(id: option.id)
+                                selectFilter(option.id)
                             } label: {
-                                if option.id == selection.id {
-                                    Label(option.title.text, systemImage: "checkmark")
+                                if option.id == selectedFilter.id {
+                                    Label(option.title, systemImage: "checkmark")
                                 } else {
-                                    Text(option.title.text)
+                                    Text(option.title)
                                 }
                             }
                         }
                     } label: {
                         HStack(spacing: 4) {
-                            Text(selection.title.text)
+                            Text(selectedFilter.title)
                                 .lineLimit(1)
                             Image(systemName: "chevron.down")
                                 .font(.caption2)
@@ -120,13 +146,13 @@ private struct StatusDetailControls: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(Text("status_detail_filter"))
-                    .accessibilityValue(Text(selection.title.text))
+                    .accessibilityValue(Text(selectedFilter.title))
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
             .frame(minHeight: 44)
             Divider()
-            if isFilteredEmpty {
+            if selection.isFilteredEmpty {
                 Text("status_detail_filter_empty")
                     .font(.footnote)
                     .foregroundStyle(.secondary)

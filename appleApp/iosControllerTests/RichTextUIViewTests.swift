@@ -6,6 +6,25 @@ import FlareAppleUI
 
 @MainActor
 final class RichTextUIViewTests: XCTestCase {
+    func testPlainCommentReusesItsLabelWhenTheTextIsReplaced() throws {
+        let view = RichTextUIView()
+        func bind(_ body: String, link: Bool = false) {
+            view.configure(text: richText([body], link: link), lineLimit: 5,
+                           isTextSelectionEnabled: false, onOpenURL: nil, collapseAboveLineCount: 15)
+            view.prepareForFitting(width: 340)
+        }
+
+        bind("上一条评论。")
+        let first = try XCTUnwrap(textViews(in: view).first as? UILabel)
+        bind("这条是楼中楼里的第二条评论。")
+        let second = try XCTUnwrap(textViews(in: view).first as? UILabel)
+        XCTAssertTrue(first === second)
+        XCTAssertEqual(second.attributedText?.string, "这条是楼中楼里的第二条评论。")
+
+        bind("这条有链接。", link: true)
+        XCTAssertTrue(textViews(in: view).first is UITextView)
+    }
+
     func testPostTypographyUpdatesRenderedAndMeasuredTextWithoutChangingOtherRichText() throws {
         let text = richText(["MMMM\nMMMM\nMMMM"], link: false,
                             block: RenderBlockStyle(headingLevel: nil, textAlignment: .center,

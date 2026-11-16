@@ -544,6 +544,65 @@ final class TimelineControllerIntegrationTests: XCTestCase {
         XCTAssertEqual(measurements, 1, "Pending measurements must also suppress repeated rich-text sizing")
     }
 
+    func testReboundTimelineCellUsesTheMatchingCachedHeight() {
+        let cell = TimelineUIKitCollectionViewCell()
+        let appearance = TimelineUIKitAppearance(timeline: .companion.Default)
+        let first = makeTimelineTestRow(1, mediaCount: 0)
+        let comment = makeTimelineTestRow(2, mediaCount: 0)
+        cell.configureTimeline(data: first, index: 0, totalCount: 2, appearance: appearance,
+                               detailStatusKey: nil, aiTldrEnabled: false, isMultipleColumn: false, openURL: nil)
+        cell.reportPreferredHeightIfNeeded(width: 358)
+
+        cell.prepareForReuse()
+        cell.cachedPreferredHeight = { $0 == 358 ? 188 : nil }
+        var measuredWidths: [CGFloat] = []
+        cell.onPreferredHeightChanged = { width, _ in measuredWidths.append(width) }
+        cell.configureTimeline(data: comment, index: 1, totalCount: 2, appearance: appearance,
+                               detailStatusKey: nil, aiTldrEnabled: false, isMultipleColumn: false, openURL: nil)
+        cell.reportPreferredHeightIfNeeded(width: 358)
+        XCTAssertTrue(cell.hasMeasuredHeight(for: 358))
+        XCTAssertEqual(measuredWidths, [], "A reusable height for the bound row and width should skip fitting")
+
+        cell.reportPreferredHeightIfNeeded(width: 320)
+        XCTAssertEqual(measuredWidths, [320])
+    }
+
+    func testExpandedHeightCanLayOutTheCurrentRowWithoutBeingReusedByAnotherCell() {
+        var cache = TimelineItemHeightCache()
+        let geometry = TimelineItemHeightCache.Geometry(widthInPixels: 1074, multipleColumns: false)
+        cache.stage(188, for: "comment", geometry: geometry, renderHash: 1)
+        XCTAssertTrue(cache.commitPendingMeasurements { _, _, _ in true })
+        XCTAssertEqual(cache.measuredHeight(for: "comment", geometry: geometry, renderHash: 1, reusableOnly: true), 188)
+
+        cache.stage(360, for: "comment", geometry: geometry, renderHash: 1, isReusable: false)
+        XCTAssertNil(cache.measuredHeight(for: "comment", geometry: geometry, renderHash: 1, reusableOnly: true))
+        XCTAssertTrue(cache.commitPendingMeasurements { _, _, _ in true })
+        XCTAssertEqual(cache.height(for: "comment", geometry: geometry), 360)
+        XCTAssertNil(cache.measuredHeight(for: "comment", geometry: geometry, renderHash: 1, reusableOnly: true))
+    }
+
+    func testDetailAccessoryReusesItsHostUntilTheSelectedFilterChanges() {
+        let controls = TimelineHostedAccessoryView()
+        var renderedFilters: [String] = []
+        func makeView(_ title: String) -> AnyView {
+            renderedFilters.append(title)
+            return AnyView(Text(title))
+        }
+        func controlsForFilter(_ selected: String) -> UITimelineCollectionViewAccessoryItem {
+            controls.update(makeView(selected), key: selected)
+            return UITimelineCollectionViewAccessoryItem(id: "status_detail_controls", view: controls)
+        }
+
+        let initial = controlsForFilter("按热度")
+        let unchanged = controlsForFilter("按热度")
+        XCTAssertTrue(unchanged.matchesHostedContent(of: initial))
+        XCTAssertEqual(renderedFilters, ["按热度"])
+
+        let changed = controlsForFilter("按时间")
+        XCTAssertFalse(changed.matchesHostedContent(of: unchanged))
+        XCTAssertEqual(renderedFilters, ["按热度", "按时间"])
+    }
+
     func testGalleryNewReadingTargetWinsOverThePreviousSnapshotAnchor() async throws {
         let fixture = await GalleryFixture()
         fixture.collection.setContentOffset(CGPoint(x: 0, y: 1_500), animated: false)
@@ -1473,6 +1532,69 @@ final class TimelineControllerIntegrationTests: XCTestCase {
         XCTAssertEqual(fixture.controller.effectiveContentOffsetY, 2_500, accuracy: 0.5)
     }
 
+    func testSortingCommentsKeepsTheMeasuredHeightOfAStillLoadedComment() async throws {
+        let fixture = await Fixture(initialState: .loaded)
+        let comments: [TimelineContent.Item?] = (0..<40).map { .post(makeTimelineTestRow($0, mediaCount: 0)) }
+        let path = IndexPath(item: 20, section: 0)
+        fixture.input.items = comments
+        fixture.input.key = "hot"
+        await fixture.apply()
+        let estimate = try XCTUnwrap(fixture.collection.layoutAttributesForItem(at: path)?.frame)
+        await fixture.scroll(estimate.minY)
+        let measured = try XCTUnwrap(fixture.collection.layoutAttributesForItem(at: path)?.frame.height)
+        XCTAssertNotEqual(measured, estimate.height)
+        await fixture.scroll(0)
+
+        fixture.input.key = "time"
+        fixture.input.state = .loading
+        fixture.input.items = []
+        await fixture.apply()
+        fixture.input.state = .loaded
+        fixture.input.items = comments
+        fixture.input.items.swapAt(0, 1)
+        await fixture.apply()
+        let current = try XCTUnwrap(fixture.collection.layoutAttributesForItem(at: path)?.frame.height)
+        XCTAssertEqual(current, measured, accuracy: 0.5)
+    }
+
+    func testSortingCommentsDiscardsTheExpandedHeightOfAnOffscreenComment() async throws {
+        let fixture = await Fixture(initialState: .loaded)
+        let list = fixture.collection
+        list.isPrefetchingEnabled = false
+        let comments: [TimelineContent.Item?] = (0..<40).map { index in
+            .post(makeTimelineTestRow(index, mediaCount: 0, textRepeatCount: index == 20 ? 20 : 1))
+        }
+        let path = IndexPath(item: 20, section: 0)
+        fixture.input.items = comments
+        fixture.input.key = "hot"
+        await fixture.apply()
+        let estimate = try XCTUnwrap(list.layoutAttributesForItem(at: path)?.frame)
+        await fixture.scroll(estimate.minY)
+        let cell = try XCTUnwrap(list.cellForItem(at: path))
+        let status = try XCTUnwrap(descendants(cell).compactMap { $0 as? StatusUIKitView }.first)
+        let expand = try XCTUnwrap(status.subviews.compactMap { $0 as? UIButton }.first {
+            !$0.isHidden && $0.title(for: .normal) == String(localized: "mastodon_item_show_more", bundle: Bundle(for: StatusUIKitView.self))
+        })
+        let collapsedHeight = cell.frame.height
+        expand.sendActions(for: .touchUpInside)
+        await fixture.settle()
+        let expandedHeight = try XCTUnwrap(list.layoutAttributesForItem(at: path)?.frame.height)
+        XCTAssertGreaterThan(expandedHeight, collapsedHeight)
+        await fixture.scroll(0)
+
+        fixture.input.key = "time"
+        fixture.input.state = .loading
+        fixture.input.items = []
+        await fixture.apply()
+        fixture.input.state = .loaded
+        fixture.input.items = comments
+        fixture.input.items.swapAt(0, 1)
+        await fixture.apply()
+        XCTAssertNil(list.cellForItem(at: path))
+        let currentHeight = try XCTUnwrap(list.layoutAttributesForItem(at: path)?.frame.height)
+        XCTAssertEqual(currentHeight, estimate.height, accuracy: 0.5)
+    }
+
     func testDetailHeaderAndCommentsCanLoadInEitherOrderWithoutLeavingTop() async {
         for hasTabs in [false, true] {
             for headerFirst in [false, true] {
@@ -1537,6 +1659,53 @@ final class TimelineControllerIntegrationTests: XCTestCase {
             await fixture.apply()
             XCTAssertEqual(fixture.controller.effectiveContentOffsetY, 0, accuracy: 0.5)
         }
+    }
+
+    func testDetailTabsFollowThePostWhileCommentsAreLoading() async throws {
+        let root = makeTimelineTestRow(100, mediaCount: 0, textRepeatCount: 1)
+        let fixture = await Fixture(initialState: .loading, detailKey: root.statusKey)
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let previousKeyWindow = scene.windows.first(where: \.isKeyWindow)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        window.rootViewController = fixture.controller
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+        fixture.controller.suppressInitialRefreshIndicator = true
+        fixture.controller.topContentInset = 88
+        let tabs = TimelineHostedAccessoryView()
+        tabs.update(AnyView(HStack(spacing: 8) {
+            Button("评论") {}
+            Menu("按热度") { Button("按时间") {} }
+        }.frame(minHeight: 44).dynamicTypeSize(.medium)), key: "hot")
+
+        fixture.input.leadingPosts = [.post(root)]
+        await fixture.apply()
+        fixture.controller.accessoryItems = [UITimelineCollectionViewAccessoryItem(id: "status_detail_controls", view: tabs)]
+        fixture.input.key = "comments:hot"
+        await fixture.apply()
+        let list = fixture.collection
+        let postPath = try XCTUnwrap(list.readingIndexPath?("t:__leading_post__:t:case-100"))
+        let tabPath = try XCTUnwrap(list.readingIndexPath?("a:status_detail_controls"))
+        let postFrame = try XCTUnwrap(list.layoutAttributesForItem(at: postPath)?.frame)
+        let tabCell = try XCTUnwrap(list.cellForItem(at: tabPath))
+        XCTAssertTrue(tabs.isDescendant(of: tabCell.contentView))
+        let placeholderPath = IndexPath(item: 0, section: tabPath.section + 1)
+        let placeholderFrame = try XCTUnwrap(list.layoutAttributesForItem(at: placeholderPath)?.frame)
+        XCTAssertGreaterThanOrEqual(list.numberOfItems(inSection: placeholderPath.section), 5)
+        XCTAssertEqual(tabCell.frame.minY, postFrame.maxY, accuracy: 0.5)
+        XCTAssertEqual(placeholderFrame.minY, tabCell.frame.maxY, accuracy: 0.5)
+        let tabBeforeSizing = tabs.frame
+        XCTAssertEqual(tabBeforeSizing.height, 44, accuracy: 0.5)
+
+        // UIKit can ask for the size again before laying out the existing cell.
+        let measuredSize = fixture.controller.collectionView(list, layout: list.collectionViewLayout, sizeForItemAt: tabPath)
+        XCTAssertEqual(measuredSize.height, tabBeforeSizing.height, accuracy: 0.5)
+        XCTAssertEqual(tabs.frame, tabBeforeSizing, "Measuring the tab for the loading snapshot must not move the live view")
     }
 
     func testHostedSectionsLoadingAboveAPendingLayoutBookmarkPreserveItsOriginalTopness() async throws {
@@ -2197,14 +2366,16 @@ final class TimelineControllerIntegrationTests: XCTestCase {
 
     @MainActor
     private final class Fixture {
-        let controller = UITimelineCollectionViewController(detailStatusKey: nil)
+        let controller: UITimelineCollectionViewController
         var collection: TimelineCollectionView { controller.view.subviews.compactMap { $0 as? TimelineCollectionView }.first! }
 
         var input = TimelineContent()
         var columns: Int
 
         init(posts: Bool = false, columns: Int = 1, initialState: TimelineContent.State? = nil,
-             header: UiState<UiTimelineV2>? = nil, accessories: [UITimelineCollectionViewAccessoryItem] = []) async {
+             header: UiState<UiTimelineV2>? = nil, accessories: [UITimelineCollectionViewAccessoryItem] = [],
+             detailKey: MicroBlogKey? = nil) async {
+            controller = UITimelineCollectionViewController(detailStatusKey: detailKey)
             self.columns = columns
             input.header = header
             controller.accessoryItems = accessories
