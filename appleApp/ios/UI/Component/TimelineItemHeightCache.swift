@@ -84,7 +84,7 @@ struct TimelineItemHeightCache {
         return previous != layoutHeight
     }
 
-    mutating func keep(_ ids: Set<String>, retainingReusableHeights: Bool) {
+    mutating func keep(_ ids: Set<String>, retainingReusableHeights: Bool = false) {
         if retainingReusableHeights {
             items = items.reduce(into: [:]) { kept, entry in
                 let measurements = ids.contains(entry.key) ? entry.value : entry.value.filter(\.isReusable)

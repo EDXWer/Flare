@@ -34,10 +34,14 @@ final class TimelineHostedAccessoryView: UIView {
         invalidateIntrinsicContentSize()
     }
 
+    func fittingHeight(for width: CGFloat) -> CGFloat {
+        host.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude)).height
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
         guard bounds.width > 1 else { return }
-        let height = host.sizeThatFits(in: CGSize(width: bounds.width, height: .greatestFiniteMagnitude)).height
+        let height = fittingHeight(for: bounds.width)
         guard height.isFinite, height > 0, measuredHeight.map({ abs($0 - height) > 0.5 }) ?? true else { return }
         measuredHeight = height
         onHeightChanged?()

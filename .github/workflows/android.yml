@@ -308,6 +308,7 @@ jobs:
             -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testReboundTimelineCellUsesTheMatchingCachedHeight \
             -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testExpandedHeightCanLayOutTheCurrentRowWithoutBeingReusedByAnotherCell \
             -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testDetailAccessoryReusesItsHostUntilTheSelectedFilterChanges \
+            -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testDetailTabsFollowThePostWhileCommentsAreLoading \
             -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testSortingCommentsKeepsTheMeasuredHeightOfAStillLoadedComment \
             -only-testing:TimelineControllerTests/TimelineControllerIntegrationTests/testSortingCommentsDiscardsTheExpandedHeightOfAnOffscreenComment \
             -only-testing:TimelineControllerTests/RichTextUIViewTests/testPlainCommentReusesItsLabelWhenTheTextIsReplaced \

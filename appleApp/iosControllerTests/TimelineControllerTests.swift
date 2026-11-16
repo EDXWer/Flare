@@ -1661,6 +1661,53 @@ final class TimelineControllerIntegrationTests: XCTestCase {
         }
     }
 
+    func testDetailTabsFollowThePostWhileCommentsAreLoading() async throws {
+        let root = makeTimelineTestRow(100, mediaCount: 0, textRepeatCount: 1)
+        let fixture = await Fixture(initialState: .loading, detailKey: root.statusKey)
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let previousKeyWindow = scene.windows.first(where: \.isKeyWindow)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        window.rootViewController = fixture.controller
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+            previousKeyWindow?.makeKey()
+        }
+        fixture.controller.suppressInitialRefreshIndicator = true
+        fixture.controller.topContentInset = 88
+        let tabs = TimelineHostedAccessoryView()
+        tabs.update(AnyView(HStack(spacing: 8) {
+            Button("评论") {}
+            Menu("按热度") { Button("按时间") {} }
+        }.frame(minHeight: 44).dynamicTypeSize(.medium)), key: "hot")
+
+        fixture.input.leadingPosts = [.post(root)]
+        await fixture.apply()
+        fixture.controller.accessoryItems = [UITimelineCollectionViewAccessoryItem(id: "status_detail_controls", view: tabs)]
+        fixture.input.key = "comments:hot"
+        await fixture.apply()
+        let list = fixture.collection
+        let postPath = try XCTUnwrap(list.readingIndexPath?("t:__leading_post__:t:case-100"))
+        let tabPath = try XCTUnwrap(list.readingIndexPath?("a:status_detail_controls"))
+        let postFrame = try XCTUnwrap(list.layoutAttributesForItem(at: postPath)?.frame)
+        let tabCell = try XCTUnwrap(list.cellForItem(at: tabPath))
+        XCTAssertTrue(tabs.isDescendant(of: tabCell.contentView))
+        let placeholderPath = IndexPath(item: 0, section: tabPath.section + 1)
+        let placeholderFrame = try XCTUnwrap(list.layoutAttributesForItem(at: placeholderPath)?.frame)
+        XCTAssertGreaterThanOrEqual(list.numberOfItems(inSection: placeholderPath.section), 5)
+        XCTAssertEqual(tabCell.frame.minY, postFrame.maxY, accuracy: 0.5)
+        XCTAssertEqual(placeholderFrame.minY, tabCell.frame.maxY, accuracy: 0.5)
+        let tabBeforeSizing = tabs.frame
+        XCTAssertEqual(tabBeforeSizing.height, 44, accuracy: 0.5)
+
+        // UIKit can ask for the size again before laying out the existing cell.
+        let measuredSize = fixture.controller.collectionView(list, layout: list.collectionViewLayout, sizeForItemAt: tabPath)
+        XCTAssertEqual(measuredSize.height, tabBeforeSizing.height, accuracy: 0.5)
+        XCTAssertEqual(tabs.frame, tabBeforeSizing, "Measuring the tab for the loading snapshot must not move the live view")
+    }
+
     func testHostedSectionsLoadingAboveAPendingLayoutBookmarkPreserveItsOriginalTopness() async throws {
         for offset: CGFloat in [0, 120] {
             let tags = TimelineHostedAccessoryView()
@@ -2319,14 +2366,16 @@ final class TimelineControllerIntegrationTests: XCTestCase {
 
     @MainActor
     private final class Fixture {
-        let controller = UITimelineCollectionViewController(detailStatusKey: nil)
+        let controller: UITimelineCollectionViewController
         var collection: TimelineCollectionView { controller.view.subviews.compactMap { $0 as? TimelineCollectionView }.first! }
 
         var input = TimelineContent()
         var columns: Int
 
         init(posts: Bool = false, columns: Int = 1, initialState: TimelineContent.State? = nil,
-             header: UiState<UiTimelineV2>? = nil, accessories: [UITimelineCollectionViewAccessoryItem] = []) async {
+             header: UiState<UiTimelineV2>? = nil, accessories: [UITimelineCollectionViewAccessoryItem] = [],
+             detailKey: MicroBlogKey? = nil) async {
+            controller = UITimelineCollectionViewController(detailStatusKey: detailKey)
             self.columns = columns
             input.header = header
             controller.accessoryItems = accessories

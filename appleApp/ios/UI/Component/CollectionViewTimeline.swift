@@ -1981,12 +1981,10 @@ final class UITimelineCollectionViewController: UIViewController, UICollectionVi
 
         if itemID.hasPrefix(Self.accessoryPrefix),
            let accessory = accessoryItemMap[itemID] {
-            // Profile tabs use fractional heights; rounding would shift their position.
-            let height = max(
-                measuredCompressedCardHeight(accessory.view, width: width, heightPadding: 0),
-                1
-            )
-            return CGSize(width: width, height: height)
+            // Measure SwiftUI controls without resizing the view already inside the cell.
+            let height = (accessory.view as? TimelineHostedAccessoryView)?.fittingHeight(for: width)
+                ?? measuredCompressedCardHeight(accessory.view, width: width, heightPadding: 0)
+            return CGSize(width: width, height: height.isFinite ? max(height, 1) : 1)
         }
 
         switch itemID {
