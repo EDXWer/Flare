@@ -74,6 +74,7 @@ import dev.dimension.flare.ui.model.mapper.renderVVOText
 import dev.dimension.flare.ui.model.mapper.withVvoExtendedText
 import dev.dimension.flare.ui.model.toUi
 import dev.dimension.flare.ui.presenter.compose.ComposeStatus
+import dev.dimension.flare.ui.route.DeeplinkRoute
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.CoroutineScope
@@ -226,6 +227,14 @@ internal class VVODataSource(
 
     override val shortcuts by lazy {
         persistentListOf(
+            ShortcutSpec(
+                title = UiStrings.DirectMessage,
+                icon = UiIcon.Messages,
+                target =
+                    ShortcutSpec.Target.Route(
+                        DeeplinkRoute.AllDirectMessages(accountKey),
+                    ),
+            ),
             ShortcutSpec(
                 title = UiStrings.Featured,
                 icon = UiIcon.Featured,
