@@ -3,13 +3,17 @@ package dev.dimension.flare.data.datasource.vvo
 import dev.dimension.flare.common.UploadMedia
 import dev.dimension.flare.data.datasource.microblog.capabilities
 import dev.dimension.flare.data.datasource.microblog.paging.PagingRequest
+import dev.dimension.flare.data.model.tab.ShortcutSpec
 import dev.dimension.flare.data.network.vvo.VVOService
 import dev.dimension.flare.data.platform.VVoCredential
 import dev.dimension.flare.data.repository.LoginExpiredException
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.model.UiDMItem
+import dev.dimension.flare.ui.model.UiIcon
 import dev.dimension.flare.ui.model.UiMedia
+import dev.dimension.flare.ui.model.UiStrings
 import dev.dimension.flare.ui.model.mapper.VvoRenderTestModule
+import dev.dimension.flare.ui.route.DeeplinkRoute
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -57,12 +61,22 @@ class VVODirectMessageTest {
     }
 
     @Test
-    fun weiboAccountAppearsInTheSharedInbox() {
+    fun weiboAccountExposesAnInboxShortcut() {
         val source = VVODataSource(account, flowOf(VVoCredential("MLOGIN=1; SUB=test")))
 
         val directMessage = assertNotNull(source.capabilities.directMessage)
         assertFalse(directMessage.supportsLeavingDirectMessage)
         assertTrue(directMessage.supportsSendingDirectMessageImage)
+
+        val shortcuts = assertNotNull(source.capabilities.tabCatalog?.configuration).shortcuts
+        assertEquals(
+            ShortcutSpec(
+                title = UiStrings.DirectMessage,
+                icon = UiIcon.Messages,
+                target = ShortcutSpec.Target.Route(DeeplinkRoute.AllDirectMessages(account)),
+            ),
+            shortcuts.singleOrNull { it.title == UiStrings.DirectMessage },
+        )
     }
 
     @Test
