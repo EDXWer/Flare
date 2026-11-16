@@ -418,7 +418,7 @@ final class TimelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightProvid
     private func configureMessage(_ message: UiTimelineV2.Message, topMessageOnly: Bool, isPost: Bool = false) {
         messageView.onOpenURL = onOpenURL
         messageView.configure(message: message, topMessageOnly: topMessageOnly,
-                              postTextContentSizeCategory: appearance.preferredContentSizeCategory)
+                              postTextContentSizeCategory: appearance.preferredContentSizeCategory, isAbovePost: isPost)
 
         let leading: CGFloat
         if !appearance.fullWidthPost && !topMessageOnly {

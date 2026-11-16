@@ -219,6 +219,18 @@ class PostAppearanceTest {
         assertEquals(12f * density.density, quoteFrame.bottom - quoteText.boundsInRoot.bottom, 1.1f)
         assertEquals(2f * density.density, actions.top - quoteFrame.bottom, 1.1f)
         assertEquals(bodyBounds.left - 4f * density.density, actions.left, 1.1f)
+        val count = compose.onNodeWithText("10", useUnmergedTree = true)
+        val countLayouts = mutableListOf<TextLayoutResult>()
+        count.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(countLayouts) }
+        val countStyle = countLayouts.single().layoutInput.style
+        assertEquals(bodyStyle.fontSize.value - 4, countStyle.fontSize.value, 0.01f)
+        assertEquals(bodyStyle.lineHeight, countStyle.lineHeight)
+        assertEquals(bodyStyle.letterSpacing, countStyle.letterSpacing)
+        val countInset = with(density) { (4.dp.roundToPx() + 20.dp.roundToPx() + 2.dp.roundToPx()).toFloat() }
+        assertEquals(countInset, count.fetchSemanticsNode().boundsInRoot.left - actions.left, 1.1f)
+        val reply = compose.onNodeWithContentDescription("Reply, 10").fetchSemanticsNode().boundsInRoot
+        val more = compose.onNodeWithContentDescription("More").fetchSemanticsNode().boundsInRoot
+        assertEquals(reply.center.y, more.center.y, 1.1f)
         for ((state, label) in listOf(
             TranslationDisplayState.Translating to "Translating…",
             TranslationDisplayState.Failed to "Translation failed",
@@ -316,7 +328,7 @@ class PostAppearanceTest {
     }
 
     @Test
-    fun darkPostCalibrationUsesExpandedRichTextLineSpacing() {
+    fun darkPostCalibrationUsesThemeTextSpacing() {
         val body =
             "《少女前线2》 × SSSS.GRIDMAN 联动\n" +
                 "2027年予定\n" +
@@ -405,12 +417,13 @@ class PostAppearanceTest {
         val container = compose.onNodeWithTag("post-calibration")
         val bounds = container.fetchSemanticsNode().boundsInRoot
         assertEquals(402f * density.density, bounds.width, 1f)
-        assertEquals(
-            ComposeColor(0xFFD9D9D9),
+        val postBodyStyle =
             texts
                 .first { it.role == "body" }
-                .layout.layoutInput.style.color,
-        )
+                .layout.layoutInput.style
+        assertEquals(ComposeColor(0xFFD9D9D9), postBodyStyle.color)
+        assertEquals(themeBody.lineHeight, postBodyStyle.lineHeight)
+        assertEquals(themeBody.letterSpacing, postBodyStyle.letterSpacing)
         assertEquals(
             ComposeColor(0xFF71767B),
             texts
@@ -538,7 +551,7 @@ class PostAppearanceTest {
                 LocalTimelineAppearance provides TimelineAppearance(),
             ) {
                 FlareTheme(darkTheme = false, dynamicColor = false) {
-                    expectedSize = MaterialTheme.typography.titleMedium.fontSize.value + 2
+                    expectedSize = MaterialTheme.typography.titleMedium.fontSize.value + 4
                     Surface(color = MaterialTheme.colorScheme.background) {
                         ProfileHeader(
                             state,

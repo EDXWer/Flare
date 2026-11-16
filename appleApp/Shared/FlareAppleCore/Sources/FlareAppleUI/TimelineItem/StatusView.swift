@@ -27,6 +27,7 @@ public struct StatusView: View {
     @Environment(\.timelineAppearance.compatLinkPreview) private var compatLinkPreview
     @Environment(\.timelineAppearance.showEmojiReactions) private var showEmojiReactions
     @Environment(\.timelineAppearance.postActionStyle) private var postActionStyle
+    @Environment(\.timelineAppearance.postActionLayout) private var postActionLayout
     @Environment(\.timelineAppearance.showPlatformLogo) private var showPlatformLogo
     @Environment(\.timelineAppearance.expandContentWarning) private var expandContentWarning
     @Environment(\.timelineAppearance.lineLimit) private var appearanceLineLimit
@@ -156,18 +157,29 @@ public struct StatusView: View {
         let collapseThreshold = maxLine == nil ? max(15, effectiveLineLimit) : effectiveLineLimit
         let canExpandLineLimitedContent = contentLineLimit != nil && !isDetail && !textExpanded && showExpandTextButton
         let showsDetailTranslation = isDetail && showTranslate && !data.content.original.isEmpty
-        let hasPreMediaText =
-            replyToHandle != nil ||
-            !contentWarningIsEmpty ||
-            contents.contains { !$0.isEmpty } ||
-            (showsDetailTranslation && (poll == nil || !showMedia))
-        let hasPreMediaBody =
-            hasPreMediaText ||
-            showsDetailTranslation ||
-            (poll != nil && showMedia)
+        let hasBodyText = contents.contains { !$0.isEmpty }
+        let showsPoll = poll != nil && showMedia
+        let hasPreMediaText = replyToHandle != nil || !contentWarningIsEmpty || hasBodyText ||
+            (showsDetailTranslation && !showsPoll)
+        let hasBodyAfterReply = !contentWarningIsEmpty || hasBodyText || showsDetailTranslation || showsPoll
+        let hasPreMediaBody = replyToHandle != nil || hasBodyAfterReply
         let firstAttachmentSpacing: CGFloat = hasFullWidthHeader && !hasPreMediaBody ? 8 : 10
+        let showsActions = (postActionStyle != .hidden || isDetail) && !forceHideActions
         let actionsFollowHeader = hasFullWidthHeader && !isDetail && !hasPreMediaBody &&
             !showsImages && !showsCard && !showsQuotes && !showsReactions
+        let actionSpacing: CGFloat = actionsFollowHeader ? 8 : 2
+        let bodyTopSpacing: CGFloat = if user == nil {
+            0
+        } else if replyToHandle == nil {
+            hasFullWidthHeader || !hasPreMediaText ? 8 : 2
+        } else if !hasBodyAfterReply && (showsImages || showsCard || showsQuotes) {
+            firstAttachmentSpacing
+        } else if !hasBodyAfterReply && !showsReactions && !isDetail && showsActions &&
+            StatusActionsView.applyLayout(postActionLayout, to: actions).contains(where: { $0 is ActionMenu.Item || $0 is ActionMenu.Group }) {
+            actionSpacing
+        } else {
+            8
+        }
 
         VStack(
             alignment: .leading,
@@ -314,7 +326,7 @@ public struct StatusView: View {
                                         }
                                     }
 
-                                    if contentWarningExpanded || expandContentWarning || contentWarningIsEmpty {
+                                    if (hasBodyText || showsPoll) && (contentWarningExpanded || expandContentWarning || contentWarningIsEmpty) {
                                         VStack(alignment: .leading, spacing: 8) {
                                             ForEach(Array(contents.enumerated()), id: \.offset) { index, content in
                                                 if !content.isEmpty {
@@ -357,7 +369,7 @@ public struct StatusView: View {
                                         )
                                     }
                                 }
-                                .padding(.top, user != nil ? (hasFullWidthHeader || !hasPreMediaText ? 8 : 2) : 0)
+                                .padding(.top, bodyTopSpacing)
                             }
                         }
                         .frame(
@@ -474,8 +486,8 @@ public struct StatusView: View {
                                 .padding(.top, 8)
                         }
 
-                        if (postActionStyle != .hidden || isDetail) && !forceHideActions {
-                            StatusActionsView(data: actions, useText: false, topPadding: actionsFollowHeader ? 8 : 2,
+                        if showsActions {
+                            StatusActionsView(data: actions, useText: false, topPadding: actionSpacing,
                                               isDetail: isDetail, postKey: String(describing: data.statusKey))
                                 .padding(.horizontal, -4)
                         }

@@ -66,7 +66,8 @@ public struct TimelineView: View {
             let isPost = data.timelineContentPost != nil
             let usesPostStyle = isPost || !isGalleryFallback
             StatusTopMessageView(topMessage: message, alignWithAvatar: !fullWidthPost && !topMessageOnly,
-                                 avatarWidth: isPost ? 48 : 44, topMessageOnly: topMessageOnly)
+                                 avatarWidth: isPost ? 48 : 44, topMessageOnly: topMessageOnly,
+                                 isAbovePost: isPost && !isGalleryFallback)
                 .if(!topMessageOnly, transform: { view in
                     view.lineLimit(1)
                 })

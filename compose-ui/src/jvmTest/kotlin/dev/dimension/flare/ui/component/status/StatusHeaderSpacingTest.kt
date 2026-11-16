@@ -39,7 +39,9 @@ import androidx.compose.ui.unit.dp
 import compose.icons.FontAwesomeIcons
 import compose.icons.fontawesomeicons.Solid
 import compose.icons.fontawesomeicons.solid.Retweet
+import dev.dimension.flare.data.datasource.microblog.ActionMenu
 import dev.dimension.flare.data.model.IconType
+import dev.dimension.flare.data.model.PostActionStyle
 import dev.dimension.flare.data.model.TimelineDisplayMode
 import dev.dimension.flare.data.model.VideoAutoplay
 import dev.dimension.flare.data.model.appearance.TimelineAppearance
@@ -240,14 +242,14 @@ class StatusHeaderSpacingTest {
         assertEquals(12f, quoteFrame.bottom - quoteText.boundsInRoot.bottom, 0.1f)
         assertEquals(2f, actions.top - quoteFrame.bottom, 0.1f)
         assertEquals(bodyBounds.left - 4f, actions.left, 0.1f)
-        val count = mutableListOf<TextLayoutResult>()
-        compose.onNodeWithText("10", useUnmergedTree = true).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(count) }
-        assertEquals(
-            bodyStyle.fontSize.value - 2,
-            count
-                .single()
-                .layoutInput.style.fontSize.value,
-        )
+        val count = compose.onNodeWithText("10", useUnmergedTree = true)
+        val countLayouts = mutableListOf<TextLayoutResult>()
+        count.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(countLayouts) }
+        val countStyle = countLayouts.single().layoutInput.style
+        assertEquals(bodyStyle.fontSize.value - 4, countStyle.fontSize.value)
+        assertEquals(bodyStyle.lineHeight, countStyle.lineHeight)
+        assertEquals(bodyStyle.letterSpacing, countStyle.letterSpacing)
+        assertEquals(26f, count.fetchSemanticsNode().boundsInRoot.left - actions.left, 0.1f)
         for ((state, label) in listOf(
             TranslationDisplayState.Translating to "Translating…",
             TranslationDisplayState.Failed to "Translation failed",
@@ -270,6 +272,35 @@ class StatusHeaderSpacingTest {
             for (y in 0 until pixels.height) for (x in 0 until pixels.width) screenshot.setRGB(x, y, pixels[x, y].toArgb())
             ImageIO.write(screenshot, "png", File(directory, "compose-components.png"))
             File(directory, "compose-component-bounds.txt").writeText("body=$bodyBounds\nmedia=$media\nquote=$quoteFrame\nactions=$actions")
+        }
+    }
+
+    @Test
+    fun postActionGlyphsShrinkInsideTheOriginalSlots() {
+        val action = ActionMenu.Item(icon = UiIcon.Reply)
+        val items = persistentListOf(action, ActionMenu.Group(displayItem = action, actions = persistentListOf(action)))
+        compose.setContent {
+            FluentTheme(colors = darkColors()) {
+                CompositionLocalProvider(
+                    LocalTimelineAppearance provides TimelineAppearance(postActionStyle = PostActionStyle.RightAligned),
+                    LocalDensity provides Density(1f),
+                ) {
+                    Column {
+                        StatusActions(items, modifier = Modifier.background(Color.Black).testTag("post-actions"))
+                        StatusActions(items, modifier = Modifier.background(Color.Black).testTag("profile-actions"), isPost = false)
+                    }
+                }
+            }
+        }
+
+        for ((tag, expectedGlyphWidth) in listOf("post-actions" to 14, "profile-actions" to 16)) {
+            val pixels = compose.onNodeWithTag(tag).captureToImage().toPixelMap()
+            assertEquals(24, pixels.height, tag)
+            val middle = pixels.width / 2
+            for (section in listOf(0 until middle, middle until pixels.width)) {
+                val glyphColumns = section.filter { x -> (0 until pixels.height).any { y -> pixels[x, y] != Color.Black } }
+                assertEquals(expectedGlyphWidth, glyphColumns.last() - glyphColumns.first() + 1, tag)
+            }
         }
     }
 
@@ -314,6 +345,8 @@ class StatusHeaderSpacingTest {
                             icon = FontAwesomeIcons.Solid.Retweet,
                             user = user.copy(nameInternal = "Reposting author".toUiPlainText()),
                             text = "reposted",
+                            iconColor = StatusComponentDefaults.secondaryColor,
+                            textColor = StatusComponentDefaults.contentColor,
                             textStyle = PlatformTheme.typography.postBody,
                             isPost = true,
                         )
@@ -475,10 +508,18 @@ class StatusHeaderSpacingTest {
             assertEquals(bounds.left + inset + 10, userAvatar("@alex").left, 0.1f)
             assertEquals(avatarBounds.center.y, (textBounds("Mei Chen").top + textBounds("@mei").bottom) / 2, 1f)
             assertEquals(FontWeight.Bold, textStyle("Mei Chen").fontWeight)
-            for (name in listOf("Jordan Kim", "Flare Team")) {
-                assertEquals(textStyle("Sam Lee").fontSize, textStyle(name).fontSize)
-                assertEquals(textStyle("Sam Lee").color, textStyle(name).color)
-                assertEquals(FontWeight.Bold, textStyle(name).fontWeight)
+            val postBodyColor = textStyle("A quiet afternoon at the coast.").color
+            val messageFontSize = textStyle("Sam Lee").fontSize
+            for (name in listOf("Sam Lee", "Jordan Kim", "Flare Team")) {
+                val style = textStyle(name)
+                assertEquals(messageFontSize, style.fontSize)
+                assertEquals(postBodyColor, style.color, name)
+                assertEquals(FontWeight.Bold, style.fontWeight)
+            }
+            for (message in listOf("reposted", "followed you", "pinned a post")) {
+                val style = textStyle(message)
+                assertEquals(postBodyColor, style.color, message)
+                assertEquals(messageFontSize.value - if (message == "reposted") 2 else 0, style.fontSize.value, message)
             }
             System.getenv("FLARE_TIMELINE_PREVIEW_DIR")?.let { path ->
                 val pixels = timeline.captureToImage().toPixelMap()
@@ -666,7 +707,13 @@ class StatusHeaderSpacingTest {
         val container = compose.onNodeWithTag("post-calibration")
         val bounds = container.fetchSemanticsNode().boundsInRoot
         assertEquals(402f * density.density, bounds.width, 1f)
-        assertEquals(Color(0xFFD9D9D9), layout(body).layoutInput.style.color)
+        val postBodyStyle =
+            texts
+                .first { it.role == "body" }
+                .layout.layoutInput.style
+        assertEquals(Color(0xFFD9D9D9), postBodyStyle.color)
+        assertEquals(themeBody.lineHeight, postBodyStyle.lineHeight)
+        assertEquals(themeBody.letterSpacing, postBodyStyle.letterSpacing)
         assertEquals(Color(0xFF71767B), layout("@kzwolf123").layoutInput.style.color)
         val header = rowBounds(author, timestamp)
         assertEquals(2f * density.density, header.top - rowBounds(reposter, "reposted a post").bottom, 0.1f)
@@ -748,7 +795,7 @@ class StatusHeaderSpacingTest {
                                 .onNodeWithText("@someone@example.org", substring = true, useUnmergedTree = true)
                                 .fetchSemanticsNode()
                                 .boundsInRoot
-                        assertEquals(headerGap, prompt.top - header.bottom, 0.1f)
+                        assertEquals(8f, prompt.top - header.bottom, 0.1f)
                         prompt
                     } else {
                         header
@@ -867,6 +914,22 @@ class StatusHeaderSpacingTest {
         assertMediaSpacing(isQuote = false, fullWidthPost = true)
     }
 
+    @Test
+    fun replyContextUsesTheActionGapWhenActionsComeNext() {
+        val sample = samplePost()
+        val reply =
+            sample.copy(
+                content = UiTranslatableText("".toUiPlainText()),
+                replyToHandle = "@context",
+                actions = createSampleStatus(checkNotNull(sample.user)).actions,
+            )
+        showPost(isQuote = false) { reply }
+        val prompt = compose.onNodeWithText("@context", substring = true, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val actions = compose.onNodeWithTag("post-actions").fetchSemanticsNode().boundsInRoot
+        assertEquals(2f, prompt.top - headerBounds().bottom, 0.1f)
+        assertEquals(2f, actions.top - prompt.bottom, 0.1f)
+    }
+
     private fun assertMediaSpacing(
         isQuote: Boolean,
         fullWidthPost: Boolean = false,
@@ -874,11 +937,12 @@ class StatusHeaderSpacingTest {
         val image = Files.createTempFile("header-spacing-", ".png").toFile().apply { deleteOnExit() }
         ImageIO.write(BufferedImage(200, 200, BufferedImage.TYPE_INT_RGB), "png", image)
         val url = image.toPath().toUri().toString()
-        val post =
+        var post by mutableStateOf(
             samplePost().copy(
                 content = UiTranslatableText("".toUiPlainText()),
                 images = persistentListOf(UiMedia.Video(url, url, "Preview", height = 200f, width = 200f)),
-            )
+            ),
+        )
         showPost(isQuote = isQuote, fullWidthPost = fullWidthPost) { post }
         compose.waitUntil(5_000) {
             compose
@@ -886,14 +950,19 @@ class StatusHeaderSpacingTest {
                 .fetchSemanticsNodes()
                 .any { it.boundsInRoot.height > 100 }
         }
-        val header = headerBounds()
-        val media =
+
+        fun mediaBounds(): Rect =
             compose
                 .onAllNodesWithContentDescription("Preview", substring = true, useUnmergedTree = true)
                 .fetchSemanticsNodes()
                 .maxBy { it.boundsInRoot.height }
                 .boundsInRoot
-        assertEquals(if (fullWidthPost) 8f else 10f, media.top - header.bottom, 0.1f)
+
+        assertEquals(if (fullWidthPost) 8f else 10f, mediaBounds().top - headerBounds().bottom, 0.1f)
+        compose.runOnIdle { post = post.copy(replyToHandle = "@context") }
+        val prompt = compose.onNodeWithText("@context", substring = true, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        assertEquals(10f, prompt.top - headerBounds().bottom, 0.1f)
+        assertEquals(10f, mediaBounds().top - prompt.bottom, 0.1f)
     }
 
     private fun headerBounds(): Rect = rowBounds("Reader", "5m")
@@ -956,7 +1025,12 @@ class StatusHeaderSpacingTest {
                     LocalDensity provides Density(1f),
                 ) {
                     Box(Modifier.width(360.dp)) {
-                        CommonStatusComponent(post(), isQuote = isQuote, isClickable = false)
+                        CommonStatusComponent(
+                            post(),
+                            isQuote = isQuote,
+                            isClickable = false,
+                            actionsModifier = Modifier.testTag("post-actions"),
+                        )
                     }
                 }
             }

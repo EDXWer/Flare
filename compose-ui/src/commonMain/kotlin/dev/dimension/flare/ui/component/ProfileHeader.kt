@@ -360,7 +360,6 @@ private fun ProfileHeaderSuccess(
                 SelectionContainer {
                     RichText(
                         text = it,
-                        useBodySpacing = true,
                     )
                 }
             }

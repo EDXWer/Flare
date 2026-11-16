@@ -37,7 +37,7 @@ class CommonProfileHeaderTest {
         compose.setContent {
             FluentTheme {
                 CompositionLocalProvider(LocalTimelineAppearance provides TimelineAppearance()) {
-                    expectedSize = PlatformTheme.typography.title.fontSize.value + 2
+                    expectedSize = PlatformTheme.typography.title.fontSize.value + 4
                     CommonProfileHeader(
                         banner = null,
                         avatar = null,

@@ -74,7 +74,7 @@ public struct StatusActionsView: View {
                     }
                 }
                 .font(.system(size: metrics.fontSize))
-                .flareSecondaryText()
+                .environment(\.flareTextRole, .secondary)
                 .padding(.top, topPadding)
             }
         }
@@ -101,13 +101,11 @@ public struct StatusActionsView: View {
     }
 
     private var resolvedData: [ActionMenu] {
-        guard applyPostActionLayout else { return data }
-        return castActionMenus(
-            PostActionLayoutHelpers.shared.apply(
-                actions: data,
-                config: postActionLayout
-            )
-        )
+        applyPostActionLayout ? Self.applyLayout(postActionLayout, to: data) : data
+    }
+
+    static func applyLayout(_ layout: PostActionLayoutConfig, to actions: [ActionMenu]) -> [ActionMenu] {
+        castActionMenus(PostActionLayoutHelpers.shared.apply(actions: actions, config: layout))
     }
 }
 
@@ -379,7 +377,7 @@ private struct StatusActionBarLabel: View {
                 StatusActionIcon(icon: state.icon ?? .more)
                 #endif
             }
-            .optionalForegroundStyle(state.color?.swiftColor)
+            .actionBarForeground(state.color?.swiftColor)
             .opacity(animateIcon ? 0 : 1)
             .transaction { $0.animation = nil; $0.disablesAnimations = true }
             .overlay {
@@ -397,7 +395,7 @@ private struct StatusActionBarLabel: View {
             .frame(width: StatusActionLayoutMetrics.iconWidth, height: metrics.iconHeight)
             if let text = state.text {
                 Text(text)
-                    .actionForeground(state.color?.swiftColor)
+                    .actionBarForeground(state.color?.swiftColor)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .opacity(animateNumber ? 0 : 1)
@@ -458,7 +456,7 @@ private struct StatusActionIconMotion: View {
         let enteringScale = motion.effects.icon == .pop ? StatusActionAnimationTiming.iconStartScale : 1
         ZStack {
             StatusActionIcon(icon: motion.previous.icon)
-                .optionalForegroundStyle(motion.previous.color?.swiftColor)
+                .actionBarForeground(motion.previous.color?.swiftColor)
                 .keyframeAnimator(initialValue: StatusActionMotionValues(progress: 1, opacity: 1), trigger: trigger) { content, value in
                     content.scaleEffect(value.progress).opacity(value.opacity)
                 } keyframes: { _ in
@@ -472,7 +470,7 @@ private struct StatusActionIconMotion: View {
                     }
                 }
             StatusActionIcon(icon: motion.target.icon)
-                .optionalForegroundStyle(motion.target.color?.swiftColor)
+                .actionBarForeground(motion.target.color?.swiftColor)
                 .keyframeAnimator(initialValue: StatusActionMotionValues(progress: enteringScale, opacity: 0), trigger: trigger) { content, value in
                     content.scaleEffect(value.progress).opacity(value.opacity)
                 } keyframes: { _ in
@@ -505,7 +503,7 @@ private struct StatusActionNumberMotion: View {
         ZStack(alignment: .leading) {
             if let previous = motion.previous.text {
                 Text(previous)
-                    .actionForeground(motion.previous.color?.swiftColor)
+                    .actionBarForeground(motion.previous.color?.swiftColor)
                     .lineLimit(1)
                     .keyframeAnimator(initialValue: StatusActionMotionValues(progress: 0, opacity: 1), trigger: trigger) { content, value in
                         content.visualEffect { effect, geometry in
@@ -525,7 +523,7 @@ private struct StatusActionNumberMotion: View {
             }
             if let target = motion.target.text {
                 Text(target)
-                    .actionForeground(motion.target.color?.swiftColor)
+                    .actionBarForeground(motion.target.color?.swiftColor)
                     .lineLimit(1)
                     .keyframeAnimator(initialValue: StatusActionMotionValues(progress: 0, opacity: 0), trigger: trigger) { content, value in
                         content.visualEffect { effect, geometry in
@@ -628,6 +626,11 @@ private extension Text {
 }
 
 private extension View {
+    func actionBarForeground(_ color: Color?) -> some View {
+        let style = color.map { AnyShapeStyle($0) } ?? AnyShapeStyle(FlarePrimaryTextStyle())
+        return foregroundStyle(style)
+    }
+
     @ViewBuilder
     func optionalForegroundStyle(_ color: Color?) -> some View {
         // Apply only to leaf content so animation state stays above this color branch.

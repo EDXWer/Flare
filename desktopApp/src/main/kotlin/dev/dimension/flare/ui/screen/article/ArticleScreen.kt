@@ -432,7 +432,7 @@ private fun LazyListScope.articleCommentsTitle() {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = "Comments",
-                    style = FluentTheme.typography.bodyStrong.copy(fontSize = 16.sp, lineHeight = 24.sp),
+                    style = FluentTheme.typography.bodyStrong.copy(fontSize = 16.sp),
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
                 val dividerColor = FlareDividerDefaults.color
@@ -492,7 +492,6 @@ private fun ArticleHeader(
             style =
                 FluentTheme.typography.title.copy(
                     fontSize = 22.sp,
-                    lineHeight = 28.sp,
                     fontWeight = FontWeight.SemiBold,
                 ),
         )
@@ -619,7 +618,6 @@ private fun ArticleBlock(
                 text = block.richText,
                 modifier = Modifier.fillMaxWidth(),
                 overflow = TextOverflow.Clip,
-                useBodySpacing = true,
             )
         }
 
@@ -726,7 +724,7 @@ private fun ArticleFileBlock(
             ) {
                 Text(
                     text = block.name,
-                    style = FluentTheme.typography.body.copy(fontSize = 16.sp, lineHeight = 24.sp),
+                    style = FluentTheme.typography.body.copy(fontSize = 16.sp),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -799,7 +797,7 @@ private fun ArticleEmbedBlockContent(block: UiArticleBlock.Embed) {
         ) {
             Text(
                 text = block.title ?: block.url ?: block.htmlFallback.orEmpty(),
-                style = FluentTheme.typography.body.copy(fontSize = 16.sp, lineHeight = 24.sp),
+                style = FluentTheme.typography.body.copy(fontSize = 16.sp),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -858,11 +856,11 @@ private fun ArticleContentGateBlock(
             ) {
                 Text(
                     text = stringResource(Res.string.article_content_gate_subscription_title),
-                    style = FluentTheme.typography.bodyStrong.copy(fontSize = 16.sp, lineHeight = 24.sp),
+                    style = FluentTheme.typography.bodyStrong.copy(fontSize = 16.sp),
                 )
                 Text(
                     text = description,
-                    style = FluentTheme.typography.body.copy(fontSize = 16.sp, lineHeight = 24.sp),
+                    style = FluentTheme.typography.body.copy(fontSize = 16.sp),
                     color = FluentTheme.colors.text.text.secondary,
                 )
                 block.actionUrl?.takeIf { it.isNotBlank() }?.let { url ->
@@ -968,7 +966,7 @@ private fun ArticleBodyContainer(
             contentAlignment = Alignment.TopStart,
         ) {
             CompositionLocalProvider(
-                LocalTextStyle provides FluentTheme.typography.body.copy(fontSize = 16.sp, lineHeight = 24.sp),
+                LocalTextStyle provides FluentTheme.typography.body.copy(fontSize = 16.sp),
             ) {
                 content()
             }
