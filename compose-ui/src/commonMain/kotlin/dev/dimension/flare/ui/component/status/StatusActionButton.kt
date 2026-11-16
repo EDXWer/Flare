@@ -14,8 +14,10 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -50,6 +52,9 @@ import dev.dimension.flare.ui.component.platform.rippleIndication
 import dev.dimension.flare.ui.model.UiNumber
 import dev.dimension.flare.ui.theme.PlatformContentColor
 import dev.dimension.flare.ui.theme.PlatformTheme
+
+private val actionIconSize = 16.dp
+private val actionIconSlotWidth = 20.dp
 
 @Composable
 public fun StatusActionButton(
@@ -123,7 +128,6 @@ public fun StatusActionButton(
                 contentDescription = contentDescription,
                 modifier =
                     Modifier
-                        .height(PlatformTextStyle.current.fontSize.value.dp + 2.dp)
                         .pointerHoverIcon(if (enabled) PointerIcon.Hand else PointerIcon.Default)
                         .clickable(
                             onClick = onClicked,
@@ -135,7 +139,8 @@ public fun StatusActionButton(
                                     radius = 20.dp,
                                     color = Color.Unspecified,
                                 ),
-                        ),
+                        ).padding(horizontal = (actionIconSlotWidth - actionIconSize) / 2)
+                        .size(actionIconSize),
                 tint = color,
             )
         }
@@ -156,12 +161,7 @@ public fun StatusActionButton(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    FAIcon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        modifier = Modifier.height(PlatformTextStyle.current.fontSize.value.dp + 2.dp),
-                        tint = Color.Transparent,
-                    )
+                    Spacer(Modifier.width(actionIconSlotWidth))
                     PlatformText(
                         "0000",
                         color = Color.Transparent,

@@ -5,8 +5,10 @@ import android.graphics.Color
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
@@ -28,6 +30,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -308,7 +311,7 @@ class PostAppearanceTest {
     }
 
     @Test
-    fun darkPostCalibrationUsesCompactBodySpacing() {
+    fun darkPostCalibrationUsesExpandedRichTextLineSpacing() {
         val body =
             "《少女前线2》 × SSSS.GRIDMAN 联动\n" +
                 "2027年予定\n" +
@@ -320,16 +323,18 @@ class PostAppearanceTest {
                 "English spacing 0123456789"
         val author = "K12s"
         val reposter = "凪風　27年のお仕事積極募集中"
+        val avatarUrl = avatar.toURI().toString()
         val post =
             createSampleStatus(
                 createSampleUser().copy(
                     nameInternal = author.toUiPlainText(),
                     handle = UiHandle("kzwolf123", "x.com", displayOverride = "@kzwolf123"),
                     platformId = "X",
-                    avatar = null,
+                    avatar = avatarUrl.toUiImage(),
                 ),
             ).copy(
                 content = UiTranslatableText(body.toUiPlainText()),
+                images = persistentListOf(UiMedia.Image(avatarUrl, avatarUrl, "Sample media", 180f, 320f, false)),
                 createdAt = (Clock.System.now() - 5.minutes).toUi(),
             )
         val timestamp = post.createdAt.relative
@@ -352,12 +357,13 @@ class PostAppearanceTest {
             )
         lateinit var density: Density
         lateinit var themeBody: TextStyle
+        var fullWidth by mutableStateOf(false)
         compose.setContent {
             CompositionLocalProvider(
                 LocalGlobalAppearance provides GlobalAppearance(pureColorMode = true),
                 LocalTimelineAppearance provides
                     TimelineAppearance(
-                        fullWidthPost = false,
+                        fullWidthPost = fullWidth,
                         showPlatformLogo = false,
                         showTranslateButton = false,
                         timelineDisplayMode = TimelineDisplayMode.Plain,
@@ -408,9 +414,85 @@ class PostAppearanceTest {
         )
         if (InstrumentationRegistry.getArguments().getString("capturePostAppearance") == "1") {
             val directory = checkNotNull(InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir("post-appearance"))
-            val bitmap = container.captureToImage().asAndroidBitmap()
-            File(directory, "android-post-calibration.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            for ((wide, name) in listOf(false to "android-post-calibration.png", true to "android-post-full-width.png")) {
+                compose.runOnIdle { fullWidth = wide }
+                val bitmap = container.captureToImage().asAndroidBitmap()
+                File(directory, name).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            }
             File(directory, "android-post-calibration.json").writeText(postCalibrationJson(density, themeBody, bounds, timestamp, texts))
+        }
+    }
+
+    @Test
+    fun timelineRowsUseTheSameInsetsInPlainAndCardMode() {
+        val body = post("alex", "Alex Rivera", "A quiet afternoon at the coast.")
+        val mei = checkNotNull(post("mei", "Mei Chen", "").user)
+
+        fun message(
+            id: String,
+            name: String,
+            icon: UiIcon,
+            text: String,
+        ) = UiTimelineV2.Message(
+            user = post(id, name, "").user,
+            statusKey = body.statusKey,
+            icon = icon,
+            type = UiTimelineV2.Message.Type.Raw(text),
+            createdAt = body.createdAt,
+            clickEvent = ClickEvent.Noop,
+            accountType = body.accountType,
+        )
+        val rows =
+            listOf(
+                UiTimelineV2.TimelinePostItem(
+                    body,
+                    UiTimelineV2.PostPresentation(message = message("sam", "Sam Lee", UiIcon.Retweet, "reposted")),
+                ),
+                UiTimelineV2.User(
+                    message("jordan", "Jordan Kim", UiIcon.Follow, "followed you"),
+                    mei,
+                    body.createdAt,
+                    body.statusKey,
+                    accountType = body.accountType,
+                ),
+                message("flare", "Flare Team", UiIcon.Pin, "pinned a post"),
+            )
+        var mode by mutableStateOf(TimelineDisplayMode.Plain)
+        lateinit var density: Density
+        compose.setContent {
+            CompositionLocalProvider(
+                LocalGlobalAppearance provides GlobalAppearance(pureColorMode = true),
+                LocalTimelineAppearance provides TimelineAppearance(timelineDisplayMode = mode, showPlatformLogo = false),
+            ) {
+                FlareTheme(darkTheme = true, dynamicColor = false) {
+                    density = LocalDensity.current
+                    Surface(color = MaterialTheme.colorScheme.background) {
+                        LazyStatusVerticalStaggeredGrid(
+                            modifier = Modifier.height(310.dp).testTag("timeline"),
+                            columns = StaggeredGridCells.Fixed(1),
+                        ) {
+                            items(rows.size) { index ->
+                                AdaptiveCard(Modifier.testTag("row-$index"), index, rows.size, respectTimelineMode = true) {
+                                    StatusItem(rows[index])
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        for ((displayMode, inset) in listOf(TimelineDisplayMode.Plain to 0.dp, TimelineDisplayMode.Card to 8.dp)) {
+            compose.runOnIdle { mode = displayMode }
+            val bounds = compose.onNodeWithTag("timeline").fetchSemanticsNode().boundsInRoot
+            val card = compose.onNodeWithTag("row-1", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+            val avatar =
+                compose
+                    .onNodeWithContentDescription("Open profile for ${mei.handle.display}", useUnmergedTree = true)
+                    .fetchSemanticsNode()
+                    .boundsInRoot
+            assertEquals(bounds.left + with(density) { inset.toPx() }, card.left, 1f)
+            assertEquals(card.left + with(density) { 10.dp.toPx() }, avatar.left, 1f)
+            screenshot("android-${displayMode.name.lowercase()}.png", "timeline")
         }
     }
 
@@ -441,12 +523,16 @@ class PostAppearanceTest {
             visibility = UiTimelineV2.Post.Visibility.Public,
         )
 
-    private fun screenshot(name: String) {
+    private fun screenshot(
+        name: String,
+        tag: String? = null,
+    ) {
         compose.mainClock.advanceTimeBy(500)
         compose.waitForIdle()
         if (InstrumentationRegistry.getArguments().getString("capturePostAppearance") != "1") return
         val directory = checkNotNull(InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir("post-appearance"))
-        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        val node = if (tag == null) compose.onRoot() else compose.onNodeWithTag(tag)
+        val bitmap = node.captureToImage().asAndroidBitmap()
         File(directory, name).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 }

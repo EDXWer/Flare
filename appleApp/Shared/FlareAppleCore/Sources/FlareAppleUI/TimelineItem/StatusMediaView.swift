@@ -20,6 +20,7 @@ struct StatusMediaView: View {
     @Environment(\.timelineAppearance.mediaLayout) private var mediaLayout
     @Environment(\.timelineAppearance.limitMediaGridToNine) private var limitMediaGridToNine
     @Environment(\.timelineMediaActionHandler) private var timelineMediaActionHandler
+    @Environment(\.displayScale) private var displayScale
     @State private var isBlur: Bool
     @State private var activeCarouselIndex: Int?
     @Environment(\.timelinePlaybackCoordinator) private var playback
@@ -178,6 +179,7 @@ struct StatusMediaView: View {
                                 ))
                                 .frame(width: itemSize.width, height: itemSize.height)
                                 .clipShape(.rect(cornerRadius: cornerRadius))
+                                .overlay { mediaOutline(RoundedRectangle(cornerRadius: cornerRadius)) }
                                 .id(index)
                             }
                         }
@@ -254,8 +256,26 @@ struct StatusMediaView: View {
                     overflowCount: index == visibleData.count - 1 ? overflowCount : 0,
                     allowsAutoplay: !isBlur
                 )
+                .overlay { mediaOutline(gridShape(at: index, count: visibleData.count)) }
             }
         }
+    }
+
+    private func mediaOutline<Shape: InsettableShape>(_ shape: Shape) -> some View {
+        shape.strokeBorder(Color(white: 179.0 / 255), lineWidth: 1 / displayScale)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    private func gridShape(at index: Int, count: Int) -> UnevenRoundedRectangle {
+        let topEnd = count <= 2 ? count - 1 : (count <= 4 ? 1 : 2)
+        let bottomStart = count <= 3 ? 0 : (count == 4 ? 2 : (count - 1) / 3 * 3)
+        return UnevenRoundedRectangle(
+            topLeadingRadius: index == 0 ? cornerRadius : 0,
+            bottomLeadingRadius: index == bottomStart ? cornerRadius : 0,
+            bottomTrailingRadius: index == count - 1 ? cornerRadius : 0,
+            topTrailingRadius: index == topEnd ? cornerRadius : 0
+        )
     }
 
     private var singleExpandedMedia: (any UiMedia)? {

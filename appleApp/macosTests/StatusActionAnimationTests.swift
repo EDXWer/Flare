@@ -141,31 +141,57 @@ final class MacStatusActionAnimationTests: XCTestCase {
         let componentQuote = previewPost("quoted", name: "引用ユーザー",
             text: "文字と画像の間隔をそろえる。\n引用の内側にも余白を残す。", isCalibration: true)
         let componentPost = previewPost("Sawarabi_2000", name: "茶わらび",
-            text: "友達作るための行動したことないから当然の帰結だけど", isCalibration: true, images: [media], translationDisplayState: .translated)
+            text: "今天把常用的排版设置整理了一遍。\n多行文字、图片和转发信息都在同一张卡片上。",
+            images: [media, media], translationDisplayState: .translated)
         let components = UiTimelineV2.TimelinePostItem(post: componentPost,
-            presentation: UiTimelineV2.PostPresentation(message: nil, inlineParents: [], quotes: [componentQuote],
+            presentation: UiTimelineV2.PostPresentation(message: repostMessage, inlineParents: [], quotes: [componentQuote],
                 repost: nil, notificationKey: nil), itemKey: "components")
+        let timelinePost = previewPost("alex", name: "Alex Rivera", text: "A quiet afternoon at the coast.")
+        func message(_ id: String, _ name: String, _ icon: UiIcon, _ text: String) -> UiTimelineV2.Message {
+            UiTimelineV2.Message(user: previewPost(id, name: name, text: "").user, statusKey: timelinePost.statusKey,
+                icon: icon, type: UiTimelineV2.MessageTypeRaw(content: text), createdAt: timelinePost.createdAt,
+                clickEvent: ClickEventNoop.shared, accountType: timelinePost.accountType, itemKey: id)
+        }
+        let timelineRows: [UiTimelineV2] = [
+            UiTimelineV2.TimelinePostItem(post: timelinePost, presentation: UiTimelineV2.PostPresentation(
+                message: message("sam", "Sam Lee", .retweet, "reposted"), inlineParents: [], quotes: [], repost: nil, notificationKey: nil),
+                itemKey: "reposted"),
+            UiTimelineV2.User(message: message("jordan", "Jordan Kim", .follow, "followed you"),
+                value: try XCTUnwrap(previewPost("mei", name: "Mei Chen", text: "").user), createdAt: timelinePost.createdAt,
+                statusKey: timelinePost.statusKey, button: [], accountType: timelinePost.accountType, itemKey: "user"),
+            message("flare", "Flare Team", .pin, "pinned a post about the next community meetup, with registration details and directions to the venue"),
+        ]
         let previews: [(name: String, width: CGFloat, posts: [UiTimelineV2])] = [
             ("post", 520, posts), ("retweet-header", 402, [repost]),
-            ("post-calibration", 402, [calibration]), ("components", 402, [components]),
+            ("post-calibration", 402, [calibration]), ("components", 402, [components]), ("full-width", 402, [components]),
+            ("timeline-plain", 402, timelineRows), ("timeline-card", 402, timelineRows),
         ]
         let directory = URL(fileURLWithPath: output, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         for preview in previews {
             let isCalibration = preview.name == "post-calibration"
-            let background: Color = isCalibration || preview.name == "components" ? .black : .flareSystemGroupedBackground
-            for theme in isCalibration ? [ColorScheme.dark] : [.light, .dark] {
+            let isTimeline = preview.name.hasPrefix("timeline-")
+            let background: Color = isCalibration || isTimeline || preview.name == "components" || preview.name == "full-width"
+                ? .black : .flareSystemGroupedBackground
+            let helper = TimelinePresentationAppearancePatchHelper.shared
+            var patch = helper.setFullWidthPost(patch: helper.empty, value: preview.name == "full-width")
+            if isTimeline {
+                patch = helper.setTimelineDisplayMode(patch: patch, value: preview.name == "timeline-card" ? .card : .plain)
+            }
+            let appearance = helper.resolve(base: TimelineAppearance.companion.Default, patch: patch)
+            for theme in isCalibration || isTimeline ? [ColorScheme.dark] : [.light, .dark] {
                 let content = VStack(spacing: 0) {
                     ForEach(Array(preview.posts.enumerated()), id: \.offset) { index, post in
                         AdaptiveTimelineCard(index: index, totalCount: preview.posts.count) {
                             TimelineView(data: post)
-                                .padding(.horizontal, 10)
-                                .padding(.top, 12)
+                                .padding(.horizontal, TimelineHorizontalInsets.content)
+                                .padding(.top, post.timelineContentPost == nil ? 8 : 12)
                                 .padding(.bottom, 8)
                         }
                     }
                 }
                 .frame(width: preview.width)
+                .environment(\.timelineAppearance, appearance)
                 .flareTextBackground(background)
                 .background(background)
                 .environment(\.colorScheme, theme)
@@ -183,7 +209,7 @@ final class MacStatusActionAnimationTests: XCTestCase {
                 host.layoutSubtreeIfNeeded()
                 host.displayIfNeeded()
                 XCTAssertEqual(host.bounds.width, preview.width, accuracy: 1)
-                XCTAssertGreaterThan(host.bounds.height, preview.posts.count > 1 ? 200 : 80)
+                XCTAssertGreaterThan(host.bounds.height, preview.posts.count > 1 && !isTimeline ? 200 : 80)
                 let bitmap = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil,
                     pixelsWide: Int(ceil(host.bounds.width * 2)), pixelsHigh: Int(ceil(host.bounds.height * 2)),
                     bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,

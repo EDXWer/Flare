@@ -52,7 +52,7 @@ public struct StatusActionsView: View {
 
     public var body: some View {
         Group {
-            let metrics = StatusActionLayoutMetrics(fontSize: bodyFontSize, scale: displayScale)
+            let metrics = StatusActionLayoutMetrics(fontSize: bodyFontSize, scale: displayScale, isPostAction: !useText)
             let actions = resolvedData.filter { action in
                 if case .divider = onEnum(of: action) { return useText }
                 return true
@@ -393,6 +393,7 @@ private struct StatusActionBarLabel: View {
                         .allowsHitTesting(false)
                 }
             }
+            .font(.system(size: metrics.iconSize))
             .frame(width: StatusActionLayoutMetrics.iconWidth, height: metrics.iconHeight)
             if let text = state.text {
                 Text(text)

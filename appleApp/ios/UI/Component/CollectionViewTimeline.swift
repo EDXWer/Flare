@@ -638,12 +638,8 @@ final class UITimelineCollectionViewController: UIViewController, UICollectionVi
         layout.columnCount = columns
         layout.minimumColumnSpacing = TimelineUIKitLayoutMetrics.columnSpacing
         layout.minimumInteritemSpacing = 0
-        layout.sectionInset = UIEdgeInsets(
-            top: 0,
-            left: TimelineUIKitLayoutMetrics.horizontalInset,
-            bottom: 0,
-            right: TimelineUIKitLayoutMetrics.horizontalInset
-        )
+        let inset = columns > 1 ? TimelineHorizontalInsets.multiColumnGrid : TimelineHorizontalInsets.card
+        layout.sectionInset = UIEdgeInsets(top: 0, left: inset, bottom: 0, right: inset)
         layout.itemRenderDirection = .shortestFirst
         return layout
     }
@@ -836,7 +832,7 @@ final class UITimelineCollectionViewController: UIViewController, UICollectionVi
         guard contentKind == .profileMedia else {
             if sectionIdentifier(at: section) == Self.sectionAccessories { return .zero }
             if sectionIdentifier(at: section) == Self.sectionHeader {
-                let inset = max(appearance.isPlainTimelineDisplayMode ? 0 : TimelineUIKitLayoutMetrics.horizontalInset, (collectionView.bounds.width - 600) / 2)
+                let inset = max(appearance.isPlainTimelineDisplayMode ? 0 : TimelineHorizontalInsets.card, (collectionView.bounds.width - 600) / 2)
                 return UIEdgeInsets(top: 0, left: inset, bottom: 0, right: inset)
             }
             return columnCount == 1 && appearance.isPlainTimelineDisplayMode ? .zero : layout.sectionInset
@@ -1029,7 +1025,8 @@ final class UITimelineCollectionViewController: UIViewController, UICollectionVi
         let card = AdaptiveTimelineCardUIView()
         card.isPlainTimelineDisplayMode = appearance.isPlainTimelineDisplayMode
         card.isMultipleColumn = columnCount > 1
-        card.setContent(UIView.padding(view, insets: UIEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)))
+        card.setContent(UIView.padding(view, insets: UIEdgeInsets(top: 8, left: TimelineHorizontalInsets.content,
+                                                                bottom: 8, right: TimelineHorizontalInsets.content)))
         card.configure(index: index, totalCount: content.items.count)
         return card
     }

@@ -14,6 +14,7 @@ private typealias PlatformImage = NSImage
 #endif
 
 public struct RichText: View {
+    public nonisolated static let lineSpacingMultiplier: CGFloat = 1.5
     private let text: UiRichText
     private let previewLineLimit: Int?
     private let previewLineHeight: CGFloat
@@ -23,6 +24,7 @@ public struct RichText: View {
     @ScaledMetric(relativeTo: .body) private var quoteBarWidth = 3
     @Environment(\.openURL) private var openURL
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.lineSpacing) private var lineSpacing
     @Environment(\.shareImageLoading) private var shareImageLoading
     @State private var shareImageID = UUID()
 
@@ -191,6 +193,7 @@ public struct RichText: View {
     @ViewBuilder
     private func renderBlock(textContent: PlatformTextTextContent) -> some View {
         let renderedText = render(textContent: textContent).flarePrimaryText()
+            .lineSpacing(lineSpacing * Self.lineSpacingMultiplier)
         if textContent.isBlockQuote {
             HStack(alignment: .top, spacing: 11) {
                 Rectangle()

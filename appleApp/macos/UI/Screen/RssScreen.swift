@@ -387,7 +387,8 @@ private struct RssTimelineItemRow: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+        .listRowInsets(EdgeInsets(top: 4, leading: TimelineHorizontalInsets.content, bottom: 4,
+                                 trailing: TimelineHorizontalInsets.content))
         .onAppear {
             onDisplay(row.index)
         }

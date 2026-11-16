@@ -54,6 +54,7 @@ import dev.dimension.flare.ui.theme.PlatformContentColor
 import dev.dimension.flare.ui.theme.PlatformTheme
 import dev.dimension.flare.ui.theme.isLightTheme
 import dev.dimension.flare.ui.theme.withRichTextSpacing
+import dev.dimension.flare.ui.theme.withWiderRichTextLineSpacing
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.toImmutableMap
 
@@ -92,6 +93,7 @@ public fun RichText(
 ) {
     val inheritedStyle = PlatformTextStyle.current.merge(textStyle)
     val bodyStyle = if (useBodySpacing) inheritedStyle.withRichTextSpacing() else null
+    val renderStyle = bodyStyle ?: inheritedStyle
     val contentStyle = bodyStyle?.let { textStyle.copy(lineHeight = it.lineHeight, letterSpacing = it.letterSpacing) } ?: textStyle
     val contentLinkStyle = bodyStyle?.let { linkStyle.copy(letterSpacing = it.letterSpacing) } ?: linkStyle
     val h1 = PlatformTheme.typography.h1
@@ -105,7 +107,7 @@ public fun RichText(
         LocalLayoutDirection provides layoutDirection,
     ) {
         CompositionLocalProvider(
-            PlatformTextStyle provides (bodyStyle ?: inheritedStyle),
+            PlatformTextStyle provides (if (maxLines == 1) renderStyle else renderStyle.withWiderRichTextLineSpacing()),
         ) {
             val state =
                 remember(text, contentStyle, contentLinkStyle, color) {

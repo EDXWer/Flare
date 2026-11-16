@@ -6,6 +6,19 @@ import FlareAppleUI
 
 @MainActor
 final class StatusActionLayoutTests: XCTestCase {
+    func testPostActionsKeepTheirHitHeightWithCompactIconsAndCounts() {
+        for fontSize: CGFloat in [17, 33, 53] {
+            let body = StatusActionLayoutMetrics(fontSize: fontSize, scale: 3)
+            let post = StatusActionLayoutMetrics(fontSize: fontSize, scale: 3, isPostAction: true)
+            XCTAssertEqual(post.iconHeight, 16)
+            XCTAssertEqual(post.fontSize, fontSize - 2)
+            for countWidth: CGFloat? in [nil, 30] {
+                XCTAssertEqual(post.size(titleWidth: countWidth, reservesNumberWidth: false).height,
+                               body.size(titleWidth: countWidth, reservesNumberWidth: false).height)
+            }
+        }
+    }
+
     func testMenuReuseKeepsItsInteractionAndUpdatesDisabledState() throws {
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let previous = scene.windows.first(where: \.isKeyWindow)
@@ -75,7 +88,7 @@ final class StatusActionLayoutTests: XCTestCase {
         XCTAssertNil(outgoing.text)
     }
 
-    func testAnimatedIconsKeepTheirScaledGeometryAtAccessibilitySizes() async throws {
+    func testAnimatedIconsKeepFixedGeometryAtAccessibilitySizes() async throws {
         if UIAccessibility.isReduceMotionEnabled { throw XCTSkip("Requires icon animations") }
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let previous = scene.windows.first(where: \.isKeyWindow)
@@ -103,7 +116,7 @@ final class StatusActionLayoutTests: XCTestCase {
         let outgoing = try XCTUnwrap(images.first(where: { $0.alpha == 0 }))
         let image = try XCTUnwrap(incoming.image)
         let expectedScale = min(1, 20 / image.size.width)
-        XCTAssertLessThan(expectedScale, 1)
+        XCTAssertEqual(incoming.bounds.height, 16)
         XCTAssertEqual(incoming.transform.a, expectedScale, accuracy: 0.001)
         XCTAssertEqual(outgoing.bounds, incoming.bounds)
         XCTAssertEqual(outgoing.center, incoming.center)

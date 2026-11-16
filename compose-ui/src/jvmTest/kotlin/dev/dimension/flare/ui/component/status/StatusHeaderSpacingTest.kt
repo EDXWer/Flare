@@ -3,8 +3,11 @@ package dev.dimension.flare.ui.component.status
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -23,6 +26,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -36,11 +40,15 @@ import compose.icons.FontAwesomeIcons
 import compose.icons.fontawesomeicons.Solid
 import compose.icons.fontawesomeicons.solid.Retweet
 import dev.dimension.flare.data.model.IconType
+import dev.dimension.flare.data.model.TimelineDisplayMode
 import dev.dimension.flare.data.model.VideoAutoplay
 import dev.dimension.flare.data.model.appearance.TimelineAppearance
 import dev.dimension.flare.model.MicroBlogKey
+import dev.dimension.flare.ui.component.LocalNetworkImageAllowHardware
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
+import dev.dimension.flare.ui.component.platform.LocalWindowSizeClass
 import dev.dimension.flare.ui.component.platform.PlatformTextStyle
+import dev.dimension.flare.ui.component.platform.WindowSizeClass
 import dev.dimension.flare.ui.humanizer.PlatformFormatter
 import dev.dimension.flare.ui.model.ClickEvent
 import dev.dimension.flare.ui.model.TranslationDisplayState
@@ -73,6 +81,7 @@ import java.nio.file.Files
 import javax.imageio.ImageIO
 import kotlin.math.ceil
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
@@ -118,6 +127,11 @@ class StatusHeaderSpacingTest {
     }
 
     @Test
+    fun fullWidthAuthorUsesEightDpBeforeBodyAndReply() {
+        assertBodyAndReplySpacing(isQuote = false, fullWidthPost = true)
+    }
+
+    @Test
     fun nonPostTranslationBadgesKeepCompactStateIconsAndThemeColor() {
         var state by mutableStateOf(TranslationDisplayState.Failed)
         var caption = Color.Unspecified
@@ -155,7 +169,7 @@ class StatusHeaderSpacingTest {
             dispose()
         }
         ImageIO.write(asset, "png", file)
-        val url = file.toURI().toString()
+        val url = file.toPath().toUri().toString()
         val body = "友達作るための行動したことないから当然の帰結だけど"
         val quoteBody = "文字と画像の間隔をそろえる。\n引用の内側にも余白を残す。"
         val sample =
@@ -190,6 +204,7 @@ class StatusHeaderSpacingTest {
                 bodyStyle = PlatformTheme.typography.postBody
                 CompositionLocalProvider(
                     LocalTimelineAppearance provides TimelineAppearance(fullWidthPost = false, showPlatformLogo = true),
+                    LocalNetworkImageAllowHardware provides false,
                     LocalStatusBackgroundColor provides Color.Black,
                     LocalDensity provides Density(1f),
                 ) {
@@ -205,19 +220,14 @@ class StatusHeaderSpacingTest {
                 }
             }
         }
-        compose.waitUntil(5_000) {
-            compose
-                .onAllNodesWithContentDescription("Spacing reference media", substring = true, useUnmergedTree = true)
-                .fetchSemanticsNodes()
-                .any { it.boundsInRoot.height > 100 }
+        val mediaNode = compose.onNodeWithContentDescription("Spacing reference media", useUnmergedTree = true)
+        val fill = Color(0xFF2A5B69).toArgb()
+        compose.waitUntil(timeoutMillis = 5_000) {
+            val pixels = mediaNode.captureToImage().toPixelMap()
+            pixels[pixels.width / 2, pixels.height / 2].toArgb() == fill
         }
         val bodyBounds = compose.onNodeWithText(body, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-        val media =
-            compose
-                .onAllNodesWithContentDescription("Spacing reference media", substring = true, useUnmergedTree = true)
-                .fetchSemanticsNodes()
-                .maxBy { it.boundsInRoot.height }
-                .boundsInRoot
+        val media = mediaNode.fetchSemanticsNode().boundsInRoot
         val quoteText = compose.onNodeWithText(quoteBody, useUnmergedTree = true).fetchSemanticsNode()
         val quoteFrame =
             generateSequence(quoteText.layoutInfo.coordinates.parentLayoutCoordinates) { it.parentLayoutCoordinates }
@@ -230,6 +240,14 @@ class StatusHeaderSpacingTest {
         assertEquals(12f, quoteFrame.bottom - quoteText.boundsInRoot.bottom, 0.1f)
         assertEquals(2f, actions.top - quoteFrame.bottom, 0.1f)
         assertEquals(bodyBounds.left - 4f, actions.left, 0.1f)
+        val count = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText("10", useUnmergedTree = true).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(count) }
+        assertEquals(
+            bodyStyle.fontSize.value - 2,
+            count
+                .single()
+                .layoutInput.style.fontSize.value,
+        )
         for ((state, label) in listOf(
             TranslationDisplayState.Translating to "Translating…",
             TranslationDisplayState.Failed to "Translation failed",
@@ -242,13 +260,12 @@ class StatusHeaderSpacingTest {
                 icons.forEach { assertEquals(bodyStyle.fontSize.value, it.boundsInRoot.height, 0.1f) }
             }
         }
+        val mediaPixels = mediaNode.captureToImage().toPixelMap()
+        assertEquals(Color(0xFFB3B3B3).toArgb(), mediaPixels[mediaPixels.width / 2, 0].toArgb(), "Media border")
+        assertEquals(fill, mediaPixels[mediaPixels.width / 2, 1].toArgb(), "First pixel inside the media border")
         System.getenv("FLARE_POST_SCREENSHOT")?.let { path ->
-            val directory = File(path).parentFile.apply { mkdirs() }
-            compose.waitUntil(5_000) {
-                val pixels = compose.onNodeWithTag("component-spacing").captureToImage().toPixelMap()
-                pixels[media.center.x.toInt(), media.center.y.toInt()].toArgb() and 0xFFFFFF == 0x2A5B69
-            }
             val pixels = compose.onNodeWithTag("component-spacing").captureToImage().toPixelMap()
+            val directory = File(path).parentFile.apply { mkdirs() }
             val screenshot = BufferedImage(pixels.width, pixels.height, BufferedImage.TYPE_INT_ARGB)
             for (y in 0 until pixels.height) for (x in 0 until pixels.width) screenshot.setRGB(x, y, pixels[x, y].toArgb())
             ImageIO.write(screenshot, "png", File(directory, "compose-components.png"))
@@ -274,7 +291,7 @@ class StatusHeaderSpacingTest {
     }
 
     @Test
-    fun renderedPostNamesAreBoldWhileHandlesAndRepostLabelsStayRegular() {
+    fun renderedPostNamesAreExtraBoldWhileHandlesAndRepostLabelsStayRegular() {
         val user = checkNotNull(samplePost().user)
         compose.setContent {
             FluentTheme {
@@ -298,7 +315,7 @@ class StatusHeaderSpacingTest {
                             user = user.copy(nameInternal = "Reposting author".toUiPlainText()),
                             text = "reposted",
                             textStyle = PlatformTheme.typography.postBody,
-                            boldName = true,
+                            isPost = true,
                         )
                         UserCompat(
                             user = user.copy(nameInternal = "Profile name".toUiPlainText()),
@@ -310,13 +327,13 @@ class StatusHeaderSpacingTest {
         }
         val expectedWeights =
             mapOf(
-                "Full width author" to FontWeight.Bold,
-                "Compact author" to FontWeight.Bold,
-                "Reposting author" to FontWeight.Bold,
+                "Full width author" to FontWeight.ExtraBold,
+                "Compact author" to FontWeight.ExtraBold,
+                "Reposting author" to FontWeight.ExtraBold,
                 "full-width-handle" to FontWeight.Normal,
                 "compact-handle" to FontWeight.Normal,
                 "reposted" to FontWeight.Normal,
-                "Profile name" to FontWeight.Normal,
+                "Profile name" to FontWeight.ExtraBold,
             )
         for ((text, expectedWeight) in expectedWeights) {
             val layouts = mutableListOf<TextLayoutResult>()
@@ -339,6 +356,208 @@ class StatusHeaderSpacingTest {
     }
 
     @Test
+    fun timelineRowsShareThePostInsetsAndMessageStyle() {
+        val avatar =
+            previewAvatar
+                .toPath()
+                .toUri()
+                .toString()
+                .toUiImage()
+        val author =
+            createSampleUser().copy(
+                nameInternal = "Alex Rivera".toUiPlainText(),
+                handle = UiHandle("alex", "x.com", displayOverride = "@alex"),
+                avatar = avatar,
+            )
+        val post =
+            createSampleStatus(author).copy(
+                content = UiTranslatableText("A quiet afternoon at the coast.".toUiPlainText()),
+                images = persistentListOf(),
+            )
+        val mei = author.copy(nameInternal = "Mei Chen".toUiPlainText(), handle = UiHandle("mei", "x.com", displayOverride = "@mei"))
+        val repost =
+            UiTimelineV2.Message(
+                user = author.copy(nameInternal = "Sam Lee".toUiPlainText()),
+                statusKey = post.statusKey,
+                icon = UiIcon.Retweet,
+                type = UiTimelineV2.Message.Type.Raw("reposted"),
+                createdAt = post.createdAt,
+                clickEvent = ClickEvent.Noop,
+                accountType = post.accountType,
+            )
+        val rows =
+            listOf(
+                UiTimelineV2.TimelinePostItem(post, UiTimelineV2.PostPresentation(message = repost)),
+                UiTimelineV2.User(
+                    repost.copy(
+                        user = author.copy(nameInternal = "Jordan Kim".toUiPlainText()),
+                        icon = UiIcon.Follow,
+                        type = UiTimelineV2.Message.Type.Raw("followed you"),
+                    ),
+                    mei,
+                    post.createdAt,
+                    post.statusKey,
+                    accountType = post.accountType,
+                ),
+                repost.copy(
+                    user = author.copy(nameInternal = "Flare Team".toUiPlainText()),
+                    icon = UiIcon.Pin,
+                    type = UiTimelineV2.Message.Type.Raw("pinned a post"),
+                ),
+            )
+        var mode by mutableStateOf(TimelineDisplayMode.Plain)
+        compose.setContent {
+            FluentTheme(colors = darkColors()) {
+                CompositionLocalProvider(
+                    LocalTimelineAppearance provides TimelineAppearance(timelineDisplayMode = mode, showPlatformLogo = false),
+                    LocalNetworkImageAllowHardware provides false,
+                    LocalDensity provides Density(1f),
+                    PlatformTextStyle provides PlatformTheme.typography.body,
+                ) {
+                    LazyStatusVerticalStaggeredGrid(
+                        modifier =
+                            Modifier
+                                .width(402.dp)
+                                .height(310.dp)
+                                .background(Color(0xFF101010))
+                                .testTag("timeline"),
+                        columns = StaggeredGridCells.Fixed(1),
+                        allowGalleryMode = true,
+                    ) {
+                        items(rows.size) { index ->
+                            val modifier = Modifier.testTag("row-$index")
+                            if (mode == TimelineDisplayMode.Gallery) {
+                                GalleryTimelineItem(rows[index], modifier)
+                            } else {
+                                AdaptiveCard(modifier, index, rows.size, respectTimelineMode = true) {
+                                    StatusItem(rows[index])
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        val timeline = compose.onNodeWithTag("timeline")
+        val bounds = timeline.fetchSemanticsNode().boundsInRoot
+
+        fun userAvatar(handle: String) =
+            compose.onNodeWithContentDescription("Open profile for $handle", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+
+        fun textBounds(text: String) = compose.onNodeWithText(text, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+
+        fun textStyle(text: String): TextStyle {
+            val layouts = mutableListOf<TextLayoutResult>()
+            compose
+                .onNodeWithText(
+                    text,
+                    useUnmergedTree = true,
+                ).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            return layouts.single().layoutInput.style
+        }
+        for ((displayMode, inset) in listOf(TimelineDisplayMode.Plain to 0f, TimelineDisplayMode.Card to 8f)) {
+            compose.runOnIdle { mode = displayMode }
+            for (index in rows.indices) {
+                val row = compose.onNodeWithTag("row-$index", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+                assertEquals(bounds.left + inset, row.left, 0.1f)
+                assertEquals(bounds.right - inset, row.right, 0.1f)
+            }
+            val avatarBounds = userAvatar("@mei")
+            assertEquals(bounds.left + inset + 10, avatarBounds.left, 0.1f)
+            assertEquals(bounds.left + inset + 10, userAvatar("@alex").left, 0.1f)
+            assertEquals(avatarBounds.center.y, (textBounds("Mei Chen").top + textBounds("@mei").bottom) / 2, 1f)
+            assertEquals(FontWeight.ExtraBold, textStyle("Mei Chen").fontWeight)
+            for (name in listOf("Jordan Kim", "Flare Team")) {
+                assertEquals(textStyle("Sam Lee").fontSize, textStyle(name).fontSize)
+                assertEquals(textStyle("Sam Lee").color, textStyle(name).color)
+                assertEquals(FontWeight.ExtraBold, textStyle(name).fontWeight)
+            }
+            System.getenv("FLARE_TIMELINE_PREVIEW_DIR")?.let { path ->
+                val pixels = timeline.captureToImage().toPixelMap()
+                val image = BufferedImage(pixels.width, pixels.height, BufferedImage.TYPE_INT_ARGB)
+                for (y in 0 until pixels.height) for (x in 0 until pixels.width) image.setRGB(x, y, pixels[x, y].toArgb())
+                ImageIO.write(image, "png", File(path, "desktop-${displayMode.name.lowercase()}.png"))
+            }
+        }
+        compose.runOnIdle { mode = TimelineDisplayMode.Gallery }
+        val galleryTile = compose.onNodeWithTag("row-0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        assertEquals(bounds.left + 16, galleryTile.left, 0.1f)
+    }
+
+    @Test
+    fun adaptivePlainTimelineUsesCardsOnlyWhenTwoLanesFit() {
+        var width by mutableStateOf(650.dp)
+        var windowSize by mutableStateOf(WindowSizeClass.Medium)
+        compose.setContent {
+            FluentTheme {
+                CompositionLocalProvider(
+                    LocalTimelineAppearance provides TimelineAppearance(timelineDisplayMode = TimelineDisplayMode.Plain),
+                    LocalWindowSizeClass provides windowSize,
+                    LocalDensity provides Density(1f),
+                ) {
+                    LazyStatusVerticalStaggeredGrid(modifier = Modifier.width(width).height(100.dp)) {
+                        items(2) { index ->
+                            AdaptiveCard(index = index, totalCount = 2, respectTimelineMode = true) {
+                                Box(Modifier.fillMaxWidth().height(24.dp).testTag("lane-$index"))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        fun bounds(index: Int) = compose.onNodeWithTag("lane-$index").fetchSemanticsNode().boundsInRoot
+        assertEquals(0f, bounds(0).left, 0.1f)
+        assertTrue(bounds(1).top >= bounds(0).bottom)
+
+        compose.runOnIdle { width = 660.dp }
+        assertEquals(8f, bounds(0).left, 0.1f)
+        assertEquals(652f, bounds(1).right, 0.1f)
+        assertEquals(bounds(0).top, bounds(1).top, 0.1f)
+
+        compose.runOnIdle {
+            width = 402.dp
+            windowSize = WindowSizeClass.Expanded
+        }
+        assertEquals(0f, bounds(0).left, 0.1f)
+        assertTrue(bounds(1).top >= bounds(0).bottom)
+    }
+
+    @Test
+    fun standaloneTimelineMessageKeepsItsActorWhenTheBodyWraps() {
+        val name = "Flare Team"
+        val body = "Pinned a post about the next community meetup, with registration details and directions to the venue."
+        val post = samplePost()
+        val message =
+            UiTimelineV2.Message(
+                user = checkNotNull(post.user).copy(nameInternal = name.toUiPlainText()),
+                statusKey = post.statusKey,
+                icon = UiIcon.Pin,
+                type = UiTimelineV2.Message.Type.Raw(body),
+                createdAt = post.createdAt,
+                clickEvent = ClickEvent.Noop,
+                accountType = post.accountType,
+            )
+        compose.setContent {
+            FluentTheme {
+                CompositionLocalProvider(
+                    LocalTimelineAppearance provides TimelineAppearance(),
+                    LocalDensity provides Density(1f),
+                    PlatformTextStyle provides PlatformTheme.typography.body,
+                ) {
+                    StatusItem(message, modifier = Modifier.width(240.dp))
+                }
+            }
+        }
+
+        val actor = compose.onNodeWithText(name, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        assertTrue(actor.width > 40f, "The actor should keep room for a readable name, width was ${actor.width}")
+        val layouts = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText(body, useUnmergedTree = true).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        assertTrue(layouts.single().lineCount > 1, "The body should wrap inside the 240dp row")
+    }
+
+    @Test
     fun darkPostCalibrationPreservesThemeColorsOutsidePlainBlackPosts() {
         val body =
             "《少女前线2》 × SSSS.GRIDMAN 联动\n" +
@@ -351,16 +570,18 @@ class StatusHeaderSpacingTest {
                 "English spacing 0123456789"
         val author = "K12s"
         val reposter = "凪風　27年のお仕事積極募集中"
+        val avatarUrl = previewAvatar.toURI().toString()
         val post =
             createSampleStatus(
                 createSampleUser().copy(
                     nameInternal = author.toUiPlainText(),
                     handle = UiHandle("kzwolf123", "x.com", displayOverride = "@kzwolf123"),
                     platformId = "X",
-                    avatar = null,
+                    avatar = avatarUrl.toUiImage(),
                 ),
             ).copy(
                 content = UiTranslatableText(body.toUiPlainText()),
+                images = persistentListOf(UiMedia.Image(avatarUrl, avatarUrl, "Sample media", 180f, 320f, false)),
                 createdAt = (Clock.System.now() - 5.minutes).toUi(),
             )
         val timestamp = post.createdAt.relative
@@ -382,6 +603,7 @@ class StatusHeaderSpacingTest {
                     ),
             )
         var dark by mutableStateOf(true)
+        var fullWidth by mutableStateOf(false)
         var background by mutableStateOf<Color?>(Color.Black)
         var useCard by mutableStateOf(false)
         var multipleColumns by mutableStateOf(false)
@@ -399,7 +621,7 @@ class StatusHeaderSpacingTest {
                 themeText =
                     if (background == emphasis) PlatformTheme.colorScheme.onPrimaryContainer else PlatformTheme.colorScheme.text
                 CompositionLocalProvider(
-                    LocalTimelineAppearance provides TimelineAppearance(fullWidthPost = false, showPlatformLogo = false),
+                    LocalTimelineAppearance provides TimelineAppearance(fullWidthPost = fullWidth, showPlatformLogo = false),
                     LocalMultipleColumns provides multipleColumns,
                     LocalStatusBackgroundColor provides background,
                     PlatformTextStyle provides PlatformTheme.typography.body,
@@ -443,12 +665,26 @@ class StatusHeaderSpacingTest {
         assertEquals(2f * density.density, texts.first().bounds.top - header.bottom, 0.1f)
         System.getenv("FLARE_POST_SCREENSHOT")?.let { path ->
             val directory = File(path).parentFile.apply { mkdirs() }
-            val pixels = container.captureToImage().toPixelMap()
-            val screenshot = BufferedImage(pixels.width, pixels.height, BufferedImage.TYPE_INT_ARGB)
-            for (y in 0 until pixels.height) {
-                for (x in 0 until pixels.width) screenshot.setRGB(x, y, pixels[x, y].toArgb())
+            for ((wide, name) in listOf(false to "compose-post-calibration.png", true to "compose-post-full-width.png")) {
+                compose.runOnIdle { fullWidth = wide }
+                val avatar =
+                    compose
+                        .onAllNodesWithContentDescription("Open profile for @kzwolf123", useUnmergedTree = true)
+                        .fetchSemanticsNodes()
+                        .first { it.boundsInRoot.width >= 40 * density.density }
+                        .boundsInRoot.center - bounds.topLeft
+                compose.waitUntil(5_000) {
+                    val pixels = container.captureToImage().toPixelMap()
+                    pixels[avatar.x.toInt(), avatar.y.toInt()] == Color(0xFF5B80A5)
+                }
+                val pixels = container.captureToImage().toPixelMap()
+                val screenshot = BufferedImage(pixels.width, pixels.height, BufferedImage.TYPE_INT_ARGB)
+                for (y in 0 until pixels.height) {
+                    for (x in 0 until pixels.width) screenshot.setRGB(x, y, pixels[x, y].toArgb())
+                }
+                ImageIO.write(screenshot, "png", File(directory, name))
             }
-            ImageIO.write(screenshot, "png", File(directory, "compose-post-calibration.png"))
+            compose.runOnIdle { fullWidth = false }
             File(directory, "compose-post-calibration.json").writeText(postCalibrationJson(density, themeBody, bounds, timestamp, texts))
         }
         compose.runOnIdle { background = Color(0xFF202020) }
@@ -479,10 +715,14 @@ class StatusHeaderSpacingTest {
         assertEquals(themeCaption, layout("@kzwolf123").layoutInput.style.color)
     }
 
-    private fun assertBodyAndReplySpacing(isQuote: Boolean) {
+    private fun assertBodyAndReplySpacing(
+        isQuote: Boolean,
+        fullWidthPost: Boolean = false,
+    ) {
+        val headerGap = if (fullWidthPost) 8f else 2f
         val sample = samplePost()
         var post by mutableStateOf(sample)
-        showPost(isQuote = isQuote) { post }
+        showPost(isQuote = isQuote, fullWidthPost = fullWidthPost) { post }
         for (warning in listOf(false, true)) {
             for (reply in listOf(false, true)) {
                 compose.runOnIdle {
@@ -500,7 +740,7 @@ class StatusHeaderSpacingTest {
                                 .onNodeWithText("@someone@example.org", substring = true, useUnmergedTree = true)
                                 .fetchSemanticsNode()
                                 .boundsInRoot
-                        assertEquals(2f, prompt.top - header.bottom, 0.1f)
+                        assertEquals(headerGap, prompt.top - header.bottom, 0.1f)
                         prompt
                     } else {
                         header
@@ -508,10 +748,10 @@ class StatusHeaderSpacingTest {
                 val body = compose.onNodeWithText("Body", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
                 if (warning) {
                     val warningBounds = compose.onNodeWithText("Warning", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-                    assertEquals(if (reply) 8f else 2f, warningBounds.top - preceding.bottom, 0.1f)
+                    assertEquals(if (reply) 8f else headerGap, warningBounds.top - preceding.bottom, 0.1f)
                     assertEquals(8f, body.top - warningBounds.bottom, 0.1f)
                 } else {
-                    assertEquals(if (reply) 8f else 2f, body.top - preceding.bottom, 0.1f)
+                    assertEquals(if (reply) 8f else headerGap, body.top - preceding.bottom, 0.1f)
                 }
             }
         }
@@ -535,19 +775,11 @@ class StatusHeaderSpacingTest {
 
     @Test
     fun inlineConversationHidesReplyPromptsWhileStandaloneAndQuotesKeepThem() {
-        val avatar = Files.createTempFile("post-layout-avatar-", ".png").toFile().apply { deleteOnExit() }
-        val avatarImage = BufferedImage(48, 48, BufferedImage.TYPE_INT_RGB)
-        avatarImage.createGraphics().apply {
-            color = java.awt.Color(91, 128, 165)
-            fillRect(0, 0, 48, 48)
-            dispose()
-        }
-        ImageIO.write(avatarImage, "png", avatar)
         val user =
             createSampleUser().copy(
                 nameInternal = "Morgan".toUiPlainText(),
                 handle = UiHandle(raw = "morgan", host = "example.org"),
-                avatar = avatar.toURI().toString().toUiImage(),
+                avatar = previewAvatar.toURI().toString().toUiImage(),
             )
         val sample = createSampleStatus(user).copy(visibility = UiTimelineV2.Post.Visibility.Public)
         val parent =
@@ -622,7 +854,15 @@ class StatusHeaderSpacingTest {
         assertMediaSpacing(isQuote = true)
     }
 
-    private fun assertMediaSpacing(isQuote: Boolean) {
+    @Test
+    fun fullWidthMediaOnlyPostUsesEightDpGap() {
+        assertMediaSpacing(isQuote = false, fullWidthPost = true)
+    }
+
+    private fun assertMediaSpacing(
+        isQuote: Boolean,
+        fullWidthPost: Boolean = false,
+    ) {
         val image = Files.createTempFile("header-spacing-", ".png").toFile().apply { deleteOnExit() }
         ImageIO.write(BufferedImage(200, 200, BufferedImage.TYPE_INT_RGB), "png", image)
         val url = image.toPath().toUri().toString()
@@ -631,7 +871,7 @@ class StatusHeaderSpacingTest {
                 content = UiTranslatableText("".toUiPlainText()),
                 images = persistentListOf(UiMedia.Video(url, url, "Preview", height = 200f, width = 200f)),
             )
-        showPost(isQuote = isQuote) { post }
+        showPost(isQuote = isQuote, fullWidthPost = fullWidthPost) { post }
         compose.waitUntil(5_000) {
             compose
                 .onAllNodesWithContentDescription("Preview", substring = true, useUnmergedTree = true)
@@ -645,10 +885,23 @@ class StatusHeaderSpacingTest {
                 .fetchSemanticsNodes()
                 .maxBy { it.boundsInRoot.height }
                 .boundsInRoot
-        assertEquals(10f, media.top - header.bottom, 0.1f)
+        assertEquals(if (fullWidthPost) 8f else 10f, media.top - header.bottom, 0.1f)
     }
 
     private fun headerBounds(): Rect = rowBounds("Reader", "5m")
+
+    private val previewAvatar by lazy {
+        Files.createTempFile("post-layout-avatar-", ".png").toFile().apply {
+            deleteOnExit()
+            val image = BufferedImage(48, 48, BufferedImage.TYPE_INT_RGB)
+            image.createGraphics().apply {
+                color = java.awt.Color(91, 128, 165)
+                fillRect(0, 0, 48, 48)
+                dispose()
+            }
+            ImageIO.write(image, "png", this)
+        }
+    }
 
     private fun rowBounds(
         name: String,
@@ -678,6 +931,7 @@ class StatusHeaderSpacingTest {
 
     private fun showPost(
         isQuote: Boolean,
+        fullWidthPost: Boolean = false,
         post: () -> UiTimelineV2.Post,
     ) {
         compose.setContent {
@@ -685,7 +939,7 @@ class StatusHeaderSpacingTest {
                 CompositionLocalProvider(
                     LocalTimelineAppearance provides
                         TimelineAppearance(
-                            fullWidthPost = false,
+                            fullWidthPost = fullWidthPost,
                             expandContentWarning = true,
                             showPlatformLogo = false,
                             videoAutoplay = VideoAutoplay.NEVER,

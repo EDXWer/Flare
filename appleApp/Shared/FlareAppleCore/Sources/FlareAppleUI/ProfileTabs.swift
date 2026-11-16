@@ -207,7 +207,7 @@ public struct ProfileTimelineLoadingPlaceholder: View {
             ForEach(0..<count, id: \.self) { index in
                 AdaptiveTimelineCard(index: index, totalCount: count) {
                     TimelinePlaceholderView()
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, TimelineHorizontalInsets.content)
                         .padding(.vertical, 8)
                 }
             }

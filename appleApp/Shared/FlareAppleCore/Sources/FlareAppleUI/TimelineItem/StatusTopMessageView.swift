@@ -2,41 +2,66 @@ import SwiftUI
 import KotlinSharedUI
 import FlareAppleCore
 
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
+
 public struct StatusTopMessageView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.isPostContent) private var isPostContent
+    @ScaledMetric(relativeTo: .caption) private var iconSize: CGFloat = 15
+    @ScaledMetric(relativeTo: .body) private var postIconWidth: CGFloat = 15
+    #if os(macOS)
+    @ScaledMetric(relativeTo: .body) private var postCapHeight = NSFont.preferredFont(forTextStyle: .body).capHeight
+    #else
+    @ScaledMetric(relativeTo: .body) private var postCapHeight = UIFont.systemFont(ofSize: 17).capHeight
+    #endif
     private let topMessage: UiTimelineV2.Message
+    private let alignWithAvatar: Bool
+    private let avatarWidth: CGFloat?
+    private let topMessageOnly: Bool
 
-    public init(topMessage: UiTimelineV2.Message) {
+    public init(topMessage: UiTimelineV2.Message, alignWithAvatar: Bool = false, avatarWidth: CGFloat? = nil,
+                topMessageOnly: Bool = false) {
         self.topMessage = topMessage
+        self.alignWithAvatar = alignWithAvatar
+        self.avatarWidth = avatarWidth
+        self.topMessageOnly = topMessageOnly
     }
 
     public var body: some View {
-        HStack(spacing: 8) {
-            topMessage.icon.image
-                .if(isPostContent) { view in
-                    view.font(.caption)
-                }
+        HStack(alignment: isPostContent ? .firstTextBaseline : .center, spacing: 8) {
+            if isPostContent {
+                topMessage.icon.image
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: postIconWidth, height: postCapHeight)
+                    .alignmentGuide(.firstTextBaseline) { $0[.bottom] }
+            } else {
+                topMessage.icon.image
+            }
             if let user = topMessage.user {
                 RichText(text: user.name)
-                    .if(isPostContent) { view in
-                        view.bold()
-                    }
+                    .fontWeight(isPostContent ? .heavy : nil)
+                    .if(isPostContent) { $0.lineLimit(1) }
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let text = topMessage.type.localizedText {
                 Text(text)
                     .flarePrimaryText()
                     .fixedSize(horizontal: false, vertical: true)
-                    .layoutPriority(isPostContent ? 1 : 0)
+                    .layoutPriority(isPostContent && !topMessageOnly ? 1 : 0)
             }
         }
         .if(isPostContent) { view in
-            view.font(.body).lineSpacing(1)
+            view.font(.body).lineSpacing(1).flareSecondaryText()
         }
         .onTapGesture {
             topMessage.onClicked(ClickContext(launcher: AppleUriLauncher(openUrl: openURL)))
         }
+        .padding(.leading, alignWithAvatar ? max(0, (avatarWidth ?? (isPostContent ? 48 : 44)) - (isPostContent ? postIconWidth : iconSize)) : 0)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

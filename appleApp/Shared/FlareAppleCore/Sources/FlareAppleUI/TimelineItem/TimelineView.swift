@@ -7,7 +7,7 @@ public struct TimelineView: View {
     private let detailStatusKey: MicroBlogKey?
     private let showTranslate: Bool
     @Environment(\.timelineAppearance.fullWidthPost) private var fullWidthPost
-    @ScaledMetric(relativeTo: .caption) private var iconSize: CGFloat = 15
+    @Environment(\.timelineGalleryFallback) private var isGalleryFallback
 
     public init(data: UiTimelineV2, detailStatusKey: MicroBlogKey?, showTranslate: Bool = true) {
         self.data = data
@@ -28,7 +28,7 @@ public struct TimelineView: View {
                     isDetail: detailStatusKey == post.statusKey,
                     showTranslate: showTranslate,
                     allowsMediaCarousel: true,
-                    carouselOuterHorizontalPadding: 10
+                    carouselOuterHorizontalPadding: TimelineHorizontalInsets.content
                 )
             }
         case .timelinePostItem(let item):
@@ -42,7 +42,7 @@ public struct TimelineView: View {
                     inlineParents: Array(item.presentation.inlineParents),
                     quotes: Array(item.presentation.quotes),
                     allowsMediaCarousel: true,
-                    carouselOuterHorizontalPadding: 10
+                    carouselOuterHorizontalPadding: TimelineHorizontalInsets.content
                 )
             }
         case .user(let user):
@@ -64,16 +64,16 @@ public struct TimelineView: View {
     private func messageView(_ message: UiTimelineV2.Message?, topMessageOnly: Bool) -> some View {
         if let message {
             let isPost = data.timelineContentPost != nil
-            StatusTopMessageView(topMessage: message)
-                .if(!fullWidthPost && !topMessageOnly, transform: { view in
-                    view.padding(.leading, (isPost ? 48 : 44) - iconSize)
-                })
+            let usesPostStyle = isPost || !isGalleryFallback
+            StatusTopMessageView(topMessage: message, alignWithAvatar: !fullWidthPost && !topMessageOnly,
+                                 avatarWidth: isPost ? 48 : 44, topMessageOnly: topMessageOnly)
                 .if(!topMessageOnly, transform: { view in
                     view.lineLimit(1)
-                        .font(.caption)
-                        .flareSecondaryText()
                 })
-                .environment(\.isPostContent, isPost)
+                .if(!usesPostStyle && !topMessageOnly, transform: { view in
+                    view.font(.caption).flareSecondaryText()
+                })
+                .environment(\.isPostContent, usesPostStyle)
         }
     }
 }

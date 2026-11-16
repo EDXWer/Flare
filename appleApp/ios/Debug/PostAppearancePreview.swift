@@ -17,7 +17,10 @@ struct PostAppearancePreview: View {
 private struct PostAppearanceTimeline: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UITimelineCollectionViewController {
         let controller = UITimelineCollectionViewController(detailStatusKey: nil)
-        controller.appearance = TimelineUIKitAppearance(timeline: TimelineAppearance.companion.Default)
+        let appearance = TimelinePresentationAppearancePatchHelper.shared
+        let patch = appearance.setFullWidthPost(patch: appearance.empty,
+            value: ProcessInfo.processInfo.arguments.contains("--post-full-width"))
+        controller.appearance = TimelineUIKitAppearance(timeline: appearance.resolve(base: TimelineAppearance.companion.Default, patch: patch))
         let quote = post("quote", name: "Design Notes", handle: "design_notes",
                          text: "让文字更容易阅读，也让信息之间的关系更清楚。\n每一个细节，都值得认真对待。")
         let parent = row(post("parent", name: "Alex Chen", handle: "alex",
@@ -36,11 +39,11 @@ private struct PostAppearanceTimeline: UIViewControllerRepresentable {
                 customHeaders: nil, proxy: ProxyRef.Unbound.shared)
             let referenceQuote = post("component-quote", name: "引用ユーザー", handle: "quoted",
                 text: "文字と画像の間隔をそろえる。\n引用の内側にも余白を残す。")
-            let body = "友達作るための行動したことないから当然の帰結だけど"
+            let body = "今天把常用的排版设置整理了一遍。\n多行文字、图片和转发信息都在同一张卡片上。"
             input.items = [
                 .post(row(post("component-short", name: "茶わらび", handle: "Sawarabi_2000", text: body))),
                 .post(row(post("component-media", name: "茶わらび", handle: "Sawarabi_2000", text: body,
-                               images: [media], translationDisplayState: .translated), quotes: [referenceQuote], retweeter: "テル@skeb/FANBOX"))
+                               images: [media, media], translationDisplayState: .translated), quotes: [referenceQuote], retweeter: "テル@skeb/FANBOX"))
             ]
         } else if ProcessInfo.processInfo.arguments.contains("--post-calibration") {
             let calibration = post("calibration", name: "茶わらび", handle: "Sawarabi_2000",

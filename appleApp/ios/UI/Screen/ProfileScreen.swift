@@ -412,7 +412,7 @@ private struct ProfileTimelineUIKitLoadingPlaceholder: View {
                     isMultipleColumn: true
                 )
             }
-            .padding(.horizontal, TimelineUIKitLayoutMetrics.horizontalInset)
+            .padding(.horizontal, TimelineHorizontalInsets.multiColumnGrid)
         } else {
             LazyVStack(spacing: TimelineUIKitLayoutMetrics.rowSpacing) {
                 placeholderCards(
@@ -422,7 +422,7 @@ private struct ProfileTimelineUIKitLoadingPlaceholder: View {
             }
             .padding(
                 .horizontal,
-                isPlainTimelineDisplayMode ? 0 : TimelineUIKitLayoutMetrics.horizontalInset
+                isPlainTimelineDisplayMode ? 0 : TimelineHorizontalInsets.card
             )
         }
     }

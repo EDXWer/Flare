@@ -371,7 +371,7 @@ final class UserOnelineUIView: UIView, ManualLayoutMeasurable, TimelineHeightPro
                    preferredContentSizeCategory: UIContentSizeCategory = .medium) {
         avatar.set(media: data.avatar)
         name.configure(text: data.name, lineLimit: 1, isTextSelectionEnabled: false, onOpenURL: nil,
-                       baseTextBold: true, lineSpacing: 1, baseTextColor: .flarePostLabel,
+                       baseTextWeight: .heavy, lineSpacing: 1, baseTextColor: .flarePostLabel,
                        preferredContentSizeCategory: preferredContentSizeCategory)
         handleLabel.textColor = .flarePostSecondaryLabel
         handleLabel.setPostText(subtitle ?? data.handle.display, preferredContentSizeCategory: preferredContentSizeCategory)
@@ -482,7 +482,7 @@ final class UserCompatUIView: UIStackView {
         super.init(frame: frame)
         axis = .horizontal
         spacing = 8
-        alignment = .top
+        alignment = .center
 
         name.lineLimit = 1
         name.setContentHuggingPriority(.required, for: .horizontal)
@@ -533,13 +533,13 @@ final class UserCompatUIView: UIStackView {
         if let category = postTextContentSizeCategory {
             avatarSizeConstraints.forEach { $0.constant = 48 }
             name.configure(text: data.name, lineLimit: 1, isTextSelectionEnabled: false, onOpenURL: nil,
-                           baseTextBold: true, lineSpacing: 1, baseTextColor: .flarePostLabel,
+                           baseTextWeight: .heavy, lineSpacing: 1, baseTextColor: .flarePostLabel,
                            preferredContentSizeCategory: category)
             handleLabel.textColor = .flarePostSecondaryLabel
             handleLabel.setPostText(subtitle ?? data.handle.display, preferredContentSizeCategory: category)
         } else {
             avatarSizeConstraints.forEach { $0.constant = 44 }
-            name.configure(text: data.name, lineLimit: 1, isTextSelectionEnabled: false, onOpenURL: nil)
+            name.configure(text: data.name, lineLimit: 1, isTextSelectionEnabled: false, onOpenURL: nil, baseTextWeight: .heavy)
             handleLabel.attributedText = nil
             handleLabel.adjustsFontForContentSizeCategory = true
             handleLabel.traitOverrides.remove(UITraitPreferredContentSizeCategory.self)
