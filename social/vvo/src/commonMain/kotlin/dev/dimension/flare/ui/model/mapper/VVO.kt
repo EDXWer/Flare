@@ -549,7 +549,7 @@ internal fun User.render(accountKey: MicroBlogKey): UiProfile {
         )
     return UiProfile(
         key = userKey,
-        avatar = (avatarHD ?: profileImageURL).toUiImage(),
+        avatar = avatarHD.toUiImage() ?: profileImageURL.toUiImage() ?: avatarLarge.toUiImage(),
         handle =
             UiHandle(
                 raw = screenName.orEmpty(),
