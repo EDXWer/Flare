@@ -46,8 +46,8 @@ internal val PlatformTypography.profileName: TextStyle
     @Composable get() =
         title.run {
             copy(
-                fontSize = (fontSize.value + 2).sp,
-                lineHeight = if (lineHeight.isSp) (lineHeight.value + 2).sp else lineHeight,
+                fontSize = (fontSize.value + 4).sp,
+                lineHeight = if (lineHeight.isSp) (lineHeight.value + 4).sp else lineHeight,
                 fontWeight = FontWeight.Bold,
             )
         }

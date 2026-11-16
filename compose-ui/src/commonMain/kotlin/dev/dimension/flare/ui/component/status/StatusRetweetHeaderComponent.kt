@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
@@ -14,11 +15,11 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.RichText
 import dev.dimension.flare.ui.component.platform.PlatformText
 import dev.dimension.flare.ui.model.UiProfile
-import dev.dimension.flare.ui.theme.PlatformContentColor
 import dev.dimension.flare.ui.theme.PlatformTheme
 import kotlin.math.roundToInt
 
@@ -27,15 +28,27 @@ internal fun StatusRetweetHeaderComponent(
     icon: ImageVector,
     user: UiProfile?,
     text: String,
+    iconColor: Color,
+    textColor: Color,
     modifier: Modifier = Modifier,
     textStyle: TextStyle = PlatformTheme.typography.caption,
     isPost: Boolean = false,
-    color: androidx.compose.ui.graphics.Color = PlatformContentColor.current,
     standalone: Boolean = false,
+    isAbovePost: Boolean = false,
 ) {
     val density = LocalDensity.current
+    val messageStyle =
+        if (isAbovePost) {
+            textStyle.copy(
+                fontSize = (textStyle.fontSize.value - 2).sp,
+                lineHeight = if (textStyle.lineHeight.isSp) (textStyle.lineHeight.value - 2).sp else textStyle.lineHeight,
+            )
+        } else {
+            textStyle
+        }
     val iconSize = if (isPost) with(density) { textStyle.fontSize.toDp() } else textStyle.fontSize.value.dp
-    val halfCapHeight = with(density) { (textStyle.fontSize.toPx() * 0.35f).roundToInt() }
+    val iconHeight = if (isAbovePost) with(density) { messageStyle.fontSize.toDp() } else iconSize
+    val halfCapHeight = with(density) { (messageStyle.fontSize.toPx() * 0.35f).roundToInt() }
     val spacing = 8.dp
     Row(
         modifier = modifier,
@@ -46,9 +59,9 @@ internal fun StatusRetweetHeaderComponent(
             contentDescription = null,
             modifier =
                 Modifier
-                    .size(iconSize)
+                    .size(width = iconSize, height = iconHeight)
                     .then(if (isPost) Modifier.alignBy { it.measuredHeight / 2 + halfCapHeight } else Modifier),
-            tint = color,
+            tint = iconColor,
         )
         if (user != null) {
             Spacer(modifier = Modifier.width(spacing))
@@ -76,16 +89,16 @@ internal fun StatusRetweetHeaderComponent(
                         .alignByBaseline()
                         .then(nameWidthModifier),
                 maxLines = 1,
-                color = color,
+                color = textColor,
             )
         }
         Spacer(modifier = Modifier.width(spacing))
         PlatformText(
             text = text,
-            style = textStyle,
+            style = messageStyle,
             modifier =
                 Modifier.alignByBaseline(),
-            color = color,
+            color = textColor,
         )
     }
 }

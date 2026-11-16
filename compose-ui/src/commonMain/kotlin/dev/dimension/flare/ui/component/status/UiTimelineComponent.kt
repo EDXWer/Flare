@@ -626,7 +626,8 @@ private fun TopMessageComponent(
     isPost: Boolean = false,
 ) {
     val appearance = LocalTimelineAppearance.current
-    val usePostStyle = isPost || LocalEffectiveTimelineDisplayMode.current != TimelineDisplayMode.Gallery
+    val isGallery = LocalEffectiveTimelineDisplayMode.current == TimelineDisplayMode.Gallery
+    val usePostStyle = isPost || !isGallery
     val uriHandler = LocalUriHandler.current
     val icon = data.icon.toImageVector()
     val text: String? =
@@ -758,20 +759,21 @@ private fun TopMessageComponent(
         }
 
     if (text != null) {
+        val iconColor =
+            when {
+                usePostStyle -> StatusComponentDefaults.secondaryColor
+                topMessageOnly -> PlatformContentColor.current
+                else -> PlatformTheme.colorScheme.caption
+            }
         StatusRetweetHeaderComponent(
             icon = icon,
             user = data.user,
             text = text,
             isPost = usePostStyle,
             standalone = topMessageOnly && usePostStyle,
-            color =
-                if (usePostStyle) {
-                    StatusComponentDefaults.secondaryColor
-                } else if (topMessageOnly) {
-                    PlatformContentColor.current
-                } else {
-                    PlatformTheme.colorScheme.caption
-                },
+            isAbovePost = isPost && !isGallery,
+            iconColor = iconColor,
+            textColor = if (isGallery) iconColor else StatusComponentDefaults.contentColor,
             textStyle =
                 if (usePostStyle) {
                     PlatformTheme.typography.postBody

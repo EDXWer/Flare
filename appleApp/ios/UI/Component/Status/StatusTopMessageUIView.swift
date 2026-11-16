@@ -50,7 +50,7 @@ final class StatusTopMessageUIView: UIView, ManualLayoutMeasurable, TimelineHeig
     required init(coder: NSCoder) { fatalError("init(coder:) not supported") }
 
     func configure(message: UiTimelineV2.Message, topMessageOnly: Bool,
-                   postTextContentSizeCategory: UIContentSizeCategory? = nil) {
+                   postTextContentSizeCategory: UIContentSizeCategory? = nil, isAbovePost: Bool = false) {
         self.topMessage = message
         self.topMessageOnly = topMessageOnly
         self.postTextContentSizeCategory = postTextContentSizeCategory
@@ -59,6 +59,8 @@ final class StatusTopMessageUIView: UIView, ManualLayoutMeasurable, TimelineHeig
         }
 
         iconView.image = UIImage(fontAwesome: message.icon.fontAwesomeIcon)
+        let textColor: UIColor = postTextContentSizeCategory != nil
+            ? .flarePostLabel : (topMessageOnly ? .flareLabel : .secondaryLabel)
 
         if let user = message.user {
             nameView.isHidden = false
@@ -66,8 +68,7 @@ final class StatusTopMessageUIView: UIView, ManualLayoutMeasurable, TimelineHeig
             nameView.baseTextWeight = postTextContentSizeCategory == nil ? nil : .bold
             nameView.lineSpacing = postTextContentSizeCategory == nil ? 0 : 1
             nameView.preferredContentSizeCategory = postTextContentSizeCategory ?? .medium
-            nameView.baseTextColor = postTextContentSizeCategory != nil
-                ? .flarePostSecondaryLabel : (topMessageOnly ? .flareLabel : .secondaryLabel)
+            nameView.baseTextColor = textColor
             nameView.text = user.name
             nameView.onOpenURL = onOpenURL
             nameView.lineLimit = topMessageOnly && postTextContentSizeCategory == nil ? nil : 1
@@ -81,18 +82,17 @@ final class StatusTopMessageUIView: UIView, ManualLayoutMeasurable, TimelineHeig
             textLabel.attributedText = nil
             textLabel.adjustsFontForContentSizeCategory = postTextContentSizeCategory == nil
             textLabel.text = text
+            textLabel.textColor = textColor
             if topMessageOnly {
                 textLabel.font = .preferredFont(forTextStyle: .body)
-                textLabel.textColor = .flareLabel
                 textLabel.numberOfLines = 0
             } else {
                 textLabel.font = .preferredFont(forTextStyle: .caption1)
-                textLabel.textColor = .secondaryLabel
                 textLabel.numberOfLines = 1
             }
             if let postTextContentSizeCategory {
-                textLabel.textColor = .flarePostSecondaryLabel
-                textLabel.setPostText(text, preferredContentSizeCategory: postTextContentSizeCategory)
+                textLabel.setPostText(text, preferredContentSizeCategory: postTextContentSizeCategory,
+                                      fontSizeAdjustment: isAbovePost ? -2 : 0)
             }
         } else {
             textLabel.isHidden = true
@@ -186,7 +186,9 @@ final class StatusTopMessageUIView: UIView, ManualLayoutMeasurable, TimelineHeig
         } else if postTextContentSizeCategory == nil {
             firstLineCenterY = baselineY - referenceFont.ascender + referenceFont.lineHeight / 2
         } else {
-            firstLineCenterY = baselineY - iconHeight / 2
+            // Use the baseline after rounding the text frame down to whole points.
+            let renderedBaseline = floor(baselineY - referenceFont.ascender) + referenceFont.ascender
+            firstLineCenterY = renderedBaseline - iconHeight / 2
         }
 
         let iconFrame = CGRect(x: x, y: firstLineCenterY - iconHeight / 2, width: iconSize, height: iconHeight)

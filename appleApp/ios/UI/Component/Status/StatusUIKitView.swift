@@ -642,22 +642,14 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         }
 
         updateExpandMoreButtonVisibility(contentWidth: contentWidth)
-        var followsContent = currentHeaderView != nil
-        var followsHeader = followsContent
         var previousChild = currentHeaderView
-        for child in contentColumnChildren where !child.isHidden {
-            if followsContent {
-                let isText = child is RichTextUIView || child === replyToContainerStorage || child === translateViewStorage
-                let isAttachment = child === mediaViewStorage || child === normalCardViewStorage ||
-                    child === compatCardViewStorage || child === quotesContainerStorage
-                if followsHeader && !usesSideAvatar && !isQuote {
-                    innerY += 8
-                } else if child === actionsContainerStorage || (followsHeader && isText) {
-                    innerY += 2
-                } else if isAttachment && !(child === quotesContainerStorage && previousChild === mediaViewStorage) {
-                    innerY += 10
+        for (index, child) in contentColumnChildren.enumerated() where !child.isHidden {
+            if let previousChild {
+                if child === replyToContainerStorage {
+                    let next = contentColumnChildren.dropFirst(index + 1).first { !$0.isHidden }
+                    innerY += next.map { contentSpacing(before: $0, after: child) } ?? 8
                 } else {
-                    innerY += 8
+                    innerY += contentSpacing(before: child, after: previousChild)
                 }
             }
             let isCarousel = child === mediaViewStorage && mediaViewStorage?.isShowingCarousel == true
@@ -670,12 +662,21 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             let h = childHeight(of: child, for: childWidth)
             if assignFrames { child.frame = CGRect(x: childX, y: innerY, width: childWidth, height: h) }
             innerY += h
-            followsContent = true
-            followsHeader = false
             previousChild = child
         }
 
         return max(innerY, avatarBottom)
+    }
+
+    private func contentSpacing(before child: UIView, after previousChild: UIView) -> CGFloat {
+        let followsHeader = previousChild === currentHeaderView
+        let isText = child is RichTextUIView || child === translateViewStorage
+        let isAttachment = child === mediaViewStorage || child === normalCardViewStorage ||
+            child === compatCardViewStorage || child === quotesContainerStorage
+        if followsHeader && !usesSideAvatar && !isQuote { return 8 }
+        if child === actionsContainerStorage || (followsHeader && isText) { return 2 }
+        if isAttachment && !(child === quotesContainerStorage && previousChild === mediaViewStorage) { return 10 }
+        return 8
     }
 
     private func updateExpandMoreButtonVisibility(contentWidth: CGFloat) {

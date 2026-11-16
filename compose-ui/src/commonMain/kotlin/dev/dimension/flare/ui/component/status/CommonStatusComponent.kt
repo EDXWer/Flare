@@ -207,6 +207,7 @@ public fun CommonStatusComponent(
         val usesSideAvatar = !appearanceSettings.fullWidthPost && !isQuote && !isDetail
         val hasFullWidthHeader = !usesSideAvatar && !isQuote && item.user != null
         val headerSpacing = if (hasFullWidthHeader) 8.dp else 2.dp
+        val replyContextSpacing = 8.dp
         val sideAvatarTopInset = with(LocalDensity.current) { (PlatformTheme.typography.postBody.fontSize * 0.25f).toDp() }
         val replyToHandle = item.replyToHandle?.takeIf { showReplyTo }
         val translationDisplayed = item.translationDisplayState == TranslationDisplayState.Translated
@@ -220,14 +221,15 @@ public fun CommonStatusComponent(
                 item.contentWarning?.visiblePostText(translationDisplayed, showOriginal).orEmpty()
             }
         val showsDetailTranslation = isDetail && !item.content.original.isEmpty && appearanceSettings.showTranslateButton
-        val hasPreMediaBody =
-            replyToHandle != null || visibleContent.any { !it.isEmpty } || visibleContentWarning.any { !it.isEmpty } ||
-                item.poll != null || showsDetailTranslation
+        val hasBodyAfterReply =
+            visibleContent.any { !it.isEmpty } || visibleContentWarning.any { !it.isEmpty } || item.poll != null || showsDetailTranslation
+        val hasPreMediaBody = replyToHandle != null || hasBodyAfterReply
         val showsImages = item.images.isNotEmpty() && showMedia
         val showsCard = item.card != null && appearanceSettings.showLinkPreview && item.images.isEmpty() && quotes.isEmpty()
         val showsQuotes = quotes.isNotEmpty() && !isQuote
         val hasVisibleEmojiReactions = appearanceSettings.showEmojiReactions && item.emojiReactions.isNotEmpty()
         val showsReactions = !isQuote && (hasVisibleEmojiReactions || item.sourceChannel != null)
+        val showsActions = (appearanceSettings.postActionStyle != PostActionStyle.Hidden || isDetail) && !forceHideActions
         val firstAttachmentSpacing = if (hasFullWidthHeader && !hasPreMediaBody) 8.dp else StatusComponentDefaults.attachmentSpacing
         val carouselEdgePadding = if (isQuote) StatusComponentDefaults.quotePadding else carouselOuterHorizontalPadding
         val carouselLeadingPadding =
@@ -433,7 +435,25 @@ public fun CommonStatusComponent(
                         }
                     }
                     replyToHandle?.let { replyHandle ->
-                        Spacer(modifier = Modifier.height(if (item.user != null) headerSpacing else 8.dp))
+                        val topSpacing =
+                            when {
+                                hasBodyAfterReply -> {
+                                    replyContextSpacing
+                                }
+
+                                showsImages || showsCard || showsQuotes -> {
+                                    firstAttachmentSpacing
+                                }
+
+                                !showsReactions && !isDetail && showsActions && visibleStatusActions(item.actions).isNotEmpty() -> {
+                                    StatusComponentDefaults.actionsSpacing
+                                }
+
+                                else -> {
+                                    replyContextSpacing
+                                }
+                            }
+                        Spacer(modifier = Modifier.height(topSpacing))
                         StatusReplyComponent(
                             replyHandle = replyHandle,
                         )
@@ -447,7 +467,7 @@ public fun CommonStatusComponent(
                             showExpandButton = showExpandButton,
                             topSpacing =
                                 when {
-                                    replyToHandle != null -> 8.dp
+                                    replyToHandle != null -> replyContextSpacing
                                     item.user != null -> headerSpacing
                                     else -> 0.dp
                                 },
@@ -545,7 +565,7 @@ public fun CommonStatusComponent(
                         fullTime = true,
                     )
                 }
-                if ((appearanceSettings.postActionStyle != PostActionStyle.Hidden || isDetail) && !forceHideActions) {
+                if (showsActions) {
                     val actionsFollowHeader =
                         hasFullWidthHeader && !isDetail && !hasPreMediaBody &&
                             !showsImages && !showsCard && !showsQuotes && !showsReactions
@@ -1030,6 +1050,14 @@ public fun StatusVisibilityComponent(
 }
 
 @Composable
+private fun visibleStatusActions(items: ImmutableList<ActionMenu>): List<ActionMenu> {
+    val layout = LocalTimelineAppearance.current.postActionLayout
+    return remember(items, layout) {
+        items.applyPostActionLayout(layout).filterNot { it == ActionMenu.Divider }
+    }
+}
+
+@Composable
 internal fun StatusActions(
     items: ImmutableList<ActionMenu>,
     modifier: Modifier = Modifier,
@@ -1041,10 +1069,7 @@ internal fun StatusActions(
     PlatformContentColor provides StatusComponentDefaults.secondaryColor,
 ) {
     val appearanceSettings = LocalTimelineAppearance.current
-    val displayItems =
-        remember(items, appearanceSettings.postActionLayout) {
-            items.applyPostActionLayout(appearanceSettings.postActionLayout).filterNot { it == ActionMenu.Divider }
-        }
+    val displayItems = visibleStatusActions(items)
     if (displayItems.isEmpty()) return@CompositionLocalProvider
     val haptics = LocalHapticFeedback.current
     val launcher = LocalUriHandler.current

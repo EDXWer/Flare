@@ -1,6 +1,8 @@
 import XCTest
 import UIKit
+import SwiftUI
 import KotlinSharedUI
+import FlareAppleCore
 import FlareAppleUI
 @testable import Flare
 
@@ -25,7 +27,8 @@ final class StatusPostPresentationTests: XCTestCase {
                                           accountType: AccountType.Guest.shared, itemKey: nil)
         for width: CGFloat in [280, 348] {
             let view = StatusTopMessageUIView()
-            view.configure(message: message, topMessageOnly: false, postTextContentSizeCategory: .medium)
+            view.configure(message: message, topMessageOnly: false, postTextContentSizeCategory: .medium,
+                           isAbovePost: true)
             view.frame = CGRect(x: 0, y: 0, width: width, height: try XCTUnwrap(view.timelineHeight(for: width)))
             view.layoutIfNeeded()
             let label = try XCTUnwrap(view.subviews.compactMap { $0 as? UILabel }.first)
@@ -108,36 +111,75 @@ final class StatusPostPresentationTests: XCTestCase {
             let suffix = try XCTUnwrap(messageView.subviews.compactMap { $0 as? UILabel }.first)
             let name = try XCTUnwrap(messageView.subviews.compactMap { $0 as? RichTextUIView }.first)
             let icon = try XCTUnwrap(messageView.subviews.compactMap { $0 as? UIImageView }.first)
-            XCTAssertEqual(suffix.textColor, .flarePostSecondaryLabel)
-            XCTAssertEqual(name.baseTextColor, .flarePostSecondaryLabel)
+            let bodyFont = UIFont.preferredFont(forTextStyle: .body, compatibleWith: UITraitCollection(preferredContentSizeCategory: .medium))
+            XCTAssertEqual(suffix.font.pointSize, bodyFont.pointSize - (data is UiTimelineV2.TimelinePostItem ? 2 : 0))
+            XCTAssertEqual(suffix.textColor, .flarePostLabel)
+            XCTAssertEqual(name.baseTextColor, .flarePostLabel)
             XCTAssertEqual(icon.tintColor, .flarePostSecondaryLabel)
         }
     }
 
-    func testOnlyTheFirstTextBlockUsesTightHeaderSpacing() throws {
+    func testReplyContextHasEqualSpacingAndQuoteUsesAttachmentSpacing() throws {
         let row = try XCTUnwrap(makeTimelineTestRow(1, mediaCount: 0, textRepeatCount: 0) as? UiTimelineV2.TimelinePostItem)
         let appearance = StatusUIKitAppearance(timeline: TimelineAppearance.companion.Default)
-        for includeReply in [true, false] {
-            let post = replyPost("spacing", text: includeReply ? "Reply body" : "", user: row.post.user,
-                                 replyToHandle: includeReply ? "@context" : nil)
+        let cases: [(String, Bool, Bool, CGFloat)] = [
+            ("Reply body", true, false, 8),
+            ("", true, true, 10),
+            ("", true, false, 2),
+            ("", false, true, 10),
+        ]
+        for (text, includeReply, includeQuote, spacing) in cases {
+            let post = replyPost("spacing", text: text, user: row.post.user,
+                                 replyToHandle: includeReply ? "@context" : nil, actions: row.post.actions)
             let view = StatusUIKitView()
-            view.configure(data: post, appearance: appearance, showTranslate: false, quotes: [row.post])
+            view.configure(data: post, appearance: appearance, showTranslate: false, quotes: includeQuote ? [row.post] : [])
             view.prepareForFitting(width: 370)
             view.frame = CGRect(x: 0, y: 0, width: 370, height: try XCTUnwrap(view.timelineHeight(for: 370)))
             view.layoutIfNeeded()
             let header = try XCTUnwrap(view.subviews.first { $0 is UserOnelineUIView || $0 is UserCompatUIView })
+            let next: UIView
+            if !text.isEmpty {
+                next = try XCTUnwrap(view.subviews.first { $0 is RichTextUIView })
+            } else if includeQuote {
+                let quote = try XCTUnwrap(descendants(view).compactMap { $0 as? StatusUIKitView }.first { $0 !== view })
+                next = try XCTUnwrap(quote.superview)
+            } else {
+                next = try XCTUnwrap(descendants(view).first { $0 is StatusActionsUIView })
+            }
             if includeReply {
                 let reply = try XCTUnwrap(descendants(view).compactMap { $0 as? UILabel }
                     .first { $0.text == String(localized: "Reply to \("@context")") }?.superview)
-                let body = try XCTUnwrap(view.subviews.compactMap { $0 as? RichTextUIView }.first)
-                XCTAssertEqual(reply.frame.minY - header.frame.maxY, 2)
-                XCTAssertEqual(body.frame.minY - reply.frame.maxY, 8)
+                XCTAssertEqual(reply.frame.minY - header.frame.maxY, spacing)
+                XCTAssertEqual(next.convert(next.bounds, to: view).minY - reply.frame.maxY, spacing)
             } else {
-                let quote = try XCTUnwrap(descendants(view).compactMap { $0 as? StatusUIKitView }.first { $0 !== view })
-                let quoteContainer = try XCTUnwrap(quote.superview)
-                XCTAssertEqual(quoteContainer.frame.minY - header.frame.maxY, 10)
+                XCTAssertEqual(next.convert(next.bounds, to: view).minY - header.frame.maxY, spacing)
             }
         }
+    }
+
+    func testSwiftUIQuoteOnlyReplyUsesItsAttachmentSpacing() throws {
+        let row = try XCTUnwrap(makeTimelineTestRow(1, mediaCount: 0, textRepeatCount: 0) as? UiTimelineV2.TimelinePostItem)
+        let profile = try XCTUnwrap(row.post.user)
+        let quote = replyPost("quote", text: "Quoted text", user: profile, replyToHandle: nil)
+        let helper = TimelinePresentationAppearancePatchHelper.shared
+        let appearance = helper.resolve(base: TimelineAppearance.companion.Default,
+            patch: helper.setFullWidthPost(patch: helper.empty, value: false))
+        func height(replyTo: String?) throws -> CGFloat {
+            let post = replyPost("reply", text: "", user: profile, replyToHandle: replyTo)
+            let renderer = ImageRenderer(content:
+                StatusView(data: post, forceHideActions: true, quotes: [quote])
+                    .environment(\.timelineAppearance, appearance)
+                    .frame(width: 370)
+            )
+            return CGFloat(try XCTUnwrap(renderer.cgImage).height)
+        }
+
+        let prompt = ImageRenderer(content: HStack(spacing: 4) {
+            Image(fontAwesome: .reply)
+            Text("Reply to @context")
+        }.font(.body))
+        let promptHeight = CGFloat(try XCTUnwrap(prompt.cgImage).height)
+        XCTAssertEqual(try height(replyTo: "@context") - height(replyTo: nil), promptHeight + 10, accuracy: 1)
     }
 
     func testPostGeometryUsesTheSameInsetsForLayoutAndMeasurement() throws {
@@ -286,7 +328,7 @@ final class StatusPostPresentationTests: XCTestCase {
             for header in headers {
                 let name = try XCTUnwrap(header.subviews.compactMap { $0 as? RichTextUIView }.first)
                 XCTAssertEqual(name.baseTextWeight, .bold)
-                XCTAssertEqual(name.baseTextColor, .flarePostSecondaryLabel)
+                XCTAssertEqual(name.baseTextColor, .flarePostLabel)
                 XCTAssertGreaterThan(name.bounds.width, 40)
             }
 
@@ -306,6 +348,7 @@ final class StatusPostPresentationTests: XCTestCase {
         longMessage.frame = CGRect(x: 0, y: 0, width: 240, height: try XCTUnwrap(longMessage.timelineHeight(for: 240)))
         longMessage.layoutIfNeeded()
         let label = try XCTUnwrap(longMessage.subviews.compactMap { $0 as? UILabel }.first)
+        XCTAssertEqual(label.textColor, .flarePostLabel)
         XCTAssertGreaterThan(label.bounds.height, label.font.lineHeight)
         XCTAssertLessThanOrEqual(label.frame.maxX, longMessage.bounds.maxX + 1)
     }

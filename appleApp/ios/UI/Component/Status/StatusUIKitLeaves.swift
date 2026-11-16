@@ -5,12 +5,14 @@ import KotlinSharedUI
 import FlareAppleCore
 
 extension UILabel {
-    func setPostText(_ text: String?, preferredContentSizeCategory: UIContentSizeCategory = .medium) {
+    func setPostText(_ text: String?, preferredContentSizeCategory: UIContentSizeCategory = .medium,
+                     fontSizeAdjustment: CGFloat = 0) {
         // Post sizing is driven by appearance; UIKit must not rescale it a second time.
         adjustsFontForContentSizeCategory = false
         traitOverrides.preferredContentSizeCategory = preferredContentSizeCategory
-        let bodyFont = UIFont.preferredFont(forTextStyle: .body,
+        let preferredFont = UIFont.preferredFont(forTextStyle: .body,
             compatibleWith: UITraitCollection(preferredContentSizeCategory: preferredContentSizeCategory))
+        let bodyFont = fontSizeAdjustment == 0 ? preferredFont : preferredFont.withSize(preferredFont.pointSize + fontSizeAdjustment)
         font = bodyFont
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = bodyFont.leading + 1

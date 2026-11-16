@@ -538,7 +538,7 @@ class PostAppearanceTest {
                 LocalTimelineAppearance provides TimelineAppearance(),
             ) {
                 FlareTheme(darkTheme = false, dynamicColor = false) {
-                    expectedSize = MaterialTheme.typography.titleMedium.fontSize.value + 2
+                    expectedSize = MaterialTheme.typography.titleMedium.fontSize.value + 4
                     Surface(color = MaterialTheme.colorScheme.background) {
                         ProfileHeader(
                             state,
