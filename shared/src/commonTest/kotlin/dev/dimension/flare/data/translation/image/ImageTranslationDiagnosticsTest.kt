@@ -1,6 +1,7 @@
 package dev.dimension.flare.data.translation.image
 
 import dev.dimension.flare.common.UploadMedia
+import dev.dimension.flare.data.datastore.model.AiRequestHeader
 import dev.dimension.flare.data.datastore.model.ImageTranslationConfig
 import dev.dimension.flare.data.datastore.model.ImageTranslationProvider
 import dev.dimension.flare.ui.model.UiMedia
@@ -54,6 +55,37 @@ class ImageTranslationDiagnosticsTest {
                 assertFalse(details.contains("private-body"))
             } finally {
                 client.close()
+            }
+        }
+
+    @Test
+    fun openAIErrorDetailsRedactEchoedCustomHeaderValues() =
+        runTest {
+            val token = "workspace-secret-123"
+            val connection =
+                config
+                    .copy(openAIHeaders = listOf(AiRequestHeader("X-Workspace-Token", token)))
+                    .withValue("baseUrl", "https://service.example/v1")
+            HttpClient(
+                MockEngine {
+                    respond(
+                        """{"error":{"code":"permission_denied","message":"Workspace denied ($token)"}}""",
+                        HttpStatusCode.Forbidden,
+                        headersOf("x-request-id", "request-123"),
+                    )
+                },
+            ).use { client ->
+                val error =
+                    assertFailsWith<ImageTranslationException> {
+                        OpenAIImageTranslationAdapter(
+                            client,
+                        ).translate(input(), connection, "zh")
+                    }
+                val details = error.imageTranslationDetails(connection, "zh")
+                assertContains(details, "HTTP status: 403")
+                assertContains(details, "Request ID: request-123")
+                assertContains(details, "Workspace denied")
+                assertFalse(details.contains(token))
             }
         }
 

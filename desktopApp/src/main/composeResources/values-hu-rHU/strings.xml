@@ -736,7 +736,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">Automatikus</string>
     <string name="image_translation_original_file">Eredeti fájl</string>
-    <string name="image_translation_use_shared_description">Megosztja a szolgáltatás URL-jét, API kulcsát és modelljét. A szolgáltatásnak és a modellnek képkimenetet kell támogatnia. Kikapcsolja a képfordítás külön konfigurálására.</string>
+    <string name="image_translation_use_shared_description">Megosztja a szolgáltatás URL-jét, API-kulcsát, modelljét és egyéni fejléceit. A szolgáltatásnak és a modellnek képkimenetet kell támogatnia. Kikapcsolja a képfordítás külön konfigurálására.</string>
     <string name="plugin_permission_cookie">Olvasd el az %2$s süti a %1$s-ből</string>
     <string name="plugin_ai_create">Létrehozás Flare AI-val</string>
     <string name="plugin_ai_untitled">Új bővítmény</string>

@@ -735,7 +735,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">Tự động</string>
     <string name="image_translation_original_file">Tệp gốc</string>
-    <string name="image_translation_use_shared_description">Chia sẻ URL dịch vụ, khóa API và mô hình. Dịch vụ và mô hình phải hỗ trợ xuất hình ảnh. Tắt để cấu hình dịch thuật hình ảnh riêng.</string>
+    <string name="image_translation_use_shared_description">Chia sẻ URL dịch vụ, khóa API, mô hình và tiêu đề tùy chỉnh. Dịch vụ và mô hình phải hỗ trợ xuất hình ảnh. Tắt để cấu hình dịch thuật hình ảnh riêng.</string>
     <string name="plugin_permission_cookie">Đọc cookie %2$s từ %1$s</string>
     <string name="plugin_ai_create">Tạo bằng AI Flare</string>
     <string name="plugin_ai_untitled">Tiện ích mới</string>

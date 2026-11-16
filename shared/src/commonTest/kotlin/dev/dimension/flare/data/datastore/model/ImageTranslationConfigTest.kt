@@ -174,6 +174,21 @@ class ImageTranslationConfigTest {
     }
 
     @Test
+    fun sharedOpenAIHeadersFollowBasicSettingsAndAreCopiedWhenDetaching() {
+        val headers = listOf(AiRequestHeader("X-API-Key", "basic-header"))
+        val base = basic.copy(type = (basic.type as AppSettings.AiConfig.Type.OpenAI).copy(customHeaders = headers))
+        val independent =
+            ImageTranslationConfig(
+                ImageTranslationProvider.OpenAIImages,
+                openAIHeaders = listOf(AiRequestHeader("X-API-Key", "image-header")),
+            )
+        val shared = independent.withSharedAIConfig(true, base)
+        assertEquals(headers, shared.resolved(base).openAIHeaders)
+        assertEquals(headers, shared.withSharedAIConfig(false, base).openAIHeaders)
+        assertNotEquals(independent.fingerprint(), independent.copy(openAIHeaders = headers).fingerprint())
+    }
+
+    @Test
     fun customEditsStayIndependentUntilSharingIsEnabledAgain() {
         val config =
             ImageTranslationConfig(
@@ -247,7 +262,8 @@ class ImageTranslationConfigTest {
         listOf("https://service.example/custom/v1/", "http://127.0.0.1:18473/v1").forEach { url ->
             assertTrue(config.withValue("baseUrl", url).configured, url)
         }
-        listOf("apiKey", "model", "prompt").forEach { field ->
+        assertTrue(config.withValue("apiKey", " ").configured)
+        listOf("model", "prompt").forEach { field ->
             assertFalse(config.withValue(field, " ").configured, field)
         }
         assertFalse(config.withValue("inputFormat", "unsupported").configured)

@@ -37,10 +37,6 @@ internal class AiConfigKoogBridge {
                         AgentAvailability.Unavailable(AgentAvailability.Reason.MissingOpenAIEndpoint)
                     }
 
-                    type.apiKey.isBlank() -> {
-                        AgentAvailability.Unavailable(AgentAvailability.Reason.MissingOpenAIApiKey)
-                    }
-
                     type.model.isBlank() -> {
                         AgentAvailability.Unavailable(AgentAvailability.Reason.MissingOpenAIModel)
                     }
@@ -63,9 +59,13 @@ internal class AiConfigKoogBridge {
 
         val openAIConfig = aiConfig.effectiveAgentType as? AppSettings.AiConfig.Type.OpenAI ?: return null
         val baseUrl = openAIConfig.serverUrl.trimEnd('/')
+        val headerScope =
+            openAIConfig.customHeaders.sortedBy { it.name.lowercase() }.flatMap { (name, value) ->
+                listOf(name.lowercase(), value)
+            }
         val scope =
             JsonPrimitive(
-                listOf(baseUrl, openAIConfig.model, openAIConfig.apiKey)
+                (listOf(baseUrl, openAIConfig.model, openAIConfig.apiKey) + headerScope)
                     .joinToString("\u0000")
                     .encodeUtf8()
                     .sha256()
@@ -93,7 +93,7 @@ internal class AiConfigKoogBridge {
         ) {
             val apiName = if (retryEndpoint == OpenAIEndpoint.Responses) "Responses" else "Chat Completions"
             throw AgentConfigurationException(
-                "This turn has completed tool results. Restore its API server, key, model, and $apiName protocol, or send a new message.",
+                "This turn has completed tool results. Restore its API server, credentials, model, and $apiName protocol, or send a new message.",
             )
         }
         // shortcut: Koog forces Chat Completions on Azure OpenAI, revisit when its client supports Azure Responses.
@@ -128,6 +128,7 @@ internal class AiConfigKoogBridge {
         val client =
             AgentOpenAIClient(
                 apiKey = openAIConfig.apiKey,
+                customHeaders = openAIConfig.customHeaders,
                 settings =
                     OpenAIClientSettings(
                         baseUrl = baseUrl,

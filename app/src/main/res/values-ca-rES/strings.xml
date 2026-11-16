@@ -823,7 +823,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">Automàtic</string>
     <string name="image_translation_original_file">Fitxer original</string>
-    <string name="image_translation_use_shared_description">Compartir l\'URL del servei, la clau API i el model. El servei i el model han de suportar la sortida d\'imatges. Desactivar per configurar la traducció d\'imatges separatament.</string>
+    <string name="image_translation_use_shared_description">Compartir l\'URL del servei, la clau API, el model i les capçaleres personalitzades. El servei i el model han de suportar la sortida d\'imatges. Desactivar per configurar la traducció d\'imatges separatament.</string>
     <string name="plugin_permission_cookie">Lectura de la galleta %2$s de %1$s</string>
     <string name="plugin_ai_create">Crear amb IA Flare</string>
     <string name="plugin_ai_untitled">Nou plugin</string>

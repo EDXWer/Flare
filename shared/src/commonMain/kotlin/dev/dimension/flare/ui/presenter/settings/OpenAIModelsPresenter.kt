@@ -44,7 +44,7 @@ public class OpenAIModelsPresenter : PresenterBase<OpenAIModelsPresenter.State>(
         val models by remember(inputFlow) {
             inputFlow.flatMapLatest { (url, key) ->
                 flow {
-                    if (url.isBlank() || key.isBlank()) {
+                    if (url.isBlank()) {
                         emit(UiState.Success(emptyList()))
                         return@flow
                     }

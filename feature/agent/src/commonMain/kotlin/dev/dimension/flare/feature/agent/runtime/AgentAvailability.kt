@@ -10,7 +10,6 @@ public sealed interface AgentAvailability {
     public enum class Reason {
         OnDeviceAiUnsupported,
         MissingOpenAIEndpoint,
-        MissingOpenAIApiKey,
         MissingOpenAIModel,
     }
 }

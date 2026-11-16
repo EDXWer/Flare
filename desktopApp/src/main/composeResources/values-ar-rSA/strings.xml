@@ -769,7 +769,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">تلقائي</string>
     <string name="image_translation_original_file">ترجمة الصورة</string>
-    <string name="image_translation_use_shared_description">شارك عنوان URL للخدمة ومفتاح API والنموذج. يجب أن تدعم الخدمة والنموذج إخراج الصور. قم بإيقاف التشغيل لتكوين ترجمة الصور بشكل منفصل.</string>
+    <string name="image_translation_use_shared_description">شارك عنوان URL للخدمة ومفتاح API والنموذج وترويسات الطلب المخصصة. يجب أن تدعم الخدمة والنموذج إخراج الصور. قم بإيقاف التشغيل لتكوين ترجمة الصور بشكل منفصل.</string>
     <string name="plugin_permission_cookie">قراءة ملف تعريف الارتباط %2$s من %1$s</string>
     <string name="plugin_ai_create">إنشاء باستخدام Flare AI</string>
     <string name="plugin_ai_untitled">إضافة جديدة</string>

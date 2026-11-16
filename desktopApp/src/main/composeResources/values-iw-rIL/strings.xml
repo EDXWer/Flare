@@ -738,7 +738,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">אוטומטי</string>
     <string name="image_translation_original_file">קובץ מקורי</string>
-    <string name="image_translation_use_shared_description">שתף את כתובת השירות, מפתח ה-API והמודל. השירות והמודל חייבים לתמוך בפלט תמונות. כבה כדי להגדיר תרגום תמונות בנפרד.</string>
+    <string name="image_translation_use_shared_description">שתף את כתובת השירות, מפתח ה-API, המודל וכותרות הבקשה המותאמות אישית. השירות והמודל חייבים לתמוך בפלט תמונות. כבה כדי להגדיר תרגום תמונות בנפרד.</string>
     <string name="plugin_permission_cookie">קריאת קובץ ההגדרות %2$s מ-%1$s</string>
     <string name="plugin_ai_create">צור עם Flare AI</string>
     <string name="plugin_ai_untitled">תוסף חדש</string>

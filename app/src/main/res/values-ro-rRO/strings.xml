@@ -814,7 +814,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">Automat</string>
     <string name="image_translation_original_file">Fișier original</string>
-    <string name="image_translation_use_shared_description">Distribuie URL-ul serviciului, cheia API și modelul. Serviciul și modelul trebuie să suporte ieșirea de imagini. Dezactivează pentru a configura traducerea imaginilor separat.</string>
+    <string name="image_translation_use_shared_description">Distribuie URL-ul serviciului, cheia API, modelul și anteturile personalizate. Serviciul și modelul trebuie să suporte ieșirea de imagini. Dezactivează pentru a configura traducerea imaginilor separat.</string>
     <string name="plugin_permission_cookie">Citește cookie-ul %2$s din %1$s</string>
     <string name="plugin_ai_create">Creează cu AI Flare</string>
     <string name="plugin_ai_untitled">Plugin nou</string>

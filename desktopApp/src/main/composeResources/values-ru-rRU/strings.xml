@@ -738,7 +738,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">Ключ API</string>
     <string name="image_translation_original_file">Оригинальный файл</string>
-    <string name="image_translation_use_shared_description">Поделиться URL-адресом сервиса, ключом API и моделью. Сервис и модель должны поддерживать вывод изображений. Отключите, чтобы настроить перевод изображений отдельно.</string>
+    <string name="image_translation_use_shared_description">Поделиться URL-адресом сервиса, ключом API, моделью и пользовательскими заголовками. Сервис и модель должны поддерживать вывод изображений. Отключите, чтобы настроить перевод изображений отдельно.</string>
     <string name="plugin_permission_cookie">Запросы аутентифицированного аккаунта для %2$s: %1$s</string>
     <string name="plugin_ai_create">Создать с ИИ Flare</string>
     <string name="plugin_ai_untitled">Новый плагин</string>

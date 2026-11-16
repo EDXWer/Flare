@@ -141,6 +141,16 @@ internal fun ImageTranslationConfig.fingerprint(): String =
                     }
                 },
             )
+            if (provider == ImageTranslationProvider.OpenAIImages && openAIHeaders.isNotEmpty()) {
+                put(
+                    "headers",
+                    kotlinx.serialization.json.buildJsonObject {
+                        openAIHeaders.sortedBy { it.name.lowercase() }.forEach { (name, value) ->
+                            put(name.lowercase(), kotlinx.serialization.json.JsonPrimitive(value))
+                        }
+                    },
+                )
+            }
         }.toString()
         .encodeUtf8()
         .sha256()

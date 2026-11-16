@@ -930,7 +930,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">Automatic</string>
     <string name="image_translation_original_file">Original file</string>
-    <string name="image_translation_use_shared_description">Share the service URL, API key and model. The service and model must support image output. Turn off to configure image translation separately.</string>
+    <string name="image_translation_use_shared_description">Share the service URL, API key, model and custom headers. The service and model must support image output. Turn off to configure image translation separately.</string>
     <string name="settings_plugins_title">Plugins (Beta)</string>
     <string name="plugin_beta_description">Plugins are still in beta and may be incomplete. If you run into problems, report them on %1$s.</string>
     <string name="plugin_report_issue">GitHub Issues</string>

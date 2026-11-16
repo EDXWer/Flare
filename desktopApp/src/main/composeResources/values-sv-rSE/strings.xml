@@ -736,7 +736,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">Automatiskt</string>
     <string name="image_translation_original_file">Originalfil</string>
-    <string name="image_translation_use_shared_description">Dela tjänstens URL, API-nyckel och modell. Tjänsten och modellen måste stödja bildutdata. Stäng av för att konfigurera bildöversättning separat.</string>
+    <string name="image_translation_use_shared_description">Dela tjänstens URL, API-nyckel, modell och anpassade rubriker. Tjänsten och modellen måste stödja bildutdata. Stäng av för att konfigurera bildöversättning separat.</string>
     <string name="plugin_permission_cookie">Läs cookie %2$s från %1$s</string>
     <string name="plugin_ai_create">Skapa med Flare AI</string>
     <string name="plugin_ai_untitled">Ny plugin</string>

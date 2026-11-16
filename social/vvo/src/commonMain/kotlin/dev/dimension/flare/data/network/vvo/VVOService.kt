@@ -149,7 +149,7 @@ internal class VVOService private constructor(
         configLoginRetryDelay: Duration = defaultConfigLoginRetryDelay,
         onCredentialRefreshed: suspend (VVoCredential) -> Unit = {},
         proxy: ProxyRef = ProxyRef.Global,
-        httpClientFactory: (HttpClientConfig<*>.() -> Unit) -> HttpClient = { ktorClient(proxy, it) },
+        httpClientFactory: (HttpClientConfig<*>.() -> Unit) -> HttpClient = { ktorClient(proxy, config = it) },
     ) : this(
         credentialFlow = credentialFlow,
         refreshCookieWhenStale = refreshCookieWhenStale,

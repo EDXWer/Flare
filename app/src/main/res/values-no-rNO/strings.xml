@@ -813,7 +813,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">Automatisk</string>
     <string name="image_translation_original_file">Originalfil</string>
-    <string name="image_translation_use_shared_description">Del tjeneste-URL, API-nøkkel og modell. Tjenesten og modellen må støtte bildeutdata. Slå av for å konfigurere bildeoversettelse separat.</string>
+    <string name="image_translation_use_shared_description">Del tjeneste-URL, API-nøkkel, modell og egendefinerte headere. Tjenesten og modellen må støtte bildeutdata. Slå av for å konfigurere bildeoversettelse separat.</string>
     <string name="plugin_permission_cookie">Les informasjonskapsel %2$s fra %1$s</string>
     <string name="plugin_ai_create">Opprett med Flare AI</string>
     <string name="plugin_ai_untitled">Nytt programtillegg</string>

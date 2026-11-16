@@ -2407,6 +2407,18 @@ private object BridgePolicy {
 
     fun customValue(type: KSType): CustomValueModel? =
         when (type.declaration.qualifiedName?.asString()) {
+            "dev.dimension.flare.data.datastore.model.AiRequestHeader" -> {
+                CustomValueModel(
+                    type = "dev.dimension.flare.data.datastore.model.AiRequestHeader",
+                    typeName = "AiRequestHeader",
+                    fields =
+                        listOf(
+                            CustomValueFieldModel(name = "name", webType = WebType.String),
+                            CustomValueFieldModel(name = "value", webType = WebType.String),
+                        ),
+                )
+            }
+
             "dev.dimension.flare.model.MicroBlogKey" -> {
                 CustomValueModel(
                     type = "dev.dimension.flare.model.MicroBlogKey",

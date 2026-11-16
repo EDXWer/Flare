@@ -737,7 +737,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">Автоматски</string>
     <string name="image_translation_original_file">Оригинална фотографија</string>
-    <string name="image_translation_use_shared_description">Поделити URL сервиса, API кључ и модел. Сервис и модел морају да подржавају излаз слика. Искључити да би се превод слика конфигурисао одвојено.</string>
+    <string name="image_translation_use_shared_description">Поделити URL сервиса, API кључ, модел и прилагођена заглавља. Сервис и модел морају да подржавају излаз слика. Искључити да би се превод слика конфигурисао одвојено.</string>
     <string name="plugin_permission_cookie">Читај куки %2$s са %1$s</string>
     <string name="plugin_ai_create">Креирајте са Flare AI</string>
     <string name="plugin_ai_untitled">Нови додатак</string>

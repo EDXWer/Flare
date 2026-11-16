@@ -111,6 +111,11 @@
     <string name="settings_ai_config_value_empty_placeholder">未設定</string>
     <string name="settings_ai_config_api_key">API 金鑰</string>
     <string name="settings_ai_config_api_key_hint">輸入 API 金鑰</string>
+    <string name="settings_ai_config_custom_headers">自訂請求標頭</string>
+    <string name="settings_ai_config_header_add">新增請求標頭</string>
+    <string name="settings_ai_config_header_name">請求標頭名稱</string>
+    <string name="settings_ai_config_header_value">請求標頭值</string>
+    <string name="settings_ai_config_headers_invalid">請使用有效且不重複的請求標頭名稱，值須為單行 ASCII 文字。</string>
     <string name="settings_ai_config_model">模型</string>
     <string name="settings_ai_config_model_description">從此端點選擇模型</string>
     <string name="settings_ai_config_model_select">選擇模型</string>
@@ -926,7 +931,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">自動</string>
     <string name="image_translation_original_file">原始檔案</string>
-    <string name="image_translation_use_shared_description">共用服務網址、API 金鑰與模型。服務與模型都必須支援輸出圖片。關閉後可個別設定圖片翻譯。</string>
+    <string name="image_translation_use_shared_description">共用服務網址、API 金鑰、模型與自訂請求標頭。服務與模型都必須支援輸出圖片。關閉後可個別設定圖片翻譯。</string>
     <string name="plugin_beta_description">外掛程式仍在測試階段，部分功能可能尚未完成。遇到問題時，請到 %1$s 回報。</string>
     <string name="plugin_report_issue">GitHub 問題</string>
     <string name="plugin_empty">未安裝任何外掛程式</string>

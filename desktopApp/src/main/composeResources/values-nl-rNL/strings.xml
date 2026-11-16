@@ -736,7 +736,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">Automatisch</string>
     <string name="image_translation_original_file">Origineel bestand</string>
-    <string name="image_translation_use_shared_description">De service-URL, API-sleutel en het model delen. De service en het model moeten beeldoutput ondersteunen. Schakel uit om beeldvertaling afzonderlijk in te stellen.</string>
+    <string name="image_translation_use_shared_description">De service-URL, de API-sleutel, het model en de aangepaste headers delen. De service en het model moeten beeldoutput ondersteunen. Schakel uit om beeldvertaling afzonderlijk in te stellen.</string>
     <string name="plugin_permission_cookie">Cookie %2$s lezen van %1$s</string>
     <string name="plugin_ai_create">Creëren met Flare AI</string>
     <string name="plugin_ai_untitled">Nieuwe plugin</string>

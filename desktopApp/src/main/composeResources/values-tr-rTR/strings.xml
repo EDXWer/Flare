@@ -736,7 +736,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">API anahtarı</string>
     <string name="image_translation_original_file">Orijinal dosya</string>
-    <string name="image_translation_use_shared_description">Hizmet URL\'sini, API anahtarını ve modeli paylaşın. Hizmet ve modelin görsel çıktı desteklemesi gerekir. Görsel çeviriyi ayrı yapılandırmak için kapatın.</string>
+    <string name="image_translation_use_shared_description">Hizmet URL\'sini, API anahtarını, modeli ve özel başlıkları paylaşın. Hizmet ve modelin görsel çıktı desteklemesi gerekir. Görsel çeviriyi ayrı yapılandırmak için kapatın.</string>
     <string name="plugin_permission_cookie">%2$s için kimlik doğrulamalı hesap istekleri: %1$s</string>
     <string name="plugin_ai_create">Flare Yapay Zeka ile oluştur</string>
     <string name="plugin_ai_untitled">Yeni eklenti</string>

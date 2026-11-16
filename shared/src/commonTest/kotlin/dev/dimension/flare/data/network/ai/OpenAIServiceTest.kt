@@ -1,6 +1,7 @@
 package dev.dimension.flare.data.network.ai
 
 import dev.dimension.flare.common.JSON
+import dev.dimension.flare.data.datastore.model.AiRequestHeader
 import dev.dimension.flare.data.datastore.model.AppSettings
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -25,6 +26,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
+import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
@@ -56,6 +58,65 @@ class OpenAIServiceTest {
                     },
                 ) { service ->
                     assertEquals(listOf("a-model", "z-model"), service.models(baseUrl, "test-key"))
+                }
+            }
+        }
+
+    @Test
+    fun customHeadersOverrideBearerForModelsAndCompletions() =
+        runTest {
+            val headers = listOf(AiRequestHeader("aUtHoRiZaTiOn", "Basic gateway"), AiRequestHeader("X-Tenant", "demo"))
+            withService(
+                handler = { request ->
+                    assertEquals(listOf("Basic gateway"), request.headers.getAll(HttpHeaders.Authorization))
+                    assertEquals("demo", request.headers["X-Tenant"])
+                    when (request.method) {
+                        HttpMethod.Get -> respond("""{"data":[{"id":"test-model"}]}""")
+                        HttpMethod.Post -> respond("""{"choices":[{"message":{"content":"translated"}}]}""")
+                        else -> error("Unexpected method ${request.method}")
+                    }
+                },
+            ) { service ->
+                val config = openAIConfig().copy(customHeaders = headers)
+                assertEquals(listOf("test-model"), service.models(config.serverUrl, config.apiKey, headers))
+                assertEquals("translated", service.chatCompletionOrNull(config, "Hello"))
+            }
+        }
+
+    @Test
+    fun requestErrorsRedactEchoedCustomHeaderValues() =
+        runTest {
+            val token = "workspace-secret-123"
+            val config = openAIConfig().copy(customHeaders = listOf(AiRequestHeader("X-Workspace-Token", " $token ")))
+            withService(
+                handler = {
+                    respond("""{"error":{"message":"Workspace denied ($token)"}}""", HttpStatusCode.Forbidden)
+                },
+            ) { service ->
+                val modelError = assertFailsWith<Exception> { service.models(config.serverUrl, config.apiKey, config.customHeaders) }
+                val chatError = assertFailsWith<Exception> { service.chatCompletion(config, "Hello") }
+                for (error in listOf(modelError, chatError)) {
+                    val message = error.message.orEmpty()
+                    assertContains(message, "403")
+                    assertContains(message, "Workspace denied")
+                    assertFalse(error.stackTraceToString().contains(token))
+                }
+            }
+        }
+
+    @Test
+    fun malformedAndDuplicateHeadersAreRejectedBeforeSending() =
+        runTest {
+            withService(handler = { error("Invalid headers must not reach the server") }) { service ->
+                for (headers in listOf(
+                    listOf(AiRequestHeader("X-Token", "first"), AiRequestHeader("x-token", "second")),
+                    listOf(AiRequestHeader("Bad Name", "token")),
+                    listOf(AiRequestHeader("X-Token", "line\r\nbreak")),
+                    listOf(AiRequestHeader("Content-Length", "1")),
+                )) {
+                    assertFailsWith<IllegalArgumentException> {
+                        service.chatCompletionOrNull(openAIConfig().copy(customHeaders = headers), "Hello")
+                    }
                 }
             }
         }
@@ -241,10 +302,23 @@ class OpenAIServiceTest {
         }
 
     @Test
+    fun chatCompletionOrNull_sendsNoAuthorizationWhenApiKeyIsBlank() =
+        runTest {
+            withService(
+                handler = { request ->
+                    assertNull(request.headers[HttpHeaders.Authorization])
+                    respond("""{"choices":[{"message":{"content":"local response"}}]}""")
+                },
+            ) { service ->
+                assertEquals("local response", service.chatCompletionOrNull(openAIConfig().copy(apiKey = ""), "Hello"))
+            }
+        }
+
+    @Test
     fun chatCompletionOrNull_skipsIncompleteConfiguration() =
         runTest {
             withService(handler = { error("Incomplete configuration must not send a request") }) { service ->
-                for (config in listOf(openAIConfig().copy(serverUrl = ""), openAIConfig().copy(apiKey = ""), openAIConfig(model = ""))) {
+                for (config in listOf(openAIConfig().copy(serverUrl = ""), openAIConfig(model = ""))) {
                     assertNull(service.chatCompletionOrNull(config, "Hello"))
                 }
             }

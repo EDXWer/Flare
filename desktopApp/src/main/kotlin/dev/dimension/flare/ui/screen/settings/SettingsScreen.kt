@@ -1923,6 +1923,8 @@ internal fun SettingsScreen(
                                     onConfirm = aiConfigState::setOpenAIApiKey,
                                 )
                                 ExpanderItemSeparator()
+                                AiConfigHeadersSetting(aiConfigState.openAIHeaders) { aiConfigState.setOpenAIHeaders(it) }
+                                ExpanderItemSeparator()
                                 val shouldShowManualModelInput =
                                     when (val openAIModels = aiConfigState.openAIModels) {
                                         is UiState.Error -> true
