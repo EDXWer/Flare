@@ -56,7 +56,8 @@ public fun LazyStaggeredGridScope.statusDetail(
             }
         }
     }
-    if (state.tabs.size > 1 || state.filters.isNotEmpty()) {
+    // Keep the controls from becoming the scroll anchor before the post arrives.
+    if (state.header.isNotEmpty() && (state.tabs.size > 1 || state.filters.isNotEmpty())) {
         item(key = "status_detail_controls", span = StaggeredGridItemSpan.FullLine) {
             Column(Modifier.fillMaxWidth()) {
                 StatusDetailControls(state, tabs)
