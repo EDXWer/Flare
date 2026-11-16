@@ -7,6 +7,28 @@ import KotlinSharedUI
 
 @MainActor
 final class FlareTextColorIntegrationTests: XCTestCase {
+    func testSwiftUIPostHeaderNameFitsTheSameLineHeightAsTheCaption() throws {
+        let row = try XCTUnwrap(makeTimelineTestRow(1, mediaCount: 0, textRepeatCount: 0) as? UiTimelineV2.TimelinePostItem)
+        let profile = try XCTUnwrap(row.post.user)
+        func lineHeight(abovePost: Bool, user: UiProfile?) throws -> CGFloat {
+            let message = UiTimelineV2.Message(user: user, statusKey: row.post.statusKey, icon: .retweet,
+                type: UiTimelineV2.MessageTypeRaw(content: "Reposted"), createdAt: row.post.createdAt,
+                clickEvent: ClickEventNoop.shared, accountType: row.post.accountType, itemKey: nil)
+            let renderer = ImageRenderer(content:
+                StatusTopMessageView(topMessage: message, topMessageOnly: !abovePost, isAbovePost: abovePost)
+                    .environment(\.isPostContent, true)
+                    .environment(\.dynamicTypeSize, .large)
+                    .frame(width: 240)
+            )
+            renderer.scale = 3
+            return CGFloat(try XCTUnwrap(renderer.cgImage).height) / renderer.scale
+        }
+
+        let headerHeight = try lineHeight(abovePost: true, user: profile)
+        XCTAssertEqual(headerHeight, try lineHeight(abovePost: true, user: nil), accuracy: 1)
+        XCTAssertLessThan(headerHeight, try lineHeight(abovePost: false, user: profile))
+    }
+
     func testSwiftUITimelineMessageUsesBodyColorOnlyWhenStandalone() throws {
         let row = try XCTUnwrap(makeTimelineTestRow(1, mediaCount: 0, textRepeatCount: 0) as? UiTimelineV2.TimelinePostItem)
         let message = UiTimelineV2.Message(user: nil, statusKey: row.post.statusKey, icon: .retweet,

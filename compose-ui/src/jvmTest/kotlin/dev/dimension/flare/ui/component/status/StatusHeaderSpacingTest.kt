@@ -509,23 +509,22 @@ class StatusHeaderSpacingTest {
             assertEquals(bounds.left + inset + 10, userAvatar("@alex").left, 0.1f)
             assertEquals(avatarBounds.center.y, (textBounds("Mei Chen").top + textBounds("@mei").bottom) / 2, 1f)
             assertEquals(FontWeight.Bold, textStyle("Mei Chen").fontWeight)
-            val postBodyColor = textStyle("A quiet afternoon at the coast.").color
+            val postBodyStyle = textStyle("A quiet afternoon at the coast.")
             val headerColor = textStyle("@alex").color
-            val messageFontSize = textStyle("Sam Lee").fontSize
             val messages =
                 listOf(
                     Triple("Sam Lee", "reposted", headerColor),
                     Triple("Jordan Kim", "followed you", headerColor),
-                    Triple("Flare Team", "pinned a post", postBodyColor),
+                    Triple("Flare Team", "pinned a post", postBodyStyle.color),
                 )
             for ((name, message, color) in messages) {
                 val nameStyle = textStyle(name)
                 val messageStyle = textStyle(message)
-                assertEquals(messageFontSize, nameStyle.fontSize)
+                assertEquals(messageStyle.fontSize, nameStyle.fontSize, name)
                 assertEquals(FontWeight.Bold, nameStyle.fontWeight)
                 assertEquals(color, nameStyle.color, name)
                 assertEquals(color, messageStyle.color, message)
-                assertEquals(messageFontSize.value - if (message == "reposted") 2 else 0, messageStyle.fontSize.value, message)
+                assertEquals(postBodyStyle.fontSize.value - if (message == "reposted") 2 else 0, messageStyle.fontSize.value, message)
             }
             System.getenv("FLARE_TIMELINE_PREVIEW_DIR")?.let { path ->
                 val pixels = timeline.captureToImage().toPixelMap()
