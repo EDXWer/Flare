@@ -462,6 +462,8 @@ internal data class User(
     val coverImagePhone: String? = null,
     @SerialName("avatar_hd")
     val avatarHD: String? = null,
+    @SerialName("avatar_large")
+    val avatarLarge: String? = null,
     val like: Boolean? = null,
     @SerialName("like_me")
     val likeMe: Boolean? = null,

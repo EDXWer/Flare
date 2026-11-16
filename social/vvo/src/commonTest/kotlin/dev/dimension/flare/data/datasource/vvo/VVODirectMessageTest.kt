@@ -107,6 +107,35 @@ class VVODirectMessageTest {
         }
 
     @Test
+    fun roomsKeepEachPeersAvatar() =
+        runTest {
+            val service =
+                service {
+                    """
+                    {"ok":1,"data":[
+                      {"user":{"id":77,"screen_name":"First","avatar_large":"https://example.com/avatars/77.jpg"}},
+                      {"user":{
+                        "id":78,"screen_name":"Second","avatar_hd":"",
+                        "profile_image_url":"https://example.com/avatars/78.jpg",
+                        "avatar_large":"https://example.com/avatars/78-large.jpg"
+                      }}
+                    ]}
+                    """.trimIndent()
+                }
+            val rooms = VVODirectMessageLoader(service, account).loadRooms(20, PagingRequest.Refresh).data
+            assertEquals(
+                listOf(
+                    MicroBlogKey("77", account.host) to "https://example.com/avatars/77.jpg",
+                    MicroBlogKey("78", account.host) to "https://example.com/avatars/78.jpg",
+                ),
+                rooms.map { room ->
+                    val peer = room.users.single()
+                    peer.key to peer.avatar?.url
+                },
+            )
+        }
+
+    @Test
     fun roomsParseDateOnlyPreviewsAndKeepUnknownTimes() =
         runTest {
             val service =
