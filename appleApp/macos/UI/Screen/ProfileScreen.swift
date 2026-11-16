@@ -36,12 +36,21 @@ struct ProfileScreen: View {
     }
 
     var body: some View {
-        compatBody
+        GeometryReader { proxy in
+            profileContent(usesPlainProfileStyle: proxy.size.width < 840)
+        }
     }
 
-    var compatBody: some View {
-        ScrollView {
-            LazyVStack(spacing: 12, pinnedViews: [.sectionHeaders]) {
+    private func profileContent(usesPlainProfileStyle: Bool) -> some View {
+        let tabsState = presenter.state.tabs
+        let showsTabBar = switch onEnum(of: tabsState) {
+        case .loading: true
+        case .success(let state): state.data.cast(ProfileState.Tab.self).count > 1
+        case .error: false
+        }
+
+        return ScrollView {
+            VStack(spacing: usesPlainProfileStyle && showsTabBar ? 0 : 12) {
                 ProfileHeader(
                     user: presenter.state.userState,
                     relation: presenter.state.relationState,
@@ -53,20 +62,24 @@ struct ProfileScreen: View {
                     onFollowingClick: onFollowingClick,
                     onFansClick: onFansClick
                 )
+                .environment(\.profileUsesPlainStyle, usesPlainProfileStyle)
+                .background(usesPlainProfileStyle ? Color.flareSystemBackground : .clear)
 
-                Section {
-                    StateView(state: presenter.state.tabs) { tabsArray in
-                        let tabs = tabsArray.cast(ProfileState.Tab.self)
-                        profileTabsContent(tabs: tabs)
-                    } errorContent: { error in
-                        ListErrorView(error: error) {
-                            presenter.state.retryTabs()
+                LazyVStack(spacing: 12, pinnedViews: [.sectionHeaders]) {
+                    Section {
+                        StateView(state: tabsState) { tabsArray in
+                            let tabs = tabsArray.cast(ProfileState.Tab.self)
+                            profileTabsContent(tabs: tabs)
+                        } errorContent: { error in
+                            ListErrorView(error: error) {
+                                presenter.state.retryTabs()
+                            }
+                        } loadingContent: {
+                            ProfileTimelineLoadingPlaceholder()
                         }
-                    } loadingContent: {
-                        ProfileTimelineLoadingPlaceholder()
+                    } header: {
+                        profileTabPinnedHeader(usesPlainProfileStyle: usesPlainProfileStyle)
                     }
-                } header: {
-                    profileTabPinnedHeader
                 }
             }
             .padding(.bottom, 16)
@@ -134,21 +147,26 @@ struct ProfileScreen: View {
     }
 
     @ViewBuilder
-    private var profileTabPinnedHeader: some View {
+    private func profileTabPinnedHeader(usesPlainProfileStyle: Bool) -> some View {
+        let background = usesPlainProfileStyle ? AnyShapeStyle(Color.flareSystemBackground) : AnyShapeStyle(.bar)
         switch onEnum(of: presenter.state.tabs) {
         case .loading:
             ProfileTabsLoadingPlaceholder()
                 .frame(maxWidth: .infinity)
-                .background(.bar)
+                .environment(\.profileUsesPlainStyle, usesPlainProfileStyle)
+                .background(background)
                 .overlay(alignment: .bottom) {
-                    Divider()
+                    if !usesPlainProfileStyle {
+                        Divider()
+                    }
                 }
         case .success(let tabState):
             let tabs = tabState.data.cast(ProfileState.Tab.self)
             if tabs.count > 1 {
                 ProfileTabBar(tabs: tabs, selectedTab: $selectedTab)
                     .frame(maxWidth: .infinity)
-                    .background(.bar)
+                    .environment(\.profileUsesPlainStyle, usesPlainProfileStyle)
+                    .background(background)
             }
         case .error:
             EmptyView()

@@ -3,6 +3,7 @@ package dev.dimension.flare.ui.screen.home
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import compose.icons.FontAwesomeIcons
 import compose.icons.fontawesomeicons.Solid
@@ -57,12 +59,14 @@ import dev.dimension.flare.ui.common.items
 import dev.dimension.flare.ui.common.plus
 import dev.dimension.flare.ui.component.ErrorContent
 import dev.dimension.flare.ui.component.FAIcon
+import dev.dimension.flare.ui.component.FlareDividerDefaults
 import dev.dimension.flare.ui.component.FlareScrollBar
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
 import dev.dimension.flare.ui.component.ProfileHeader
 import dev.dimension.flare.ui.component.ProfileHeaderLoading
 import dev.dimension.flare.ui.component.ProfileMenu
 import dev.dimension.flare.ui.component.ProfileTabsLoadingPlaceholder
+import dev.dimension.flare.ui.component.UnderlinedTabs
 import dev.dimension.flare.ui.component.placeholder
 import dev.dimension.flare.ui.component.platform.isBigScreen
 import dev.dimension.flare.ui.component.status.LazyStatusVerticalStaggeredGrid
@@ -154,6 +158,7 @@ private fun ProfileErrorScreen(onBack: () -> Unit) {
 @Composable
 private fun ProfileLoadingScreen(onBack: () -> Unit) {
     val listState = rememberLazyListState()
+    val headerBackground = profileHeaderBackground(isBigScreen())
     FlareScrollBar(listState) {
         LazyColumn(
             state = listState,
@@ -161,7 +166,10 @@ private fun ProfileLoadingScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             item {
-                ProfileHeaderLoading(withStatusBarHeight = false)
+                ProfileHeaderLoading(
+                    withStatusBarHeight = false,
+                    modifier = Modifier.background(headerBackground),
+                )
             }
             items(5) {
                 StatusPlaceholder(
@@ -171,6 +179,10 @@ private fun ProfileLoadingScreen(onBack: () -> Unit) {
         }
     }
 }
+
+@Composable
+private fun profileHeaderBackground(bigScreen: Boolean): Color =
+    if (bigScreen) Color.Transparent else FluentTheme.colors.background.solid.base
 
 @Composable
 private fun profileWithUserNameAndHostPresenter(
@@ -209,6 +221,7 @@ internal fun ProfileScreen(
     val profileHeaderScrollState = rememberScrollState()
     RegisterTabCallback(listState, state::refresh)
     val isBigScreen = isBigScreen()
+    val headerBackground = profileHeaderBackground(isBigScreen)
     var showBlockedProfileContent by remember(accountType, userKey) { mutableStateOf(false) }
     val isBlockedProfile =
         state.state
@@ -296,6 +309,7 @@ internal fun ProfileScreen(
                             Column {
                                 ProfileHeader(
                                     state = state.state,
+                                    modifier = Modifier.background(headerBackground),
                                     menu = {
                                         ProfileInsightAction(
                                             profileState = state.state,
@@ -321,6 +335,7 @@ internal fun ProfileScreen(
                                         }
                                     },
                                     isBigScreen = false,
+                                    useCard = false,
                                     onFollowListClick = onFollowListClick,
                                     onFansListClick = onFansListClick,
                                 )
@@ -336,27 +351,25 @@ internal fun ProfileScreen(
                                             ),
                                     )
                                 } else {
+                                    state.state.tabs.onLoading {
+                                        ProfileTabsLoadingPlaceholder(modifier = Modifier.background(headerBackground))
+                                    }
                                     state.state.tabs.onSuccess { tabs ->
-                                        LiteFilter(
-                                            modifier =
-                                                Modifier
-                                                    .padding(horizontal = screenHorizontalPadding),
-                                        ) {
-                                            repeat(tabs.size) { index ->
-                                                val tab = tabs.get(index)
-                                                PillButton(
-                                                    selected = state.selectedTabIndex == index,
-                                                    onSelectedChanged = {
-                                                        state.setSelectedTab(index)
-                                                    },
-                                                ) {
-                                                    dev.dimension.flare.ui.component.Text(
-                                                        text = tab.name,
-                                                    )
-                                                }
+                                        if (tabs.isNotEmpty()) {
+                                            Column(Modifier.fillMaxWidth().background(headerBackground)) {
+                                                UnderlinedTabs(
+                                                    titles = tabs.map { it.name },
+                                                    selectedIndex = state.selectedTabIndex,
+                                                    onTabSelected = state::setSelectedTab,
+                                                )
+                                                Spacer(
+                                                    Modifier
+                                                        .fillMaxWidth()
+                                                        .height(FlareDividerDefaults.thickness)
+                                                        .background(FlareDividerDefaults.color),
+                                                )
                                             }
                                         }
-                                        Spacer(modifier = Modifier.height(8.dp))
                                     }
                                 }
                             }
@@ -381,10 +394,10 @@ internal fun ProfileScreen(
                         }
                     } else {
                         state.state.tabs.onLoading {
-                            item(
-                                span = StaggeredGridItemSpan.FullLine,
-                            ) {
-                                ProfileTabsLoadingPlaceholder()
+                            if (isBigScreen) {
+                                item(span = StaggeredGridItemSpan.FullLine) {
+                                    ProfileTabsLoadingPlaceholder()
+                                }
                             }
                             repeat(5) {
                                 item {

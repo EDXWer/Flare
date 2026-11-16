@@ -220,6 +220,7 @@ struct ProfileScreen: View {
                     onFansClick: onFansClick
                 )
                 .padding(.bottom)
+                .plainProfileAccessory()
                 BlockedProfileGate {
                     showBlockedProfileContent = true
                 }
@@ -258,8 +259,11 @@ struct ProfileScreen: View {
                             onFollowingClick: onFollowingClick,
                             onFansClick: onFansClick
                         )
+                        .plainProfileAccessory()
                         ProfileTabsLoadingPlaceholder()
+                            .plainProfileAccessory()
                         ProfileTimelineUIKitLoadingPlaceholder(columnCount: 1)
+                            .padding(.top, timelineDisplayMode == .plain ? 0 : 8)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -346,6 +350,16 @@ struct ProfileScreen: View {
 
     private var shouldGateBlockedProfile: Bool {
         isBlockedProfile && !showBlockedProfileContent
+    }
+}
+
+private extension View {
+    func plainProfileAccessory() -> some View {
+        self
+            .environment(\.profileUsesPlainStyle, true)
+            .frame(maxWidth: .infinity)
+            .flareTextBackground(.flareSystemBackground)
+            .background(Color.flareSystemBackground)
     }
 }
 
@@ -691,6 +705,7 @@ private struct ProfileTimelineCollectionView: UIViewControllerRepresentable {
                             onFansClick: onFansClick
                         )
                         .environment(\.timelineAppearance, timelineAppearance)
+                        .environment(\.profileUsesPlainStyle, true)
                         .environment(\.openURL, openURL)
                         .environment(\.horizontalSizeClass, horizontalSizeClass)
                     )
@@ -713,6 +728,7 @@ private struct ProfileTimelineCollectionView: UIViewControllerRepresentable {
                                 progress: tabSelectionProgress
                             )
                                 .environment(\.timelineAppearance, timelineAppearance)
+                                .environment(\.profileUsesPlainStyle, true)
                                 .environment(\.openURL, openURL)
                                 .environment(\.horizontalSizeClass, horizontalSizeClass)
                         )
@@ -740,6 +756,7 @@ private struct ProfileTimelineCollectionView: UIViewControllerRepresentable {
             controller.usesGroupedBackgroundOverride = appearance.usesCardBackground || timelineColumnCount > 1
             controller.networkKind = networkKind
             controller.extendsContentUnderTopBars = extendsContentUnderTopBars
+            controller.timelineCardTopSpacing = extendsContentUnderTopBars ? 8 : 0
             controller.topScrollIndicatorInset = 0
             controller.suppressInitialRefreshIndicator = true
             controller.restoresScrollAnchorOnSnapshotChanges = false
@@ -1030,8 +1047,6 @@ private final class ProfileTimelinePagerViewController: UIViewController,
         view.backgroundColor = color
         pageViewController.view.backgroundColor = color
         pages.forEach { $0.setBackgroundColor(color) }
-        setBaseBackgroundColor(color, for: headerView)
-        setBaseBackgroundColor(color, for: pickerView)
         updateAccessoryAppearance(navigationTitleVisible: lastHeaderVisibility == false)
     }
 
@@ -1535,14 +1550,6 @@ private final class ProfileTimelinePagerViewController: UIViewController,
         }
     }
 
-    private func setBaseBackgroundColor(_ color: UIColor, for view: UIView?) {
-        if let accessory = view as? ProfileHostedAccessoryView {
-            accessory.setBaseBackgroundColor(color)
-        } else {
-            view?.backgroundColor = color
-        }
-    }
-
     private func updateAccessoryAppearance(navigationTitleVisible: Bool) {
         headerView?.alpha = navigationTitleVisible ? 0 : 1
         collapsedGlassView.isHidden = !navigationTitleVisible || headerView == nil
@@ -1657,7 +1664,6 @@ private struct ProfilePickerAccessorySignature: Equatable {
 private final class ProfileHostedAccessoryView: UIView {
     private let host = UIHostingController(rootView: AnyView(EmptyView()))
     private let ignoresSafeArea: Bool
-    private var baseBackgroundColor = UIColor.clear
     private var hidesBaseBackground = false
 
     init(ignoresSafeArea: Bool) {
@@ -1685,17 +1691,10 @@ private final class ProfileHostedAccessoryView: UIView {
         setNeedsLayout()
     }
 
-    func setBaseBackgroundColor(_ color: UIColor) {
-        baseBackgroundColor = color
-        traitOverrides[FlareTextBackgroundTrait.self] = hidesBaseBackground ? nil : color
-        backgroundColor = hidesBaseBackground ? .clear : color
-    }
-
     func setBaseBackgroundHidden(_ hidden: Bool) {
         guard hidesBaseBackground != hidden else { return }
         hidesBaseBackground = hidden
-        traitOverrides[FlareTextBackgroundTrait.self] = hidden ? nil : baseBackgroundColor
-        backgroundColor = hidden ? .clear : baseBackgroundColor
+        updateBaseBackground()
     }
 
     override func didMoveToWindow() {
@@ -1710,7 +1709,7 @@ private final class ProfileHostedAccessoryView: UIView {
     }
 
     private func commonInit() {
-        backgroundColor = .clear
+        updateBaseBackground()
         host.view.backgroundColor = .clear
         host.view.translatesAutoresizingMaskIntoConstraints = false
         if #available(iOS 16.0, *) {
@@ -1726,6 +1725,11 @@ private final class ProfileHostedAccessoryView: UIView {
             host.view.trailingAnchor.constraint(equalTo: trailingAnchor),
             host.view.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
+    }
+
+    private func updateBaseBackground() {
+        traitOverrides[FlareTextBackgroundTrait.self] = hidesBaseBackground ? nil : .systemBackground
+        backgroundColor = hidesBaseBackground ? .clear : .systemBackground
     }
 
     private func findParentViewController() -> UIViewController? {
