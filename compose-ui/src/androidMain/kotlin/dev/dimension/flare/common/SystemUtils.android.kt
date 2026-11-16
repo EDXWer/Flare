@@ -7,6 +7,8 @@ public val isMiuiOrHyperOs: Boolean
     get() = SystemUtils.isMiuiOrHyperOs
 
 internal actual object SystemUtils {
+    actual val isAndroid: Boolean = true
+
     actual val isBlurSupported: Boolean
         get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 

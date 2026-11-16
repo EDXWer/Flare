@@ -55,6 +55,8 @@ import dev.dimension.flare.ui.model.UiNumber
 import dev.dimension.flare.ui.theme.PlatformContentColor
 import dev.dimension.flare.ui.theme.PlatformTheme
 
+internal fun UiNumber?.visibleActionNumber(showNumbers: Boolean): UiNumber? = this?.takeIf { showNumbers && it.humanized.isNotEmpty() }
+
 @Composable
 public fun StatusActionButton(
     icon: ImageVector,
@@ -67,13 +69,12 @@ public fun StatusActionButton(
     withTextMinWidth: Boolean = false,
     isStretched: Boolean = false,
     iconSize: Dp = StatusComponentDefaults.actionIconSize,
+    iconWidth: Dp = minOf(iconSize, StatusComponentDefaults.actionIconSlotWidth),
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val appearanceSettings = LocalTimelineAppearance.current
-    val displayNumber =
-        number?.takeIf {
-            appearanceSettings.showNumbers && it.humanized.isNotEmpty()
-        }
+    val iconSlotWidth = maxOf(StatusComponentDefaults.actionIconSlotWidth, iconWidth)
+    val displayNumber = number.visibleActionNumber(appearanceSettings.showNumbers)
     val actionDescription = contentDescription?.takeIf { it.isNotBlank() }
     val accessibilityDescription =
         listOfNotNull(
@@ -140,10 +141,10 @@ public fun StatusActionButton(
                                     color = Color.Unspecified,
                                 ),
                         ).size(
-                            width = StatusComponentDefaults.actionIconSlotWidth,
+                            width = iconSlotWidth,
                             height = maxOf(iconSize, StatusComponentDefaults.actionIconSize),
                         ).wrapContentSize()
-                        .size(iconSize),
+                        .size(width = iconWidth, height = iconSize),
                 tint = color,
             )
         }
@@ -164,7 +165,7 @@ public fun StatusActionButton(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(StatusComponentDefaults.actionLabelSpacing),
                 ) {
-                    Spacer(Modifier.width(StatusComponentDefaults.actionIconSlotWidth))
+                    Spacer(Modifier.width(iconSlotWidth))
                     PlatformText(
                         "0000",
                         color = Color.Transparent,
@@ -211,6 +212,7 @@ internal fun StatusActionGroup(
     icon: ImageVector,
     number: UiNumber?,
     iconSize: Dp,
+    iconWidth: Dp,
     modifier: Modifier = Modifier,
     color: Color = PlatformContentColor.current,
     contentDescription: String? = null,
@@ -235,6 +237,7 @@ internal fun StatusActionGroup(
             withTextMinWidth = withTextMinWidth,
             isStretched = isStretched,
             iconSize = iconSize,
+            iconWidth = iconWidth,
         )
         PlatformDropdownMenu(
             expanded = showMenu,

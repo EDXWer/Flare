@@ -71,6 +71,7 @@ import compose.icons.fontawesomeicons.solid.Reply
 import compose.icons.fontawesomeicons.solid.Robot
 import compose.icons.fontawesomeicons.solid.TriangleExclamation
 import compose.icons.fontawesomeicons.solid.Tv
+import dev.dimension.flare.common.SystemUtils
 import dev.dimension.flare.compose.ui.Res
 import dev.dimension.flare.compose.ui.bookmark_add
 import dev.dimension.flare.compose.ui.bookmark_remove
@@ -1069,7 +1070,8 @@ internal fun StatusActions(
 ) = CompositionLocalProvider(
     PlatformTextStyle provides
         PlatformTheme.typography.postBody.let {
-            it.copy(fontSize = (it.fontSize.value - if (isPost) 4 else 2).sp)
+            val reduction = if (isPost) StatusComponentDefaults.postActionTextSizeReduction else 2
+            it.copy(fontSize = (it.fontSize.value - reduction).sp)
         },
     PlatformContentColor provides StatusComponentDefaults.secondaryColor,
 ) {
@@ -1081,11 +1083,12 @@ internal fun StatusActions(
     if (displayItems.isEmpty()) return@CompositionLocalProvider
     val haptics = LocalHapticFeedback.current
     val launcher = LocalUriHandler.current
+    val density = LocalDensity.current
     val isStretched = appearanceSettings.postActionStyle == PostActionStyle.Stretch
+    val isAndroidPost = isPost && SystemUtils.isAndroid
     val iconSize = if (isPost) StatusComponentDefaults.postActionIconSize else StatusComponentDefaults.actionIconSize
-    val actionWidth = StatusComponentDefaults.actionIconSlotWidth + StatusComponentDefaults.actionButtonPadding * 2
     val trailingNumberWidth =
-        with(LocalDensity.current) { PlatformTextStyle.current.fontSize.toDp() } * 2.5f + StatusComponentDefaults.actionLabelSpacing
+        with(density) { PlatformTextStyle.current.fontSize.toDp() } * 2.5f + StatusComponentDefaults.actionLabelSpacing
     Row(
         modifier = modifier,
         verticalAlignment = if (isPost) Alignment.CenterVertically else Alignment.Bottom,
@@ -1098,18 +1101,45 @@ internal fun StatusActions(
             },
     ) {
         displayItems.fastForEachIndexed { index, action ->
-            val number =
+            val item =
                 when (action) {
-                    is ActionMenu.Item -> action.count
-                    is ActionMenu.Group -> action.displayItem.count
-                    ActionMenu.Divider -> null
+                    is ActionMenu.Item -> action
+                    is ActionMenu.Group -> action.displayItem
+                    ActionMenu.Divider -> return@fastForEachIndexed
                 }
-            // Equal leading slots keep icon centers independent of the count's width.
+            val number = item.count
+            val icon = item.icon?.toImageVector() ?: FontAwesomeIcons.Solid.Ellipsis
+            val iconWidth =
+                if (isAndroidPost) {
+                    with(density) {
+                        // Reserve enough pixels for aspect-fit to use the full height.
+                        ceil(iconSize.roundToPx() * (icon.defaultWidth / icon.defaultHeight)).toDp()
+                    }
+                } else {
+                    iconSize
+                }
             val actionModifier =
                 when {
-                    !isStretched || displayItems.size == 1 -> Modifier
-                    index != displayItems.lastIndex -> Modifier.weight(1f)
-                    else -> Modifier.width(actionWidth + if (number != null) trailingNumberWidth else 0.dp)
+                    !isStretched || displayItems.size == 1 -> {
+                        Modifier
+                    }
+
+                    index != displayItems.lastIndex -> {
+                        Modifier.weight(1f)
+                    }
+
+                    else -> {
+                        val iconSlotWidth = maxOf(StatusComponentDefaults.actionIconSlotWidth, iconWidth)
+                        val padding = StatusComponentDefaults.actionButtonPadding
+                        val actionWidth =
+                            if (isAndroidPost) {
+                                with(density) { (iconSlotWidth.roundToPx() + padding.roundToPx() * 2).toDp() }
+                            } else {
+                                iconSlotWidth + padding * 2
+                            }
+                        val trailingNumber = if (isAndroidPost) number.visibleActionNumber(appearanceSettings.showNumbers) else number
+                        Modifier.width(actionWidth + if (trailingNumber != null) trailingNumberWidth else 0.dp)
+                    }
                 }
             if (index == displayItems.lastIndex && appearanceSettings.postActionStyle == PostActionStyle.LeftAligned) {
                 Spacer(modifier = Modifier.weight(1f))
@@ -1118,11 +1148,10 @@ internal fun StatusActions(
                 is ActionMenu.Group -> {
                     StatusActionGroup(
                         modifier = actionModifier,
-                        icon =
-                            action.displayItem.icon?.toImageVector()
-                                ?: FontAwesomeIcons.Solid.Ellipsis,
-                        number = action.displayItem.count,
+                        icon = icon,
+                        number = number,
                         iconSize = iconSize,
+                        iconWidth = iconWidth,
                         color =
                             action.displayItem.color?.toComposeColor()
                                 ?: PlatformContentColor.current,
@@ -1155,17 +1184,15 @@ internal fun StatusActions(
                 is ActionMenu.Item -> {
                     StatusActionButton(
                         modifier = actionModifier,
-                        icon =
-                            action.icon?.toImageVector()
-                                ?: FontAwesomeIcons.Solid.Ellipsis,
-                        // Fallback or handle null
-                        number = action.count,
+                        icon = icon,
+                        number = number,
                         color = action.color?.toComposeColor() ?: PlatformContentColor.current,
                         contentDescription =
                             action.text?.asString()
                                 ?: stringResource(Res.string.more),
                         enabled = action.enabled,
                         iconSize = iconSize,
+                        iconWidth = iconWidth,
                         withTextMinWidth =
                             !isStretched && appearanceSettings.postActionFixedWidth &&
                                 action.count != null &&
