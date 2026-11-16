@@ -105,10 +105,15 @@ final class DateTimeUILabel: UILabel {
             textColor = appearance.color
             nonPostAppearance = nil
         }
+        guard let date = data.displayDate else {
+            attributedText = nil
+            text = nil
+            return
+        }
         if fullTime {
-            text = Self.fullFormatter.string(from: data.platformValue)
+            text = Self.fullFormatter.string(from: date)
         } else if data.shouldShowFull {
-            text = Self.dateOnlyFormatter.string(from: data.platformValue)
+            text = Self.dateOnlyFormatter.string(from: date)
         } else if absoluteTimestamp {
             text = data.absolute
         } else {

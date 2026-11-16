@@ -174,6 +174,7 @@ expected_selectors = %w[
   TimelineControllerTests/TimelineRefreshAnimationTests
   TimelineControllerTests/FlareTextColorTests
   TimelineControllerTests/FlareTextColorIntegrationTests
+  TimelineControllerTests/DateTimeTextTests
   TimelineControllerTests/StatusShareTests
   TimelineControllerTests/TimelineMediaPreviewTests/testSwiftUIMediaKeepsItsInitialHeightWhenLazyRowsAppearAndReturn
   TimelineControllerTests/TimelineMediaPreviewTests/testSwiftUIMediaIgnoresPlaybackViewportAndChromeInsetsButRespondsToResize

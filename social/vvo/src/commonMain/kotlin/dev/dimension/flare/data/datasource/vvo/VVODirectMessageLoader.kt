@@ -41,9 +41,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.toInstant
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -390,6 +393,8 @@ internal class VVODirectMessageLoader(
 private const val CHAT_PAGE_SIZE = 20
 private val ROOM_UID = Regex("[?&]uid=(\\d+)(?:&|$)")
 private val AGE = Regex("(\\d{1,6})\\s*(秒|分钟|小时|天)前")
+private val SHORT_MESSAGE_DATE = Regex("\\d{2}-\\d{2}")
+private val MESSAGE_TIME_ZONE = TimeZone.of("Asia/Shanghai")
 private val IMAGE_DOMAINS = listOf("sinaimg.cn", "weibo.cn", "weibo.com")
 
 private val DirectMessageEntry.messageId: String?
@@ -466,6 +471,21 @@ private fun JsonPrimitive?.toMessageTime(): Instant {
                 else -> elapsed.days
             }
     }
-    return runCatching { LocalDateTime.parse(value.replace(' ', 'T')).toInstant(TimeZone.of("Asia/Shanghai")) }
-        .getOrDefault(Instant.DISTANT_PAST)
+    return runCatching { LocalDateTime.parse(value.replace(' ', 'T')).toInstant(MESSAGE_TIME_ZONE) }.getOrNull()
+        ?: runCatching { value.toMessageDate()?.atStartOfDayIn(MESSAGE_TIME_ZONE) }.getOrNull()
+        ?: Instant.DISTANT_PAST
+}
+
+private fun String.toMessageDate(): LocalDate? {
+    runCatching { LocalDate.parse(this) }.getOrNull()?.let { return it }
+    if (!SHORT_MESSAGE_DATE.matches(this)) return null
+
+    val today =
+        Clock.System
+            .now()
+            .toLocalDateTime(MESSAGE_TIME_ZONE)
+            .date
+    val thisYear = runCatching { LocalDate.parse("${today.year}-$this") }.getOrNull()
+    return thisYear?.takeIf { it <= today }
+        ?: runCatching { LocalDate.parse("${today.year - 1}-$this") }.getOrNull()
 }

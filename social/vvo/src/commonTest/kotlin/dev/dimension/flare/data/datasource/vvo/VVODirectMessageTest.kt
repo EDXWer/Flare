@@ -30,6 +30,8 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.io.readByteArray
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
@@ -45,6 +47,8 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 class VVODirectMessageTest {
     private val account = MicroBlogKey("42", "m.weibo.cn")
@@ -100,6 +104,35 @@ class VVODirectMessageTest {
             assertFailsWith<IllegalStateException> {
                 VVODirectMessageLoader(service, account.copy(id = "43")).loadMessages(room, 20, PagingRequest.Refresh)
             }
+        }
+
+    @Test
+    fun roomsParseDateOnlyPreviewsAndKeepUnknownTimes() =
+        runTest {
+            val service =
+                service {
+                    """
+                    {"ok":1,"data":[
+                      {"user":{"id":77,"screen_name":"First"},"created_at":"2023-12-25","text":"Hi"},
+                      {"user":{"id":78,"screen_name":"Second"},"created_at":"01-01","text":"Hi"},
+                      {"user":{"id":79,"screen_name":"Third"},"text":"Hi"}
+                    ]}
+                    """.trimIndent()
+                }
+            val rooms = VVODirectMessageLoader(service, account).loadRooms(20, PagingRequest.Refresh).data
+            val currentYear =
+                Clock.System
+                    .now()
+                    .toLocalDateTime(TimeZone.of("Asia/Shanghai"))
+                    .year
+            assertEquals(
+                listOf(
+                    Instant.parse("2023-12-24T16:00:00Z"),
+                    Instant.parse("${currentYear - 1}-12-31T16:00:00Z"),
+                    Instant.DISTANT_PAST,
+                ),
+                rooms.map { assertNotNull(it.lastMessage).timestamp.value },
+            )
         }
 
     @Test
