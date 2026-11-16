@@ -39,10 +39,7 @@ internal fun StatusRetweetHeaderComponent(
     val density = LocalDensity.current
     val messageStyle =
         if (isAbovePost) {
-            textStyle.copy(
-                fontSize = (textStyle.fontSize.value - 2).sp,
-                lineHeight = if (textStyle.lineHeight.isSp) (textStyle.lineHeight.value - 2).sp else textStyle.lineHeight,
-            )
+            textStyle.copy(fontSize = (textStyle.fontSize.value - 2).sp)
         } else {
             textStyle
         }

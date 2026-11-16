@@ -24,7 +24,7 @@ public fun ProfileMenu(
                 ),
             PlatformTextStyle provides PlatformTheme.typography.title,
         ) {
-            StatusActions(profileState.actions, modifier = modifier)
+            StatusActions(profileState.actions, modifier = modifier, isPost = false)
         }
     }
 }

@@ -530,7 +530,6 @@ private fun UiChannelCard(
             )
             RichText(
                 text = description,
-                useBodySpacing = true,
                 modifier =
                     Modifier
                         .background(PlatformTheme.colorScheme.card)

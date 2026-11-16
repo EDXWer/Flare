@@ -21,6 +21,11 @@ public object StatusComponentDefaults {
     public val topPadding: Dp = 12.dp
     internal val attachmentSpacing: Dp = 10.dp
     internal val actionsSpacing: Dp = 2.dp
+    internal val actionIconSize: Dp = 16.dp
+    internal val postActionIconSize: Dp = 14.dp
+    internal val actionIconSlotWidth: Dp = 20.dp
+    internal val actionLabelSpacing: Dp = 2.dp
+    internal val actionButtonPadding: Dp = 4.dp
 
     internal val contentColor: Color
         @Composable

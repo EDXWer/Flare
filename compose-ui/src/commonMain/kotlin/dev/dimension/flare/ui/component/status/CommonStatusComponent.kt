@@ -169,7 +169,6 @@ import dev.dimension.flare.ui.route.DeeplinkRoute
 import dev.dimension.flare.ui.route.toUri
 import dev.dimension.flare.ui.theme.PlatformContentColor
 import dev.dimension.flare.ui.theme.PlatformTheme
-import dev.dimension.flare.ui.theme.withWiderRichTextLineSpacing
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -1061,10 +1060,11 @@ private fun visibleStatusActions(items: ImmutableList<ActionMenu>): List<ActionM
 internal fun StatusActions(
     items: ImmutableList<ActionMenu>,
     modifier: Modifier = Modifier,
+    isPost: Boolean = true,
 ) = CompositionLocalProvider(
     PlatformTextStyle provides
         PlatformTheme.typography.postBody.let {
-            it.copy(fontSize = (it.fontSize.value - 2).sp, lineHeight = (it.lineHeight.value - 2).sp)
+            it.copy(fontSize = (it.fontSize.value - if (isPost) 4 else 2).sp)
         },
     PlatformContentColor provides StatusComponentDefaults.secondaryColor,
 ) {
@@ -1074,10 +1074,13 @@ internal fun StatusActions(
     val haptics = LocalHapticFeedback.current
     val launcher = LocalUriHandler.current
     val isStretched = appearanceSettings.postActionStyle == PostActionStyle.Stretch
-    val trailingNumberWidth = with(LocalDensity.current) { PlatformTextStyle.current.fontSize.toDp() } * 2.5f + 2.dp
+    val iconSize = if (isPost) StatusComponentDefaults.postActionIconSize else StatusComponentDefaults.actionIconSize
+    val actionWidth = StatusComponentDefaults.actionIconSlotWidth + StatusComponentDefaults.actionButtonPadding * 2
+    val trailingNumberWidth =
+        with(LocalDensity.current) { PlatformTextStyle.current.fontSize.toDp() } * 2.5f + StatusComponentDefaults.actionLabelSpacing
     Row(
         modifier = modifier,
-        verticalAlignment = Alignment.Bottom,
+        verticalAlignment = if (isPost) Alignment.CenterVertically else Alignment.Bottom,
         horizontalArrangement =
             when (appearanceSettings.postActionStyle) {
                 PostActionStyle.Hidden -> Arrangement.spacedBy(4.dp, Alignment.Start)
@@ -1098,7 +1101,7 @@ internal fun StatusActions(
                 when {
                     !isStretched || displayItems.size == 1 -> Modifier
                     index != displayItems.lastIndex -> Modifier.weight(1f)
-                    else -> Modifier.width(28.dp + if (number != null) trailingNumberWidth else 0.dp)
+                    else -> Modifier.width(actionWidth + if (number != null) trailingNumberWidth else 0.dp)
                 }
             if (index == displayItems.lastIndex && appearanceSettings.postActionStyle == PostActionStyle.LeftAligned) {
                 Spacer(modifier = Modifier.weight(1f))
@@ -1111,6 +1114,7 @@ internal fun StatusActions(
                             action.displayItem.icon?.toImageVector()
                                 ?: FontAwesomeIcons.Solid.Ellipsis,
                         number = action.displayItem.count,
+                        iconSize = iconSize,
                         color =
                             action.displayItem.color?.toComposeColor()
                                 ?: PlatformContentColor.current,
@@ -1153,6 +1157,7 @@ internal fun StatusActions(
                             action.text?.asString()
                                 ?: stringResource(Res.string.more),
                         enabled = action.enabled,
+                        iconSize = iconSize,
                         withTextMinWidth =
                             !isStretched && appearanceSettings.postActionFixedWidth &&
                                 action.count != null &&
@@ -1530,7 +1535,6 @@ private fun CollapsibleRichText(
     val lineHeight =
         with(LocalDensity.current) {
             PlatformTextStyle.current
-                .withWiderRichTextLineSpacing()
                 .lineHeight
                 .roundToPx()
                 .coerceAtLeast(1)

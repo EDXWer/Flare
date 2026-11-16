@@ -117,7 +117,6 @@ public fun DMItem(
                                         horizontal = 16.dp,
                                     ),
                             color = PlatformTheme.colorScheme.onCard,
-                            useBodySpacing = true,
                         )
                     }
 

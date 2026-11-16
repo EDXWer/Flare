@@ -756,7 +756,6 @@ private fun GalleryBody(
             modifier
                 .fillMaxWidth()
                 .padding(top = 8.dp, bottom = 12.dp),
-        useBodySpacing = true,
     )
 }
 

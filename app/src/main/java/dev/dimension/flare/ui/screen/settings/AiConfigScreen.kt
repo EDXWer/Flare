@@ -1024,7 +1024,7 @@ internal fun TranslationConfigScreen(onBack: () -> Unit) {
                                                 text = stringResource(id = R.string.settings_translation_ai_test_original),
                                                 style = MaterialTheme.typography.labelMedium,
                                             )
-                                            RichText(text = state.aiTranslationTestState.sampleText, useBodySpacing = true)
+                                            RichText(text = state.aiTranslationTestState.sampleText)
                                             Button(
                                                 onClick = {
                                                     state.aiTranslationTestState.runTest()
@@ -1050,7 +1050,7 @@ internal fun TranslationConfigScreen(onBack: () -> Unit) {
                                                     text = stringResource(id = R.string.settings_translation_ai_test_result),
                                                     style = MaterialTheme.typography.labelMedium,
                                                 )
-                                                RichText(text = translated, useBodySpacing = true)
+                                                RichText(text = translated)
                                             }
                                         }
                                     },
