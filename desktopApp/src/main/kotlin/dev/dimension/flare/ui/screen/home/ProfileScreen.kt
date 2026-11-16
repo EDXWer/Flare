@@ -357,14 +357,17 @@ internal fun ProfileScreen(
                                     state.state.tabs.onSuccess { tabs ->
                                         if (tabs.isNotEmpty()) {
                                             Column(Modifier.fillMaxWidth().background(headerBackground)) {
-                                                UnderlinedTabs(
-                                                    titles = tabs.map { it.name },
-                                                    selectedIndex = state.selectedTabIndex,
-                                                    onTabSelected = state::setSelectedTab,
-                                                )
+                                                if (tabs.size > 1) {
+                                                    UnderlinedTabs(
+                                                        titles = tabs.map { it.name },
+                                                        selectedIndex = state.selectedTabIndex,
+                                                        onTabSelected = state::setSelectedTab,
+                                                    )
+                                                }
                                                 Spacer(
                                                     Modifier
                                                         .fillMaxWidth()
+                                                        .padding(top = if (tabs.size == 1) 8.dp else 0.dp)
                                                         .height(FlareDividerDefaults.thickness)
                                                         .background(FlareDividerDefaults.color),
                                                 )
@@ -621,7 +624,7 @@ private fun presenter(
 
     val selectedTab =
         tabs.map {
-            it[selectedTabIndex]
+            it.singleOrNull() ?: it[selectedTabIndex]
         }
 
     object {

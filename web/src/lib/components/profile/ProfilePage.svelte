@@ -662,6 +662,7 @@
 
     <nav
         class="profile-tabs-shell border-b border-base-300 bg-base-100"
+        class:single-timeline={profileTabs.length === 1}
         aria-label={m.profileTimelinesAriaLabel()}
     >
         <div class="tabs tabs-border profile-tabs" role="tablist">
@@ -991,6 +992,15 @@
     @media (max-width: 760px) {
         .profile-header {
             background: var(--color-base-100);
+        }
+
+        .profile-header:has(+ .profile-tabs-shell.single-timeline) {
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--color-base-300);
+        }
+
+        .profile-tabs-shell.single-timeline {
+            display: none;
         }
 
         .profile-card {

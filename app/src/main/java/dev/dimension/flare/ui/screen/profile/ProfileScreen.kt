@@ -680,6 +680,13 @@ internal fun ProfileScreen(
                                         onFollowListClick = onFollowListClick,
                                         onFansListClick = onFansListClick,
                                     )
+                                    if (!isBlockedProfile || showBlockedProfileContent) {
+                                        state.state.tabs.onSuccess { tabs ->
+                                            if (tabs.size == 1) {
+                                                HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
+                                            }
+                                        }
+                                    }
                                 }
                             },
                             content = {
