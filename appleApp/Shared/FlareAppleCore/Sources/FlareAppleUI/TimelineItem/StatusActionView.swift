@@ -101,11 +101,8 @@ public struct StatusActionsView: View {
     }
 
     private var resolvedData: [ActionMenu] {
-        applyPostActionLayout ? Self.applyLayout(postActionLayout, to: data) : data
-    }
-
-    static func applyLayout(_ layout: PostActionLayoutConfig, to actions: [ActionMenu]) -> [ActionMenu] {
-        castActionMenus(PostActionLayoutHelpers.shared.apply(actions: actions, config: layout))
+        guard applyPostActionLayout else { return data }
+        return castActionMenus(PostActionLayoutHelpers.shared.apply(actions: data, config: postActionLayout))
     }
 }
 

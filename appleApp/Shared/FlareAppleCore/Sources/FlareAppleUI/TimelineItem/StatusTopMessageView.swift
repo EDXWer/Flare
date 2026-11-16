@@ -38,6 +38,7 @@ public struct StatusTopMessageView: View {
 
     public var body: some View {
         let messageText = topMessage.type.localizedText
+        let usesBodyColor = topMessageOnly && !isGalleryFallback
         let captionSize = bodyFontSize - 2
         let capHeight = isAbovePost && messageText != nil ? postCapHeight * captionSize / bodyFontSize : postCapHeight
         HStack(alignment: isPostContent ? .firstTextBaseline : .center, spacing: 8) {
@@ -47,7 +48,7 @@ public struct StatusTopMessageView: View {
                     .scaledToFit()
                     .frame(width: postIconWidth, height: capHeight)
                     .alignmentGuide(.firstTextBaseline) { $0[.bottom] }
-                    .if(!isGalleryFallback) { $0.flareSecondaryText() }
+                    .if(usesBodyColor) { $0.flareSecondaryText() }
             } else {
                 topMessage.icon.image
             }
@@ -67,7 +68,7 @@ public struct StatusTopMessageView: View {
         }
         .if(isPostContent) { view in
             view.font(.body).lineSpacing(1)
-                .if(isGalleryFallback) { $0.flareSecondaryText() }
+                .if(!usesBodyColor) { $0.flareSecondaryText() }
         }
         .onTapGesture {
             topMessage.onClicked(ClickContext(launcher: AppleUriLauncher(openUrl: openURL)))

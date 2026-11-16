@@ -59,8 +59,11 @@ final class StatusTopMessageUIView: UIView, ManualLayoutMeasurable, TimelineHeig
         }
 
         iconView.image = UIImage(fontAwesome: message.icon.fontAwesomeIcon)
-        let textColor: UIColor = postTextContentSizeCategory != nil
-            ? .flarePostLabel : (topMessageOnly ? .flareLabel : .secondaryLabel)
+        let textColor: UIColor = if postTextContentSizeCategory != nil {
+            topMessageOnly ? .flarePostLabel : .flarePostSecondaryLabel
+        } else {
+            topMessageOnly ? .flareLabel : .secondaryLabel
+        }
 
         if let user = message.user {
             nameView.isHidden = false

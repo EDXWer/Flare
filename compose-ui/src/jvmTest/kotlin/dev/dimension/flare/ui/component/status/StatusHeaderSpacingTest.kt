@@ -43,6 +43,7 @@ import dev.dimension.flare.data.datasource.microblog.ActionMenu
 import dev.dimension.flare.data.model.IconType
 import dev.dimension.flare.data.model.PostActionStyle
 import dev.dimension.flare.data.model.TimelineDisplayMode
+import dev.dimension.flare.data.model.TimelineMediaLayout
 import dev.dimension.flare.data.model.VideoAutoplay
 import dev.dimension.flare.data.model.appearance.TimelineAppearance
 import dev.dimension.flare.model.MicroBlogKey
@@ -119,17 +120,17 @@ class StatusHeaderSpacingTest {
     }
 
     @Test
-    fun authorUsesTwoDpAndOtherTextBlocksKeepEightDpGaps() {
+    fun compactAuthorUsesTwoDpBeforeBodyAndFourBeforeReply() {
         assertBodyAndReplySpacing(isQuote = false)
     }
 
     @Test
-    fun quotedAuthorUsesTwoDpAndOtherTextBlocksKeepEightDpGaps() {
+    fun quotedAuthorUsesTwoDpBeforeBodyAndFourBeforeReply() {
         assertBodyAndReplySpacing(isQuote = true)
     }
 
     @Test
-    fun fullWidthAuthorUsesEightDpBeforeBodyAndReply() {
+    fun fullWidthAuthorUsesEightDpBeforeBodyAndFourBeforeReply() {
         assertBodyAndReplySpacing(isQuote = false, fullWidthPost = true)
     }
 
@@ -509,17 +510,22 @@ class StatusHeaderSpacingTest {
             assertEquals(avatarBounds.center.y, (textBounds("Mei Chen").top + textBounds("@mei").bottom) / 2, 1f)
             assertEquals(FontWeight.Bold, textStyle("Mei Chen").fontWeight)
             val postBodyColor = textStyle("A quiet afternoon at the coast.").color
+            val headerColor = textStyle("@alex").color
             val messageFontSize = textStyle("Sam Lee").fontSize
-            for (name in listOf("Sam Lee", "Jordan Kim", "Flare Team")) {
-                val style = textStyle(name)
-                assertEquals(messageFontSize, style.fontSize)
-                assertEquals(postBodyColor, style.color, name)
-                assertEquals(FontWeight.Bold, style.fontWeight)
-            }
-            for (message in listOf("reposted", "followed you", "pinned a post")) {
-                val style = textStyle(message)
-                assertEquals(postBodyColor, style.color, message)
-                assertEquals(messageFontSize.value - if (message == "reposted") 2 else 0, style.fontSize.value, message)
+            val messages =
+                listOf(
+                    Triple("Sam Lee", "reposted", headerColor),
+                    Triple("Jordan Kim", "followed you", headerColor),
+                    Triple("Flare Team", "pinned a post", postBodyColor),
+                )
+            for ((name, message, color) in messages) {
+                val nameStyle = textStyle(name)
+                val messageStyle = textStyle(message)
+                assertEquals(messageFontSize, nameStyle.fontSize)
+                assertEquals(FontWeight.Bold, nameStyle.fontWeight)
+                assertEquals(color, nameStyle.color, name)
+                assertEquals(color, messageStyle.color, message)
+                assertEquals(messageFontSize.value - if (message == "reposted") 2 else 0, messageStyle.fontSize.value, message)
             }
             System.getenv("FLARE_TIMELINE_PREVIEW_DIR")?.let { path ->
                 val pixels = timeline.captureToImage().toPixelMap()
@@ -795,7 +801,7 @@ class StatusHeaderSpacingTest {
                                 .onNodeWithText("@someone@example.org", substring = true, useUnmergedTree = true)
                                 .fetchSemanticsNode()
                                 .boundsInRoot
-                        assertEquals(8f, prompt.top - header.bottom, 0.1f)
+                        assertEquals(4f, prompt.top - header.bottom, 0.1f)
                         prompt
                     } else {
                         header
@@ -803,10 +809,10 @@ class StatusHeaderSpacingTest {
                 val body = compose.onNodeWithText("Body", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
                 if (warning) {
                     val warningBounds = compose.onNodeWithText("Warning", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-                    assertEquals(if (reply) 8f else headerGap, warningBounds.top - preceding.bottom, 0.1f)
+                    assertEquals(if (reply) 4f else headerGap, warningBounds.top - preceding.bottom, 0.1f)
                     assertEquals(8f, body.top - warningBounds.bottom, 0.1f)
                 } else {
-                    assertEquals(if (reply) 8f else headerGap, body.top - preceding.bottom, 0.1f)
+                    assertEquals(if (reply) 4f else headerGap, body.top - preceding.bottom, 0.1f)
                 }
             }
         }
@@ -825,7 +831,7 @@ class StatusHeaderSpacingTest {
                 .fetchSemanticsNode()
                 .boundsInRoot
         val body = compose.onNodeWithText("Body", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-        assertEquals(8f, body.top - prompt.bottom, 0.1f)
+        assertEquals(4f, body.top - prompt.bottom, 0.1f)
     }
 
     @Test
@@ -915,7 +921,7 @@ class StatusHeaderSpacingTest {
     }
 
     @Test
-    fun replyContextUsesTheActionGapWhenActionsComeNext() {
+    fun replyContextKeepsFourDpWhenActionsComeNext() {
         val sample = samplePost()
         val reply =
             sample.copy(
@@ -926,8 +932,67 @@ class StatusHeaderSpacingTest {
         showPost(isQuote = false) { reply }
         val prompt = compose.onNodeWithText("@context", substring = true, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
         val actions = compose.onNodeWithTag("post-actions").fetchSemanticsNode().boundsInRoot
-        assertEquals(2f, prompt.top - headerBounds().bottom, 0.1f)
-        assertEquals(2f, actions.top - prompt.bottom, 0.1f)
+        assertEquals(4f, prompt.top - headerBounds().bottom, 0.1f)
+        assertEquals(4f, actions.top - prompt.bottom, 0.1f)
+    }
+
+    @Test
+    fun replyCarouselClearsTheSideAvatar() {
+        val url = previewAvatar.toPath().toUri().toString()
+        val image = UiMedia.Image(url, url, "First carousel image", 48f, 48f, false)
+        val reply =
+            samplePost().copy(
+                content = UiTranslatableText("".toUiPlainText()),
+                replyToHandle = "@context",
+                images = persistentListOf(image, image.copy(description = "Second carousel image")),
+            )
+        compose.setContent {
+            FluentTheme {
+                CompositionLocalProvider(
+                    LocalTimelineAppearance provides
+                        TimelineAppearance(fullWidthPost = false, mediaLayout = TimelineMediaLayout.Carousel, showPlatformLogo = false),
+                    LocalDensity provides Density(1f, fontScale = 0.75f),
+                ) {
+                    Box(Modifier.width(360.dp)) {
+                        CommonStatusComponent(reply, isClickable = false, allowMediaCarousel = true)
+                    }
+                }
+            }
+        }
+        val avatarLabel = "Open profile for ${checkNotNull(reply.user).handle.display}"
+        val avatar = compose.onNodeWithContentDescription(avatarLabel, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val media = compose.onNodeWithContentDescription("First carousel image", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        assertTrue(media.top >= avatar.bottom, "Carousel starts at ${media.top}, above the avatar bottom at ${avatar.bottom}")
+    }
+
+    @Test
+    fun galleryUserListKeepsExistingReplySpacing() {
+        val reply = samplePost().copy(replyToHandle = "@context")
+        val userList =
+            UiTimelineV2.UserList(
+                message = null,
+                users = persistentListOf(checkNotNull(reply.user).copy(nameInternal = "Suggested user".toUiPlainText())),
+                createdAt = reply.createdAt,
+                statusKey = reply.statusKey,
+                post = reply,
+                accountType = reply.accountType,
+            )
+        compose.setContent {
+            FluentTheme {
+                CompositionLocalProvider(
+                    LocalTimelineAppearance provides TimelineAppearance.Default,
+                    LocalDensity provides Density(1f),
+                ) {
+                    Box(Modifier.width(360.dp)) {
+                        GalleryTimelineItem(userList)
+                    }
+                }
+            }
+        }
+        val prompt = compose.onNodeWithText("@context", substring = true, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val body = compose.onNodeWithText("Body", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        assertEquals(8f, prompt.top - headerBounds().bottom, 0.1f)
+        assertEquals(8f, body.top - prompt.bottom, 0.1f)
     }
 
     private fun assertMediaSpacing(
@@ -961,8 +1026,8 @@ class StatusHeaderSpacingTest {
         assertEquals(if (fullWidthPost) 8f else 10f, mediaBounds().top - headerBounds().bottom, 0.1f)
         compose.runOnIdle { post = post.copy(replyToHandle = "@context") }
         val prompt = compose.onNodeWithText("@context", substring = true, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-        assertEquals(10f, prompt.top - headerBounds().bottom, 0.1f)
-        assertEquals(10f, mediaBounds().top - prompt.bottom, 0.1f)
+        assertEquals(4f, prompt.top - headerBounds().bottom, 0.1f)
+        assertEquals(4f, mediaBounds().top - prompt.bottom, 0.1f)
     }
 
     private fun headerBounds(): Rect = rowBounds("Reader", "5m")

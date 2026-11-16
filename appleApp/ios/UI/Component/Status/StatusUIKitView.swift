@@ -643,14 +643,9 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
 
         updateExpandMoreButtonVisibility(contentWidth: contentWidth)
         var previousChild = currentHeaderView
-        for (index, child) in contentColumnChildren.enumerated() where !child.isHidden {
+        for child in contentColumnChildren where !child.isHidden {
             if let previousChild {
-                if child === replyToContainerStorage {
-                    let next = contentColumnChildren.dropFirst(index + 1).first { !$0.isHidden }
-                    innerY += next.map { contentSpacing(before: $0, after: child) } ?? 8
-                } else {
-                    innerY += contentSpacing(before: child, after: previousChild)
-                }
+                innerY += contentSpacing(before: child, after: previousChild)
             }
             let isCarousel = child === mediaViewStorage && mediaViewStorage?.isShowingCarousel == true
             if isCarousel, wantsAvatar {
@@ -669,6 +664,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
     }
 
     private func contentSpacing(before child: UIView, after previousChild: UIView) -> CGFloat {
+        if child === replyToContainerStorage || previousChild === replyToContainerStorage { return 0 }
         let followsHeader = previousChild === currentHeaderView
         let isText = child is RichTextUIView || child === translateViewStorage
         let isAttachment = child === mediaViewStorage || child === normalCardViewStorage ||
@@ -1402,6 +1398,7 @@ private final class ReplyToRowView: UIView, ManualLayoutMeasurable, TimelineHeig
     private let label = UILabel()
     private static let iconSize: CGFloat = 12
     private static let spacing: CGFloat = 4
+    private static let verticalPadding: CGFloat = 4
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -1428,12 +1425,13 @@ private final class ReplyToRowView: UIView, ManualLayoutMeasurable, TimelineHeig
         let s = Self.iconSize
         let labelX = s + Self.spacing
         let labelW = max(bounds.width - labelX, 0)
-        let labelH = label.textRect(
+        let labelHeight = ceil(label.textRect(
             forBounds: CGRect(x: 0, y: 0, width: labelW, height: .greatestFiniteMagnitude),
             limitedToNumberOfLines: 0
-        ).height
-        icon.frame = CGRect(x: 0, y: (ceil(labelH) - s) / 2, width: s, height: s)
-        label.frame = CGRect(x: labelX, y: 0, width: labelW, height: ceil(labelH))
+        ).height)
+        let contentCenterY = Self.verticalPadding + max(labelHeight, s) / 2
+        icon.frame = CGRect(x: 0, y: contentCenterY - s / 2, width: s, height: s)
+        label.frame = CGRect(x: labelX, y: contentCenterY - labelHeight / 2, width: labelW, height: labelHeight)
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {
@@ -1447,7 +1445,7 @@ private final class ReplyToRowView: UIView, ManualLayoutMeasurable, TimelineHeig
             forBounds: CGRect(x: 0, y: 0, width: labelW, height: .greatestFiniteMagnitude),
             limitedToNumberOfLines: 0
         ).height
-        return ceil(max(labelH, Self.iconSize))
+        return ceil(max(labelH, Self.iconSize)) + Self.verticalPadding * 2
     }
 
     override func systemLayoutSizeFitting(
