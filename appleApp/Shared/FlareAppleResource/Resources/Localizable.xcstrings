@@ -14127,173 +14127,173 @@
     }
   }
 },
-    "image_translation_use_shared_description" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Share the service URL, API key and model. The service and model must support image output. Turn off to configure image translation separately."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "共用服务地址、API 密钥和模型。服务与模型需要支持输出图片；关闭后可单独配置。"}},
+    "image_translation_use_shared_description" : {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Share the service URL, API key, model and custom headers. The service and model must support image output. Turn off to configure image translation separately."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "共用服务地址、API 密钥、模型和自定义请求头。服务与模型需要支持输出图片；关闭后可单独配置。"}},
   "af": {
     "stringUnit": {
       "state": "translated",
-      "value": "Deel die diens-URL, API-sleutel en model. Die diens en model moet beelduitvoer ondersteun. Skakel af om beeldvertaling afsonderlik te konfigureer."
+      "value": "Deel die diens-URL, API-sleutel, model en pasgemaakte opskrifte. Die diens en model moet beelduitvoer ondersteun. Skakel af om beeldvertaling afsonderlik te konfigureer."
     }
   },
   "ar": {
     "stringUnit": {
       "state": "translated",
-      "value": "شارك عنوان URL للخدمة ومفتاح API والنموذج. يجب أن تدعم الخدمة والنموذج إخراج الصور. قم بإيقاف التشغيل لتكوين ترجمة الصور بشكل منفصل."
+      "value": "شارك عنوان URL للخدمة ومفتاح API والنموذج وترويسات الطلب المخصصة. يجب أن تدعم الخدمة والنموذج إخراج الصور. قم بإيقاف التشغيل لتكوين ترجمة الصور بشكل منفصل."
     }
   },
   "bg": {
     "stringUnit": {
       "state": "translated",
-      "value": "Споделете URL на услугата, API ключ и модела. Услугата и моделът трябва да поддържат изход на изображения. Изключете за отделна конфигурация на превода на изображения."
+      "value": "Споделете URL на услугата, API ключа, модела и персонализираните заглавки. Услугата и моделът трябва да поддържат изход на изображения. Изключете за отделна конфигурация на превода на изображения."
     }
   },
   "ca": {
     "stringUnit": {
       "state": "translated",
-      "value": "Compartir l'URL del servei, la clau API i el model. El servei i el model han de suportar la sortida d'imatges. Desactivar per configurar la traducció d'imatges separatament."
+      "value": "Compartir l'URL del servei, la clau API, el model i les capçaleres personalitzades. El servei i el model han de suportar la sortida d'imatges. Desactivar per configurar la traducció d'imatges separatament."
     }
   },
   "cs": {
     "stringUnit": {
       "state": "translated",
-      "value": "Sdílejte URL služby, API klíč a model. Služba a model musí podporovat výstup obrázků. Vypněte pro samostatnou konfiguraci překladu obrázků."
+      "value": "Sdílejte URL služby, API klíč, model a vlastní hlavičky. Služba a model musí podporovat výstup obrázků. Vypněte pro samostatnou konfiguraci překladu obrázků."
     }
   },
   "da": {
     "stringUnit": {
       "state": "translated",
-      "value": "Del tjeneste-URL, API-nøgle og model. Tjenesten og modellen skal understøtte billedoutput. Slå fra for at konfigurere billedoversættelse separat."
+      "value": "Del tjeneste-URL, API-nøgle, model og brugerdefinerede headere. Tjenesten og modellen skal understøtte billedoutput. Slå fra for at konfigurere billedoversættelse separat."
     }
   },
   "de": {
     "stringUnit": {
       "state": "translated",
-      "value": "Teile die Dienst-URL, den API-Schlüssel und das Modell. Der Dienst und das Modell müssen Bildausgabe unterstützen. Deaktivieren, um die Bildübersetzung separat zu konfigurieren."
+      "value": "Teile die Dienst-URL, den API-Schlüssel, das Modell und die benutzerdefinierten Header. Der Dienst und das Modell müssen Bildausgabe unterstützen. Deaktivieren, um die Bildübersetzung separat zu konfigurieren."
     }
   },
   "el": {
     "stringUnit": {
       "state": "translated",
-      "value": "Κοινοποίηση της URL της υπηρεσίας, του κλειδιού API και του μοντέλου. Η υπηρεσία και το μοντέλο πρέπει να υποστηρίζουν έξοδο εικόνων. Απενεργοποίηση για ξεχωριστή ρύθμιση μετάφρασης εικόνων."
+      "value": "Κοινοποίηση της URL της υπηρεσίας, του κλειδιού API, του μοντέλου και των προσαρμοσμένων κεφαλίδων. Η υπηρεσία και το μοντέλο πρέπει να υποστηρίζουν έξοδο εικόνων. Απενεργοποίηση για ξεχωριστή ρύθμιση μετάφρασης εικόνων."
     }
   },
   "fi": {
     "stringUnit": {
       "state": "translated",
-      "value": "Jaa palvelun URL-osoite, API-avain ja malli. Palvelun ja mallin on tuettava kuvatulostusta. Sammuta konfiguroidaksesi kuvakäännöksen erikseen."
+      "value": "Jaa palvelun URL-osoite, API-avain, malli ja mukautetut otsakkeet. Palvelun ja mallin on tuettava kuvatulostusta. Sammuta konfiguroidaksesi kuvakäännöksen erikseen."
     }
   },
   "fr": {
     "stringUnit": {
       "state": "translated",
-      "value": "Partager l'URL du service, la clé API et le modèle. Le service et le modèle doivent prendre en charge la sortie d'images. Désactiver pour configurer la traduction d'images séparément."
+      "value": "Partager l'URL du service, la clé API, le modèle et les en-têtes personnalisés. Le service et le modèle doivent prendre en charge la sortie d'images. Désactiver pour configurer la traduction d'images séparément."
     }
   },
   "he": {
     "stringUnit": {
       "state": "translated",
-      "value": "שתף את כתובת השירות, מפתח ה-API והמודל. השירות והמודל חייבים לתמוך בפלט תמונות. כבה כדי להגדיר תרגום תמונות בנפרד."
+      "value": "שתף את כתובת השירות, מפתח ה-API, המודל וכותרות הבקשה המותאמות אישית. השירות והמודל חייבים לתמוך בפלט תמונות. כבה כדי להגדיר תרגום תמונות בנפרד."
     }
   },
   "hu": {
     "stringUnit": {
       "state": "translated",
-      "value": "Megosztja a szolgáltatás URL-jét, API kulcsát és modelljét. A szolgáltatásnak és a modellnek képkimenetet kell támogatnia. Kikapcsolja a képfordítás külön konfigurálására."
+      "value": "Megosztja a szolgáltatás URL-jét, API-kulcsát, modelljét és egyéni fejléceit. A szolgáltatásnak és a modellnek képkimenetet kell támogatnia. Kikapcsolja a képfordítás külön konfigurálására."
     }
   },
   "it": {
     "stringUnit": {
       "state": "translated",
-      "value": "Condividi l'URL del servizio, la chiave API e il modello. Il servizio e il modello devono supportare l'output di immagini. Disattiva per configurare la traduzione delle immagini separatamente."
+      "value": "Condividi l'URL del servizio, la chiave API, il modello e le intestazioni personalizzate. Il servizio e il modello devono supportare l'output di immagini. Disattiva per configurare la traduzione delle immagini separatamente."
     }
   },
   "ja": {
     "stringUnit": {
       "state": "translated",
-      "value": "サービスURL、APIキー、モデルを共有します。サービスとモデルは画像出力をサポートする必要があります。オフにすると、画像翻訳を個別に設定できます。"
+      "value": "サービスURL、APIキー、モデル、カスタムヘッダーを共有します。サービスとモデルは画像出力をサポートする必要があります。オフにすると、画像翻訳を個別に設定できます。"
     }
   },
   "ko": {
     "stringUnit": {
       "state": "translated",
-      "value": "서비스 URL, API 키 및 모델을 공유합니다. 서비스와 모델은 이미지 출력을 지원해야 합니다. 이미지 번역을 별도로 구성하려면 끄십시오."
+      "value": "서비스 URL, API 키, 모델 및 사용자 지정 헤더를 공유합니다. 서비스와 모델은 이미지 출력을 지원해야 합니다. 이미지 번역을 별도로 구성하려면 끄십시오."
     }
   },
   "nb": {
     "stringUnit": {
       "state": "translated",
-      "value": "Del tjeneste-URL, API-nøkkel og modell. Tjenesten og modellen må støtte bildeutdata. Slå av for å konfigurere bildeoversettelse separat."
+      "value": "Del tjeneste-URL, API-nøkkel, modell og egendefinerte headere. Tjenesten og modellen må støtte bildeutdata. Slå av for å konfigurere bildeoversettelse separat."
     }
   },
   "nl": {
     "stringUnit": {
       "state": "translated",
-      "value": "De service-URL, API-sleutel en het model delen. De service en het model moeten beeldoutput ondersteunen. Schakel uit om beeldvertaling afzonderlijk in te stellen."
+      "value": "De service-URL, de API-sleutel, het model en de aangepaste headers delen. De service en het model moeten beeldoutput ondersteunen. Schakel uit om beeldvertaling afzonderlijk in te stellen."
     }
   },
   "pl": {
     "stringUnit": {
       "state": "translated",
-      "value": "Udostępnij adres URL usługi, klucz API i model. Usługa i model muszą obsługiwać wyjście obrazów. Wyłącz, aby skonfigurować tłumaczenie obrazów osobno."
+      "value": "Udostępnij adres URL usługi, klucz API, model i niestandardowe nagłówki. Usługa i model muszą obsługiwać wyjście obrazów. Wyłącz, aby skonfigurować tłumaczenie obrazów osobno."
     }
   },
   "pt": {
     "stringUnit": {
       "state": "translated",
-      "value": "Partilhar a URL do serviço, a chave de API e o modelo. O serviço e o modelo devem suportar saída de imagem. Desativar para configurar a tradução de imagem separadamente."
+      "value": "Partilhar a URL do serviço, a chave de API, o modelo e os cabeçalhos personalizados. O serviço e o modelo devem suportar saída de imagem. Desativar para configurar a tradução de imagem separadamente."
     }
   },
   "pt-BR": {
     "stringUnit": {
       "state": "translated",
-      "value": "Compartilhe a URL do serviço, a chave de API e o modelo. O serviço e o modelo devem suportar saída de imagem. Desligue para configurar a tradução de imagem separadamente."
+      "value": "Compartilhe a URL do serviço, a chave de API, o modelo e os cabeçalhos personalizados. O serviço e o modelo devem suportar saída de imagem. Desligue para configurar a tradução de imagem separadamente."
     }
   },
   "ro": {
     "stringUnit": {
       "state": "translated",
-      "value": "Distribuie URL-ul serviciului, cheia API și modelul. Serviciul și modelul trebuie să suporte ieșirea de imagini. Dezactivează pentru a configura traducerea imaginilor separat."
+      "value": "Distribuie URL-ul serviciului, cheia API, modelul și anteturile personalizate. Serviciul și modelul trebuie să suporte ieșirea de imagini. Dezactivează pentru a configura traducerea imaginilor separat."
     }
   },
   "ru": {
     "stringUnit": {
       "state": "translated",
-      "value": "Поделиться URL-адресом сервиса, ключом API и моделью. Сервис и модель должны поддерживать вывод изображений. Отключите, чтобы настроить перевод изображений отдельно."
+      "value": "Поделиться URL-адресом сервиса, ключом API, моделью и пользовательскими заголовками. Сервис и модель должны поддерживать вывод изображений. Отключите, чтобы настроить перевод изображений отдельно."
     }
   },
   "sr": {
     "stringUnit": {
       "state": "translated",
-      "value": "Поделити URL сервиса, API кључ и модел. Сервис и модел морају да подржавају излаз слика. Искључити да би се превод слика конфигурисао одвојено."
+      "value": "Поделити URL сервиса, API кључ, модел и прилагођена заглавља. Сервис и модел морају да подржавају излаз слика. Искључити да би се превод слика конфигурисао одвојено."
     }
   },
   "sv": {
     "stringUnit": {
       "state": "translated",
-      "value": "Dela tjänstens URL, API-nyckel och modell. Tjänsten och modellen måste stödja bildutdata. Stäng av för att konfigurera bildöversättning separat."
+      "value": "Dela tjänstens URL, API-nyckel, modell och anpassade rubriker. Tjänsten och modellen måste stödja bildutdata. Stäng av för att konfigurera bildöversättning separat."
     }
   },
   "tr": {
     "stringUnit": {
       "state": "translated",
-      "value": "Hizmet URL'sini, API anahtarını ve modeli paylaşın. Hizmet ve modelin görsel çıktı desteklemesi gerekir. Görsel çeviriyi ayrı yapılandırmak için kapatın."
+      "value": "Hizmet URL'sini, API anahtarını, modeli ve özel başlıkları paylaşın. Hizmet ve modelin görsel çıktı desteklemesi gerekir. Görsel çeviriyi ayrı yapılandırmak için kapatın."
     }
   },
   "uk": {
     "stringUnit": {
       "state": "translated",
-      "value": "Поділіться URL-адресою сервісу, ключем API та моделлю. Сервіс та модель повинні підтримувати виведення зображень. Вимкніть, щоб налаштувати переклад зображень окремо."
+      "value": "Поділіться URL-адресою сервісу, ключем API, моделлю та спеціальними заголовками. Сервіс та модель повинні підтримувати виведення зображень. Вимкніть, щоб налаштувати переклад зображень окремо."
     }
   },
   "vi": {
     "stringUnit": {
       "state": "translated",
-      "value": "Chia sẻ URL dịch vụ, khóa API và mô hình. Dịch vụ và mô hình phải hỗ trợ xuất hình ảnh. Tắt để cấu hình dịch thuật hình ảnh riêng."
+      "value": "Chia sẻ URL dịch vụ, khóa API, mô hình và tiêu đề tùy chỉnh. Dịch vụ và mô hình phải hỗ trợ xuất hình ảnh. Tắt để cấu hình dịch thuật hình ảnh riêng."
     }
   },
   "zh-Hant": {
     "stringUnit": {
       "state": "translated",
-      "value": "共用服務網址、API 金鑰與模型。服務與模型都必須支援輸出圖片。關閉後可個別設定圖片翻譯。"
+      "value": "共用服務網址、API 金鑰、模型與自訂請求標頭。服務與模型都必須支援輸出圖片。關閉後可個別設定圖片翻譯。"
     }
   }
 }},
@@ -227452,6 +227452,11 @@
       }
     }
   },
+  "settings_ai_config_custom_headers": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Custom headers"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "自定义请求头"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "自訂請求標頭"}}}},
+  "settings_ai_config_header_add": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Add header"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "添加请求头"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "新增請求標頭"}}}},
+  "settings_ai_config_header_name": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Header name"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "请求头名称"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "請求標頭名稱"}}}},
+  "settings_ai_config_header_value": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Header value"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "请求头值"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "請求標頭值"}}}},
+  "settings_ai_config_headers_invalid": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Use valid, unique header names and single-line ASCII values."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "请使用有效且不重复的请求头名称，值须为单行 ASCII 文本。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "請使用有效且不重複的請求標頭名稱，值須為單行 ASCII 文字。"}}}},
   "settings_ai_config_use_shared": {
     "localizations": {
       "en": {

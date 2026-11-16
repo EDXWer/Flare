@@ -32,6 +32,7 @@ internal class ProxyRoutingEngine(
     private val proxy: ProxyRef,
     private val plugin: Boolean = false,
     private val media: Boolean = false,
+    private val protectRequestHeaders: Boolean = false,
 ) : HttpClientEngineBase("flare-proxy") {
     override val config = HttpClientEngineConfig()
     override val supportedCapabilities get() = platformEngineCapabilities
@@ -42,7 +43,7 @@ internal class ProxyRoutingEngine(
             if (!context.attributes.contains(requestOrigin)) context.attributes.put(requestOrigin, context.url.build())
             val origin = context.attributes[requestOrigin]
             val target = context.url.build()
-            if ((media || context.attributes.contains(requestMediaHeaders)) &&
+            if ((media || protectRequestHeaders || context.attributes.contains(requestMediaHeaders)) &&
                 (origin.protocol != target.protocol || origin.host != target.host || origin.port != target.port)
             ) {
                 context.attributes.put(requestCrossedOrigin, true)
@@ -82,6 +83,8 @@ internal class ProxyRoutingEngine(
                         accountHeaders.forEach { (name, value) -> set(name, value) }
                     }
                 }
+            } else if (protectRequestHeaders) {
+                Headers.Empty
             } else {
                 Headers.build {
                     data.headers.forEach { key, values ->

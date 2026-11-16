@@ -2,6 +2,7 @@ package dev.dimension.flare.ui.presenter
 
 import androidx.compose.runtime.Composable
 import dev.dimension.flare.common.encodeJson
+import dev.dimension.flare.data.datastore.model.AppSettings
 import dev.dimension.flare.data.model.SettingsExport
 import dev.dimension.flare.data.repository.SettingsRepository
 import dev.dimension.flare.di.koinInject
@@ -20,9 +21,19 @@ public class ExportSettingsPresenter : PresenterBase<ExportState>() {
         val export =
             SettingsExport(
                 appearanceBag = settingsRepository.appearanceBag.first(),
-                appSettings = settingsRepository.appSettings.first(),
+                appSettings = settingsRepository.appSettings.first().withoutCustomAIHeaders(),
                 tabSettingsV2 = settingsRepository.tabSettingsV2.first(),
             )
         return export.encodeJson(SettingsExport.serializer())
     }
 }
+
+private fun AppSettings.withoutCustomAIHeaders(): AppSettings =
+    copy(
+        aiConfig =
+            aiConfig.copy(
+                type = (aiConfig.type as? AppSettings.AiConfig.Type.OpenAI)?.copy(customHeaders = emptyList()) ?: aiConfig.type,
+                agentType = aiConfig.agentType?.copy(customHeaders = emptyList()),
+            ),
+        imageTranslationConfig = imageTranslationConfig.copy(openAIHeaders = emptyList()),
+    )

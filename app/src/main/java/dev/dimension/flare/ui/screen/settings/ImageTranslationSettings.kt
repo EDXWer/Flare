@@ -41,7 +41,13 @@ internal fun ColumnScope.ImageTranslationSettingsSection(state: ImageTranslation
     var showProviders by remember { mutableStateOf(false) }
     var expandedChoice by remember(state.config.provider) { mutableStateOf<String?>(null) }
     val fieldOffset = if (state.config.provider == ImageTranslationProvider.OpenAIImages) 2 else 1
-    val rowCount = state.fields.size + fieldOffset
+    val headersAfter =
+        if (state.config.provider == ImageTranslationProvider.OpenAIImages && !state.useSharedConfig) {
+            state.fields.indexOfFirst { it.id == "apiKey" }
+        } else {
+            -1
+        }
+    val rowCount = state.fields.size + fieldOffset + if (headersAfter >= 0) 1 else 0
     Text(
         imageTranslationText("Image translation"),
         style = MaterialTheme.typography.titleMedium,
@@ -84,6 +90,7 @@ internal fun ColumnScope.ImageTranslationSettingsSection(state: ImageTranslation
         )
     }
     state.fields.forEachIndexed { index, field ->
+        val rowIndex = index + fieldOffset + if (headersAfter in 0 until index) 1 else 0
         val value = state.config.value(field.id)
         val options = field.choices.ifEmpty { field.suggestions }
         AnimatedVisibility(visible = !state.useSharedConfig || !field.isSharedAIField) {
@@ -91,7 +98,7 @@ internal fun ColumnScope.ImageTranslationSettingsSection(state: ImageTranslation
                 SegmentedListItem(
                     checked = expandedChoice == field.id,
                     onCheckedChange = { expanded -> expandedChoice = if (expanded) field.id else null },
-                    shapes = ListItemDefaults.segmentedShapes2(index + fieldOffset, rowCount),
+                    shapes = ListItemDefaults.segmentedShapes2(rowIndex, rowCount),
                     content = { Text(imageTranslationText(field.title)) },
                     trailingContent = {
                         Box {
@@ -146,7 +153,7 @@ internal fun ColumnScope.ImageTranslationSettingsSection(state: ImageTranslation
                     AiConfigTextSetting(
                         title = imageTranslationText(field.title),
                         value = value,
-                        shapes = ListItemDefaults.segmentedShapes2(index + fieldOffset, rowCount),
+                        shapes = ListItemDefaults.segmentedShapes2(rowIndex, rowCount),
                         placeholder = field.placeholder,
                         suggestions = field.editSuggestions,
                         secret = field.secret,
@@ -155,6 +162,13 @@ internal fun ColumnScope.ImageTranslationSettingsSection(state: ImageTranslation
                     )
                 }
             }
+        }
+        if (index == headersAfter) {
+            AiConfigHeadersSetting(
+                state.config.openAIHeaders,
+                ListItemDefaults.segmentedShapes2(rowIndex + 1, rowCount),
+                state::setIndependentOpenAIHeaders,
+            )
         }
     }
     Text(

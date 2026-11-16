@@ -7,7 +7,9 @@ import dev.dimension.flare.createTestRootPath
 import dev.dimension.flare.data.database.cache.CacheDatabase
 import dev.dimension.flare.data.database.createDatabaseDriver
 import dev.dimension.flare.data.datastore.AppDataStore
+import dev.dimension.flare.data.datastore.model.AiRequestHeader
 import dev.dimension.flare.data.datastore.model.AppSettings
+import dev.dimension.flare.data.datastore.model.ImageTranslationConfig
 import dev.dimension.flare.data.io.OkioFileStorage
 import dev.dimension.flare.data.model.AppearanceSettings
 import dev.dimension.flare.data.model.HomeTimelineTabItem
@@ -142,6 +144,26 @@ class SettingsImportExportPresenterTest : RobolectricTest() {
             ImportSettingsPresenter(exported).import()
 
             assertEquals(config, settingsRepository.appSettings.first().aiConfig)
+        }
+
+    @Test
+    fun settingsExportOmitsCustomHeadersFromEveryAIConnection() =
+        runTest {
+            val base = AppSettings.AiConfig.Type.OpenAI("https://basic.example/v1/", "existing-key", "model")
+            val settings =
+                AppSettings.AiConfig(
+                    type = base.copy(customHeaders = listOf(AiRequestHeader("X-Base-Secret", "base-header-value"))),
+                    agentType = base.copy(customHeaders = listOf(AiRequestHeader("X-Agent-Secret", "agent-header-value"))),
+                )
+            val image = ImageTranslationConfig(openAIHeaders = listOf(AiRequestHeader("X-Image-Secret", "image-header-value")))
+            settingsRepository.updateAppSettings { copy(aiConfig = settings, imageTranslationConfig = image) }
+
+            val exported = ExportSettingsPresenter().export()
+
+            assertFalse(exported.contains("-header-value"))
+            assertFalse(exported.contains("-Secret"))
+            assertEquals(settings, settingsRepository.appSettings.first().aiConfig)
+            assertEquals(image, settingsRepository.appSettings.first().imageTranslationConfig)
         }
 
     @Test

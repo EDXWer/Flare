@@ -8,8 +8,11 @@ import ai.koog.prompt.Prompt
 import ai.koog.prompt.message.Message
 import ai.koog.serialization.typeToken
 import dev.dimension.flare.data.datastore.model.AgentOpenAIApi
+import dev.dimension.flare.data.datastore.model.AiRequestHeader
 import dev.dimension.flare.data.datastore.model.AppSettings
 import dev.dimension.flare.feature.agent.common.AgentConfigurationException
+import dev.dimension.flare.feature.agent.common.AgentFailure
+import dev.dimension.flare.feature.agent.common.AgentFailureKind
 import dev.dimension.flare.feature.agent.common.AgentToolSet
 import dev.dimension.flare.feature.agent.common.FlareAgentRequest
 import dev.dimension.flare.feature.agent.common.createAgent
@@ -29,6 +32,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
+import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
@@ -249,7 +253,6 @@ class AgentAiConfigurationTest {
         val missing =
             listOf(
                 independent.copy(serverUrl = "") to AgentAvailability.Reason.MissingOpenAIEndpoint,
-                independent.copy(apiKey = "") to AgentAvailability.Reason.MissingOpenAIApiKey,
                 independent.copy(model = "") to AgentAvailability.Reason.MissingOpenAIModel,
             )
         HttpClient(MockEngine { error("No request expected") }).use { client ->
@@ -277,6 +280,8 @@ class AgentAiConfigurationTest {
             val engine =
                 MockEngine { request ->
                     requests += request.url.encodedPath
+                    assertEquals(listOf("Basic gateway"), request.headers.getAll(HttpHeaders.Authorization))
+                    assertEquals("test-tenant", request.headers["X-Tenant"])
                     if (request.url.encodedPath == "/v1/responses") {
                         respond("""{"detail":"Not Found"}""", HttpStatusCode.NotFound)
                     } else {
@@ -289,7 +294,17 @@ class AgentAiConfigurationTest {
                     }
                 }
             HttpClient(engine).use { client ->
-                val config = independent.copy(serverUrl = "https://api.openai.com/v1/", model = "future-model")
+                val config =
+                    independent.copy(
+                        serverUrl = "https://api.openai.com/v1/",
+                        apiKey = "",
+                        model = "future-model",
+                        customHeaders =
+                            listOf(
+                                AiRequestHeader("authorization", "Basic gateway"),
+                                AiRequestHeader("X-Tenant", "test-tenant"),
+                            ),
+                    )
                 for (connection in listOf(config, config, config.copy(apiKey = "another-key"))) {
                     val runtime =
                         assertNotNull(
@@ -316,6 +331,56 @@ class AgentAiConfigurationTest {
                 ),
                 requests,
             )
+        }
+
+    @Test
+    fun gatewayErrorsKeepProtocolFallbackAndRedactEchoedHeaders() =
+        runTest {
+            val token = "workspace-secret-123"
+            val paths = mutableListOf<String>()
+            val engine =
+                MockEngine { request ->
+                    paths += request.url.encodedPath
+                    if (request.url.encodedPath == "/v1/responses") {
+                        respond(
+                            """{"error":{"code":"unsupported_endpoint","message":"Not supported for $token"}}""",
+                            HttpStatusCode.NotFound,
+                        )
+                    } else {
+                        respond(
+                            """{"error":{"code":"insufficient_quota","message":"Quota exhausted for $token"}}""",
+                            HttpStatusCode.TooManyRequests,
+                        )
+                    }
+                }
+            HttpClient(engine).use { client ->
+                val connection =
+                    basic.copy(
+                        serverUrl = "https://api.openai.com/v1/",
+                        customHeaders = listOf(AiRequestHeader("X-Workspace-Token", token)),
+                    )
+                val runtime =
+                    assertNotNull(
+                        AiConfigKoogBridge().createRuntime(
+                            AppSettings.AiConfig(type = connection),
+                            KtorKoogHttpClient.Factory(baseClient = client),
+                        ),
+                    )
+                try {
+                    val error =
+                        assertFailsWith<Exception> {
+                            runtime.promptExecutor.execute(Prompt.build("test", params = runtime.params) { user("hello") }, runtime.model)
+                        }
+                    val failure = AgentFailure.fromThrowable(error)
+                    assertEquals(listOf("/v1/responses", "/v1/chat/completions"), paths)
+                    assertEquals(AgentFailureKind.Quota, failure.kind)
+                    assertContains(failure.message, "Quota exhausted")
+                    assertFalse(error.stackTraceToString().contains(token))
+                    assertFalse(failure.message.contains(token))
+                } finally {
+                    runtime.promptExecutor.close()
+                }
+            }
         }
 
     @Test

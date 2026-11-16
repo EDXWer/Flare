@@ -813,7 +813,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">Automático</string>
     <string name="image_translation_original_file">Ficheiro original</string>
-    <string name="image_translation_use_shared_description">Partilhar a URL do serviço, a chave de API e o modelo. O serviço e o modelo devem suportar saída de imagem. Desativar para configurar a tradução de imagem separadamente.</string>
+    <string name="image_translation_use_shared_description">Partilhar a URL do serviço, a chave de API, o modelo e os cabeçalhos personalizados. O serviço e o modelo devem suportar saída de imagem. Desativar para configurar a tradução de imagem separadamente.</string>
     <string name="plugin_permission_cookie">Ler cookie %2$s de %1$s</string>
     <string name="plugin_ai_create">Criar com IA Flare</string>
     <string name="plugin_ai_untitled">Novo plugin</string>

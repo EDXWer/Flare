@@ -1,24 +1,27 @@
 package dev.dimension.flare.data.network.ai
 
 import dev.dimension.flare.common.JSON
+import dev.dimension.flare.data.datastore.model.AiRequestHeader
 import dev.dimension.flare.data.datastore.model.AppSettings
 import dev.dimension.flare.data.network.ktorClient
 import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.HttpTimeout
-import io.ktor.client.plugins.logging.Logging
-import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.appendPathSegments
 import io.ktor.http.content.TextContent
+import io.ktor.http.isSuccess
+import io.ktor.util.PlatformUtils
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
@@ -28,21 +31,21 @@ import kotlin.time.Duration.Companion.minutes
 
 @Single
 internal class OpenAIService(
-    private val httpClientFactory: (HttpClientConfig<*>.() -> Unit) -> HttpClient = { ktorClient(config = it) },
+    private val httpClientFactory: (HttpClientConfig<*>.() -> Unit) -> HttpClient = {
+        ktorClient(protectRequestHeaders = true, config = it)
+    },
 ) {
     suspend fun models(
         serverUrl: String,
         apiKey: String,
+        customHeaders: List<AiRequestHeader> = emptyList(),
     ): List<String> =
-        createClient(retryModels = true).use { client ->
-            val response =
-                client
-                    .get(serverUrl) {
-                        url.appendPathSegments("models")
-                        bearerAuth(apiKey)
-                    }.bodyAsText()
-            JSON
-                .decodeFromString(ModelsResponse.serializer(), response)
+        createClient(retryModels = true, hasCustomHeaders = customHeaders.isNotEmpty()).use { client ->
+            client
+                .get(serverUrl) {
+                    url.appendPathSegments("models")
+                    openAIRequestHeaders(apiKey, customHeaders).forEach { (name, value) -> header(name, value) }
+                }.openAIBody<ModelsResponse>(customHeaders)
                 .data
                 .map { it.id }
                 .sorted()
@@ -54,16 +57,13 @@ internal class OpenAIService(
     ): String {
         val body = buildChatCompletionBody(config = config, prompt = prompt)
         val url = "${config.serverUrl.trimEnd('/')}/chat/completions"
-        return createClient()
+        return createClient(hasCustomHeaders = config.customHeaders.isNotEmpty())
             .use { client ->
-                val response =
-                    client
-                        .post(url) {
-                            bearerAuth(config.apiKey)
-                            setBody(TextContent(body.toString(), ContentType.Application.Json))
-                        }.bodyAsText()
-                JSON
-                    .decodeFromString(ChatCompletionResponse.serializer(), response)
+                client
+                    .post(url) {
+                        openAIRequestHeaders(config.apiKey, config.customHeaders).forEach { (name, value) -> header(name, value) }
+                        setBody(TextContent(body.toString(), ContentType.Application.Json))
+                    }.openAIBody<ChatCompletionResponse>(config.customHeaders)
                     .choices
             }.firstOrNull()
             ?.message
@@ -101,7 +101,7 @@ internal class OpenAIService(
         config: AppSettings.AiConfig.Type.OpenAI,
         prompt: String,
     ): String? =
-        if (config.serverUrl.isBlank() || config.apiKey.isBlank() || config.model.isBlank()) {
+        if (config.serverUrl.isBlank() || config.model.isBlank()) {
             null
         } else {
             chatCompletion(
@@ -110,12 +110,27 @@ internal class OpenAIService(
             )
         }
 
-    private fun createClient(retryModels: Boolean = false): HttpClient =
+    private suspend inline fun <reified T> HttpResponse.openAIBody(customHeaders: List<AiRequestHeader>): T {
+        val response = bodyAsText()
+        check(status.isSuccess()) { "OpenAI request failed with HTTP ${status.value}: ${response.redactAiHeaderValues(customHeaders)}" }
+        try {
+            return JSON.decodeFromString(response)
+        } catch (error: SerializationException) {
+            val message = error.message?.redactAiHeaderValues(customHeaders)
+            if (message == error.message) throw error
+            throw SerializationException(message)
+        }
+    }
+
+    private fun createClient(
+        retryModels: Boolean = false,
+        hasCustomHeaders: Boolean,
+    ): HttpClient =
         httpClientFactory {
-            expectSuccess = true
-            install(Logging) {
-                sanitizeHeader { it == HttpHeaders.Authorization }
-            }
+            // The default response validator includes the raw gateway body in its exceptions.
+            expectSuccess = !hasCustomHeaders
+            // Fetch can follow redirects before proxy routing has a chance to strip credentials.
+            if (hasCustomHeaders && PlatformUtils.IS_BROWSER) followRedirects = false
             if (retryModels) {
                 install(HttpRequestRetry) {
                     retryIf(maxRetries = 3) { _, response -> response.status == HttpStatusCode.TooManyRequests }

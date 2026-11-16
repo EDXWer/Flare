@@ -229,6 +229,11 @@
     <string name="settings_ai_config_type_openai">AI 兼容 API</string>
     <string name="settings_ai_config_api_key">API 密钥</string>
     <string name="settings_ai_config_api_key_hint">输入 API 密钥</string>
+    <string name="settings_ai_config_custom_headers">自定义请求头</string>
+    <string name="settings_ai_config_header_add">添加请求头</string>
+    <string name="settings_ai_config_header_name">请求头名称</string>
+    <string name="settings_ai_config_header_value">请求头值</string>
+    <string name="settings_ai_config_headers_invalid">请使用有效且不重复的请求头名称，值须为单行 ASCII 文本。</string>
     <string name="settings_ai_config_model">模型</string>
     <string name="settings_ai_config_model_description">从此端点选择一个模型</string>
     <string name="settings_ai_config_model_select">选择模型</string>
@@ -783,7 +788,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">自动</string>
     <string name="image_translation_original_file">原文件上传</string>
-    <string name="image_translation_use_shared_description">共用服务地址、API 密钥和模型。服务与模型需要支持输出图片；关闭后可单独配置。</string>
+    <string name="image_translation_use_shared_description">共用服务地址、API 密钥、模型和自定义请求头。服务与模型需要支持输出图片；关闭后可单独配置。</string>
     <string name="settings_plugins_title">插件（Beta）</string>
     <string name="plugin_beta_description">插件仍处于 Beta 阶段，功能尚不完善。遇到问题可前往 %1$s 提交反馈。</string>
     <string name="plugin_report_issue">GitHub Issues</string>

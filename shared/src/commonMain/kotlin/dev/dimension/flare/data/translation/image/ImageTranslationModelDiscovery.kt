@@ -28,7 +28,7 @@ internal class ImageTranslationModelDiscovery(
             val baseUrl = checkedImageServiceUrl(config.value("baseUrl"))
             when (config.provider) {
                 ImageTranslationProvider.OpenAIImages -> {
-                    openAIService.models(baseUrl, config.value("apiKey"))
+                    openAIService.models(baseUrl, config.value("apiKey"), config.openAIHeaders)
                 }
 
                 ImageTranslationProvider.Gemini -> {

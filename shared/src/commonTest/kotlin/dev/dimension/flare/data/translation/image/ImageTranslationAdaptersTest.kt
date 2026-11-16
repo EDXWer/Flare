@@ -1,5 +1,6 @@
 package dev.dimension.flare.data.translation.image
 
+import dev.dimension.flare.data.datastore.model.AiRequestHeader
 import dev.dimension.flare.data.datastore.model.ImageTranslationConfig
 import dev.dimension.flare.data.datastore.model.ImageTranslationProvider
 import io.ktor.client.HttpClient
@@ -596,6 +597,8 @@ class ImageTranslationAdaptersTest {
                 HttpClient(
                     MockEngine { request ->
                         calls++
+                        assertEquals(listOf("Basic gateway"), request.headers.getAll(HttpHeaders.Authorization))
+                        assertEquals("tenant", request.headers["X-Tenant"])
                         if (calls == 1) {
                             assertTrue((request.body as TextContent).text.contains("https://source.example/image.png"))
                             respond("""{"error":{"code":"unknown_parameter","param":"images"}}""", HttpStatusCode.BadRequest)
@@ -609,7 +612,13 @@ class ImageTranslationAdaptersTest {
                     },
                 )
             try {
-                OpenAIImageTranslationAdapter(client).translate(input(public = true), config(ImageTranslationProvider.OpenAIImages), "en")
+                val headers = listOf(AiRequestHeader("authorization", "Basic gateway"), AiRequestHeader("X-Tenant", "tenant"))
+                val config =
+                    config(ImageTranslationProvider.OpenAIImages)
+                        .withValue("apiKey", "")
+                        .copy(openAIHeaders = headers)
+                assertTrue(config.configured)
+                OpenAIImageTranslationAdapter(client).translate(input(public = true), config, "en")
                 assertEquals(2, calls)
             } finally {
                 client.close()

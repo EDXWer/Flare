@@ -300,6 +300,9 @@ internal fun AiConfigScreen(onBack: () -> Unit) {
                         )
                     }
                     AnimatedVisibility(visible = state.aiType == AiTypeOption.OpenAI) {
+                        AiConfigHeadersSetting(state.openAIHeaders, ListItemDefaults.item()) { state.setOpenAIHeaders(it) }
+                    }
+                    AnimatedVisibility(visible = state.aiType == AiTypeOption.OpenAI) {
                         SegmentedListItem(
                             checked = state.showReasoningEffortDropdown,
                             onCheckedChange = { checked ->

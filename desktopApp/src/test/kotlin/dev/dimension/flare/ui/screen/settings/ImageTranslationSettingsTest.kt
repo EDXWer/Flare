@@ -21,12 +21,14 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
+import dev.dimension.flare.data.datastore.model.AiRequestHeader
 import dev.dimension.flare.data.datastore.model.AppSettings
 import dev.dimension.flare.data.datastore.model.ImageTranslationConfig
 import dev.dimension.flare.data.datastore.model.ImageTranslationProvider
@@ -155,6 +157,33 @@ class ImageTranslationSettingsTest {
             assertEquals("1", state.config.value("mode"))
             assertEquals("ap-beijing", state.config.value("region"))
         }
+    }
+
+    @Test
+    fun customHeadersEditorShowsValuesAndRejectsDuplicateNames() {
+        val first = AiRequestHeader("X-Tenant", "first-value")
+        val state = State(ImageTranslationConfig(ImageTranslationProvider.OpenAIImages, openAIHeaders = listOf(first)))
+        show(state)
+
+        compose.onNodeWithContentDescription("Custom headers").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Header value").assertTextEquals("first-value")
+        compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.Password)).assertDoesNotExist()
+        compose.onNodeWithText("Add header").performScrollTo().performClick()
+        val name = compose.onAllNodesWithContentDescription("Header name")[1]
+        val value = compose.onAllNodesWithContentDescription("Header value")[1]
+        name.performScrollTo().performTextReplacement("x-tenant")
+        value.performScrollTo().performTextReplacement("second-value")
+        value.assertTextEquals("second-value")
+        compose.onNodeWithText("Save").performClick()
+        compose.onNodeWithText("Use valid, unique header names and single-line ASCII values.").assertExists()
+        compose.runOnIdle { assertEquals(listOf(first), state.config.openAIHeaders) }
+
+        name.performScrollTo().performTextReplacement("X-API-Key")
+        compose.onNodeWithText("Save").performClick()
+
+        compose.runOnIdle { assertEquals(listOf(first, AiRequestHeader("X-API-Key", "second-value")), state.config.openAIHeaders) }
+        compose.onNodeWithText("first-value").assertDoesNotExist()
+        compose.onNodeWithText("second-value").assertDoesNotExist()
     }
 
     @Test
@@ -377,6 +406,10 @@ class ImageTranslationSettingsTest {
 
         override fun selectProvider(provider: ImageTranslationProvider) {
             saved = saved.copy(provider = provider)
+        }
+
+        override fun setIndependentOpenAIHeaders(value: List<AiRequestHeader>) {
+            saved = saved.copy(openAIHeaders = value)
         }
 
         override fun setField(

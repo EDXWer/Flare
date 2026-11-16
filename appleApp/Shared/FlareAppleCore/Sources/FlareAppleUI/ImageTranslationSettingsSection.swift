@@ -100,6 +100,11 @@ struct ImageTranslationSettingsSection: View {
                     }
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
+                if field.id == "apiKey", state.presenter.state.config.provider == .openAiimages, !state.presenter.state.useSharedConfig {
+                    AiConfigHeadersSetting(headers: state.presenter.state.config.openAIHeaders) {
+                        state.presenter.state.setIndependentOpenAIHeaders(value: $0)
+                    }
+                }
             }
         } header: {
             Text("Image translation", bundle: FlareAppleUILocalization.bundle)

@@ -8,10 +8,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import dev.dimension.flare.data.datastore.AppDataStore
+import dev.dimension.flare.data.datastore.model.AiRequestHeader
 import dev.dimension.flare.data.datastore.model.AppSettings
 import dev.dimension.flare.data.datastore.model.ImageTranslationConfig
 import dev.dimension.flare.data.datastore.model.ImageTranslationField
 import dev.dimension.flare.data.datastore.model.ImageTranslationProvider
+import dev.dimension.flare.data.datastore.model.areValidAiRequestHeaders
 import dev.dimension.flare.data.datastore.model.imageTranslationFields
 import dev.dimension.flare.data.translation.image.ImageTranslationModelDiscovery
 import dev.dimension.flare.di.koinInject
@@ -37,6 +39,8 @@ public class ImageTranslationSettingsPresenter : PresenterBase<ImageTranslationS
 
         public fun selectProvider(provider: ImageTranslationProvider)
 
+        public fun setIndependentOpenAIHeaders(value: List<AiRequestHeader>)
+
         public fun setField(
             id: String,
             value: String,
@@ -48,14 +52,18 @@ public class ImageTranslationSettingsPresenter : PresenterBase<ImageTranslationS
         val settings by store.appSettingsStore.data.collectAsState(AppSettings(version = ""))
         val scope = persistenceScope
         val config = settings.imageTranslationConfig.resolved(settings.aiConfig)
+        val baseUrl = config.value("baseUrl")
+        val apiKey = config.value("apiKey")
         val canDiscover =
-            !config.usesSharedAIConfig &&
-                config.provider in listOf(ImageTranslationProvider.OpenAIImages, ImageTranslationProvider.Gemini) &&
-                config.value("baseUrl").isNotBlank() && config.value("apiKey").isNotBlank()
-        var models by remember(config.provider, config.value("baseUrl"), config.value("apiKey"), canDiscover) {
+            !config.usesSharedAIConfig && baseUrl.isNotBlank() &&
+                (
+                    config.provider == ImageTranslationProvider.OpenAIImages ||
+                        (config.provider == ImageTranslationProvider.Gemini && apiKey.isNotBlank())
+                )
+        var models by remember(config.provider, baseUrl, apiKey, config.openAIHeaders, canDiscover) {
             mutableStateOf<UiState<List<String>>>(if (canDiscover) UiState.Loading() else UiState.Success(emptyList()))
         }
-        LaunchedEffect(config.provider, config.value("baseUrl"), config.value("apiKey"), canDiscover) {
+        LaunchedEffect(config.provider, baseUrl, apiKey, config.openAIHeaders, canDiscover) {
             if (canDiscover) {
                 delay(666)
                 models =
@@ -115,6 +123,21 @@ public class ImageTranslationSettingsPresenter : PresenterBase<ImageTranslationS
                                     useSharedAIConfig = if (firstOpenAIConfig) true else config.useSharedAIConfig,
                                 ),
                         )
+                    }
+                }
+            }
+
+            override fun setIndependentOpenAIHeaders(value: List<AiRequestHeader>) {
+                require(areValidAiRequestHeaders(value)) { "Invalid custom AI headers" }
+                val headers = value.toList()
+                scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                    store.appSettingsStore.updateData { current ->
+                        val imageConfig = current.imageTranslationConfig
+                        if (imageConfig.provider == ImageTranslationProvider.OpenAIImages && !imageConfig.usesSharedAIConfig) {
+                            current.copy(imageTranslationConfig = imageConfig.copy(openAIHeaders = headers))
+                        } else {
+                            current
+                        }
                     }
                 }
             }

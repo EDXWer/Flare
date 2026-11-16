@@ -26,6 +26,7 @@ public data class ImageTranslationConfig(
     val provider: ImageTranslationProvider = ImageTranslationProvider.Disabled,
     val settings: List<ImageTranslationProviderSettings> = emptyList(),
     val useSharedAIConfig: Boolean = false,
+    val openAIHeaders: List<AiRequestHeader> = emptyList(),
 ) {
     public val usesSharedAIConfig: Boolean
         get() = provider == ImageTranslationProvider.OpenAIImages && useSharedAIConfig
@@ -36,7 +37,8 @@ public data class ImageTranslationConfig(
     public fun resolved(aiConfig: AppSettings.AiConfig): ImageTranslationConfig {
         if (!usesSharedAIConfig) return this
         val basic = aiConfig.type as? AppSettings.AiConfig.Type.OpenAI
-        return withValue("baseUrl", basic?.serverUrl.orEmpty())
+        return copy(openAIHeaders = basic?.customHeaders.orEmpty())
+            .withValue("baseUrl", basic?.serverUrl.orEmpty())
             .withValue("apiKey", basic?.apiKey.orEmpty())
             .withValue("model", basic?.model.orEmpty())
     }
@@ -165,7 +167,7 @@ public fun imageTranslationFields(provider: ImageTranslationProvider): List<Imag
         ImageTranslationProvider.OpenAIImages -> {
             listOf(
                 ImageTranslationField("baseUrl", "Service URL", "https://api.openai.com/v1"),
-                key,
+                key.copy(required = false),
                 model.copy(placeholder = "gpt-image-2.5-sunburst"),
                 ImageTranslationField("inputFormat", "Image input format", "Automatic", choices = listOf("Automatic", "JSON", "Multipart")),
                 prompt,

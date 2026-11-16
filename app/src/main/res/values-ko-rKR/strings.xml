@@ -812,7 +812,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">자동</string>
     <string name="image_translation_original_file">원본 파일</string>
-    <string name="image_translation_use_shared_description">서비스 URL, API 키 및 모델을 공유합니다. 서비스와 모델은 이미지 출력을 지원해야 합니다. 이미지 번역을 별도로 구성하려면 끄십시오.</string>
+    <string name="image_translation_use_shared_description">서비스 URL, API 키, 모델 및 사용자 지정 헤더를 공유합니다. 서비스와 모델은 이미지 출력을 지원해야 합니다. 이미지 번역을 별도로 구성하려면 끄십시오.</string>
     <string name="plugin_permission_cookie">%1$s에서 쿠키 %2$s 읽기</string>
     <string name="plugin_ai_create">Flare AI로 생성</string>
     <string name="plugin_ai_untitled">새 플러그인</string>

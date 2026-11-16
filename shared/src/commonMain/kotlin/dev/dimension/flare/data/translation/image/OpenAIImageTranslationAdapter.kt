@@ -2,11 +2,13 @@ package dev.dimension.flare.data.translation.image
 
 import dev.dimension.flare.data.datastore.model.ImageTranslationConfig
 import dev.dimension.flare.data.datastore.model.ImageTranslationProvider
+import dev.dimension.flare.data.network.ai.openAIRequestHeaders
 import dev.dimension.flare.data.network.appendMedia
 import io.ktor.client.HttpClient
-import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
+import io.ktor.client.request.header
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -26,6 +28,10 @@ internal class OpenAIImageTranslationAdapter(
     ): ImageTranslationOutput {
         val endpoint = checkedImageServiceUrl(config.value("baseUrl")) + "/images/edits"
         val format = config.value("inputFormat")
+        val requestHeaders = openAIRequestHeaders(config.value("apiKey"), config.openAIHeaders)
+        val applyHeaders: HttpRequestBuilder.() -> Unit = {
+            requestHeaders.forEach { (name, value) -> header(name, value) }
+        }
 
         suspend fun multipartRequest() =
             coroutineScope {
@@ -42,7 +48,8 @@ internal class OpenAIImageTranslationAdapter(
                             appendMedia("image[]", input.media, uploadScope)
                         },
                     ),
-                ) { bearerAuth(config.value("apiKey")) }
+                    applyHeaders,
+                )
             }
 
         suspend fun request(image: String) =
@@ -54,7 +61,8 @@ internal class OpenAIImageTranslationAdapter(
                     put("n", 1)
                     put("images", buildJsonArray { add(buildJsonObject { put("image_url", image) }) })
                 },
-            ) { bearerAuth(config.value("apiKey")) }
+                applyHeaders,
+            )
 
         suspend fun inlineRequest(): ImageTranslationResponse {
             val input = input.prepared()
@@ -72,9 +80,7 @@ internal class OpenAIImageTranslationAdapter(
                         put("n", 1)
                     }.toString().dropLast(1)
                 val prefix = metadata + ",\"images\":[{\"image_url\":\"data:" + input.mimeType + ";base64,"
-                return client.imagePost(endpoint, streamingImageBody(input, prefix, "\"}]}", maxInlineBytes)) {
-                    bearerAuth(config.value("apiKey"))
-                }
+                return client.imagePost(endpoint, streamingImageBody(input, prefix, "\"}]}", maxInlineBytes), applyHeaders)
             }
             return request("data:${input.mimeType};base64,${input.readBytes(maxInlineBytes).base64()}")
         }

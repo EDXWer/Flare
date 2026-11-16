@@ -847,7 +847,7 @@
     <string name="image_translation_lite">Lite</string>
     <string name="image_translation_automatic">Outomaties</string>
     <string name="image_translation_original_file">Oorspronklike lêer</string>
-    <string name="image_translation_use_shared_description">Deel die diens-URL, API-sleutel en model. Die diens en model moet beelduitvoer ondersteun. Skakel af om beeldvertaling afsonderlik te konfigureer.</string>
+    <string name="image_translation_use_shared_description">Deel die diens-URL, API-sleutel, model en pasgemaakte opskrifte. Die diens en model moet beelduitvoer ondersteun. Skakel af om beeldvertaling afsonderlik te konfigureer.</string>
     <string name="plugin_permission_cookie">Lees koekie %2$s van %1$s</string>
     <string name="plugin_ai_create">Skep met Flare KI</string>
     <string name="plugin_ai_untitled">Nuwe plugin</string>

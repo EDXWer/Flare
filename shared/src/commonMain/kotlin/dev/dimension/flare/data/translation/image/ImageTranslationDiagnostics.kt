@@ -1,6 +1,8 @@
 package dev.dimension.flare.data.translation.image
 
 import dev.dimension.flare.data.datastore.model.ImageTranslationConfig
+import dev.dimension.flare.data.datastore.model.ImageTranslationProvider
+import dev.dimension.flare.data.network.ai.redactAiHeaderValues
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.serialization.json.JsonObject
 import kotlin.time.Clock
@@ -61,7 +63,8 @@ internal fun Throwable.imageTranslationDetails(
             (diagnostics?.message ?: localCause?.message)?.let { appendLine("Details: $it") }
             if (suppressedExceptions.any { it is ImageTranslationException }) appendLine("An earlier image input attempt also failed.")
         }
-    return details.withoutImageData()
+    val headers = config.openAIHeaders.takeIf { config.provider == ImageTranslationProvider.OpenAIImages }.orEmpty()
+    return details.withoutImageData().redactAiHeaderValues(headers)
 }
 
 internal fun String.withoutImageData(): String {
