@@ -70,7 +70,7 @@ internal fun StatusRetweetHeaderComponent(
             RichText(
                 text = user.name,
                 layoutDirection = LocalLayoutDirection.current,
-                textStyle = if (isPost) textStyle.copy(fontWeight = FontWeight.ExtraBold) else textStyle,
+                textStyle = if (isPost) textStyle.copy(fontWeight = FontWeight.Bold) else textStyle,
                 modifier =
                     Modifier
                         .alignByBaseline()

@@ -97,11 +97,13 @@ public fun UserCompat(
 @Composable
 internal fun profileNameTextStyle(isPost: Boolean): TextStyle {
     val style = if (isPost) PlatformTheme.typography.postBody else PlatformTextStyle.current
-    return if (!isPost && LocalEffectiveTimelineDisplayMode.current == TimelineDisplayMode.Gallery) {
-        style
-    } else {
-        style.copy(fontWeight = FontWeight.ExtraBold)
-    }
+    val weight =
+        if (LocalEffectiveTimelineDisplayMode.current == TimelineDisplayMode.Gallery) {
+            if (isPost) FontWeight.ExtraBold else style.fontWeight
+        } else {
+            FontWeight.Bold
+        }
+    return style.copy(fontWeight = weight)
 }
 
 @Composable

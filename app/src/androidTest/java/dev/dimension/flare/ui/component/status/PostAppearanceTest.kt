@@ -38,6 +38,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
@@ -48,17 +49,21 @@ import dev.dimension.flare.data.model.appearance.TimelineAppearance
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.component.LocalGlobalAppearance
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
+import dev.dimension.flare.ui.component.ProfileHeader
 import dev.dimension.flare.ui.humanizer.PlatformFormatter
 import dev.dimension.flare.ui.model.ClickEvent
 import dev.dimension.flare.ui.model.TranslationDisplayState
 import dev.dimension.flare.ui.model.UiHandle
 import dev.dimension.flare.ui.model.UiIcon
 import dev.dimension.flare.ui.model.UiMedia
+import dev.dimension.flare.ui.model.UiState
 import dev.dimension.flare.ui.model.UiTimelineV2
 import dev.dimension.flare.ui.model.UiTranslatableText
 import dev.dimension.flare.ui.model.createSampleStatus
 import dev.dimension.flare.ui.model.createSampleUser
 import dev.dimension.flare.ui.model.toUiImage
+import dev.dimension.flare.ui.presenter.profile.FollowButtonState
+import dev.dimension.flare.ui.presenter.profile.ProfileState
 import dev.dimension.flare.ui.render.toUi
 import dev.dimension.flare.ui.render.toUiPlainText
 import dev.dimension.flare.ui.theme.FlareTheme
@@ -494,6 +499,64 @@ class PostAppearanceTest {
             assertEquals(card.left + with(density) { 10.dp.toPx() }, avatar.left, 1f)
             screenshot("android-${displayMode.name.lowercase()}.png", "timeline")
         }
+    }
+
+    @Test
+    fun profileHeaderShowsTheLargerBoldDisplayName() {
+        val name = "Alex Rivera"
+        val profile =
+            createSampleUser().copy(
+                nameInternal = name.toUiPlainText(),
+                handle = UiHandle("alex", "example.org", displayOverride = "@alex"),
+                avatar = null,
+                banner = null,
+            )
+        val state =
+            object : ProfileState(
+                userState = UiState.Success(profile),
+                relationState = UiState.Loading(),
+                followButtonState = UiState.Success(FollowButtonState.Follow),
+                isMe = UiState.Success(true),
+                actions = persistentListOf(),
+                myAccountKey = UiState.Loading(),
+                tabs = UiState.Loading(),
+            ) {
+                override fun follow(userKey: MicroBlogKey) = Unit
+
+                override fun unfollow(userKey: MicroBlogKey) = Unit
+
+                override fun unblock(userKey: MicroBlogKey) = Unit
+
+                override fun report(userKey: MicroBlogKey) = Unit
+
+                override fun retryTabs() = Unit
+            }
+        var expectedSize = 0f
+        compose.setContent {
+            CompositionLocalProvider(
+                LocalGlobalAppearance provides GlobalAppearance(pureColorMode = true),
+                LocalTimelineAppearance provides TimelineAppearance(),
+            ) {
+                FlareTheme(darkTheme = false, dynamicColor = false) {
+                    expectedSize = MaterialTheme.typography.titleMedium.fontSize.value + 2
+                    Surface(color = MaterialTheme.colorScheme.background) {
+                        ProfileHeader(
+                            state,
+                            onAvatarClick = {},
+                            onBannerClick = {},
+                            menu = {},
+                            onFollowListClick = {},
+                            onFansListClick = {},
+                        )
+                    }
+                }
+            }
+        }
+        val layouts = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText(name, useUnmergedTree = true).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        val style = layouts.single().layoutInput.style
+        assertEquals(expectedSize, style.fontSize.value, 0.01f)
+        assertEquals(FontWeight.Bold, style.fontWeight)
     }
 
     private val avatar by lazy {

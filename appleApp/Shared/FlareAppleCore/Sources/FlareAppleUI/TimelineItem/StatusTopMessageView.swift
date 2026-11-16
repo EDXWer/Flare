@@ -11,6 +11,7 @@ import UIKit
 public struct StatusTopMessageView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.isPostContent) private var isPostContent
+    @Environment(\.timelineGalleryFallback) private var isGalleryFallback
     @ScaledMetric(relativeTo: .caption) private var iconSize: CGFloat = 15
     @ScaledMetric(relativeTo: .body) private var postIconWidth: CGFloat = 15
     #if os(macOS)
@@ -43,8 +44,8 @@ public struct StatusTopMessageView: View {
                 topMessage.icon.image
             }
             if let user = topMessage.user {
-                RichText(text: user.name)
-                    .fontWeight(isPostContent ? .heavy : nil)
+                RichText(text: user.name, usesDisplayNameFont: isPostContent && !isGalleryFallback)
+                    .fontWeight(isPostContent ? (isGalleryFallback ? .heavy : .bold) : nil)
                     .if(isPostContent) { $0.lineLimit(1) }
                     .fixedSize(horizontal: false, vertical: true)
             }

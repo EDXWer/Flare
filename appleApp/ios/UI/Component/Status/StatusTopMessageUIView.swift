@@ -63,7 +63,7 @@ final class StatusTopMessageUIView: UIView, ManualLayoutMeasurable, TimelineHeig
         if let user = message.user {
             nameView.isHidden = false
             nameView.baseTextStyle = preferredTextStyle
-            nameView.baseTextWeight = postTextContentSizeCategory == nil ? nil : .heavy
+            nameView.baseTextWeight = postTextContentSizeCategory == nil ? nil : .bold
             nameView.lineSpacing = postTextContentSizeCategory == nil ? 0 : 1
             nameView.preferredContentSizeCategory = postTextContentSizeCategory ?? .medium
             nameView.baseTextColor = postTextContentSizeCategory != nil

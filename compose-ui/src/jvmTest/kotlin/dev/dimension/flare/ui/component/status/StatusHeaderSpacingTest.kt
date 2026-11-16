@@ -291,7 +291,7 @@ class StatusHeaderSpacingTest {
     }
 
     @Test
-    fun renderedPostNamesAreExtraBoldWhileHandlesAndRepostLabelsStayRegular() {
+    fun renderedUserNamesAreBoldWhileHandlesAndRepostLabelsStayRegular() {
         val user = checkNotNull(samplePost().user)
         compose.setContent {
             FluentTheme {
@@ -321,19 +321,27 @@ class StatusHeaderSpacingTest {
                             user = user.copy(nameInternal = "Profile name".toUiPlainText()),
                             subtitle = "profile-handle",
                         )
+                        CompositionLocalProvider(LocalEffectiveTimelineDisplayMode provides TimelineDisplayMode.Gallery) {
+                            UserCompat(
+                                user = user.copy(nameInternal = "Gallery author".toUiPlainText()),
+                                subtitle = "gallery-handle",
+                                isPost = true,
+                            )
+                        }
                     }
                 }
             }
         }
         val expectedWeights =
             mapOf(
-                "Full width author" to FontWeight.ExtraBold,
-                "Compact author" to FontWeight.ExtraBold,
-                "Reposting author" to FontWeight.ExtraBold,
+                "Full width author" to FontWeight.Bold,
+                "Compact author" to FontWeight.Bold,
+                "Reposting author" to FontWeight.Bold,
                 "full-width-handle" to FontWeight.Normal,
                 "compact-handle" to FontWeight.Normal,
                 "reposted" to FontWeight.Normal,
-                "Profile name" to FontWeight.ExtraBold,
+                "Profile name" to FontWeight.Bold,
+                "Gallery author" to FontWeight.ExtraBold,
             )
         for ((text, expectedWeight) in expectedWeights) {
             val layouts = mutableListOf<TextLayoutResult>()
@@ -466,11 +474,11 @@ class StatusHeaderSpacingTest {
             assertEquals(bounds.left + inset + 10, avatarBounds.left, 0.1f)
             assertEquals(bounds.left + inset + 10, userAvatar("@alex").left, 0.1f)
             assertEquals(avatarBounds.center.y, (textBounds("Mei Chen").top + textBounds("@mei").bottom) / 2, 1f)
-            assertEquals(FontWeight.ExtraBold, textStyle("Mei Chen").fontWeight)
+            assertEquals(FontWeight.Bold, textStyle("Mei Chen").fontWeight)
             for (name in listOf("Jordan Kim", "Flare Team")) {
                 assertEquals(textStyle("Sam Lee").fontSize, textStyle(name).fontSize)
                 assertEquals(textStyle("Sam Lee").color, textStyle(name).color)
-                assertEquals(FontWeight.ExtraBold, textStyle(name).fontWeight)
+                assertEquals(FontWeight.Bold, textStyle(name).fontWeight)
             }
             System.getenv("FLARE_TIMELINE_PREVIEW_DIR")?.let { path ->
                 val pixels = timeline.captureToImage().toPixelMap()

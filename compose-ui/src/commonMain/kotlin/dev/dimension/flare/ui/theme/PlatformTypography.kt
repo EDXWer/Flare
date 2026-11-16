@@ -2,6 +2,7 @@ package dev.dimension.flare.ui.theme
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 internal expect object PlatformTypography {
@@ -40,6 +41,16 @@ internal expect object PlatformTypography {
 
     val richTextLineHeightReduction: Float
 }
+
+internal val PlatformTypography.profileName: TextStyle
+    @Composable get() =
+        title.run {
+            copy(
+                fontSize = (fontSize.value + 2).sp,
+                lineHeight = if (lineHeight.isSp) (lineHeight.value + 2).sp else lineHeight,
+                fontWeight = FontWeight.Bold,
+            )
+        }
 
 internal fun TextStyle.withRichTextSpacing(): TextStyle {
     val adjustedLineHeight =

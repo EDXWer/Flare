@@ -16,6 +16,7 @@ private typealias PlatformImage = NSImage
 public struct RichText: View {
     public nonisolated static let lineSpacingMultiplier: CGFloat = 1.5
     private let text: UiRichText
+    private let usesDisplayNameFont: Bool
     private let previewLineLimit: Int?
     private let previewLineHeight: CGFloat
     @State private var images: [String: Image] = [:]
@@ -24,18 +25,25 @@ public struct RichText: View {
     @ScaledMetric(relativeTo: .body) private var quoteBarWidth = 3
     @Environment(\.openURL) private var openURL
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.font) private var font
     @Environment(\.lineSpacing) private var lineSpacing
     @Environment(\.shareImageLoading) private var shareImageLoading
     @State private var shareImageID = UUID()
 
     public init(text: UiRichText) {
+        self.init(text: text, usesDisplayNameFont: false)
+    }
+
+    init(text: UiRichText, usesDisplayNameFont: Bool) {
         self.text = text
+        self.usesDisplayNameFont = usesDisplayNameFont
         previewLineLimit = nil
         previewLineHeight = 0
     }
 
     init(text: UiRichText, previewLineLimit: Int?, previewLineHeight: CGFloat) {
         self.text = text
+        usesDisplayNameFont = false
         self.previewLineLimit = previewLineLimit.map { max($0, 1) }
         self.previewLineHeight = previewLineHeight
     }
@@ -218,7 +226,7 @@ public struct RichText: View {
         textContent.runs.reduce(Text(verbatim: "")) { partial, run in
             switch run {
             case let attributedRun as PlatformTextAttributedRun:
-                partial + Text(attributedRun.text)
+                partial + Text(usesDisplayNameFont ? attributedRun.text(usingDisplayNameFont: font ?? .body) : attributedRun.text)
             case let imageRun as PlatformTextImageRun:
                 if let image = images[imageRun.url] {
                     partial + Text(image).baselineOffset(-3)
