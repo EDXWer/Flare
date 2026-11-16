@@ -39,7 +39,7 @@ public struct UserCompatView<TrailingContent: View>: View {
                 spacing: 0
             ) {
                 RichText(text: data.name)
-                    .fontWeight(isPostContent ? .bold : nil)
+                    .fontWeight(isPostContent ? .heavy : nil)
                 Text(subtitle)
                     .font(isPostContent ? .body : .caption)
                     .flareSecondaryText()

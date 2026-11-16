@@ -40,6 +40,7 @@ public struct StatusView: View {
     #else
     @ScaledMetric(relativeTo: .body) private var topEndIconSize: CGFloat = 17
     #endif
+    @ScaledMetric(relativeTo: .body) private var sideAvatarTopInset: CGFloat = 4
     private let data: UiTimelineV2.Post
     private let isDetail: Bool
     private let isQuote: Bool
@@ -96,14 +97,15 @@ public struct StatusView: View {
         self.carouselOuterHorizontalPadding = carouselOuterHorizontalPadding
     }
 
-    private var showAsFullWidth: Bool {
+    private var usesSideAvatar: Bool {
         (!fullWidthPost || withLeadingPadding) && !isQuote && !isDetail
     }
     public var body: some View {
         let parents = inlineParents
         let user = data.user
+        let hasFullWidthHeader = !usesSideAvatar && !isQuote && user != nil
         let carouselEdgePadding: CGFloat = isQuote ? 12 : carouselOuterHorizontalPadding
-        let carouselLeadingPadding = carouselEdgePadding + (showAsFullWidth && user != nil ? 56 : 0)
+        let carouselLeadingPadding = carouselEdgePadding + (usesSideAvatar && user != nil ? 56 : 0)
         let replyToHandle = withLeadingPadding || (showParents && !parents.isEmpty) ? nil : data.replyToHandle
         let translationDisplayed = data.translationDisplayState == .translated
         let contentWarnings: [UiRichText] = if let warning = data.contentWarning {
@@ -124,8 +126,9 @@ public struct StatusView: View {
         let poll = data.poll
         let images = Array(data.images)
         let hasImages = !images.isEmpty
+        let showsImages = hasImages && showMedia && showAttachments
         let usesSideAvatarCarousel =
-            showAsFullWidth &&
+            usesSideAvatar &&
             user != nil &&
             showMedia &&
             showAttachments &&
@@ -136,9 +139,12 @@ public struct StatusView: View {
         let card = data.card
         let quoteItems = self.quotes
         let hasQuotes = !quoteItems.isEmpty
+        let showsQuotes = hasQuotes && !isQuote
+        let showsCard = card != nil && showMedia && !hasImages && !hasQuotes && showLinkPreview
         let sourceChannelName = data.sourceChannel?.name
         let emojiReactions = Array(data.emojiReactions)
         let hasEmojiReactions = showEmojiReactions && !emojiReactions.isEmpty
+        let showsReactions = showMedia && !isQuote && (sourceChannelName != nil || hasEmojiReactions)
         let visibility = data.visibility
         let translationDisplayState = data.translationDisplayState
         let createdAt = data.createdAt
@@ -149,15 +155,19 @@ public struct StatusView: View {
         let contentLineLimit: Int? = isDetail || textExpanded || effectiveLineLimit == Int(Int32.max) ? nil : effectiveLineLimit
         let collapseThreshold = maxLine == nil ? max(15, effectiveLineLimit) : effectiveLineLimit
         let canExpandLineLimitedContent = contentLineLimit != nil && !isDetail && !textExpanded && showExpandTextButton
+        let showsDetailTranslation = isDetail && showTranslate && !data.content.original.isEmpty
         let hasPreMediaText =
             replyToHandle != nil ||
             !contentWarningIsEmpty ||
             contents.contains { !$0.isEmpty } ||
-            (isDetail && showTranslate && !data.content.original.isEmpty && (poll == nil || !showMedia))
+            (showsDetailTranslation && (poll == nil || !showMedia))
         let hasPreMediaBody =
             hasPreMediaText ||
-            (isDetail && showTranslate) ||
+            showsDetailTranslation ||
             (poll != nil && showMedia)
+        let firstAttachmentSpacing: CGFloat = hasFullWidthHeader && !hasPreMediaBody ? 8 : 10
+        let actionsFollowHeader = hasFullWidthHeader && !isDetail && !hasPreMediaBody &&
+            !showsImages && !showsCard && !showsQuotes && !showsReactions
 
         VStack(
             alignment: .leading,
@@ -183,7 +193,7 @@ public struct StatusView: View {
                             .fill(Color.flareSeparator)
                             .frame(minWidth: 1, maxWidth: 1, alignment: .leading)
                             .padding(.leading, 24)
-                            .padding(.top, 48)
+                            .padding(.top, 48 + sideAvatarTopInset)
                     }
                 }
             }
@@ -191,7 +201,7 @@ public struct StatusView: View {
                 alignment: .top,
                 spacing: 8,
             ) {
-                if showAsFullWidth, let user {
+                if usesSideAvatar, let user {
                     AvatarView(data: user.avatar)
                         .frame(width: 48, height: 48)
                         .accessibilityLabel(
@@ -202,6 +212,7 @@ public struct StatusView: View {
                         .onTapGesture {
                             user.onClicked(ClickContext(launcher: AppleUriLauncher(openUrl: openURL)))
                         }
+                        .padding(.top, sideAvatarTopInset)
                 }
                 VStack(
                     alignment: .leading,
@@ -213,7 +224,7 @@ public struct StatusView: View {
                             spacing: 0,
                         ) {
                             if let user {
-                                if showAsFullWidth {
+                                if usesSideAvatar {
                                     UserOnelineView(data: user, showAvatar: false, subtitle: data.authorSubtitle) {
                                         topEndContent(
                                             visibility: visibility,
@@ -339,18 +350,18 @@ public struct StatusView: View {
                                         }
                                     }
 
-                                    if isDetail, showTranslate {
+                                    if showsDetailTranslation {
                                         StatusTranslateView(
                                             content: data.content.original,
                                             contentWarning: data.contentWarning?.original
                                         )
                                     }
                                 }
-                                .padding(.top, user != nil ? (hasPreMediaText ? 2 : 8) : 0)
+                                .padding(.top, user != nil ? (hasFullWidthHeader || !hasPreMediaText ? 8 : 2) : 0)
                             }
                         }
                         .frame(
-                            minHeight: usesSideAvatarCarousel ? 38 : nil,
+                            minHeight: usesSideAvatarCarousel ? 38 + sideAvatarTopInset : nil,
                             alignment: .topLeading
                         )
                     }
@@ -358,7 +369,7 @@ public struct StatusView: View {
                         alignment: .leading,
                         spacing: 0,
                     ) {
-                        if hasImages, showMedia, showAttachments {
+                        if showsImages {
                             StatusMediaContent(
                                 post: data,
                                 data: images,
@@ -404,20 +415,20 @@ public struct StatusView: View {
                                     }
                                 }
                             }
-                            .padding(.top, 10)
+                            .padding(.top, firstAttachmentSpacing)
                         }
 
-                        if let card, showMedia, !hasImages, !hasQuotes, showLinkPreview {
+                        if let card, showsCard {
                             if compatLinkPreview {
                                 StatusCompatCardView(data: card, cornerRadius: isQuote ? 12 : 16)
-                                    .padding(.top, 10)
+                                    .padding(.top, firstAttachmentSpacing)
                             } else {
                                 StatusCardView(data: card, cornerRadius: isQuote ? 12 : 16)
-                                    .padding(.top, 10)
+                                    .padding(.top, firstAttachmentSpacing)
                             }
                         }
 
-                        if hasQuotes, !isQuote {
+                        if showsQuotes {
                             VStack(alignment: .leading, spacing: 8) {
                                 ForEach(Array(quoteItems.enumerated()), id: \.offset) { index, quote in
                                     StatusView(
@@ -436,7 +447,7 @@ public struct StatusView: View {
                                 RoundedRectangle(cornerRadius: 16)
                                     .stroke(Color.flareSeparator, lineWidth: 1)
                             )
-                            .padding(.top, hasImages && showMedia && showAttachments ? 8 : 10)
+                            .padding(.top, showsImages ? 8 : firstAttachmentSpacing)
                         }
 
                         if showMedia, !isQuote {
@@ -464,7 +475,8 @@ public struct StatusView: View {
                         }
 
                         if (postActionStyle != .hidden || isDetail) && !forceHideActions {
-                            StatusActionsView(data: actions, useText: false, topPadding: 2, isDetail: isDetail, postKey: String(describing: data.statusKey))
+                            StatusActionsView(data: actions, useText: false, topPadding: actionsFollowHeader ? 8 : 2,
+                                              isDetail: isDetail, postKey: String(describing: data.statusKey))
                                 .padding(.horizontal, -4)
                         }
                     }

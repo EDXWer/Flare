@@ -88,10 +88,10 @@ final class StatusActionsUIView: UIView, ManualLayoutMeasurable, TimelineHeightP
             UITraitCollection(traitsFrom: [traitCollection, UITraitCollection(preferredContentSizeCategory: $0)])
         } ?? traitCollection
         let font = UIFont.preferredFont(forTextStyle: textStyle, compatibleWith: fontTraits)
+        let isPostAction = !useText
         let scale = traitCollection.displayScale > 0 ? traitCollection.displayScale : UIScreen.main.scale
-        guard metrics.fontSize != font.pointSize || metrics.scale != scale else { return }
-        metrics = StatusActionLayoutMetrics(fontSize: font.pointSize,
-                                            scale: scale)
+        guard metrics.baseFontSize != font.pointSize || metrics.scale != scale || metrics.isPostAction != isPostAction else { return }
+        metrics = StatusActionLayoutMetrics(fontSize: font.pointSize, scale: scale, isPostAction: isPostAction)
     }
 
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {

@@ -28,7 +28,7 @@ class RichTextLayoutTest {
     val compose = createComposeRule()
 
     @Test
-    fun profileBodyUsesCompactSpacingInsideParagraphs() {
+    fun profileBodyIncreasesLineSpacingInsideParagraphs() {
         val field = Ksoup.parse("<p>First line<br><a href=\"https://example.test\">第二行</a></p><p>Second paragraph</p>").body().toUi()
         compose.setContent {
             FluentTheme {
@@ -49,7 +49,7 @@ class RichTextLayoutTest {
         val name = compose.onNodeWithText("Display name", useUnmergedTree = true)
         val layout = paragraph.textLayout()
         assertEquals(2, layout.lineCount)
-        assertEquals(22.sp, layout.layoutInput.style.lineHeight)
+        assertEquals(26.sp, layout.layoutInput.style.lineHeight)
         assertEquals(0.sp, layout.layoutInput.style.letterSpacing)
         assertEquals(14.sp, layout.layoutInput.style.fontSize)
         val text = layout.layoutInput.text

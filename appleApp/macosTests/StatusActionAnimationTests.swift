@@ -141,19 +141,24 @@ final class MacStatusActionAnimationTests: XCTestCase {
         let componentQuote = previewPost("quoted", name: "引用ユーザー",
             text: "文字と画像の間隔をそろえる。\n引用の内側にも余白を残す。", isCalibration: true)
         let componentPost = previewPost("Sawarabi_2000", name: "茶わらび",
-            text: "友達作るための行動したことないから当然の帰結だけど", isCalibration: true, images: [media], translationDisplayState: .translated)
+            text: "今天把常用的排版设置整理了一遍。\n多行文字、图片和转发信息都在同一张卡片上。",
+            images: [media, media], translationDisplayState: .translated)
         let components = UiTimelineV2.TimelinePostItem(post: componentPost,
-            presentation: UiTimelineV2.PostPresentation(message: nil, inlineParents: [], quotes: [componentQuote],
+            presentation: UiTimelineV2.PostPresentation(message: repostMessage, inlineParents: [], quotes: [componentQuote],
                 repost: nil, notificationKey: nil), itemKey: "components")
         let previews: [(name: String, width: CGFloat, posts: [UiTimelineV2])] = [
             ("post", 520, posts), ("retweet-header", 402, [repost]),
-            ("post-calibration", 402, [calibration]), ("components", 402, [components]),
+            ("post-calibration", 402, [calibration]), ("components", 402, [components]), ("full-width", 402, [components]),
         ]
         let directory = URL(fileURLWithPath: output, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         for preview in previews {
             let isCalibration = preview.name == "post-calibration"
-            let background: Color = isCalibration || preview.name == "components" ? .black : .flareSystemGroupedBackground
+            let background: Color = isCalibration || preview.name == "components" || preview.name == "full-width"
+                ? .black : .flareSystemGroupedBackground
+            let helper = TimelinePresentationAppearancePatchHelper.shared
+            let appearance = helper.resolve(base: TimelineAppearance.companion.Default,
+                patch: helper.setFullWidthPost(patch: helper.empty, value: preview.name == "full-width"))
             for theme in isCalibration ? [ColorScheme.dark] : [.light, .dark] {
                 let content = VStack(spacing: 0) {
                     ForEach(Array(preview.posts.enumerated()), id: \.offset) { index, post in
@@ -166,6 +171,7 @@ final class MacStatusActionAnimationTests: XCTestCase {
                     }
                 }
                 .frame(width: preview.width)
+                .environment(\.timelineAppearance, appearance)
                 .flareTextBackground(background)
                 .background(background)
                 .environment(\.colorScheme, theme)

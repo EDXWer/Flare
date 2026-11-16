@@ -36,6 +36,8 @@ final class StatusPostPresentationTests: XCTestCase {
             XCTAssertLessThanOrEqual(label.frame.maxX, width + 1)
             XCTAssertGreaterThan(nameView.bounds.width, 1)
             XCTAssertLessThan(nameView.frame.maxX, label.frame.minX)
+            let icon = try XCTUnwrap(view.subviews.compactMap { $0 as? UIImageView }.first)
+            XCTAssertEqual(icon.frame.midY, label.frame.minY + label.font.ascender - label.font.capHeight / 2, accuracy: 1)
         }
     }
 
@@ -63,6 +65,21 @@ final class StatusPostPresentationTests: XCTestCase {
         XCTAssertEqual(replyCount(), 1, "Hiding the parent chain restores standalone context")
         view.configure(data: post, appearance: appearance)
         XCTAssertEqual(replyCount(), 1, "Reused cells must restore the reply row")
+    }
+
+    func testIconOnlyPostMessageStaysInsideItsHeader() throws {
+        let post = replyPost("icon-only")
+        let message = UiTimelineV2.Message(user: nil, statusKey: post.statusKey, icon: .retweet,
+                                          type: UiTimelineV2.MessageTypeUnknown(rawType: ""),
+                                          createdAt: post.createdAt, clickEvent: ClickEventNoop.shared,
+                                          accountType: post.accountType, itemKey: nil)
+        let view = StatusTopMessageUIView()
+        view.configure(message: message, topMessageOnly: false, postTextContentSizeCategory: .medium)
+        view.frame = CGRect(x: 0, y: 0, width: 280, height: try XCTUnwrap(view.timelineHeight(for: 280)))
+        view.layoutIfNeeded()
+        let icon = try XCTUnwrap(view.subviews.compactMap { $0 as? UIImageView }.first)
+        XCTAssertTrue(view.bounds.contains(icon.frame))
+        XCTAssertEqual(icon.frame.midY, view.bounds.midY, accuracy: 0.5)
     }
 
     func testRepostSpacingAndColorsAreScopedToPostsAndRestoreOnReuse() throws {
@@ -142,7 +159,15 @@ final class StatusPostPresentationTests: XCTestCase {
             let quoteContainer = try XCTUnwrap(quote.superview)
             let header = try XCTUnwrap(view.subviews.first { $0 is UserOnelineUIView || $0 is UserCompatUIView })
             let body = try XCTUnwrap(view.subviews.compactMap { $0 as? RichTextUIView }.first)
-            XCTAssertEqual(body.frame.minY - header.frame.maxY, 2)
+            XCTAssertEqual(body.frame.minY - header.frame.maxY, detail ? 8 : 2)
+            if let fullWidthHeader = header as? UserCompatUIView {
+                let author = try XCTUnwrap(fullWidthHeader.name.superview)
+                XCTAssertEqual(author.center.y, avatar.center.y, accuracy: 1)
+            } else {
+                let font = UIFont.preferredFont(forTextStyle: .body,
+                    compatibleWith: UITraitCollection(preferredContentSizeCategory: appearance.preferredContentSizeCategory))
+                XCTAssertEqual(avatar.frame.minY - header.frame.minY, font.ascender - font.capHeight, accuracy: 1)
+            }
             XCTAssertEqual(quoteContainer.frame.minY - body.frame.maxY, 10)
             XCTAssertEqual(quote.frame.minX, 12)
             XCTAssertEqual(quoteContainer.bounds.maxX - quote.frame.maxX, 12)
@@ -166,7 +191,7 @@ final class StatusPostPresentationTests: XCTestCase {
         XCTAssertEqual(controller.collectionView(collection, layout: layout, minimumInteritemSpacingForSectionAt: 0), 0)
     }
 
-    func testListAndDetailActionCountsUseThePostBodySizeAndSecondaryColor() throws {
+    func testListAndDetailActionsUseCompactCountsAndSixteenPointIcons() throws {
         let row = try XCTUnwrap(makeTimelineTestRow(1, mediaCount: 0, textRepeatCount: 0) as? UiTimelineV2.TimelinePostItem)
         for category in [UIContentSizeCategory.medium, .extraExtraExtraLarge] {
             let actions = StatusActionsUIView()
@@ -177,8 +202,13 @@ final class StatusPostPresentationTests: XCTestCase {
                                   showNumbers: true, isDetail: detail, isPostContent: true,
                                   preferredContentSizeCategory: category)
                 let count = try XCTUnwrap(descendants(actions).compactMap { $0 as? UILabel }.first { $0.text == "1" })
-                XCTAssertEqual(count.font.pointSize, expectedFont.pointSize)
+                XCTAssertEqual(count.font.pointSize, expectedFont.pointSize - 2)
                 XCTAssertEqual(count.textColor, .flarePostSecondaryLabel)
+                actions.frame.size = actions.sizeThatFits(CGSize(width: 370, height: CGFloat.greatestFiniteMagnitude))
+                actions.layoutIfNeeded()
+                let icons = descendants(actions).compactMap { $0 as? UIImageView }.filter { !$0.isHidden }
+                XCTAssertFalse(icons.isEmpty)
+                XCTAssertTrue(icons.allSatisfy { $0.bounds.height == 16 })
                 let height = try XCTUnwrap(actions.timelineHeight(for: 370))
                 if let listHeight { XCTAssertEqual(height, listHeight) } else { listHeight = height }
             }
@@ -260,6 +290,9 @@ final class StatusPostPresentationTests: XCTestCase {
         view.layoutIfNeeded()
         let body = try XCTUnwrap(view.subviews.compactMap { $0 as? RichTextUIView }.first)
         let media = try XCTUnwrap(view.subviews.compactMap { $0 as? StatusMediaContentUIView }.first)
+        let mediaTile = try XCTUnwrap(descendants(media).first { $0.layer.borderWidth > 0 })
+        XCTAssertEqual(mediaTile.layer.borderColor, UIColor(white: 179.0 / 255, alpha: 1).cgColor)
+        XCTAssertEqual(mediaTile.layer.borderWidth * max(mediaTile.traitCollection.displayScale, 1), 1, accuracy: 0.01)
         let quoted = try XCTUnwrap(descendants(view).compactMap { $0 as? StatusUIKitView }.first { $0 !== view })
         let quoteContainer = try XCTUnwrap(quoted.superview)
         let actions = try XCTUnwrap(descendants(view).compactMap { $0 as? StatusActionsUIView }.first)
@@ -271,6 +304,30 @@ final class StatusPostPresentationTests: XCTestCase {
         XCTAssertEqual(actionFrame.minY - quoteContainer.frame.maxY, 2)
         XCTAssertEqual(actionFrame.minX, body.frame.minX - 4)
         XCTAssertEqual(actionFrame.width, body.frame.width + 8)
+    }
+
+    func testMediaOverflowIsInsideTheBorderAndClearsOnReuse() throws {
+        let view = StatusMediaUIView()
+        let image = UiMediaImage(url: URL(fileURLWithPath: "/dev/null").absoluteString, proxy: ProxyRef.Unbound.shared)
+
+        func configure(count: Int) throws {
+            view.configure(data: Array(repeating: image, count: count), sensitive: false, cornerRadius: 16,
+                           singleFollowsImageAspect: true, limitMediaGridToNine: true, mediaLayout: .grid,
+                           carouselLeadingPadding: 0, carouselTrailingPadding: 0)
+            view.frame = CGRect(x: 0, y: 0, width: 340, height: try XCTUnwrap(view.timelineHeight(for: 340)))
+            view.layoutIfNeeded()
+        }
+
+        try configure(count: 10)
+        let label = try XCTUnwrap(descendants(view).compactMap { $0 as? UILabel }.first { $0.text == "+1" })
+        let overlay = try XCTUnwrap(label.superview)
+        let tile = try XCTUnwrap(overlay.superview)
+        XCTAssertEqual(tile.layer.borderColor, UIColor(white: 179.0 / 255, alpha: 1).cgColor)
+        XCTAssertEqual(overlay.frame.origin, tile.bounds.origin)
+        XCTAssertEqual(overlay.frame.width, tile.bounds.width, accuracy: 0.001)
+        XCTAssertEqual(overlay.frame.height, tile.bounds.height, accuracy: 0.001)
+        try configure(count: 2)
+        XCTAssertNil(overlay.superview)
     }
 
     private func descendants(_ view: UIView) -> [UIView] {

@@ -74,7 +74,7 @@ public fun CommonStatusHeaderComponent(
                 color = if (isPost) StatusComponentDefaults.contentColor else PlatformContentColor.current,
                 textStyle =
                     if (isPost) {
-                        PlatformTheme.typography.postBody.copy(fontWeight = FontWeight.Bold)
+                        PlatformTheme.typography.postBody.copy(fontWeight = FontWeight.ExtraBold)
                     } else {
                         PlatformTextStyle.current
                     },

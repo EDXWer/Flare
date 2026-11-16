@@ -308,7 +308,7 @@ class PostAppearanceTest {
     }
 
     @Test
-    fun darkPostCalibrationUsesCompactBodySpacing() {
+    fun darkPostCalibrationUsesExpandedRichTextLineSpacing() {
         val body =
             "《少女前线2》 × SSSS.GRIDMAN 联动\n" +
                 "2027年予定\n" +
@@ -320,16 +320,18 @@ class PostAppearanceTest {
                 "English spacing 0123456789"
         val author = "K12s"
         val reposter = "凪風　27年のお仕事積極募集中"
+        val avatarUrl = avatar.toURI().toString()
         val post =
             createSampleStatus(
                 createSampleUser().copy(
                     nameInternal = author.toUiPlainText(),
                     handle = UiHandle("kzwolf123", "x.com", displayOverride = "@kzwolf123"),
                     platformId = "X",
-                    avatar = null,
+                    avatar = avatarUrl.toUiImage(),
                 ),
             ).copy(
                 content = UiTranslatableText(body.toUiPlainText()),
+                images = persistentListOf(UiMedia.Image(avatarUrl, avatarUrl, "Sample media", 180f, 320f, false)),
                 createdAt = (Clock.System.now() - 5.minutes).toUi(),
             )
         val timestamp = post.createdAt.relative
@@ -352,12 +354,13 @@ class PostAppearanceTest {
             )
         lateinit var density: Density
         lateinit var themeBody: TextStyle
+        var fullWidth by mutableStateOf(false)
         compose.setContent {
             CompositionLocalProvider(
                 LocalGlobalAppearance provides GlobalAppearance(pureColorMode = true),
                 LocalTimelineAppearance provides
                     TimelineAppearance(
-                        fullWidthPost = false,
+                        fullWidthPost = fullWidth,
                         showPlatformLogo = false,
                         showTranslateButton = false,
                         timelineDisplayMode = TimelineDisplayMode.Plain,
@@ -408,8 +411,11 @@ class PostAppearanceTest {
         )
         if (InstrumentationRegistry.getArguments().getString("capturePostAppearance") == "1") {
             val directory = checkNotNull(InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir("post-appearance"))
-            val bitmap = container.captureToImage().asAndroidBitmap()
-            File(directory, "android-post-calibration.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            for ((wide, name) in listOf(false to "android-post-calibration.png", true to "android-post-full-width.png")) {
+                compose.runOnIdle { fullWidth = wide }
+                val bitmap = container.captureToImage().asAndroidBitmap()
+                File(directory, name).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            }
             File(directory, "android-post-calibration.json").writeText(postCalibrationJson(density, themeBody, bounds, timestamp, texts))
         }
     }

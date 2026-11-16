@@ -2,26 +2,44 @@ import SwiftUI
 import KotlinSharedUI
 import FlareAppleCore
 
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
+
 public struct StatusTopMessageView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.isPostContent) private var isPostContent
+    @ScaledMetric(relativeTo: .caption) private var iconSize: CGFloat = 15
+    @ScaledMetric(relativeTo: .body) private var postIconWidth: CGFloat = 15
+    #if os(macOS)
+    @ScaledMetric(relativeTo: .body) private var postCapHeight = NSFont.preferredFont(forTextStyle: .body).capHeight
+    #else
+    @ScaledMetric(relativeTo: .body) private var postCapHeight = UIFont.systemFont(ofSize: 17).capHeight
+    #endif
     private let topMessage: UiTimelineV2.Message
+    private let alignWithAvatar: Bool
 
-    public init(topMessage: UiTimelineV2.Message) {
+    public init(topMessage: UiTimelineV2.Message, alignWithAvatar: Bool = false) {
         self.topMessage = topMessage
+        self.alignWithAvatar = alignWithAvatar
     }
 
     public var body: some View {
-        HStack(spacing: 8) {
-            topMessage.icon.image
-                .if(isPostContent) { view in
-                    view.font(.caption)
-                }
+        HStack(alignment: isPostContent ? .firstTextBaseline : .center, spacing: 8) {
+            if isPostContent {
+                topMessage.icon.image
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: postIconWidth, height: postCapHeight)
+                    .alignmentGuide(.firstTextBaseline) { $0[.bottom] }
+            } else {
+                topMessage.icon.image
+            }
             if let user = topMessage.user {
                 RichText(text: user.name)
-                    .if(isPostContent) { view in
-                        view.bold()
-                    }
+                    .fontWeight(isPostContent ? .heavy : nil)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let text = topMessage.type.localizedText {
@@ -37,6 +55,7 @@ public struct StatusTopMessageView: View {
         .onTapGesture {
             topMessage.onClicked(ClickContext(launcher: AppleUriLauncher(openUrl: openURL)))
         }
+        .padding(.leading, alignWithAvatar ? max(0, isPostContent ? 48 - postIconWidth : 44 - iconSize) : 0)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

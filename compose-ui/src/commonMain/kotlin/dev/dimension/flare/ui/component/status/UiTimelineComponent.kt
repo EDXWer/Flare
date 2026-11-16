@@ -16,6 +16,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
@@ -762,7 +763,7 @@ private fun TopMessageComponent(
             icon = icon,
             user = data.user,
             text = text,
-            boldName = isPost,
+            isPost = isPost,
             color =
                 if (isPost) {
                     StatusComponentDefaults.secondaryColor
@@ -794,7 +795,12 @@ private fun TopMessageComponent(
                             it.padding(
                                 start =
                                     if (isPost) {
-                                        StatusComponentDefaults.avatarSize - PlatformTheme.typography.postBody.fontSize.value.dp
+                                        val iconSize =
+                                            with(LocalDensity.current) {
+                                                PlatformTheme.typography.postBody.fontSize
+                                                    .toDp()
+                                            }
+                                        (StatusComponentDefaults.avatarSize - iconSize).coerceAtLeast(0.dp)
                                     } else {
                                         AvatarComponentDefaults.size - PlatformTheme.typography.caption.fontSize.value.dp
                                     },

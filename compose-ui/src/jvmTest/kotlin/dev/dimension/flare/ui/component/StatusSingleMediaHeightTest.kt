@@ -12,6 +12,8 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.WindowInfo
@@ -21,6 +23,7 @@ import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertWidthIsEqualTo
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -45,6 +48,7 @@ import dev.dimension.flare.ui.model.createSampleStatus
 import dev.dimension.flare.ui.model.createSampleUser
 import io.github.composefluent.FluentTheme
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import org.jetbrains.compose.resources.stringResource
 import org.junit.Rule
 import org.junit.Test
@@ -57,6 +61,40 @@ import kotlin.test.assertTrue
 class StatusSingleMediaHeightTest {
     @get:Rule
     val compose = createComposeRule()
+
+    @Test
+    fun mediaOverflowKeepsTheOpaqueBorderOnTheLastTile() {
+        val file = Files.createTempFile("grid-media", ".png").toFile().apply { deleteOnExit() }
+        ImageIO.write(BufferedImage(20, 20, BufferedImage.TYPE_INT_RGB), "png", file)
+        val uri = file.toURI().toString()
+        val images = List(10) { UiMedia.Image(uri, uri, "Grid item $it", 20f, 20f, false) }.toImmutableList()
+        val post = createSampleStatus(createSampleUser()).copy(images = images)
+        compose.setContent {
+            FluentTheme {
+                CompositionLocalProvider(
+                    LocalTimelineAppearance provides TimelineAppearance(limitMediaGridToNine = true),
+                    LocalDensity provides Density(1f),
+                ) {
+                    Box(Modifier.width(248.dp)) {
+                        StatusMediaComponent(
+                            post = post,
+                            data = images,
+                            onMediaClick = {},
+                            sensitive = false,
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.testTag("media"),
+                        )
+                    }
+                }
+            }
+        }
+        compose.onNodeWithText("+1", useUnmergedTree = true).assertIsDisplayed()
+        val grid = compose.onNodeWithTag("media")
+        val origin = grid.fetchSemanticsNode().boundsInRoot.topLeft
+        val tile = compose.onNodeWithContentDescription("Grid item 8", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val pixels = grid.captureToImage().toPixelMap()
+        assertEquals(Color(0xFFB3B3B3), pixels[(tile.left - origin.x).toInt(), (tile.center.y - origin.y).toInt()])
+    }
 
     @Test
     fun narrowSensitiveVideoCanBeRevealedHiddenAndRevealedAgain() {

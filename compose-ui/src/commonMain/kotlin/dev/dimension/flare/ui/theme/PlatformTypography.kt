@@ -51,3 +51,10 @@ internal fun TextStyle.withRichTextSpacing(): TextStyle {
         }
     return copy(lineHeight = adjustedLineHeight, letterSpacing = 0.sp)
 }
+
+internal fun TextStyle.withWiderRichTextLineSpacing(): TextStyle =
+    if (fontSize.isSp && lineHeight.isSp && lineHeight.value > fontSize.value) {
+        copy(lineHeight = (fontSize.value + (lineHeight.value - fontSize.value) * 1.5f).sp)
+    } else {
+        this
+    }

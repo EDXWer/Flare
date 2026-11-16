@@ -7,7 +7,6 @@ public struct TimelineView: View {
     private let detailStatusKey: MicroBlogKey?
     private let showTranslate: Bool
     @Environment(\.timelineAppearance.fullWidthPost) private var fullWidthPost
-    @ScaledMetric(relativeTo: .caption) private var iconSize: CGFloat = 15
 
     public init(data: UiTimelineV2, detailStatusKey: MicroBlogKey?, showTranslate: Bool = true) {
         self.data = data
@@ -64,10 +63,7 @@ public struct TimelineView: View {
     private func messageView(_ message: UiTimelineV2.Message?, topMessageOnly: Bool) -> some View {
         if let message {
             let isPost = data.timelineContentPost != nil
-            StatusTopMessageView(topMessage: message)
-                .if(!fullWidthPost && !topMessageOnly, transform: { view in
-                    view.padding(.leading, (isPost ? 48 : 44) - iconSize)
-                })
+            StatusTopMessageView(topMessage: message, alignWithAvatar: !fullWidthPost && !topMessageOnly)
                 .if(!topMessageOnly, transform: { view in
                     view.lineLimit(1)
                         .font(.caption)

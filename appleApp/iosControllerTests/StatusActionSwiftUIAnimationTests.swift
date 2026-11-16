@@ -6,6 +6,9 @@ import FlareAppleUI
 
 @MainActor
 final class StatusActionSwiftUIAnimationTests: XCTestCase {
+    private static let countX = StatusActionLayoutMetrics.padding + StatusActionLayoutMetrics.iconWidth + StatusActionLayoutMetrics.labelSpacing
+    private static let countRect = CGRect(x: countX, y: 0, width: 24, height: 44)
+
     func testInitialSelectedItemsAndGroupsStayStill() async throws {
         for grouped in [false, true] {
             let fixture = try Fixture(actions: actions(liked: true, grouped: grouped))
@@ -142,7 +145,7 @@ final class StatusActionSwiftUIAnimationTests: XCTestCase {
     }
 
     func testCountMovesUpWhenIncreasingAndDownWhenDecreasing() async throws {
-        let countRect = CGRect(x: 268, y: 0, width: 12, height: 44)
+        let countRect = Self.countRect
         for (before, after, increasing) in [(Int64(9), Int64(10), true), (10, 9, false)] {
             let fixture = try Fixture(actions: [animatedAction(liked: true, count: after)])
             defer { fixture.close() }
@@ -188,7 +191,7 @@ final class StatusActionSwiftUIAnimationTests: XCTestCase {
     }
 
     func testCountOvershootsThenSettles() async throws {
-        let rect = CGRect(x: 268, y: 0, width: 12, height: 44)
+        let rect = Self.countRect
         for (before, after, increasing) in [(Int64(9), Int64(10), true), (10, 9, false)] {
             let target: [ActionMenu] = [animatedAction(liked: true, count: after)]
             let fixture = try Fixture(actions: target)
@@ -275,12 +278,12 @@ final class StatusActionSwiftUIAnimationTests: XCTestCase {
                     }
                     .scrollIndicators(.hidden)
                 } else if isShown {
-                    StatusActionsView(data: actions, useText: false, postKey: post)
+                    StatusActionsView(data: actions, useText: false, allowSpacer: false, postKey: post)
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
                 }
             }
-            .frame(width: 280, height: 44)
+            .frame(width: 280, height: 44, alignment: .leading)
             .background(.white)
             .preferredColorScheme(.light)
         }
@@ -362,7 +365,7 @@ final class StatusActionSwiftUIAnimationTests: XCTestCase {
             let data = image.dataProvider!.data! as Data
             let bytesPerPixel = image.bitsPerPixel / 8
             return (0..<image.height).contains { y in
-                (230..<259).contains { x in
+                (0..<Int(StatusActionSwiftUIAnimationTests.countX)).contains { x in
                     let offset = y * image.bytesPerRow + x * bytesPerPixel
                     return data[offset..<offset + 3].min()! < 200
                 }
@@ -376,7 +379,7 @@ final class StatusActionSwiftUIAnimationTests: XCTestCase {
             var columns = Set<Int>()
             // The single-digit counter is outside this crop.
             for y in 0..<image.height {
-                for x in 230..<267 {
+                for x in 0..<Int(StatusActionSwiftUIAnimationTests.countX) {
                     let offset = y * image.bytesPerRow + x * bytesPerPixel
                     let channels = data[offset..<offset + 3]
                     let lowest = channels.min()!

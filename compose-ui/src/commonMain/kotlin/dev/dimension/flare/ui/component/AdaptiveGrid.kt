@@ -31,21 +31,7 @@ internal fun AdaptiveGrid(
     singleMediaAspectRatio: Float = 1f,
     singleMediaMaxHeight: Dp? = null,
     maxItems: Int = ADAPTIVE_GRID_MAX_ITEMS,
-    overflowContent: @Composable (Int) -> Unit = { overflowCount ->
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.55f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            PlatformText(
-                text = overflowCount.displayText,
-                color = Color.White,
-                style = PlatformTheme.typography.headline,
-            )
-        }
-    },
+    overflowContent: @Composable (Int) -> Unit = { AdaptiveGridOverflow(it, Modifier.fillMaxSize()) },
 ) {
     val visibleCount = minOf(itemCount, maxItems)
     val overflowCount = itemCount - visibleCount
@@ -325,6 +311,23 @@ internal fun AdaptiveGrid(
             }
         },
     )
+}
+
+@Composable
+internal fun AdaptiveGridOverflow(
+    count: Int,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier.background(Color.Black.copy(alpha = 0.55f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        PlatformText(
+            text = count.displayText,
+            color = Color.White,
+            style = PlatformTheme.typography.headline,
+        )
+    }
 }
 
 private val Int.displayText: String

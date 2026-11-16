@@ -627,8 +627,9 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         let contentX: CGFloat = wantsAvatar ? Self.avatarSize + Self.mainRowSpacing : 0
         let contentWidth = max(width - contentX, 1)
 
+        let avatarBottom = y + (sideAvatarBottom ?? 0)
         if wantsAvatar, let avatarView = avatarViewStorage, assignFrames {
-            avatarView.frame = CGRect(x: 0, y: y, width: Self.avatarSize, height: Self.avatarSize)
+            avatarView.frame = CGRect(x: 0, y: avatarBottom - Self.avatarSize, width: Self.avatarSize, height: Self.avatarSize)
         }
 
         var innerY = y
@@ -649,7 +650,9 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
                 let isText = child is RichTextUIView || child === replyToContainerStorage || child === translateViewStorage
                 let isAttachment = child === mediaViewStorage || child === normalCardViewStorage ||
                     child === compatCardViewStorage || child === quotesContainerStorage
-                if child === actionsContainerStorage || (followsHeader && isText) {
+                if followsHeader && !usesSideAvatar && !isQuote {
+                    innerY += 8
+                } else if child === actionsContainerStorage || (followsHeader && isText) {
                     innerY += 2
                 } else if isAttachment && !(child === quotesContainerStorage && previousChild === mediaViewStorage) {
                     innerY += 10
@@ -659,7 +662,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             }
             let isCarousel = child === mediaViewStorage && mediaViewStorage?.isShowingCarousel == true
             if isCarousel, wantsAvatar {
-                innerY = max(innerY, y + Self.avatarSize)
+                innerY = max(innerY, avatarBottom)
             }
             let childWidth = isCarousel ? width + carouselEdgePadding * 2
                 : child === mediaViewStorage ? mediaViewStorage!.fittingWidth(for: contentWidth) : contentWidth
@@ -672,7 +675,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
             previousChild = child
         }
 
-        return max(innerY, y + (wantsAvatar ? Self.avatarSize : 0))
+        return max(innerY, avatarBottom)
     }
 
     private func updateExpandMoreButtonVisibility(contentWidth: CGFloat) {
@@ -695,7 +698,13 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         ))
     }
 
-    private var showAsFullWidth: Bool {
+    fileprivate var sideAvatarBottom: CGFloat? {
+        guard wantsAvatar else { return nil }
+        let font = postBodyFont
+        return Self.avatarSize + ceil(font.ascender - font.capHeight)
+    }
+
+    private var usesSideAvatar: Bool {
         (!appearance.fullWidthPost || withLeadingPadding) && !isQuote && !isDetail
     }
 
@@ -720,7 +729,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
     }
 
     private func fittingContentColumnWidth(for width: CGFloat) -> CGFloat {
-        let wantsAvatar = showAsFullWidth && data?.user != nil
+        let wantsAvatar = usesSideAvatar && data?.user != nil
         let avatarWidth = wantsAvatar ? Self.avatarSize + Self.mainRowSpacing : 0
         return max(width - avatarWidth, 1)
     }
@@ -734,7 +743,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         }
 
         // Avatar
-        let newWantsAvatar = showAsFullWidth && data.user != nil
+        let newWantsAvatar = usesSideAvatar && data.user != nil
         if newWantsAvatar, let user = data.user {
             let avatarView = resolvedAvatarView()
             avatarView.avatarShape = appearance.avatarShape
@@ -804,7 +813,7 @@ final class StatusUIKitView: UIView, UIGestureRecognizerDelegate, ManualLayoutMe
         )
         let onClicked: () -> Void = { [weak self] in self?.onUserTapped() }
 
-        if showAsFullWidth {
+        if usesSideAvatar {
             let userHeaderFull = resolvedUserHeaderFull()
             userHeaderFull.avatar.avatarShape = appearance.avatarShape
             userHeaderFull.configure(data: user, subtitle: data.authorSubtitle, trailing: topEndView, onClicked: onClicked,
@@ -1660,7 +1669,8 @@ private final class ParentContainerView: UIView, ManualLayoutMeasurable, Timelin
         let w = bounds.width
         let childH = max(bounds.height - Self.bottomSpacing, 0)
         child.frame = CGRect(x: 0, y: 0, width: w, height: childH)
-        line.frame = CGRect(x: 24, y: 48, width: 1, height: max(bounds.height - 48, 0))
+        let avatarBottom = child.sideAvatarBottom ?? 48
+        line.frame = CGRect(x: 24, y: avatarBottom, width: 1, height: max(bounds.height - avatarBottom, 0))
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {

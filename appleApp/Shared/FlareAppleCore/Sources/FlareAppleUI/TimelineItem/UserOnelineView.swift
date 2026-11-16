@@ -38,7 +38,7 @@ public struct UserOnelineView<TrailingContent: View>: View {
             }
             HStack(spacing: 4) {
                 RichText(text: data.name)
-                    .fontWeight(isPostContent ? .bold : nil)
+                    .fontWeight(isPostContent ? .heavy : nil)
                 Text(subtitle)
                     .font(isPostContent ? .body : .caption)
                     .flareSecondaryText()

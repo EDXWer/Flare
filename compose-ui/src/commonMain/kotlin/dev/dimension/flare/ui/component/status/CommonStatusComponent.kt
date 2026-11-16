@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastForEachIndexed
 import compose.icons.FontAwesomeIcons
@@ -168,6 +169,7 @@ import dev.dimension.flare.ui.route.DeeplinkRoute
 import dev.dimension.flare.ui.route.toUri
 import dev.dimension.flare.ui.theme.PlatformContentColor
 import dev.dimension.flare.ui.theme.PlatformTheme
+import dev.dimension.flare.ui.theme.withWiderRichTextLineSpacing
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -202,17 +204,41 @@ public fun CommonStatusComponent(
         val uriHandler = LocalUriHandler.current
         val openPostLabel = stringResource(Res.string.status_open_post)
         val appearanceSettings = LocalTimelineAppearance.current
-        val showAsFullWidth = !appearanceSettings.fullWidthPost && !isQuote && !isDetail
+        val usesSideAvatar = !appearanceSettings.fullWidthPost && !isQuote && !isDetail
+        val hasFullWidthHeader = !usesSideAvatar && !isQuote && item.user != null
+        val headerSpacing = if (hasFullWidthHeader) 8.dp else 2.dp
+        val sideAvatarTopInset = with(LocalDensity.current) { (PlatformTheme.typography.postBody.fontSize * 0.25f).toDp() }
+        val replyToHandle = item.replyToHandle?.takeIf { showReplyTo }
+        val translationDisplayed = item.translationDisplayState == TranslationDisplayState.Translated
+        val showOriginal = appearanceSettings.aiConfig.showOriginalWithTranslation
+        val visibleContent =
+            remember(item.content, translationDisplayed, showOriginal) {
+                item.content.visiblePostText(translationDisplayed, showOriginal)
+            }
+        val visibleContentWarning =
+            remember(item.contentWarning, translationDisplayed, showOriginal) {
+                item.contentWarning?.visiblePostText(translationDisplayed, showOriginal).orEmpty()
+            }
+        val showsDetailTranslation = isDetail && !item.content.original.isEmpty && appearanceSettings.showTranslateButton
+        val hasPreMediaBody =
+            replyToHandle != null || visibleContent.any { !it.isEmpty } || visibleContentWarning.any { !it.isEmpty } ||
+                item.poll != null || showsDetailTranslation
+        val showsImages = item.images.isNotEmpty() && showMedia
+        val showsCard = item.card != null && appearanceSettings.showLinkPreview && item.images.isEmpty() && quotes.isEmpty()
+        val showsQuotes = quotes.isNotEmpty() && !isQuote
+        val hasVisibleEmojiReactions = appearanceSettings.showEmojiReactions && item.emojiReactions.isNotEmpty()
+        val showsReactions = !isQuote && (hasVisibleEmojiReactions || item.sourceChannel != null)
+        val firstAttachmentSpacing = if (hasFullWidthHeader && !hasPreMediaBody) 8.dp else StatusComponentDefaults.attachmentSpacing
         val carouselEdgePadding = if (isQuote) StatusComponentDefaults.quotePadding else carouselOuterHorizontalPadding
         val carouselLeadingPadding =
             carouselEdgePadding +
-                if (showAsFullWidth && item.user != null) {
+                if (usesSideAvatar && item.user != null) {
                     StatusComponentDefaults.avatarSize + 8.dp
                 } else {
                     0.dp
                 }
         val usesSideAvatarCarousel =
-            showAsFullWidth &&
+            usesSideAvatar &&
                 item.user != null &&
                 showMedia &&
                 allowMediaCarousel &&
@@ -237,27 +263,29 @@ public fun CommonStatusComponent(
                         }
                     }.then(modifier),
         ) {
-            if (showAsFullWidth) {
+            if (usesSideAvatar) {
                 item.user?.let {
-                    AvatarComponent(
-                        it.avatar,
-                        size = StatusComponentDefaults.avatarSize,
-                        contentDescription =
-                            stringResource(
-                                Res.string.profile_open_user,
-                                it.handle.display,
-                            ),
-                        modifier =
-                            Modifier.clickable {
-                                it.onClicked.invoke(
-                                    ClickContext(
-                                        launcher = {
-                                            uriHandler.openUri(it)
-                                        },
-                                    ),
-                                )
-                            },
-                    )
+                    Box(Modifier.padding(top = sideAvatarTopInset)) {
+                        AvatarComponent(
+                            it.avatar,
+                            size = StatusComponentDefaults.avatarSize,
+                            contentDescription =
+                                stringResource(
+                                    Res.string.profile_open_user,
+                                    it.handle.display,
+                                ),
+                            modifier =
+                                Modifier.clickable {
+                                    it.onClicked.invoke(
+                                        ClickContext(
+                                            launcher = {
+                                                uriHandler.openUri(it)
+                                            },
+                                        ),
+                                    )
+                                },
+                        )
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
                 }
             }
@@ -265,7 +293,9 @@ public fun CommonStatusComponent(
                 Column(
                     modifier =
                         if (usesSideAvatarCarousel) {
-                            Modifier.heightIn(min = StatusComponentDefaults.avatarSize - StatusComponentDefaults.attachmentSpacing)
+                            Modifier.heightIn(
+                                min = StatusComponentDefaults.avatarSize + sideAvatarTopInset - StatusComponentDefaults.attachmentSpacing,
+                            )
                         } else {
                             Modifier
                         },
@@ -345,7 +375,7 @@ public fun CommonStatusComponent(
                                 }
                             }
                         }
-                        if (showAsFullWidth) {
+                        if (usesSideAvatar) {
                             UserCompat(
                                 user = user,
                                 isPost = true,
@@ -402,47 +432,34 @@ public fun CommonStatusComponent(
                             }
                         }
                     }
-                    item.replyToHandle?.takeIf { showReplyTo }?.let { replyHandle ->
-                        Spacer(modifier = Modifier.height(if (item.user != null) 2.dp else 8.dp))
+                    replyToHandle?.let { replyHandle ->
+                        Spacer(modifier = Modifier.height(if (item.user != null) headerSpacing else 8.dp))
                         StatusReplyComponent(
                             replyHandle = replyHandle,
                         )
                     }
-                    if (isDetail) {
-                        SelectionContainer {
-                            StatusContentComponent(
-                                content = item.content,
-                                contentWarning = item.contentWarning,
-                                poll = item.poll,
-                                maxLines = Int.MAX_VALUE,
-                                showExpandButton = showExpandButton,
-                                translationDisplayed = item.translationDisplayState == TranslationDisplayState.Translated,
-                                topSpacing =
-                                    when {
-                                        showReplyTo && item.replyToHandle != null -> 8.dp
-                                        item.user != null -> 2.dp
-                                        else -> 0.dp
-                                    },
-                            )
-                        }
-                    } else {
+                    val body = @Composable {
                         StatusContentComponent(
-                            content = item.content,
-                            contentWarning = item.contentWarning,
+                            visibleContent = visibleContent,
+                            visibleContentWarning = visibleContentWarning,
                             poll = item.poll,
-                            maxLines = maxLines,
+                            maxLines = if (isDetail) Int.MAX_VALUE else maxLines,
                             showExpandButton = showExpandButton,
-                            translationDisplayed = item.translationDisplayState == TranslationDisplayState.Translated,
                             topSpacing =
                                 when {
-                                    showReplyTo && item.replyToHandle != null -> 8.dp
-                                    item.user != null -> 2.dp
+                                    replyToHandle != null -> 8.dp
+                                    item.user != null -> headerSpacing
                                     else -> 0.dp
                                 },
                         )
                     }
+                    if (isDetail) {
+                        SelectionContainer(content = body)
+                    } else {
+                        body()
+                    }
 
-                    if (isDetail && !item.content.original.isEmpty && appearanceSettings.showTranslateButton) {
+                    if (showsDetailTranslation) {
                         Spacer(modifier = Modifier.height(8.dp))
                         TranslationComponent(
                             item = item,
@@ -454,8 +471,8 @@ public fun CommonStatusComponent(
                     }
                 }
 
-                if (item.images.isNotEmpty() && showMedia) {
-                    Spacer(modifier = Modifier.height(StatusComponentDefaults.attachmentSpacing))
+                if (showsImages) {
+                    Spacer(modifier = Modifier.height(firstAttachmentSpacing))
                     StatusMediasComponent(
                         item,
                         isQuote = isQuote,
@@ -471,8 +488,8 @@ public fun CommonStatusComponent(
                     )
                 }
                 item.card?.let { card ->
-                    if (appearanceSettings.showLinkPreview && item.images.isEmpty() && quotes.isEmpty()) {
-                        Spacer(modifier = Modifier.height(StatusComponentDefaults.attachmentSpacing))
+                    if (showsCard) {
+                        Spacer(modifier = Modifier.height(firstAttachmentSpacing))
                         StatusCardComponent(
                             card = card,
                             modifier =
@@ -500,18 +517,9 @@ public fun CommonStatusComponent(
                         )
                     }
                 }
-                if (quotes.isNotEmpty() && !isQuote) {
+                if (showsQuotes) {
                     Spacer(
-                        modifier =
-                            Modifier.height(
-                                if (item.images.isNotEmpty() &&
-                                    showMedia
-                                ) {
-                                    8.dp
-                                } else {
-                                    StatusComponentDefaults.attachmentSpacing
-                                },
-                            ),
+                        modifier = Modifier.height(if (showsImages) 8.dp else firstAttachmentSpacing),
                     )
                     StatusQuoteComponent(
                         quotes = quotes,
@@ -519,9 +527,7 @@ public fun CommonStatusComponent(
                     )
                 }
 
-                val hasVisibleEmojiReactions =
-                    appearanceSettings.showEmojiReactions && item.emojiReactions.isNotEmpty()
-                if (!isQuote && (hasVisibleEmojiReactions || item.sourceChannel != null)) {
+                if (showsReactions) {
                     Spacer(modifier = Modifier.height(8.dp))
                     StatusReactionComponent(
                         data = item,
@@ -540,12 +546,15 @@ public fun CommonStatusComponent(
                     )
                 }
                 if ((appearanceSettings.postActionStyle != PostActionStyle.Hidden || isDetail) && !forceHideActions) {
+                    val actionsFollowHeader =
+                        hasFullWidthHeader && !isDetail && !hasPreMediaBody &&
+                            !showsImages && !showsCard && !showsQuotes && !showsReactions
                     StatusActions(
                         item.actions,
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .padding(top = StatusComponentDefaults.actionsSpacing)
+                                .padding(top = if (actionsFollowHeader) 8.dp else StatusComponentDefaults.actionsSpacing)
                                 .expandHorizontally(leading = 4.dp, trailing = 4.dp)
                                 .then(actionsModifier),
                     )
@@ -1025,7 +1034,10 @@ internal fun StatusActions(
     items: ImmutableList<ActionMenu>,
     modifier: Modifier = Modifier,
 ) = CompositionLocalProvider(
-    PlatformTextStyle provides PlatformTheme.typography.postBody,
+    PlatformTextStyle provides
+        PlatformTheme.typography.postBody.let {
+            it.copy(fontSize = (it.fontSize.value - 2).sp, lineHeight = (it.lineHeight.value - 2).sp)
+        },
     PlatformContentColor provides StatusComponentDefaults.secondaryColor,
 ) {
     val appearanceSettings = LocalTimelineAppearance.current
@@ -1037,7 +1049,7 @@ internal fun StatusActions(
     val haptics = LocalHapticFeedback.current
     val launcher = LocalUriHandler.current
     val isStretched = appearanceSettings.postActionStyle == PostActionStyle.Stretch
-    val trailingNumberWidth = PlatformTextStyle.current.fontSize.value.dp * 2.5f + 2.dp
+    val trailingNumberWidth = with(LocalDensity.current) { PlatformTextStyle.current.fontSize.toDp() } * 2.5f + 2.dp
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.Bottom,
@@ -1351,44 +1363,29 @@ private fun StatusReplyComponent(
     }
 }
 
+private fun UiTranslatableText.visiblePostText(
+    translated: Boolean,
+    showOriginal: Boolean,
+): List<UiRichText> {
+    val translatedText = translation
+    return when {
+        !translated || translatedText == null -> listOf(original)
+        showOriginal -> listOf(original, translatedText)
+        else -> listOf(translatedText)
+    }
+}
+
 @Composable
 private fun StatusContentComponent(
-    content: UiTranslatableText,
-    contentWarning: UiTranslatableText?,
+    visibleContent: List<UiRichText>,
+    visibleContentWarning: List<UiRichText>,
     poll: UiPoll?,
     maxLines: Int?,
     showExpandButton: Boolean,
-    translationDisplayed: Boolean,
     topSpacing: Dp = 0.dp,
     modifier: Modifier = Modifier,
 ) {
     val appearanceSettings = LocalTimelineAppearance.current
-    val showOriginalWithTranslation = appearanceSettings.aiConfig.showOriginalWithTranslation
-    val translation = content.translation
-    val visibleContent =
-        if (translationDisplayed && translation != null) {
-            if (showOriginalWithTranslation) {
-                listOf(content.original, translation)
-            } else {
-                listOf(translation)
-            }
-        } else {
-            listOf(content.original)
-        }
-    val visibleContentWarning =
-        contentWarning
-            ?.let { warning ->
-                val warningTranslation = warning.translation
-                if (translationDisplayed && warningTranslation != null) {
-                    if (showOriginalWithTranslation) {
-                        listOf(warning.original, warningTranslation)
-                    } else {
-                        listOf(warningTranslation)
-                    }
-                } else {
-                    listOf(warning.original)
-                }
-            }.orEmpty()
     val effectiveMaxLines = (maxLines ?: appearanceSettings.lineLimit).coerceAtLeast(1)
     val collapseThresholdLines = maxLines?.coerceAtLeast(1) ?: 15
     var expanded by rememberSaveable {
@@ -1507,7 +1504,9 @@ private fun CollapsibleRichText(
 ) {
     val lineHeight =
         with(LocalDensity.current) {
-            PlatformTextStyle.current.lineHeight
+            PlatformTextStyle.current
+                .withWiderRichTextLineSpacing()
+                .lineHeight
                 .roundToPx()
                 .coerceAtLeast(1)
         }

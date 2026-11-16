@@ -63,7 +63,7 @@ final class StatusTopMessageUIView: UIView, ManualLayoutMeasurable, TimelineHeig
         if let user = message.user {
             nameView.isHidden = false
             nameView.baseTextStyle = preferredTextStyle
-            nameView.baseTextBold = postTextContentSizeCategory != nil
+            nameView.baseTextWeight = postTextContentSizeCategory == nil ? nil : .heavy
             nameView.lineSpacing = postTextContentSizeCategory == nil ? 0 : 1
             nameView.preferredContentSizeCategory = postTextContentSizeCategory ?? .medium
             nameView.baseTextColor = postTextContentSizeCategory != nil
@@ -176,10 +176,18 @@ final class StatusTopMessageUIView: UIView, ManualLayoutMeasurable, TimelineHeig
         let textContentHeight = ceil(baselineTop + baselineBottom)
         let contentHeight = max(ceil(iconSize), textContentHeight)
         let baselineY = ((contentHeight - textContentHeight) / 2) + baselineTop
-        let referenceFont = textLabel.font ?? preferredTextFont()
-        let firstLineCenterY = (baselineY - referenceFont.ascender) + (referenceFont.lineHeight / 2)
+        let referenceFont = visibleText ? (textLabel.font ?? preferredTextFont()) : preferredTextFont()
+        let iconHeight = postTextContentSizeCategory == nil ? iconSize : referenceFont.capHeight
+        let firstLineCenterY: CGFloat
+        if !visibleName && !visibleText {
+            firstLineCenterY = contentHeight / 2
+        } else if postTextContentSizeCategory == nil {
+            firstLineCenterY = baselineY - referenceFont.ascender + referenceFont.lineHeight / 2
+        } else {
+            firstLineCenterY = baselineY - iconHeight / 2
+        }
 
-        let iconFrame = CGRect(x: x, y: firstLineCenterY - (iconSize / 2), width: iconSize, height: iconSize)
+        let iconFrame = CGRect(x: x, y: firstLineCenterY - iconHeight / 2, width: iconSize, height: iconHeight)
         if assignFrames { iconView.frame = iconFrame.integral }
         x += iconSize
 
