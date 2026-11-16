@@ -43,25 +43,32 @@ struct ProfileScreen: View {
 
     private func profileContent(usesPlainProfileStyle: Bool) -> some View {
         let tabsState = presenter.state.tabs
-        let showsTabBar = switch onEnum(of: tabsState) {
-        case .loading: true
-        case .success(let state): state.data.cast(ProfileState.Tab.self).count > 1
-        case .error: false
+        let tabCount: Int? = switch onEnum(of: tabsState) {
+        case .loading: nil
+        case .success(let state): state.data.cast(ProfileState.Tab.self).count
+        case .error: 0
         }
+        let showsTabBar = tabCount.map { $0 > 1 } ?? true
 
         return ScrollView {
             VStack(spacing: usesPlainProfileStyle && showsTabBar ? 0 : 12) {
-                ProfileHeader(
-                    user: presenter.state.userState,
-                    relation: presenter.state.relationState,
-                    followButtonState: presenter.state.followButtonState,
-                    isMe: presenter.state.isMe,
-                    onFollowClick: { user, followButtonState in
-                        handleFollowAction(user: user, followButtonState: followButtonState)
-                    },
-                    onFollowingClick: onFollowingClick,
-                    onFansClick: onFansClick
-                )
+                VStack(spacing: 0) {
+                    ProfileHeader(
+                        user: presenter.state.userState,
+                        relation: presenter.state.relationState,
+                        followButtonState: presenter.state.followButtonState,
+                        isMe: presenter.state.isMe,
+                        onFollowClick: { user, followButtonState in
+                            handleFollowAction(user: user, followButtonState: followButtonState)
+                        },
+                        onFollowingClick: onFollowingClick,
+                        onFansClick: onFansClick
+                    )
+                    if usesPlainProfileStyle && tabCount == 1 {
+                        Divider()
+                            .padding(.top, 8)
+                    }
+                }
                 .environment(\.profileUsesPlainStyle, usesPlainProfileStyle)
                 .background(usesPlainProfileStyle ? Color.flareSystemBackground : .clear)
 

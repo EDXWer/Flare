@@ -689,21 +689,28 @@ private struct ProfileTimelineCollectionView: UIViewControllerRepresentable {
             let newHeaderSignature = ProfileHeaderAccessorySignature(
                 profileState: profileState,
                 timelineAppearance: timelineAppearance,
-                horizontalSizeClass: horizontalSizeClass
+                horizontalSizeClass: horizontalSizeClass,
+                showsTimelineDivider: tabs.count == 1
             )
             if headerSignature != newHeaderSignature {
                 headerSignature = newHeaderSignature
                 headerView.update(
                     AnyView(
-                        ProfileHeader(
-                            user: profileState.userState,
-                            relation: profileState.relationState,
-                            followButtonState: profileState.followButtonState,
-                            isMe: profileState.isMe,
-                            onFollowClick: onFollowClick,
-                            onFollowingClick: onFollowingClick,
-                            onFansClick: onFansClick
-                        )
+                        VStack(spacing: 0) {
+                            ProfileHeader(
+                                user: profileState.userState,
+                                relation: profileState.relationState,
+                                followButtonState: profileState.followButtonState,
+                                isMe: profileState.isMe,
+                                onFollowClick: onFollowClick,
+                                onFollowingClick: onFollowingClick,
+                                onFansClick: onFansClick
+                            )
+                            if newHeaderSignature.showsTimelineDivider {
+                                Divider()
+                                    .padding(.top, 8)
+                            }
+                        }
                         .environment(\.timelineAppearance, timelineAppearance)
                         .environment(\.profileUsesPlainStyle, true)
                         .environment(\.openURL, openURL)
@@ -1566,11 +1573,13 @@ private struct ProfileHeaderAccessorySignature: Equatable {
     let isMeState: String
     let appearance: TimelineUIKitAppearance
     let horizontalSizeClass: UserInterfaceSizeClass?
+    let showsTimelineDivider: Bool
 
     init(
         profileState: ProfileState,
         timelineAppearance: TimelineAppearance,
-        horizontalSizeClass: UserInterfaceSizeClass?
+        horizontalSizeClass: UserInterfaceSizeClass?,
+        showsTimelineDivider: Bool
     ) {
         userState = Self.userStateSignature(profileState.userState)
         relationState = Self.relationStateSignature(profileState.relationState)
@@ -1578,6 +1587,7 @@ private struct ProfileHeaderAccessorySignature: Equatable {
         isMeState = Self.isMeStateSignature(profileState.isMe)
         appearance = TimelineUIKitAppearance(timeline: timelineAppearance)
         self.horizontalSizeClass = horizontalSizeClass
+        self.showsTimelineDivider = showsTimelineDivider
     }
 
     private static func userStateSignature(_ state: UiState<UiProfile>) -> String {
