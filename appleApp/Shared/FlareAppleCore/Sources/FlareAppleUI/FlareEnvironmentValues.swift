@@ -35,4 +35,5 @@ public extension EnvironmentValues {
     @Entry var appSettings: AppSettings = FlareEnvironmentDefaults.appSettings
     @Entry var networkKind: NetworkKind = .cellular
     @Entry var isMultipleColumn = false
+    @Entry var profileUsesPlainStyle = false
 }

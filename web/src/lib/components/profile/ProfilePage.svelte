@@ -988,13 +988,30 @@
         background: var(--color-base-100);
     }
 
-    @media (max-width: 520px) {
-        .profile-avatar-row {
-            padding-inline: 0.85rem;
+    @media (max-width: 760px) {
+        .profile-header {
+            background: var(--color-base-100);
         }
 
         .profile-card {
-            margin-inline: 0.85rem;
+            margin-inline: 0;
+            border-radius: 0;
+            background: transparent;
+        }
+
+        .profile-tabs {
+            flex-wrap: nowrap;
+        }
+
+        .profile-tab[aria-selected="true"] {
+            color: var(--color-primary);
+        }
+    }
+
+    @media (max-width: 520px) {
+        .profile-avatar-row,
+        .profile-card {
+            padding-inline: 0.85rem;
         }
 
         .profile-actions {

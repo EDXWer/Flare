@@ -273,6 +273,13 @@ final class UITimelineCollectionViewController: UIViewController, UICollectionVi
             updateContentInsets()
         }
     }
+    var timelineCardTopSpacing: CGFloat = 0 {
+        didSet {
+            guard oldValue != timelineCardTopSpacing, isViewLoaded else { return }
+            collectionView.prepareForLayoutChange()
+            collectionView.collectionViewLayout.invalidateLayout()
+        }
+    }
     var topScrollIndicatorInset: CGFloat = 0 {
         didSet {
             guard oldValue != topScrollIndicatorInset, isViewLoaded else { return }
@@ -829,15 +836,21 @@ final class UITimelineCollectionViewController: UIViewController, UICollectionVi
     private var mainSectionUsesFullWidth: Bool { content.state == .empty || content.state == .error }
 
     private func waterfallInsets(for section: Int, layout: CHTCollectionViewWaterfallLayout) -> UIEdgeInsets {
+        let identifier = sectionIdentifier(at: section)
         guard contentKind == .profileMedia else {
-            if sectionIdentifier(at: section) == Self.sectionAccessories { return .zero }
-            if sectionIdentifier(at: section) == Self.sectionHeader {
+            if identifier == Self.sectionAccessories { return .zero }
+            if identifier == Self.sectionHeader {
                 let inset = max(appearance.isPlainTimelineDisplayMode ? 0 : TimelineHorizontalInsets.card, (collectionView.bounds.width - 600) / 2)
                 return UIEdgeInsets(top: 0, left: inset, bottom: 0, right: inset)
             }
-            return columnCount == 1 && appearance.isPlainTimelineDisplayMode ? .zero : layout.sectionInset
+            if columnCount == 1 && appearance.isPlainTimelineDisplayMode { return .zero }
+            var insets = layout.sectionInset
+            if contentKind == .timeline, identifier == Self.sectionMain, !mainSectionUsesFullWidth {
+                insets.top += timelineCardTopSpacing
+            }
+            return insets
         }
-        switch sectionIdentifier(at: section) {
+        switch identifier {
         case Self.sectionAccessories:
             return .zero
         case Self.sectionMain:
