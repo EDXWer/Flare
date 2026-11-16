@@ -115,6 +115,10 @@ final class StatusPostPresentationTests: XCTestCase {
             let icon = try XCTUnwrap(messageView.subviews.compactMap { $0 as? UIImageView }.first)
             let bodyFont = UIFont.preferredFont(forTextStyle: .body, compatibleWith: UITraitCollection(preferredContentSizeCategory: .medium))
             XCTAssertEqual(suffix.font.pointSize, bodyFont.pointSize - (data is UiTimelineV2.TimelinePostItem ? 2 : 0))
+            let nameText = try XCTUnwrap(descendants(name).compactMap { ($0 as? UILabel)?.attributedText }.first)
+            let nameFont = try XCTUnwrap(nameText.attribute(.font, at: 0, effectiveRange: nil) as? UIFont)
+            XCTAssertEqual(nameFont.pointSize, suffix.font.pointSize)
+            XCTAssertTrue(nameFont.fontDescriptor.symbolicTraits.contains(.traitBold))
             let expectedColor: UIColor = data is UiTimelineV2.Message ? .flarePostLabel : .flarePostSecondaryLabel
             XCTAssertEqual(suffix.textColor, expectedColor)
             XCTAssertEqual(name.baseTextColor, expectedColor)

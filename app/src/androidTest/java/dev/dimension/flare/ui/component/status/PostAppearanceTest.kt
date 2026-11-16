@@ -313,12 +313,18 @@ class PostAppearanceTest {
         compose.onNodeWithText("@hidden-origin", substring = true, useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithText("@hidden-parent", substring = true, useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithText("@visible-quote", substring = true, useUnmergedTree = true).assertIsDisplayed()
-        compose.onNodeWithText(reposterName, useUnmergedTree = true).assertIsDisplayed()
+        val reposter = compose.onNodeWithText(reposterName, useUnmergedTree = true).assertIsDisplayed()
         val repostLabel = compose.onNodeWithText("reposted a post", useUnmergedTree = true).assertIsDisplayed()
+        val nameLayouts = mutableListOf<TextLayoutResult>()
+        reposter.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(nameLayouts) }
         val repostLayouts = mutableListOf<TextLayoutResult>()
         repostLabel.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(repostLayouts) }
-        assertEquals(1, repostLayouts.single().lineCount)
-        assertFalse(repostLayouts.single().hasVisualOverflow)
+        val nameStyle = nameLayouts.single().layoutInput.style
+        val repostLayout = repostLayouts.single()
+        assertEquals(repostLayout.layoutInput.style.fontSize, nameStyle.fontSize)
+        assertEquals(FontWeight.Bold, nameStyle.fontWeight)
+        assertEquals(1, repostLayout.lineCount)
+        assertFalse(repostLayout.hasVisualOverflow)
         screenshot("post-appearance-android.png")
         compose
             .onNodeWithText("@visible-standalone", substring = true, useUnmergedTree = true)

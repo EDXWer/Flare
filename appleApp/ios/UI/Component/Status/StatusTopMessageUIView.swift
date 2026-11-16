@@ -64,18 +64,22 @@ final class StatusTopMessageUIView: UIView, ManualLayoutMeasurable, TimelineHeig
         } else {
             topMessageOnly ? .flareLabel : .secondaryLabel
         }
+        let fontSizeAdjustment: CGFloat = isAbovePost && postTextContentSizeCategory != nil ? -2 : 0
 
         if let user = message.user {
             nameView.isHidden = false
-            nameView.baseTextStyle = preferredTextStyle
-            nameView.baseTextWeight = postTextContentSizeCategory == nil ? nil : .bold
-            nameView.lineSpacing = postTextContentSizeCategory == nil ? 0 : 1
-            nameView.preferredContentSizeCategory = postTextContentSizeCategory ?? .medium
-            nameView.baseTextColor = textColor
-            nameView.text = user.name
-            nameView.onOpenURL = onOpenURL
-            nameView.lineLimit = topMessageOnly && postTextContentSizeCategory == nil ? nil : 1
-            nameView.fixedVertical = true
+            nameView.configure(
+                text: user.name,
+                lineLimit: topMessageOnly && postTextContentSizeCategory == nil ? nil : 1,
+                isTextSelectionEnabled: false,
+                onOpenURL: onOpenURL,
+                baseTextStyle: preferredTextStyle,
+                baseTextWeight: postTextContentSizeCategory == nil ? nil : .bold,
+                fontSizeAdjustment: fontSizeAdjustment,
+                lineSpacing: postTextContentSizeCategory == nil ? 0 : 1,
+                baseTextColor: textColor,
+                preferredContentSizeCategory: postTextContentSizeCategory ?? .medium
+            )
         } else {
             nameView.isHidden = true
         }
@@ -95,7 +99,7 @@ final class StatusTopMessageUIView: UIView, ManualLayoutMeasurable, TimelineHeig
             }
             if let postTextContentSizeCategory {
                 textLabel.setPostText(text, preferredContentSizeCategory: postTextContentSizeCategory,
-                                      fontSizeAdjustment: isAbovePost ? -2 : 0)
+                                      fontSizeAdjustment: fontSizeAdjustment)
             }
         } else {
             textLabel.isHidden = true
@@ -259,7 +263,10 @@ final class StatusTopMessageUIView: UIView, ManualLayoutMeasurable, TimelineHeig
     }
 
     private func preferredTextFont() -> UIFont {
-        .preferredFont(forTextStyle: preferredTextStyle, compatibleWith: fontTraits)
+        if postTextContentSizeCategory != nil, !nameView.isHidden {
+            return nameView.baseFont
+        }
+        return .preferredFont(forTextStyle: preferredTextStyle, compatibleWith: fontTraits)
     }
 
     private var preferredTextStyle: UIFont.TextStyle {

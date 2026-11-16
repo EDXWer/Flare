@@ -40,7 +40,8 @@ public struct StatusTopMessageView: View {
         let messageText = topMessage.type.localizedText
         let usesBodyColor = topMessageOnly && !isGalleryFallback
         let captionSize = bodyFontSize - 2
-        let capHeight = isAbovePost && messageText != nil ? postCapHeight * captionSize / bodyFontSize : postCapHeight
+        let hasText = messageText != nil || topMessage.user != nil
+        let capHeight = isAbovePost && hasText ? postCapHeight * captionSize / bodyFontSize : postCapHeight
         HStack(alignment: isPostContent ? .firstTextBaseline : .center, spacing: 8) {
             if isPostContent {
                 topMessage.icon.image
@@ -53,7 +54,8 @@ public struct StatusTopMessageView: View {
                 topMessage.icon.image
             }
             if let user = topMessage.user {
-                RichText(text: user.name, usesDisplayNameFont: isPostContent && !isGalleryFallback)
+                RichText(text: user.name, usesDisplayNameFont: isPostContent && !isGalleryFallback,
+                         inlineImageHeight: isAbovePost && isPostContent ? captionSize : nil)
                     .fontWeight(isPostContent ? (isGalleryFallback ? .heavy : .bold) : nil)
                     .if(isPostContent) { $0.lineLimit(1) }
                     .fixedSize(horizontal: false, vertical: true)
@@ -61,13 +63,12 @@ public struct StatusTopMessageView: View {
             if let text = messageText {
                 Text(text)
                     .flarePrimaryText()
-                    .if(isAbovePost) { $0.font(.system(size: captionSize)) }
                     .fixedSize(horizontal: false, vertical: true)
                     .layoutPriority(isPostContent && !topMessageOnly ? 1 : 0)
             }
         }
         .if(isPostContent) { view in
-            view.font(.body).lineSpacing(1)
+            view.font(isAbovePost ? .system(size: captionSize) : .body).lineSpacing(1)
                 .if(!usesBodyColor) { $0.flareSecondaryText() }
         }
         .onTapGesture {

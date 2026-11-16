@@ -44,6 +44,7 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
     var onOpenURL: ((URL) -> Void)?
     var baseTextStyle: UIFont.TextStyle = .body { didSet { if !isBatchUpdating { update() } } }
     var baseTextWeight: UIFont.Weight? { didSet { if !isBatchUpdating { update() } } }
+    var baseFont: UIFont { preferredFont(forTextStyle: baseTextStyle) }
     var lineSpacing: CGFloat = 0 { didSet { if !isBatchUpdating { update() } } }
     var baseTextColor: UIColor = .flareLabel { didSet { if !isBatchUpdating { update() } } }
     var preferredContentSizeCategory: UIContentSizeCategory = .medium {
@@ -54,6 +55,8 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
     }
 
     // MARK: - Private state
+
+    private var fontSizeAdjustment: CGFloat = 0
 
     private let stack: UIStackView = {
         let stack = UIStackView()
@@ -92,6 +95,7 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
         let isTextSelectionEnabled: Bool
         let baseTextStyle: UIFont.TextStyle
         let baseTextWeight: UIFont.Weight?
+        let fontSizeAdjustment: CGFloat
         let lineSpacing: CGFloat
         let baseTextColor: UIColor
         let preferredContentSizeCategory: UIContentSizeCategory
@@ -102,6 +106,7 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
             guard lhs.isTextSelectionEnabled == rhs.isTextSelectionEnabled,
                   lhs.baseTextStyle == rhs.baseTextStyle,
                   lhs.baseTextWeight == rhs.baseTextWeight,
+                  lhs.fontSizeAdjustment == rhs.fontSizeAdjustment,
                   lhs.lineSpacing == rhs.lineSpacing,
                   lhs.baseTextColor.isEqual(rhs.baseTextColor),
                   lhs.preferredContentSizeCategory == rhs.preferredContentSizeCategory,
@@ -173,6 +178,7 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
         onOpenURL: ((URL) -> Void)?,
         baseTextStyle: UIFont.TextStyle = .body,
         baseTextWeight: UIFont.Weight? = nil,
+        fontSizeAdjustment: CGFloat = 0,
         lineSpacing: CGFloat = 0,
         baseTextColor: UIColor = .flareLabel,
         preferredContentSizeCategory: UIContentSizeCategory = .medium,
@@ -190,6 +196,7 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
         self.onOpenURL = onOpenURL
         self.baseTextStyle = baseTextStyle
         self.baseTextWeight = baseTextWeight
+        self.fontSizeAdjustment = fontSizeAdjustment
         self.lineSpacing = lineSpacing
         self.baseTextColor = baseTextColor
         self.preferredContentSizeCategory = preferredContentSizeCategory
@@ -209,6 +216,7 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
             isTextSelectionEnabled: isTextSelectionEnabled,
             baseTextStyle: baseTextStyle,
             baseTextWeight: baseTextWeight,
+            fontSizeAdjustment: fontSizeAdjustment,
             lineSpacing: lineSpacing,
             baseTextColor: baseTextColor,
             preferredContentSizeCategory: preferredContentSizeCategory,
@@ -894,10 +902,11 @@ final class RichTextUIView: UIView, TimelineHeightProviding {
     }
 
     private func preferredFont(forTextStyle textStyle: UIFont.TextStyle) -> UIFont {
-        UIFont.preferredFont(
+        let font = UIFont.preferredFont(
             forTextStyle: textStyle,
             compatibleWith: effectiveFontTraitCollection()
         )
+        return fontSizeAdjustment == 0 ? font : font.withSize(font.pointSize + fontSizeAdjustment)
     }
 
     private func effectiveFontTraitCollection() -> UITraitCollection {
