@@ -556,7 +556,6 @@ final class StatusMediaUIView: UIView, TimelineHeightProviding, UICollectionView
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        layer.cornerRadius = usesCarousel ? 0 : cornerRadius
         if usesCarousel {
             if let index = pendingReturnedIndex, carousel.bounds.width > 0, items.indices.contains(index) {
                 pendingReturnedIndex = nil
@@ -670,7 +669,6 @@ final class StatusMediaUIView: UIView, TimelineHeightProviding, UICollectionView
                 carousel.setContentOffset(.zero, animated: false)
             }
         }
-        layer.cornerRadius = usesCarousel ? 0 : cornerRadius
         updateAspectConstraint()
         reloadMediaLayout()
         updateBlurUI()
@@ -1150,7 +1148,10 @@ final class StatusMediaUIView: UIView, TimelineHeightProviding, UICollectionView
         if sensitive {
             installSensitiveControlsIfNeeded()
         }
-        blurView.isHidden = !(sensitive && isBlurred)
+        let showsBlur = sensitive && isBlurred
+        // Share one clip while blurred so rounded edges cannot expose the media underneath.
+        layer.cornerRadius = showsBlur && !usesCarousel ? cornerRadius : 0
+        blurView.isHidden = !showsBlur
         if !sensitive {
             toggleButton.isHidden = true
             return

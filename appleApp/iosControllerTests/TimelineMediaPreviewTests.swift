@@ -1034,6 +1034,12 @@ final class TimelineMediaPreviewTests: XCTestCase {
         }
 
         configure(.grid)
+        let cornerTile = try XCTUnwrap(descendants(view).first { $0.layer.borderWidth > 0 })
+        XCTAssertTrue(cornerTile.clipsToBounds)
+        XCTAssertTrue(cornerTile.layer.maskedCorners.contains(.layerMinXMinYCorner))
+        XCTAssertEqual(cornerTile.layer.cornerRadius, 16)
+        XCTAssertFalse(view.clipsToBounds && view.layer.cornerRadius > 0,
+                       "The media outline must not pass through a second rounded clip")
         XCTAssertFalse(view.isCarouselScrolling)
         view.performLightweightPoolCleanup()
         view.performDeferredPoolCleanup()
@@ -1048,11 +1054,15 @@ final class TimelineMediaPreviewTests: XCTestCase {
         XCTAssertFalse(toggle.isHidden)
         XCTAssertFalse(view.allowsVideoAutoplay)
         XCTAssertEqual(blur.frame, view.bounds)
+        XCTAssertTrue(view.clipsToBounds)
+        XCTAssertEqual(view.layer.cornerRadius, 16, "Blur and media must share the same corner clip")
+        XCTAssertEqual(blur.layer.cornerRadius, 0)
         XCTAssertEqual(toggle.center.x, view.bounds.midX, accuracy: 0.5)
         XCTAssertEqual(toggle.center.y, view.bounds.midY, accuracy: 0.5)
         XCTAssertNotNil(toggle.accessibilityLabel)
         toggle.sendActions(for: .touchUpInside)
         XCTAssertTrue(blur.isHidden)
+        XCTAssertEqual(view.layer.cornerRadius, 0)
         XCTAssertTrue(view.allowsVideoAutoplay)
 
         configure(.carousel, sensitive: true)
@@ -1067,12 +1077,18 @@ final class TimelineMediaPreviewTests: XCTestCase {
         XCTAssertEqual(view.subviews.last, toggle)
         toggle.sendActions(for: .touchUpInside)
         XCTAssertFalse(blur.isHidden)
+        XCTAssertEqual(view.layer.cornerRadius, 0)
         XCTAssertFalse(view.allowsVideoAutoplay)
+
+        configure(.grid, sensitive: true)
+        XCTAssertFalse(blur.isHidden)
+        XCTAssertEqual(view.layer.cornerRadius, 16)
 
         configure(.grid, count: 1)
         XCTAssertTrue(carousel.isHidden)
         XCTAssertEqual(carousel.numberOfItems(inSection: 0), 0)
         XCTAssertTrue(blur.isHidden)
+        XCTAssertEqual(view.layer.cornerRadius, 0)
         XCTAssertTrue(toggle.isHidden)
         XCTAssertTrue(view.allowsVideoAutoplay)
         configure(.carousel)
