@@ -44,19 +44,61 @@ class PluginMarketplaceTest {
     }
 
     @Test
-    fun searchMatchesOnlyNamesAndDescriptionsAndPreservesCatalogOrder() {
-        val first = PluginMarketplaceEntryV1("hidden.id", "Zhihu", "知乎热榜与推荐", "https://github.com/hidden/repository", "")
-        val second = first.copy(id = "other.id", name = "Reader", description = "A ZHIHU reader")
-        val state = PluginMarketplaceStateV1(plugins = listOf(first, second), loaded = true)
+    fun entryFormatsOwnerHandleAndRepositoryDisplayPathSafely() {
+        val rootEntry =
+            PluginMarketplaceEntryV1(
+                id = "dev.maxlec.zhihu",
+                name = "知乎",
+                description = "知乎热榜",
+                repository = "https://github.com/anamaxlec/flare-zhihu-plugin",
+                icon = "",
+            )
+        val subPathEntry =
+            rootEntry.copy(
+                id = "dev.alice.zhihu",
+                repository = "https://github.com/alice/flare-plugins.git?path=/plugins/My%20Plugin/",
+            )
+        val malformed = rootEntry.copy(repository = "not-a-github-url")
 
-        assertEquals(listOf(first, second), state.search("  zHiHu  "))
-        assertEquals(listOf(first), state.search("推荐"))
+        assertEquals("@anamaxlec", rootEntry.ownerHandle)
+        assertEquals("flare-zhihu-plugin", rootEntry.repositoryDisplayPath)
+        assertEquals("@alice", subPathEntry.ownerHandle)
+        assertEquals("flare-plugins/plugins/My Plugin", subPathEntry.repositoryDisplayPath)
+        assertEquals("", malformed.ownerHandle)
+        assertEquals("not-a-github-url", malformed.repositoryDisplayPath)
+    }
+
+    @Test
+    fun searchMatchesNameDescriptionIdAndSourceWhileExcludingIconUrlAndPreservingOrder() {
+        val first =
+            PluginMarketplaceEntryV1(
+                id = "dev.maxlec.zhihu",
+                name = "知乎",
+                description = "知乎热榜与推荐",
+                repository = "https://github.com/anamaxlec/flare-zhihu-plugin",
+                icon = "https://raw.githubusercontent.com/anamaxlec/flare-zhihu-plugin/557b6195db413fecc65468195c6646c668b64d64/assets/icon.png",
+            )
+        val second =
+            PluginMarketplaceEntryV1(
+                id = "dev.alice.zhihu.lite",
+                name = "知乎",
+                description = "轻量只读版",
+                repository = "https://github.com/alice/flare-plugins.git?path=/plugins/My%20Plugin/",
+                icon = "https://raw.githubusercontent.com/alice/flare-plugins/1111111111111111111111111111111111111111/assets/unique-icon.png",
+            )
+        val malformed = second.copy(id = "broken.entry", name = "Broken", repository = "")
+        val state = PluginMarketplaceStateV1(plugins = listOf(first, second, malformed), loaded = true)
+
+        assertEquals(listOf(first, second), state.search("  知乎  "))
+        assertEquals(listOf(first), state.search("@ANAMAXLEC"))
+        assertEquals(listOf(first), state.search("anamaxlec/flare-zhihu-plugin"))
+        assertEquals(listOf(second), state.search("alice/flare-plugins/plugins/My Plugin"))
+        assertEquals(listOf(second), state.search("my plugin"))
+        assertEquals(listOf(second), state.search("dev.alice.zhihu"))
         assertEquals(state.plugins, state.search(" \n\t "))
-        assertTrue(state.search("hidden.id").isEmpty())
-        assertTrue(state.search("hidden/repository").isEmpty())
+        assertTrue(state.search("githubusercontent").isEmpty())
+        assertTrue(state.search("unique-icon.png").isEmpty())
         assertTrue(state.search("unmatched").isEmpty())
-        assertTrue(state.copy(plugins = listOf(second)).search("推荐").isEmpty())
-        assertEquals(2, state.plugins.size)
     }
 
     @Test
