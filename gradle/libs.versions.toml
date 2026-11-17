@@ -230,7 +230,7 @@ xmlUtil = { module = "io.github.pdvrieze.xmlutil:serialization", version = "1.0.
 
 fluent-ui = { module = "io.github.compose-fluent:fluent", version = "v0.1.0" }
 
-commons-lang3 = { module = "org.apache.commons:commons-lang3", version = "3.21.0" }
+commons-lang3 = { module = "org.apache.commons:commons-lang3", version = "3.22.0" }
 
 quartz = { module = "com.vitorpamplona.quartz:quartz", version.ref = "quartz" }
 qrose = { module = "io.github.alexzhirkevich:qrose", version.ref = "qrose" }
