@@ -414,7 +414,19 @@ public struct PluginManagementView: View {
         let state = presenter.state
         let marketplace = state.marketplace
         let plugins = marketplace.search(query: marketplaceQuery)
+        let showsCommunityNotice = showsMarketplaceCommunityNotice(query: marketplaceQuery, hasPlugins: !plugins.isEmpty)
         #if os(macOS)
+        if showsCommunityNotice {
+            Section {
+                GroupBox {
+                    marketplaceCommunityNotice.padding(4)
+                }
+                .flareTextBackground(.flareSystemGroupedBackground)
+                .listRowBackground(Color.clear)
+                .listRowInsets(MacPluginLayout.rowInsets)
+                .listRowSeparator(.hidden)
+            }
+        }
         if marketplace.error != nil {
             Section {
                 macPluginNotice("plugin_marketplace_refresh_failed", detail: Text("plugin_marketplace_cached")) {
@@ -430,6 +442,11 @@ public struct PluginManagementView: View {
                 .macPluginStateRow()
         }
         #else
+        if showsCommunityNotice {
+            Section {
+                marketplaceCommunityNotice
+            }
+        }
         if marketplace.loading && marketplace.plugins.isEmpty {
             Section { UiListPlaceholder() }
         }
@@ -523,6 +540,19 @@ public struct PluginManagementView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 // Feedback must bypass the app's social content routing.
                 .environment(\.openURL, OpenURLAction { .systemAction($0) })
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var marketplaceCommunityNotice: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(fontAwesome: .circleInfo)
+                .foregroundStyle(.tint)
+                .accessibilityHidden(true)
+            Text("plugin_marketplace_community_notice")
+                .font(.subheadline)
+                .flareSecondaryText()
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.vertical, 4)
     }
@@ -1208,11 +1238,25 @@ private struct PluginMarketplaceRow: View {
     }
 
     private var details: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(entry.name)
-                #if os(macOS)
-                .font(.headline)
-                #endif
+        let sourceLine = pluginMarketplaceSourceLine(
+            entry: entry,
+            managedLabel: managed ? String(localized: installed ? "plugin_installed" : "plugin_marketplace_local") : nil
+        )
+        return VStack(alignment: .leading, spacing: 4) {
+            if entry.ownerHandle.isEmpty {
+                titleText
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .center, spacing: 6) {
+                        titleText.fixedSize(horizontal: true, vertical: false)
+                        ownerBadge.fixedSize(horizontal: true, vertical: false)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        titleText
+                        ownerBadge
+                    }
+                }
+            }
             Text(entry.description_)
                 #if os(macOS)
                 .font(.subheadline)
@@ -1220,11 +1264,28 @@ private struct PluginMarketplaceRow: View {
                 .font(.caption)
                 #endif
                 .foregroundStyle(.secondary)
-            if managed {
-                Text(installed ? "plugin_installed" : "plugin_marketplace_local")
-                    .font(.caption).foregroundStyle(.secondary)
+            if !sourceLine.isEmpty {
+                Text(verbatim: sourceLine)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private var titleText: some View {
+        Text(entry.name)
+            #if os(macOS)
+            .font(.headline)
+            #endif
+    }
+
+    private var ownerBadge: some View {
+        Text(verbatim: entry.ownerHandle)
+            .font(.caption.monospaced())
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(.quaternary, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
     }
 
     private var installButton: some View {
@@ -1265,4 +1326,14 @@ private struct PluginMarketplaceRow: View {
         .menuIndicator(.hidden)
         #endif
     }
+}
+
+func showsMarketplaceCommunityNotice(query: String, hasPlugins: Bool) -> Bool {
+    query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && hasPlugins
+}
+
+func pluginMarketplaceSourceLine(entry: PluginMarketplaceEntryV1, managedLabel: String?) -> String {
+    [entry.repositoryDisplayPath, managedLabel ?? ""]
+        .filter { !$0.isEmpty }
+        .joined(separator: " · ")
 }

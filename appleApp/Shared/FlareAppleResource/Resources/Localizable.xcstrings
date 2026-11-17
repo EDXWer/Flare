@@ -485,6 +485,28 @@
         }
       }
     },
+    "plugin_marketplace_community_notice" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plugins in the marketplace are created by third-party community developers and are not official. Review the source repository before installing."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插件市场收录的插件均由社区第三方开发，并非官方出品。安装前请核对来源仓库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外掛市集收錄的外掛均由社群第三方開發，並非官方出品。安裝前請核對來源儲存庫。"
+          }
+        }
+      }
+    },
     "plugin_marketplace_search" : {
       "localizations" : {
         "en" : {

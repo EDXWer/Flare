@@ -60,7 +60,11 @@ public data class PluginMarketplaceEntryV1(
             runCatching { parseRepositoryUrl(repository) }
                 .getOrNull()
                 ?.let { location ->
-                    if (location.path.isEmpty()) "${location.owner}/${location.name}" else "${location.owner}/${location.name}/${location.path}"
+                    if (location.path.isEmpty()) {
+                        "${location.owner}/${location.name}"
+                    } else {
+                        "${location.owner}/${location.name}/${location.path}"
+                    }
                 }
                 ?: repository.trim()
 }

@@ -76,7 +76,9 @@ class PluginMarketplaceTest {
                 name = "知乎",
                 description = "知乎热榜与推荐",
                 repository = "https://github.com/anamaxlec/flare-zhihu-plugin",
-                icon = "https://raw.githubusercontent.com/anamaxlec/flare-zhihu-plugin/557b6195db413fecc65468195c6646c668b64d64/assets/icon.png",
+                icon =
+                    "https://raw.githubusercontent.com/anamaxlec/flare-zhihu-plugin/" +
+                        "557b6195db413fecc65468195c6646c668b64d64/assets/icon.png",
             )
         val second =
             PluginMarketplaceEntryV1(
@@ -84,7 +86,9 @@ class PluginMarketplaceTest {
                 name = "知乎",
                 description = "轻量只读版",
                 repository = "https://github.com/alice/flare-plugins.git?path=/plugins/My%20Plugin/",
-                icon = "https://raw.githubusercontent.com/alice/flare-plugins/1111111111111111111111111111111111111111/assets/unique-icon.png",
+                icon =
+                    "https://raw.githubusercontent.com/alice/flare-plugins/" +
+                        "1111111111111111111111111111111111111111/assets/unique-icon.png",
             )
         val malformed = second.copy(id = "broken.entry", name = "Broken", repository = "")
         val state = PluginMarketplaceStateV1(plugins = listOf(first, second, malformed), loaded = true)
