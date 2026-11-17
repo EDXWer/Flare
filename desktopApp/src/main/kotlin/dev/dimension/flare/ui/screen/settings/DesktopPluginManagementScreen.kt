@@ -144,6 +144,7 @@ import dev.dimension.flare.plugin_warning_tag_moved
 import dev.dimension.flare.search_empty
 import dev.dimension.flare.settings_plugins_subtitle
 import dev.dimension.flare.settings_plugins_title
+import dev.dimension.flare.ui.component.CardExpanderItem
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.FlareScrollBar
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
@@ -157,7 +158,6 @@ import io.github.composefluent.background.BackgroundSizing
 import io.github.composefluent.background.Layer
 import io.github.composefluent.component.AccentButton
 import io.github.composefluent.component.Button
-import io.github.composefluent.component.CardExpanderItem
 import io.github.composefluent.component.ContentDialog
 import io.github.composefluent.component.ContentDialogButton
 import io.github.composefluent.component.FluentDialog

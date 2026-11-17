@@ -50,6 +50,7 @@ import dev.dimension.flare.tab_settings_group_default_name
 import dev.dimension.flare.tab_settings_group_empty
 import dev.dimension.flare.tab_settings_group_name_placeholder
 import dev.dimension.flare.tab_settings_remove
+import dev.dimension.flare.ui.component.CardExpanderItem
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.FlareScrollBar
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
@@ -63,7 +64,6 @@ import dev.dimension.flare.ui.screen.settings.AllTabsPresenter
 import dev.dimension.flare.ui.theme.screenHorizontalPadding
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.AccentButton
-import io.github.composefluent.component.CardExpanderItem
 import io.github.composefluent.component.SubtleButton
 import io.github.composefluent.component.Text
 import kotlinx.collections.immutable.toImmutableList

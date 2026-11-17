@@ -33,7 +33,6 @@ import dev.dimension.flare.ui.model.onLoading
 import dev.dimension.flare.ui.model.onSuccess
 import dev.dimension.flare.ui.model.toUiImage
 import dev.dimension.flare.ui.presenter.login.ReloginTarget
-import io.github.composefluent.component.CardExpanderItem
 import io.github.composefluent.component.SubtleButton
 import io.github.composefluent.component.Text
 import org.jetbrains.compose.resources.stringResource
