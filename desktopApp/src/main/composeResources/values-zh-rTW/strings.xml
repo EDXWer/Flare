@@ -746,6 +746,7 @@
     <string name="plugin_marketplace_install">安裝</string>
     <string name="plugin_marketplace_local">本機外掛</string>
     <string name="plugin_marketplace_search">搜尋外掛程式</string>
+    <string name="plugin_marketplace_community_notice">外掛市集收錄的外掛均由社群第三方開發，並非官方出品。安裝前請核對來源儲存庫。</string>
     <string name="pixiv_ranking_day_ai_title">AI 每日排行榜</string>
     <string name="pixiv_ranking_day_r18_title">R-18 每日排行榜</string>
     <string name="pixiv_ranking_week_r18_title">R-18 每週排行榜</string>

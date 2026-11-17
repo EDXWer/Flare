@@ -191,6 +191,85 @@ class DesktopPluginManagementScreenTest {
     }
 
     @Test
+    fun marketplaceDisambiguatesDuplicateNamesAndWrapsLongTitlesOnNarrowWindow() {
+        val notice =
+            "Plugins in the marketplace are created by third-party community developers and are not official. Review the source repository before installing."
+        val first =
+            dev.dimension.flare.feature.plugin.marketplace.PluginMarketplaceEntryV1(
+                id = "dev.maxlec.zhihu",
+                name = "知乎",
+                description = "知乎热榜、推荐、关注动态与回答/文章详情",
+                repository = "https://github.com/anamaxlec/flare-zhihu-plugin",
+                icon = "",
+            )
+        val second =
+            first.copy(
+                id = "dev.alice.zhihu",
+                description = "轻量只读版知乎时间线",
+                repository = "https://github.com/alice/flare-plugins?path=/plugins/zhihu-lite",
+            )
+        val longNamed =
+            first.copy(
+                id = "dev.bob.long",
+                name = "Super Long Community Plugin Title That Wraps Cleanly On Narrow Screens",
+                repository = "https://github.com/bob-developer/super-long-plugin",
+            )
+        var query by mutableStateOf("")
+        var state by mutableStateOf(
+            PluginManagementStateV1(
+                authoredPlugins = listOf(AuthoredPlugin(first.id, first.name)),
+                marketplace =
+                    dev.dimension.flare.feature.plugin.marketplace.PluginMarketplaceStateV1(
+                        plugins = listOf(first, second, longNamed),
+                        loaded = true,
+                    ),
+            ),
+        )
+        compose.setContent {
+            if (visible) {
+                FlareTheme(isDarkTheme = false) {
+                    Box(Modifier.width(448.dp).height(700.dp)) {
+                        PluginMarketplaceList(
+                            state = state,
+                            onInstall = {},
+                            onManage = {},
+                            onRefresh = {},
+                            onIcon = { null },
+                            query = query,
+                        )
+                    }
+                }
+            }
+        }
+        compose.onNodeWithText(notice).assertIsDisplayed()
+        compose.onNodeWithText("@anamaxlec").assertIsDisplayed()
+        compose.onNodeWithText("flare-zhihu-plugin · Local plugin").assertIsDisplayed()
+        compose.onNodeWithText("@alice").assertIsDisplayed()
+        compose.onNodeWithText("flare-plugins/plugins/zhihu-lite").assertIsDisplayed()
+        compose.onNodeWithText("@bob-developer").assertIsDisplayed()
+        compose.onNodeWithContentDescription("More: ${longNamed.name}").assertIsDisplayed()
+
+        compose.runOnIdle { query = "@alice" }
+        compose.onNodeWithText(notice).assertDoesNotExist()
+        compose.onNodeWithText("@alice").assertIsDisplayed()
+        compose.onNodeWithText("@anamaxlec").assertDoesNotExist()
+
+        compose.runOnIdle {
+            query = ""
+            state =
+                state.copy(
+                    marketplace =
+                        dev.dimension.flare.feature.plugin.marketplace.PluginMarketplaceStateV1(
+                            plugins = emptyList(),
+                            loaded = true,
+                        ),
+                )
+        }
+        compose.onNodeWithText(notice).assertDoesNotExist()
+        compose.onNodeWithText("No plugins available yet").assertIsDisplayed()
+    }
+
+    @Test
     fun allPluginSourcesRemainTogetherAfterOperationNotices() {
         val authored = AuthoredPlugin("local.ai.example", "AI plugin", phase = PluginAuthoringPhase.Validating)
         val github =
