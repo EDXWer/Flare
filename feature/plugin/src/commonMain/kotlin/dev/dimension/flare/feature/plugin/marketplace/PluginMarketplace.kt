@@ -61,9 +61,9 @@ public data class PluginMarketplaceEntryV1(
                 .getOrNull()
                 ?.let { location ->
                     if (location.path.isEmpty()) {
-                        "${location.owner}/${location.name}"
+                        "@${location.owner}/${location.name}"
                     } else {
-                        "${location.owner}/${location.name}/${location.path}"
+                        "@${location.owner}/${location.name}/${location.path}"
                     }
                 }
                 ?: repository.trim()

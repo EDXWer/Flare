@@ -96,6 +96,7 @@ class PluginMarketplaceTest {
         assertEquals(listOf(first, second), state.search("  知乎  "))
         assertEquals(listOf(first), state.search("@ANAMAXLEC"))
         assertEquals(listOf(first), state.search("anamaxlec/flare-zhihu-plugin"))
+        assertEquals(listOf(first), state.search("@anamaxlec/flare-zhihu-plugin"))
         assertEquals(listOf(second), state.search("alice/flare-plugins/plugins/My Plugin"))
         assertEquals(listOf(second), state.search("my plugin"))
         assertEquals(listOf(second), state.search("dev.alice.zhihu"))
