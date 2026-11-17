@@ -90,7 +90,7 @@ class PluginMarketplaceTest {
                     "https://raw.githubusercontent.com/alice/flare-plugins/" +
                         "1111111111111111111111111111111111111111/assets/unique-icon.png",
             )
-        val malformed = second.copy(id = "broken.entry", name = "Broken", repository = "")
+        val malformed = second.copy(id = "broken.entry", name = "Broken", repository = "not-a-github-url")
         val state = PluginMarketplaceStateV1(plugins = listOf(first, second, malformed), loaded = true)
 
         assertEquals(listOf(first, second), state.search("  知乎  "))
@@ -100,6 +100,9 @@ class PluginMarketplaceTest {
         assertEquals(listOf(second), state.search("alice/flare-plugins/plugins/My Plugin"))
         assertEquals(listOf(second), state.search("my plugin"))
         assertEquals(listOf(second), state.search("dev.alice.zhihu"))
+        assertEquals(listOf(malformed), state.search("broken.entry"))
+        assertEquals(listOf(malformed), state.search("not-a-github-url"))
+        assertEquals(listOf(first, second), state.search("@"))
         assertEquals(state.plugins, state.search(" \n\t "))
         assertTrue(state.search("githubusercontent").isEmpty())
         assertTrue(state.search("unique-icon.png").isEmpty())

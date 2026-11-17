@@ -575,15 +575,17 @@ internal fun PluginMarketplaceList(
                                         }
                                     }
                                 }
-                                ProvideTextStyle(FluentTheme.typography.caption.copy(color = FluentTheme.colors.text.text.secondary)) {
-                                    Text(entry.description)
-                                    if (sourceLine.isNotEmpty()) {
-                                        Text(
-                                            text = sourceLine,
-                                            style = FluentTheme.typography.caption.copy(fontFamily = FontFamily.Monospace),
-                                            color = FluentTheme.colors.text.text.secondary,
-                                        )
-                                    }
+                                Text(
+                                    text = entry.description,
+                                    style = FluentTheme.typography.caption,
+                                    color = FluentTheme.colors.text.text.secondary,
+                                )
+                                if (sourceLine.isNotEmpty()) {
+                                    Text(
+                                        text = sourceLine,
+                                        style = FluentTheme.typography.caption.copy(fontFamily = FontFamily.Monospace),
+                                        color = FluentTheme.colors.text.text.secondary,
+                                    )
                                 }
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {

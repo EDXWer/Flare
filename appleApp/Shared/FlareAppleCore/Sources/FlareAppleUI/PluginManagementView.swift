@@ -1237,9 +1237,11 @@ struct PluginMarketplaceRow: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .accessibilityHidden(true)
                 details
-                Spacer(minLength: 0)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 installButton
+                    .fixedSize(horizontal: true, vertical: false)
                 repositoryMenu
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .padding(.vertical, 4)
             #endif

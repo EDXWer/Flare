@@ -39,34 +39,25 @@ public data class PluginMarketplaceEntryV1(
     val icon: String,
 ) {
     public val ownerHandle: String
-        get() =
-            runCatching { parseRepositoryUrl(repository) }
-                .getOrNull()
-                ?.owner
-                ?.let { "@$it" }
-                .orEmpty()
+        get() = parsedLocation()?.owner?.let { "@$it" }.orEmpty()
 
     public val repositoryDisplayPath: String
         get() =
-            runCatching { parseRepositoryUrl(repository) }
-                .getOrNull()
-                ?.let { location ->
-                    if (location.path.isEmpty()) location.name else "${location.name}/${location.path}"
-                }
-                ?: repository.trim()
+            parsedLocation()?.let { location ->
+                if (location.path.isEmpty()) location.name else "${location.name}/${location.path}"
+            } ?: repository.trim()
 
     internal val searchableSource: String
         get() =
-            runCatching { parseRepositoryUrl(repository) }
-                .getOrNull()
-                ?.let { location ->
-                    if (location.path.isEmpty()) {
-                        "@${location.owner}/${location.name}"
-                    } else {
-                        "@${location.owner}/${location.name}/${location.path}"
-                    }
+            parsedLocation()?.let { location ->
+                if (location.path.isEmpty()) {
+                    "@${location.owner}/${location.name}"
+                } else {
+                    "@${location.owner}/${location.name}/${location.path}"
                 }
-                ?: repository.trim()
+            } ?: repository.trim()
+
+    private fun parsedLocation() = runCatching { parseRepositoryUrl(repository) }.getOrNull()
 }
 
 @Serializable
@@ -90,8 +81,6 @@ public data class PluginMarketplaceStateV1(
                 entry.name.contains(term, ignoreCase = true) ||
                     entry.description.contains(term, ignoreCase = true) ||
                     entry.id.contains(term, ignoreCase = true) ||
-                    entry.ownerHandle.contains(term, ignoreCase = true) ||
-                    entry.repositoryDisplayPath.contains(term, ignoreCase = true) ||
                     entry.searchableSource.contains(term, ignoreCase = true)
             }
         }
