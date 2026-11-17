@@ -95,7 +95,10 @@ class PluginMarketplaceScreenTest {
     @Test
     fun marketplaceDisplaysTheCatalogAndRoutesInstallAndRepositoryActions() {
         show()
+        compose.onNodeWithText(context.getString(R.string.plugin_marketplace_community_notice)).assertIsDisplayed()
         compose.onNodeWithText(entry.name).assertIsDisplayed()
+        compose.onNodeWithText("@anamaxlec").assertIsDisplayed()
+        compose.onNodeWithText("flare-zhihu-plugin").assertIsDisplayed()
         compose.onNodeWithText(context.getString(R.string.plugin_marketplace_search)).assertIsDisplayed()
         compose.onNodeWithText(context.getString(R.string.settings_plugins_title)).assertDoesNotExist()
         compose.onNodeWithContentDescription("Refresh").assertDoesNotExist()
@@ -120,6 +123,9 @@ class PluginMarketplaceScreenTest {
         compose.onNodeWithText(context.getString(R.string.plugin_marketplace_search)).performClick()
         val input = compose.onNode(hasSetTextAction() and hasAnyAncestor(isDialog()))
         input.performTextInput("知")
+        compose.onNodeWithText(context.getString(R.string.plugin_marketplace_community_notice)).assertDoesNotExist()
+        compose.onNodeWithText(entry.name).assertIsDisplayed()
+        input.performTextReplacement("@anamaxlec")
         compose.onNodeWithText(entry.name).assertIsDisplayed()
         input.performTextReplacement("not-a-plugin")
         compose.onNodeWithText(context.getString(R.string.empty_search_results)).assertIsDisplayed()
@@ -140,6 +146,7 @@ class PluginMarketplaceScreenTest {
         compose.onNodeWithText(context.getString(R.string.empty_search_results)).assertIsDisplayed()
         compose.onNodeWithText("推荐").assertIsDisplayed()
         compose.onNodeWithContentDescription(context.getString(R.string.clear_search)).performClick()
+        compose.onNodeWithText(context.getString(R.string.plugin_marketplace_community_notice)).assertIsDisplayed()
         compose.onNodeWithText(entry.name).assertIsDisplayed()
     }
 
@@ -152,12 +159,40 @@ class PluginMarketplaceScreenTest {
             )
         show()
         compose.onNodeWithText(context.getString(R.string.plugin_marketplace_install)).assertDoesNotExist()
+        compose.onNodeWithText("flare-zhihu-plugin · ${context.getString(R.string.plugin_marketplace_local)}").assertIsDisplayed()
         compose.onNodeWithText(context.getString(R.string.plugin_marketplace_cached)).assertIsDisplayed()
         compose.onNodeWithText(context.getString(R.string.plugin_marketplace_manage)).performClick()
         compose.runOnIdle { assertEquals(true, managed) }
         compose.onNodeWithText(context.getString(R.string.plugin_retry)).performClick()
         compose.runOnIdle { assertEquals(true, refreshed) }
         compose.onNodeWithText(entry.name).assertIsDisplayed()
+    }
+
+    @Test
+    fun duplicateNamedPluginsShowDistinctOwnerPillsAndEmptyCatalogHidesNotice() {
+        val duplicate =
+            entry.copy(
+                id = "dev.alice.zhihu",
+                description = "轻量只读版知乎时间线",
+                repository = "https://github.com/alice/flare-plugins?path=/plugins/zhihu-lite",
+            )
+        state =
+            state.copy(
+                marketplace = PluginMarketplaceStateV1(plugins = listOf(entry, duplicate), loaded = true),
+            )
+        show()
+        compose.onNodeWithText(context.getString(R.string.plugin_marketplace_community_notice)).assertIsDisplayed()
+        compose.onNodeWithText("@anamaxlec").assertIsDisplayed()
+        compose.onNodeWithText("flare-zhihu-plugin").assertIsDisplayed()
+        compose.onNodeWithText("@alice").assertIsDisplayed()
+        compose.onNodeWithText("flare-plugins/plugins/zhihu-lite").assertIsDisplayed()
+        screenshot("store-duplicates")
+
+        compose.runOnIdle {
+            state = state.copy(marketplace = PluginMarketplaceStateV1(plugins = emptyList(), loaded = true))
+        }
+        compose.onNodeWithText(context.getString(R.string.plugin_marketplace_community_notice)).assertDoesNotExist()
+        compose.onNodeWithText(context.getString(R.string.plugin_marketplace_empty)).assertIsDisplayed()
     }
 
     private fun show(management: Boolean = false) {

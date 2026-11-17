@@ -414,7 +414,19 @@ public struct PluginManagementView: View {
         let state = presenter.state
         let marketplace = state.marketplace
         let plugins = marketplace.search(query: marketplaceQuery)
+        let showsCommunityNotice = showsMarketplaceCommunityNotice(query: marketplaceQuery, hasPlugins: !plugins.isEmpty)
         #if os(macOS)
+        if showsCommunityNotice {
+            Section {
+                GroupBox {
+                    marketplaceCommunityNotice.padding(4)
+                }
+                .flareTextBackground(.flareSystemGroupedBackground)
+                .listRowBackground(Color.clear)
+                .listRowInsets(MacPluginLayout.rowInsets)
+                .listRowSeparator(.hidden)
+            }
+        }
         if marketplace.error != nil {
             Section {
                 macPluginNotice("plugin_marketplace_refresh_failed", detail: Text("plugin_marketplace_cached")) {
@@ -430,6 +442,11 @@ public struct PluginManagementView: View {
                 .macPluginStateRow()
         }
         #else
+        if showsCommunityNotice {
+            Section {
+                marketplaceCommunityNotice
+            }
+        }
         if marketplace.loading && marketplace.plugins.isEmpty {
             Section { UiListPlaceholder() }
         }
@@ -461,10 +478,12 @@ public struct PluginManagementView: View {
                 let managed = state.isManaged(pluginId: entry.id)
                 PluginMarketplaceRow(
                     entry: entry,
-                    facade: facade,
                     installed: installed,
                     managed: managed,
                     canInstall: state.canInstallFromMarketplace,
+                    onInstall: {
+                        Task { try? await facade.inspectMarketplace(pluginId: entry.id) }
+                    },
                     onManage: {
                         #if os(macOS)
                         onSelectPluginSettings?()
@@ -472,6 +491,9 @@ public struct PluginManagementView: View {
                         #else
                         dismiss()
                         #endif
+                    },
+                    onIcon: {
+                        try? await facade.marketplaceIcon(pluginId: entry.id)
                     }
                 )
             }
@@ -525,6 +547,10 @@ public struct PluginManagementView: View {
                 .environment(\.openURL, OpenURLAction { .systemAction($0) })
         }
         .padding(.vertical, 4)
+    }
+
+    private var marketplaceCommunityNotice: some View {
+        PluginMarketplaceCommunityNoticeView()
     }
 
     private func pluginMenu(_ plugin: PluginManagementItemV1, name: String, onUninstall: @escaping () -> Void) -> some View {
@@ -1168,13 +1194,29 @@ private func macPluginRow<Details: View, Actions: View>(
 }
 #endif
 
-private struct PluginMarketplaceRow: View {
+struct PluginMarketplaceCommunityNoticeView: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(fontAwesome: .circleInfo)
+                .foregroundStyle(.tint)
+                .accessibilityHidden(true)
+            Text("plugin_marketplace_community_notice")
+                .font(.subheadline)
+                .flareSecondaryText()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+struct PluginMarketplaceRow: View {
     let entry: PluginMarketplaceEntryV1
-    let facade: PluginAppleFacadeV1
     let installed: Bool
     let managed: Bool
     let canInstall: Bool
+    let onInstall: () -> Void
     let onManage: () -> Void
+    var onIcon: () async -> String? = { nil }
     @State private var iconPath: String?
 
     var body: some View {
@@ -1195,24 +1237,40 @@ private struct PluginMarketplaceRow: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .accessibilityHidden(true)
                 details
-                Spacer(minLength: 0)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 installButton
+                    .fixedSize(horizontal: true, vertical: false)
                 repositoryMenu
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .padding(.vertical, 4)
             #endif
         }
         .task(id: entry.icon) {
-            iconPath = try? await facade.marketplaceIcon(pluginId: entry.id)
+            iconPath = await onIcon()
         }
     }
 
     private var details: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(entry.name)
-                #if os(macOS)
-                .font(.headline)
-                #endif
+        let sourceLine = pluginMarketplaceSourceLine(
+            entry: entry,
+            managedLabel: managed ? String(localized: installed ? "plugin_installed" : "plugin_marketplace_local") : nil
+        )
+        return VStack(alignment: .leading, spacing: 4) {
+            if entry.ownerHandle.isEmpty {
+                titleText
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .center, spacing: 6) {
+                        titleText.fixedSize(horizontal: true, vertical: false)
+                        ownerBadge.fixedSize(horizontal: true, vertical: false)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        titleText
+                        ownerBadge
+                    }
+                }
+            }
             Text(entry.description_)
                 #if os(macOS)
                 .font(.subheadline)
@@ -1220,11 +1278,28 @@ private struct PluginMarketplaceRow: View {
                 .font(.caption)
                 #endif
                 .foregroundStyle(.secondary)
-            if managed {
-                Text(installed ? "plugin_installed" : "plugin_marketplace_local")
-                    .font(.caption).foregroundStyle(.secondary)
+            if !sourceLine.isEmpty {
+                Text(verbatim: sourceLine)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private var titleText: some View {
+        Text(entry.name)
+            #if os(macOS)
+            .font(.headline)
+            #endif
+    }
+
+    private var ownerBadge: some View {
+        Text(verbatim: entry.ownerHandle)
+            .font(.caption.monospaced())
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(.quaternary, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
     }
 
     private var installButton: some View {
@@ -1232,7 +1307,7 @@ private struct PluginMarketplaceRow: View {
             if managed {
                 onManage()
             } else {
-                Task { try? await facade.inspectMarketplace(pluginId: entry.id) }
+                onInstall()
             }
         } label: {
             Text(managed ? "plugin_marketplace_manage" : "plugin_marketplace_install")
@@ -1265,4 +1340,14 @@ private struct PluginMarketplaceRow: View {
         .menuIndicator(.hidden)
         #endif
     }
+}
+
+func showsMarketplaceCommunityNotice(query: String, hasPlugins: Bool) -> Bool {
+    query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && hasPlugins
+}
+
+func pluginMarketplaceSourceLine(entry: PluginMarketplaceEntryV1, managedLabel: String?) -> String {
+    [entry.repositoryDisplayPath, managedLabel ?? ""]
+        .filter { !$0.isEmpty }
+        .joined(separator: " · ")
 }

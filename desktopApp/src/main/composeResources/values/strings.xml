@@ -949,4 +949,5 @@
     <string name="plugin_marketplace_install">Install</string>
     <string name="plugin_marketplace_local">Local plugin</string>
     <string name="plugin_marketplace_search">Search plugins</string>
+    <string name="plugin_marketplace_community_notice">Plugins in the marketplace are created by third-party community developers and are not official. Review the source repository before installing.</string>
 </resources>
