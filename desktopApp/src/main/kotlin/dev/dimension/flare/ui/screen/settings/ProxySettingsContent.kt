@@ -72,6 +72,7 @@ import dev.dimension.flare.proxy_test_success
 import dev.dimension.flare.proxy_title
 import dev.dimension.flare.status_loadmore_error_retry
 import dev.dimension.flare.ui.component.AvatarComponent
+import dev.dimension.flare.ui.component.CardExpanderItem
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.FlareScrollBar
 import dev.dimension.flare.ui.component.Header
@@ -88,7 +89,6 @@ import dev.dimension.flare.ui.presenter.settings.ProxySettingsState
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.AccentButton
 import io.github.composefluent.component.Button
-import io.github.composefluent.component.CardExpanderItem
 import io.github.composefluent.component.ComboBox
 import io.github.composefluent.component.ContentDialog
 import io.github.composefluent.component.ContentDialogButton

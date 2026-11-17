@@ -46,6 +46,7 @@ import dev.dimension.flare.tab_settings_mixed_timeline
 import dev.dimension.flare.tab_settings_mixed_timeline_desc
 import dev.dimension.flare.tab_settings_remove
 import dev.dimension.flare.ui.common.plus
+import dev.dimension.flare.ui.component.CardExpanderItem
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.FlareScrollBar
 import dev.dimension.flare.ui.component.TabIcon
@@ -56,7 +57,6 @@ import dev.dimension.flare.ui.screen.settings.AllTabsPresenter
 import dev.dimension.flare.ui.theme.screenHorizontalPadding
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.AccentButton
-import io.github.composefluent.component.CardExpanderItem
 import io.github.composefluent.component.FlyoutPlacement
 import io.github.composefluent.component.MenuFlyout
 import io.github.composefluent.component.MenuFlyoutItem

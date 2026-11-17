@@ -2,6 +2,7 @@ package dev.dimension.flare.ui.screen.settings
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.CompositionLocalProvider
@@ -28,6 +29,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.unit.dp
 import dev.dimension.flare.data.datastore.model.AiRequestHeader
 import dev.dimension.flare.data.datastore.model.AppSettings
 import dev.dimension.flare.data.datastore.model.ImageTranslationConfig
@@ -321,6 +323,25 @@ class ImageTranslationSettingsTest {
         compose.onNodeWithText("Enter manually…").assertDoesNotExist()
         compose.onNode(hasSetTextAction()).assertDoesNotExist()
         compose.runOnIdle { assertEquals("detected-image", state.config.value("model")) }
+    }
+
+    @Test
+    fun wrappedDescriptionsKeepTrailingControlsClickableInNarrowLayouts() {
+        val state = State(ImageTranslationConfig(ImageTranslationProvider.OpenAIImages, useSharedAIConfig = true))
+        compose.setContent {
+            FlareTheme(isDarkTheme = false) {
+                Column(Modifier.width(560.dp).verticalScroll(rememberScrollState())) {
+                    ImageTranslationSettingsContent(state)
+                }
+            }
+        }
+        compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.ToggleableState)).performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Service URL").performScrollTo().performClick()
+        compose.onNodeWithText("Cancel").performClick()
+        compose.onNodeWithContentDescription("Translation prompt").performScrollTo().performClick()
+        compose.onNode(hasSetTextAction()).performTextReplacement("Translate into {targetLanguage}")
+        compose.onNodeWithText("OK").performClick()
+        compose.runOnIdle { assertEquals("Translate into {targetLanguage}", state.config.value("prompt")) }
     }
 
     private fun show(state: State) {

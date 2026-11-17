@@ -47,10 +47,12 @@ import dev.dimension.flare.testPlatformRuntimeData
 import dev.dimension.flare.ui.model.UiIcon
 import dev.dimension.flare.ui.presenter.settings.StoragePresenter
 import dev.dimension.flare.unavailableAccountService
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -468,8 +470,26 @@ class SettingsImportExportPresenterTest : RobolectricTest() {
                                 ),
                         ),
                 )
-            val nextGroup = async { settingsRepository.homeTimelineTab(initialGroup.id).drop(1).first() as? UiGroupTimelineTabItem }
-            val nextChild = async { settingsRepository.homeTimelineTab(initialChild.id).drop(1).first() }
+            val firstGroupEmitted = CompletableDeferred<Unit>()
+            val firstChildEmitted = CompletableDeferred<Unit>()
+            val nextGroup =
+                async {
+                    settingsRepository
+                        .homeTimelineTab(initialGroup.id)
+                        .onEach { firstGroupEmitted.complete(Unit) }
+                        .drop(1)
+                        .first() as? UiGroupTimelineTabItem
+                }
+            val nextChild =
+                async {
+                    settingsRepository
+                        .homeTimelineTab(initialChild.id)
+                        .onEach { firstChildEmitted.complete(Unit) }
+                        .drop(1)
+                        .first()
+                }
+            firstGroupEmitted.await()
+            firstChildEmitted.await()
 
             settingsRepository.updateTabSettingsV2 {
                 TabSettingsV2(homeSlots = listOf(updatedGroup))

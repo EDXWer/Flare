@@ -26,6 +26,7 @@ import dev.dimension.flare.deeplink_account_selection_title
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.MicroBlogKey
 import dev.dimension.flare.ui.component.AccountItem
+import dev.dimension.flare.ui.component.CardExpanderItem
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.Header
 import dev.dimension.flare.ui.presenter.home.UserPresenter
@@ -33,7 +34,6 @@ import dev.dimension.flare.ui.presenter.home.UserState
 import dev.dimension.flare.ui.presenter.invoke
 import dev.dimension.flare.ui.presenter.settings.LinkOpenDefaultsActionsPresenter
 import dev.dimension.flare.ui.route.Route
-import io.github.composefluent.component.CardExpanderItem
 import io.github.composefluent.component.CheckBox
 import io.github.composefluent.component.ContentDialog
 import io.github.composefluent.component.Text

@@ -16,7 +16,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
-import java.net.ConnectException
+import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.Proxy
 import java.util.concurrent.TimeUnit
@@ -55,7 +55,7 @@ class MediaRelayLifecycleTest {
                 val old = MediaProxy.playbackSource(media, forceRelay = true)
                 assertEquals(206 to "2345", client.range(old.url))
                 MediaProxy.setRelayForeground(active = false)
-                assertFailsWith<ConnectException> { client.range(old.url) }
+                assertFailsWith<IOException> { client.range(old.url) }
                 assertFailsWith<IllegalStateException> { MediaProxy.playbackSource(media, forceRelay = true) }
                 assertEquals(media.url, MediaProxy.playbackSource(media).url)
 

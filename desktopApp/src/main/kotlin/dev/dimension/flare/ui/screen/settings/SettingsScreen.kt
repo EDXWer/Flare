@@ -292,7 +292,10 @@ import dev.dimension.flare.settings_translation_title
 import dev.dimension.flare.tab_settings_drag
 import dev.dimension.flare.ui.component.AccountItem
 import dev.dimension.flare.ui.component.AvatarComponent
+import dev.dimension.flare.ui.component.CardExpanderItem
 import dev.dimension.flare.ui.component.ComposeInAppNotification
+import dev.dimension.flare.ui.component.Expander
+import dev.dimension.flare.ui.component.ExpanderItem
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.FlareScrollBar
 import dev.dimension.flare.ui.component.Header
@@ -332,13 +335,10 @@ import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.AutoSuggestBoxDefaults
 import io.github.composefluent.component.AutoSuggestionBox
 import io.github.composefluent.component.Button
-import io.github.composefluent.component.CardExpanderItem
 import io.github.composefluent.component.CheckBox
 import io.github.composefluent.component.ContentDialog
 import io.github.composefluent.component.ContentDialogButton
 import io.github.composefluent.component.DropDownButton
-import io.github.composefluent.component.Expander
-import io.github.composefluent.component.ExpanderItem
 import io.github.composefluent.component.ExpanderItemSeparator
 import io.github.composefluent.component.FlyoutPlacement
 import io.github.composefluent.component.HyperlinkButton

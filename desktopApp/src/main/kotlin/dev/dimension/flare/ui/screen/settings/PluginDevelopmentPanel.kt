@@ -28,12 +28,12 @@ import dev.dimension.flare.plugin_development_schema
 import dev.dimension.flare.plugin_development_start
 import dev.dimension.flare.plugin_development_stop
 import dev.dimension.flare.plugin_development_validating
+import dev.dimension.flare.ui.component.Expander
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.AccentButton
 import io.github.composefluent.component.Button
 import io.github.composefluent.component.ContentDialog
 import io.github.composefluent.component.ContentDialogButton
-import io.github.composefluent.component.Expander
 import io.github.composefluent.component.Text
 import org.jetbrains.compose.resources.stringResource
 

@@ -39,6 +39,7 @@ import dev.dimension.flare.tab_settings_add
 import dev.dimension.flare.tab_settings_remove
 import dev.dimension.flare.ui.common.itemsIndexed
 import dev.dimension.flare.ui.component.AvatarComponent
+import dev.dimension.flare.ui.component.CardExpanderItem
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.RichText
 import dev.dimension.flare.ui.component.TabIcon
@@ -49,7 +50,6 @@ import dev.dimension.flare.ui.screen.settings.AllTabsPresenter
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.AccentButton
 import io.github.composefluent.component.ButtonDefaults
-import io.github.composefluent.component.CardExpanderItem
 import io.github.composefluent.component.ContentDialog
 import io.github.composefluent.component.LiteFilter
 import io.github.composefluent.component.PillButton
