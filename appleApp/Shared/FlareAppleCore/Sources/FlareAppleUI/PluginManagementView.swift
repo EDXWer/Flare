@@ -478,10 +478,12 @@ public struct PluginManagementView: View {
                 let managed = state.isManaged(pluginId: entry.id)
                 PluginMarketplaceRow(
                     entry: entry,
-                    facade: facade,
                     installed: installed,
                     managed: managed,
                     canInstall: state.canInstallFromMarketplace,
+                    onInstall: {
+                        Task { try? await facade.inspectMarketplace(pluginId: entry.id) }
+                    },
                     onManage: {
                         #if os(macOS)
                         onSelectPluginSettings?()
@@ -489,6 +491,9 @@ public struct PluginManagementView: View {
                         #else
                         dismiss()
                         #endif
+                    },
+                    onIcon: {
+                        try? await facade.marketplaceIcon(pluginId: entry.id)
                     }
                 )
             }
@@ -545,16 +550,7 @@ public struct PluginManagementView: View {
     }
 
     private var marketplaceCommunityNotice: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(fontAwesome: .circleInfo)
-                .foregroundStyle(.tint)
-                .accessibilityHidden(true)
-            Text("plugin_marketplace_community_notice")
-                .font(.subheadline)
-                .flareSecondaryText()
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.vertical, 4)
+        PluginMarketplaceCommunityNoticeView()
     }
 
     private func pluginMenu(_ plugin: PluginManagementItemV1, name: String, onUninstall: @escaping () -> Void) -> some View {
@@ -1198,13 +1194,29 @@ private func macPluginRow<Details: View, Actions: View>(
 }
 #endif
 
-private struct PluginMarketplaceRow: View {
+struct PluginMarketplaceCommunityNoticeView: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(fontAwesome: .circleInfo)
+                .foregroundStyle(.tint)
+                .accessibilityHidden(true)
+            Text("plugin_marketplace_community_notice")
+                .font(.subheadline)
+                .flareSecondaryText()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+struct PluginMarketplaceRow: View {
     let entry: PluginMarketplaceEntryV1
-    let facade: PluginAppleFacadeV1
     let installed: Bool
     let managed: Bool
     let canInstall: Bool
+    let onInstall: () -> Void
     let onManage: () -> Void
+    var onIcon: () async -> String? = { nil }
     @State private var iconPath: String?
 
     var body: some View {
@@ -1233,7 +1245,7 @@ private struct PluginMarketplaceRow: View {
             #endif
         }
         .task(id: entry.icon) {
-            iconPath = try? await facade.marketplaceIcon(pluginId: entry.id)
+            iconPath = await onIcon()
         }
     }
 
@@ -1293,7 +1305,7 @@ private struct PluginMarketplaceRow: View {
             if managed {
                 onManage()
             } else {
-                Task { try? await facade.inspectMarketplace(pluginId: entry.id) }
+                onInstall()
             }
         } label: {
             Text(managed ? "plugin_marketplace_manage" : "plugin_marketplace_install")

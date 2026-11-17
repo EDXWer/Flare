@@ -562,8 +562,10 @@ internal fun PluginMarketplaceList(
                                             modifier =
                                                 Modifier
                                                     .clip(RoundedCornerShape(4.dp))
-                                                    .background(FluentTheme.colors.control.secondary)
-                                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                                    .background(
+                                                        FluentTheme.colors.text.text.primary
+                                                            .copy(alpha = 0.07f),
+                                                    ).padding(horizontal = 6.dp, vertical = 2.dp),
                                         ) {
                                             Text(
                                                 text = entry.ownerHandle,

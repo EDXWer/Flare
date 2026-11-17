@@ -186,6 +186,7 @@ class PluginMarketplaceScreenTest {
         compose.onNodeWithText("flare-zhihu-plugin").assertIsDisplayed()
         compose.onNodeWithText("@alice").assertIsDisplayed()
         compose.onNodeWithText("flare-plugins/plugins/zhihu-lite").assertIsDisplayed()
+        screenshot("store-duplicates")
 
         compose.runOnIdle {
             state = state.copy(marketplace = PluginMarketplaceStateV1(plugins = emptyList(), loaded = true))

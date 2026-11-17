@@ -248,6 +248,7 @@ class DesktopPluginManagementScreenTest {
         compose.onNodeWithText("flare-plugins/plugins/zhihu-lite").assertIsDisplayed()
         compose.onNodeWithText("@bob-developer").assertIsDisplayed()
         compose.onNodeWithContentDescription("More: ${longNamed.name}").assertIsDisplayed()
+        screenshot("store-duplicates")
 
         compose.runOnIdle { query = "@alice" }
         compose.onNodeWithText(notice).assertDoesNotExist()

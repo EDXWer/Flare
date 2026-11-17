@@ -507,7 +507,7 @@ internal fun PluginMarketplaceList(
                                         modifier =
                                             Modifier
                                                 .clip(RoundedCornerShape(6.dp))
-                                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                                                 .padding(horizontal = 6.dp, vertical = 2.dp),
                                     ) {
                                         Text(
