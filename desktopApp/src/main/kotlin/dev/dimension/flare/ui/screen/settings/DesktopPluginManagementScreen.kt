@@ -1,8 +1,11 @@
 package dev.dimension.flare.ui.screen.settings
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -44,6 +47,7 @@ import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -102,6 +106,7 @@ import dev.dimension.flare.plugin_large_repository_message
 import dev.dimension.flare.plugin_large_repository_title
 import dev.dimension.flare.plugin_marketplace
 import dev.dimension.flare.plugin_marketplace_cached
+import dev.dimension.flare.plugin_marketplace_community_notice
 import dev.dimension.flare.plugin_marketplace_empty
 import dev.dimension.flare.plugin_marketplace_failed
 import dev.dimension.flare.plugin_marketplace_install
@@ -139,6 +144,7 @@ import dev.dimension.flare.plugin_warning_tag_moved
 import dev.dimension.flare.search_empty
 import dev.dimension.flare.settings_plugins_subtitle
 import dev.dimension.flare.settings_plugins_title
+import dev.dimension.flare.ui.component.CardExpanderItem
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.FlareScrollBar
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
@@ -152,7 +158,6 @@ import io.github.composefluent.background.BackgroundSizing
 import io.github.composefluent.background.Layer
 import io.github.composefluent.component.AccentButton
 import io.github.composefluent.component.Button
-import io.github.composefluent.component.CardExpanderItem
 import io.github.composefluent.component.ContentDialog
 import io.github.composefluent.component.ContentDialogButton
 import io.github.composefluent.component.FluentDialog
@@ -445,6 +450,7 @@ internal fun DesktopPluginManagementScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun PluginMarketplaceList(
     state: PluginManagementStateV1,
@@ -467,6 +473,15 @@ internal fun PluginMarketplaceList(
                 contentPadding = PaddingValues(horizontal = screenHorizontalPadding, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
+                if (query.isBlank() && plugins.isNotEmpty()) {
+                    item(key = "marketplace-community-notice") {
+                        InfoBar(
+                            title = {},
+                            message = { Text(stringResource(Res.string.plugin_marketplace_community_notice)) },
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                        )
+                    }
+                }
                 if (marketplace.error != null) {
                     item(key = "marketplace-error") {
                         InfoBar(
@@ -501,19 +516,26 @@ internal fun PluginMarketplaceList(
                     val iconPath by produceState<String?>(null, entry.icon) { value = onIcon(entry.id) }
                     val installed = state.isInstalled(entry.id)
                     val managed = state.isManaged(entry.id)
-                    CardExpanderItem(
-                        heading = { Text(entry.name) },
-                        caption = {
-                            Column {
-                                Text(entry.description)
-                                if (managed) {
-                                    Text(
-                                        stringResource(if (installed) Res.string.plugin_installed else Res.string.plugin_marketplace_local),
-                                    )
-                                }
-                            }
-                        },
-                        icon = {
+                    val sourceLine =
+                        listOfNotNull(
+                            entry.repositoryDisplayPath.takeIf(String::isNotEmpty),
+                            if (managed) {
+                                stringResource(if (installed) Res.string.plugin_installed else Res.string.plugin_marketplace_local)
+                            } else {
+                                null
+                            },
+                        ).joinToString(" · ")
+                    Layer(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = FluentTheme.colors.background.card.default,
+                        shape = FluentTheme.shapes.control,
+                        backgroundSizing = BackgroundSizing.InnerBorderEdge,
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
                             Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
                                 if (iconPath == null) FAIcon(FontAwesomeIcons.Solid.PuzzlePiece, contentDescription = null)
                                 iconPath?.let {
@@ -525,8 +547,47 @@ internal fun PluginMarketplaceList(
                                     )
                                 }
                             }
-                        },
-                        trailing = {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                    itemVerticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(entry.name, style = FluentTheme.typography.body)
+                                    if (entry.ownerHandle.isNotEmpty()) {
+                                        Box(
+                                            modifier =
+                                                Modifier
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(
+                                                        FluentTheme.colors.text.text.primary
+                                                            .copy(alpha = 0.07f),
+                                                    ).padding(horizontal = 6.dp, vertical = 2.dp),
+                                        ) {
+                                            Text(
+                                                text = entry.ownerHandle,
+                                                style = FluentTheme.typography.caption.copy(fontFamily = FontFamily.Monospace),
+                                                color = FluentTheme.colors.text.text.secondary,
+                                            )
+                                        }
+                                    }
+                                }
+                                Text(
+                                    text = entry.description,
+                                    style = FluentTheme.typography.caption,
+                                    color = FluentTheme.colors.text.text.secondary,
+                                )
+                                if (sourceLine.isNotEmpty()) {
+                                    Text(
+                                        text = sourceLine,
+                                        style = FluentTheme.typography.caption.copy(fontFamily = FontFamily.Monospace),
+                                        color = FluentTheme.colors.text.text.secondary,
+                                    )
+                                }
+                            }
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Button(
                                     onClick = { if (managed) onManage() else onInstall(entry.id) },
@@ -558,8 +619,8 @@ internal fun PluginMarketplaceList(
                                     }
                                 }
                             }
-                        },
-                    )
+                        }
+                    }
                 }
             }
         }

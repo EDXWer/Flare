@@ -26,6 +26,8 @@ import dev.dimension.flare.common.DesktopSaveDialog
 import dev.dimension.flare.settings_app_logging_clear
 import dev.dimension.flare.settings_app_logging_enable_network_logging
 import dev.dimension.flare.settings_app_logging_save
+import dev.dimension.flare.ui.component.Expander
+import dev.dimension.flare.ui.component.ExpanderItem
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.FlareScrollBar
 import dev.dimension.flare.ui.presenter.invoke
@@ -33,8 +35,6 @@ import dev.dimension.flare.ui.presenter.settings.DevModePresenter
 import dev.dimension.flare.ui.theme.LocalComposeWindow
 import dev.dimension.flare.ui.theme.screenHorizontalPadding
 import io.github.composefluent.component.AccentButton
-import io.github.composefluent.component.Expander
-import io.github.composefluent.component.ExpanderItem
 import io.github.composefluent.component.SubtleButton
 import io.github.composefluent.component.Switcher
 import io.github.composefluent.component.Text

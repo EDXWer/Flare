@@ -34,6 +34,7 @@ import dev.dimension.flare.settings_nostr_relays_add
 import dev.dimension.flare.settings_nostr_relays_add_dialog_title
 import dev.dimension.flare.settings_nostr_relays_empty
 import dev.dimension.flare.settings_nostr_relays_placeholder
+import dev.dimension.flare.ui.component.CardExpanderItem
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.FlareScrollBar
 import dev.dimension.flare.ui.model.onSuccess
@@ -42,7 +43,6 @@ import dev.dimension.flare.ui.presenter.settings.NostrRelaysPresenter
 import dev.dimension.flare.ui.theme.screenHorizontalPadding
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.AccentButton
-import io.github.composefluent.component.CardExpanderItem
 import io.github.composefluent.component.ContentDialog
 import io.github.composefluent.component.ContentDialogButton
 import io.github.composefluent.component.SubtleButton

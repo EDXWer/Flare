@@ -56,6 +56,8 @@ import compose.icons.fontawesomeicons.solid.Pen
 import compose.icons.fontawesomeicons.solid.UserPlus
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.ui.component.AvatarComponent
+import dev.dimension.flare.ui.component.CardExpanderItem
+import dev.dimension.flare.ui.component.Expander
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.FlareScrollBar
 import dev.dimension.flare.ui.component.InAppNotificationComponent
@@ -84,8 +86,6 @@ import io.github.composefluent.FluentTheme
 import io.github.composefluent.background.Layer
 import io.github.composefluent.component.Badge
 import io.github.composefluent.component.Button
-import io.github.composefluent.component.CardExpanderItem
-import io.github.composefluent.component.Expander
 import io.github.composefluent.component.FlyoutContainer
 import io.github.composefluent.component.FlyoutPlacement
 import io.github.composefluent.component.Icon

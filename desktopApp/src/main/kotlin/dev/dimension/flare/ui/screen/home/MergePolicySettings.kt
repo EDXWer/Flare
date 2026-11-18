@@ -8,7 +8,7 @@ import dev.dimension.flare.tab_settings_merge_policy_desc
 import dev.dimension.flare.tab_settings_merge_policy_staggered
 import dev.dimension.flare.tab_settings_merge_policy_time
 import dev.dimension.flare.tab_settings_merge_policy_time_per_page
-import io.github.composefluent.component.CardExpanderItem
+import dev.dimension.flare.ui.component.CardExpanderItem
 import io.github.composefluent.component.DropDownButton
 import io.github.composefluent.component.FlyoutPlacement
 import io.github.composefluent.component.MenuFlyoutContainer

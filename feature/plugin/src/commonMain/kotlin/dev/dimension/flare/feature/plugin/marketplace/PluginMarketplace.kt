@@ -37,7 +37,28 @@ public data class PluginMarketplaceEntryV1(
     val description: String,
     val repository: String,
     val icon: String,
-)
+) {
+    public val ownerHandle: String
+        get() = parsedLocation()?.owner?.let { "@$it" }.orEmpty()
+
+    public val repositoryDisplayPath: String
+        get() =
+            parsedLocation()?.let { location ->
+                if (location.path.isEmpty()) location.name else "${location.name}/${location.path}"
+            } ?: repository.trim()
+
+    internal val searchableSource: String
+        get() =
+            parsedLocation()?.let { location ->
+                if (location.path.isEmpty()) {
+                    "@${location.owner}/${location.name}"
+                } else {
+                    "@${location.owner}/${location.name}/${location.path}"
+                }
+            } ?: repository.trim()
+
+    private fun parsedLocation() = runCatching { parseRepositoryUrl(repository) }.getOrNull()
+}
 
 @Serializable
 public data class PluginMarketplaceCatalogV1(
@@ -56,8 +77,11 @@ public data class PluginMarketplaceStateV1(
         return if (term.isEmpty()) {
             plugins
         } else {
-            plugins.filter {
-                it.name.contains(term, ignoreCase = true) || it.description.contains(term, ignoreCase = true)
+            plugins.filter { entry ->
+                entry.name.contains(term, ignoreCase = true) ||
+                    entry.description.contains(term, ignoreCase = true) ||
+                    entry.id.contains(term, ignoreCase = true) ||
+                    entry.searchableSource.contains(term, ignoreCase = true)
             }
         }
     }

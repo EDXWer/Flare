@@ -896,6 +896,7 @@
     <string name="plugin_marketplace_install">安装</string>
     <string name="plugin_marketplace_local">本地插件</string>
     <string name="plugin_marketplace_search">搜索插件</string>
+    <string name="plugin_marketplace_community_notice">插件市场收录的插件均由社区第三方开发，并非官方出品。安装前请核对来源仓库。</string>
     <string name="pixiv_ranking_day_ai_title">AI 日榜</string>
     <string name="pixiv_ranking_day_r18_title">R-18 日榜</string>
     <string name="pixiv_ranking_week_r18_title">R-18 周榜</string>

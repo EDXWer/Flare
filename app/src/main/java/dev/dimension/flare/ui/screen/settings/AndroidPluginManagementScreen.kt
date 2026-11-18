@@ -2,9 +2,12 @@ package dev.dimension.flare.ui.screen.settings
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -67,6 +70,7 @@ import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -390,6 +394,7 @@ internal fun PluginMarketplaceScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun PluginMarketplaceList(
     state: PluginManagementStateV1,
@@ -415,6 +420,23 @@ internal fun PluginMarketplaceList(
                     androidx.compose.foundation.layout
                         .PaddingValues(vertical = 16.dp),
             ) {
+                if (query.isBlank() && plugins.isNotEmpty()) {
+                    item(key = "marketplace-community-notice") {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                        ) {
+                            Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                FAIcon(FontAwesomeIcons.Solid.CircleInfo, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Text(
+                                    text = stringResource(R.string.plugin_marketplace_community_notice),
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        }
+                    }
+                }
                 if (marketplace.error != null) {
                     item(key = "marketplace-error") {
                         Column {
@@ -448,6 +470,15 @@ internal fun PluginMarketplaceList(
                     val iconPath by produceState<String?>(null, entry.icon) { value = onIcon(entry.id) }
                     val installed = state.isInstalled(entry.id)
                     val managed = state.isManaged(entry.id)
+                    val sourceLine =
+                        listOfNotNull(
+                            entry.repositoryDisplayPath.takeIf(String::isNotEmpty),
+                            if (managed) {
+                                stringResource(if (installed) R.string.plugin_installed else R.string.plugin_marketplace_local)
+                            } else {
+                                null
+                            },
+                        ).joinToString(" · ")
                     SegmentedListItem(
                         onClick = { uriHandler.openUri(entry.repository) },
                         shapes = ListItemDefaults.segmentedShapes2(index, plugins.size),
@@ -464,13 +495,38 @@ internal fun PluginMarketplaceList(
                                 }
                             }
                         },
-                        content = { Text(entry.name) },
+                        content = {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                                itemVerticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(entry.name)
+                                if (entry.ownerHandle.isNotEmpty()) {
+                                    Box(
+                                        modifier =
+                                            Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                                    ) {
+                                        Text(
+                                            text = entry.ownerHandle,
+                                            style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            }
+                        },
                         supportingContent = {
-                            Column {
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(entry.description)
-                                if (managed) {
+                                if (sourceLine.isNotEmpty()) {
                                     Text(
-                                        stringResource(if (installed) R.string.plugin_installed else R.string.plugin_marketplace_local),
+                                        text = sourceLine,
+                                        style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
                             }

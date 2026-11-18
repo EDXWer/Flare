@@ -11,8 +11,8 @@ import androidx.compose.ui.semantics.semantics
 import dev.dimension.flare.Res
 import dev.dimension.flare.edit
 import dev.dimension.flare.settings_ai_config_value_empty_placeholder
+import dev.dimension.flare.ui.component.ExpanderItem
 import io.github.composefluent.component.Button
-import io.github.composefluent.component.ExpanderItem
 import io.github.composefluent.component.Text
 import kotlinx.collections.immutable.toImmutableList
 import org.jetbrains.compose.resources.stringResource

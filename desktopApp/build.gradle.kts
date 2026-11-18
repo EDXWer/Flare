@@ -1,6 +1,7 @@
 
 import io.github.kdroidfilter.nucleus.desktop.application.dsl.AppImageCategory
 import io.github.kdroidfilter.nucleus.desktop.application.dsl.CompressionLevel
+import io.github.kdroidfilter.nucleus.desktop.application.tasks.AbstractJPackageTask
 import java.util.Properties
 import org.jetbrains.compose.compose
 
@@ -247,6 +248,17 @@ $localizationsXml
             appImage {
                 category = AppImageCategory.Network
                 genericName = "Flare"
+            }
+        }
+    }
+}
+
+if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+    afterEvaluate {
+        tasks.withType<AbstractJPackageTask>().configureEach {
+            if (sandboxingEnabled.get()) {
+                // Nucleus moves the AppX DLL from its JAR to the app's resources directory.
+                launcherJvmArgs.add("-Dfr.acinq.secp256k1.lib.path=\$APPDIR/resources")
             }
         }
     }

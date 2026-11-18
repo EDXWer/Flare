@@ -65,6 +65,7 @@ import dev.dimension.flare.settings_post_action_layout_move_to_more_menu
 import dev.dimension.flare.settings_post_action_layout_move_up
 import dev.dimension.flare.tab_settings_drag
 import dev.dimension.flare.ui.common.plus
+import dev.dimension.flare.ui.component.CardExpanderItem
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.FlareScrollBar
 import dev.dimension.flare.ui.component.Header
@@ -77,7 +78,6 @@ import dev.dimension.flare.ui.model.onSuccess
 import dev.dimension.flare.ui.presenter.invoke
 import dev.dimension.flare.ui.presenter.settings.AppearancePresenter
 import dev.dimension.flare.ui.presenter.settings.AppearanceState
-import io.github.composefluent.component.CardExpanderItem
 import io.github.composefluent.component.FlyoutPlacement
 import io.github.composefluent.component.MenuFlyout
 import io.github.composefluent.component.MenuFlyoutItem

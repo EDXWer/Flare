@@ -33,11 +33,11 @@ import dev.dimension.flare.settings_ai_config_header_name
 import dev.dimension.flare.settings_ai_config_header_value
 import dev.dimension.flare.settings_ai_config_headers_invalid
 import dev.dimension.flare.settings_ai_config_value_empty_placeholder
+import dev.dimension.flare.ui.component.ExpanderItem
 import io.github.composefluent.ExperimentalFluentApi
 import io.github.composefluent.component.Button
 import io.github.composefluent.component.ContentDialog
 import io.github.composefluent.component.ContentDialogButton
-import io.github.composefluent.component.ExpanderItem
 import io.github.composefluent.component.Text
 import io.github.composefluent.component.TextField
 import org.jetbrains.compose.resources.stringResource
